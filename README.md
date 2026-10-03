@@ -8,11 +8,11 @@
 
 Three Claude Code plugins for engineering workflows. Install one or all.
 
-- **`dev-team`** gives Claude Code a full persona-driven development team: an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
+- **`dev-team`** gives Claude Code a full persona-driven development team. It includes an Orchestrator that routes tasks, specialist agents (engineer, QA, architect, reviewers…), skills that encode reusable knowledge, and the four-command feature workflow `/specs → /plan → /build → /pr`.
 - **`security-assessment`** is the security companion. It adds a tool-first `/security-assessment` pipeline (SAST + AI judgment + false-positive filtering + executive report), a `/cross-repo-analysis` command for multi-repo attack chains, and an adversarial ML red-team harness (`/redteam-model`) for self-owned model endpoints.
-- **`marketplace-dev`** is the plugin-author's toolkit. It scaffolds new plugins and marketplaces (`/scaffold-plugin`, `/scaffold-marketplace`, `/init-plugin-eval`), audits any plugin for structural compliance (`/plugin-audit`), advises on the markdown-vs-script agent decision (`/agent-type-advisor`), and ships the migrated agent/skill authoring toolkit (`/agent-create`, `/agent-add`, `/agent-remove`).
+- **`marketplace-dev`** is the plugin-author's toolkit. It scaffolds new plugins and marketplaces (`/scaffold-plugin`, `/scaffold-marketplace`, `/init-plugin-eval`). It audits any plugin for structural compliance (`/plugin-audit`). It advises on the markdown-vs-script agent decision (`/agent-type-advisor`). It also ships the migrated agent/skill authoring toolkit (`/agent-create`, `/agent-add`, `/agent-remove`).
 
-`dev-team` is the foundation: it owns the shared data contract (`codebase-recon`, `ACCEPTED-RISKS.md`, unified finding format) that `security-assessment` builds on, so install `dev-team` first and add `security-assessment` when you need it. `marketplace-dev` is independent — it has no hard dependency on `dev-team` and can be installed on its own to build or maintain plugins.
+`dev-team` is the foundation. It owns the shared data contract (`codebase-recon`, `ACCEPTED-RISKS.md`, unified finding format) that `security-assessment` builds on. Install `dev-team` first, and add `security-assessment` when you need it. `marketplace-dev` is independent. It has no hard dependency on `dev-team`, so you can install it on its own to build or maintain plugins.
 
 ## Plugins
 
@@ -22,11 +22,11 @@ Three Claude Code plugins for engineering workflows. Install one or all.
 | **[security-assessment](plugins/security-assessment/README.md)** | Tool-first security assessment + red-team pipeline | `/security-assessment`, `/cross-repo-analysis`, `/redteam-model`, `/export-pdf` | `dev-team`, Python ≥ 3.10, tier-1 SAST (`semgrep`, `gitleaks`, `trivy`, `hadolint`, `actionlint`) | `grype`, PDF-export deps |
 | **[marketplace-dev](plugins/marketplace-dev/README.md)** | Scaffold, audit, and maintain Claude Code plugins and marketplaces | `/scaffold-plugin`, `/scaffold-marketplace`, `/plugin-audit`, `/agent-type-advisor`, `/agent-create` | `jq` | `git` |
 
-Plugin names link to each plugin's README, where the full tool list and per-tool install commands live. Claude Code itself is assumed. **First time here?** Start with `dev-team`; add `security-assessment` only when you run full `/security-assessment` pipelines against target repos, and `marketplace-dev` when you're building or maintaining plugins.
+Plugin names link to each plugin's README, where the full tool list and per-tool install commands live. This table assumes you have Claude Code. **First time here?** Start with `dev-team`. Add `security-assessment` only when you run full `/security-assessment` pipelines against target repos. Add `marketplace-dev` when you build or maintain plugins.
 
-## Getting Started
+## Getting started
 
-New here? The **[Getting Started guide](GETTING-STARTED.md)** is the full walkthrough — installing each plugin, configuring a project, the day-to-day workflow, and the diagnostic commands.
+New here? The **[Getting Started guide](GETTING-STARTED.md)** is the full walkthrough. It covers installing each plugin, configuring a project, the day-to-day workflow, and the diagnostic commands.
 
 Quick install of the core plugin:
 
@@ -35,7 +35,7 @@ claude plugin marketplace add bdfinst/agentic-dev-team
 claude plugin install dev-team@bfinster
 ```
 
-Then run `/setup` in your project. Optional plugins (`security-assessment`, `marketplace-dev`), self-hosted git hosts, install scopes, and the `/upgrade` flow are all covered in the [Getting Started guide](GETTING-STARTED.md).
+Then run `/setup` in your project. The [Getting Started guide](GETTING-STARTED.md) covers the optional plugins (`security-assessment`, `marketplace-dev`), self-hosted git hosts, install scopes, and the `/upgrade` flow.
 
 ## Dev team workflow
 
@@ -47,26 +47,26 @@ Four commands drive feature development from idea to pull request:
 
 | Step           | Command  | What it does                                                                                                                                                                                                                                                                                       |
 |----------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **1. Specify** | `/specs` | Describe the change and its goals — Intent, Architecture notes, Acceptance Criteria. A consistency gate must pass before moving on. Skip for bug fixes, refactors, or trivial changes.                                                                                                             |
-| **2. Plan**    | `/plan`  | Decompose the feature into vertical slices, author each slice's Gherkin scenarios, and lay out the TDD steps that satisfy them. Four plan-review personas (Acceptance Test, Design, UX, Strategic critics) challenge the plan before the human sees it. Human approves before any code is written. |
-| **3. Build**   | `/build` | Execute the approved plan slice by slice. Each step follows RED-GREEN-REFACTOR with inline review checkpoints (spec-compliance first, then quality agents). Produces verification evidence.                                                                                                        |
+| **1. Specify** | `/specs` | Describe the change and its goals — Intent, Architecture notes, Acceptance Criteria. A consistency gate must pass before you move on. Skip for bug fixes, refactors, or trivial changes.                                                                                                             |
+| **2. Plan**    | `/plan`  | Decompose the feature into vertical slices, author each slice's Gherkin scenarios, and lay out the TDD steps that satisfy them. Four plan-review personas (Acceptance Test, Design, UX, Strategic critics) challenge the plan before the human sees it. The human approves before any code is written. |
+| **3. Build**   | `/build` | Execute the approved plan slice by slice. Each step follows RED-GREEN-REFACTOR with inline review checkpoints (spec-compliance first, then quality agents). It produces verification evidence.                                                                                                        |
 | **4. Ship**    | `/pr`    | Run quality gates (tests, typecheck, lint, code review) and open a pull request.                                                                                                                                                                                                                   |
 
-Each step produces artifacts the next step consumes. The spec describes *what* and *why*; the plan turns that into per-slice behavioral contracts (Gherkin) and *how*. Human review gates sit between transitions.
+Each step produces artifacts that the next step consumes. The spec describes *what* and *why*. The plan turns the spec into per-slice behavioral contracts (Gherkin) and *how*. Human review gates sit between transitions.
 
 ![Workflow: specs → plan → build → pr](plugins/dev-team/docs/diagrams/workflow-linear.svg)
 
-For bug fixes or simple tasks, skip `/specs` and start at `/plan` — or go straight to implementation.
+For bug fixes or simple tasks, skip `/specs` and start at `/plan`, or go straight to implementation.
 
 ### Supporting commands
 
-The table below lists representative supporting commands. For the full catalog with options and descriptions, see each plugin's skills page: **[dev-team skills](plugins/dev-team/docs/skills.md)** · **[security-assessment skills](plugins/security-assessment/docs/skills.md)** · **[marketplace-dev skills](plugins/marketplace-dev/docs/skills.md)**.
+The table below lists representative supporting commands. For the full catalog with options and descriptions, see the skills page of each plugin: **[dev-team skills](plugins/dev-team/docs/skills.md)** · **[security-assessment skills](plugins/security-assessment/docs/skills.md)** · **[marketplace-dev skills](plugins/marketplace-dev/docs/skills.md)**.
 
 | Command | Plugin | When to use |
 | --- | --- | --- |
 | `/code-review` | dev-team | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations) |
 | `/continue` | dev-team | Resume an in-progress build or plan across sessions |
-| `/test-improve` | dev-team | Consolidated analyze-then-improve test orchestrator. Seven phases with human gates; lightweight by default, opts into Gherkin / mutation / refactor-for-testability on demand |
+| `/test-improve` | dev-team | Consolidated analyze-then-improve test orchestrator. Seven phases with human gates. Lightweight by default. Opt into Gherkin / mutation / refactor-for-testability on demand |
 | `/browse` | dev-team | Visual QA via Playwright |
 | `/benchmark` | dev-team | Runtime performance metrics (Core Web Vitals, resource sizes) against baselines |
 | `/careful` / `/freeze` / `/guard` | dev-team | Safety modes for production-critical sessions |
@@ -78,15 +78,15 @@ The table below lists representative supporting commands. For the full catalog w
 
 ### Automated pre-commit review
 
-Every `git commit` is automatically gated by `/code-review`. A `PreToolUse` hook detects commit attempts and blocks them until a passing review exists for the exact set of staged files.
+`/code-review` automatically gates every `git commit`. A `PreToolUse` hook detects commit attempts and blocks them until a passing review exists for the exact set of staged files.
 
-**Flow**: attempt commit → hook blocks → Claude runs `/code-review` → if pass/warn, a `.review-passed` gate file is written → next commit attempt succeeds.
+**Flow**: attempt commit → hook blocks → Claude runs `/code-review` → if pass/warn, Claude writes a `.review-passed` gate file → next commit attempt succeeds.
 
 **Bypass**: `git commit --no-verify` skips the review gate.
 
 ## Security assessment pipeline
 
-`/security-assessment <path>` runs a six-phase pipeline against one or more target repos. Deterministic tools do the detection; LLM agents handle the judgment stages.
+`/security-assessment <path>` runs a six-phase pipeline against one or more target repos. Deterministic tools do the detection. LLM agents handle the judgment stages.
 
 | Phase | Runs | Output |
 | --- | --- | --- |
@@ -100,21 +100,21 @@ Every `git commit` is automatically gated by `/code-review`. A `PreToolUse` hook
 | **4. Cross-repo** | service-comm parser, shared-cred hash match (multi-target only) | mermaid diagram + SARIF |
 | **5. Exec report** | `exec-report-generator` agent | publication-ready 7-section markdown |
 
-**Zero-install flow**: `scripts/run-assessment-local.sh` runs the same pipeline from the repo checkout without installing the plugin. Auto-detects the `claude` CLI; degrades to deterministic-only when absent. See [the user guide](plugins/security-assessment/docs/user-guide-security-assessment.md) for the full runbook.
+**Zero-install flow**: `scripts/run-assessment-local.sh` runs the same pipeline from the repo checkout without installing the plugin. The script auto-detects the `claude` CLI and degrades to deterministic-only when the CLI is absent. See [the user guide](plugins/security-assessment/docs/user-guide-security-assessment.md) for the full runbook.
 
-**Adversarial ML red-team**: `/redteam-model` probes a self-owned model endpoint (localhost / private network by default; public targets require a signed `authorization.md`). Eight probes covering discovery, evasion, data extraction, and report synthesis.
+**Adversarial ML red-team**: `/redteam-model` probes a self-owned model endpoint (localhost / private network by default; public targets require a signed `authorization.md`). Eight probes cover discovery, evasion, data extraction, and report synthesis.
 
 ---
 
 ## Contributing
 
-Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUTING.md)** — local-dev setup (including live installs via symlinks), the `/agent-eval` and `/agent-audit` test commands, the security comparative-testing harness, how to add agents and skills, and the release process.
+Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUTING.md)**. It covers local-dev setup (including live installs via symlinks), the `/agent-eval` and `/agent-audit` test commands, the security comparative-testing harness, how to add agents and skills, and the release process.
 
-**`/code-review` benchmark harness** ([`evals/code-review-benchmark/`](https://github.com/bdfinst/agentic-dev-team/blob/main/evals/code-review-benchmark/README.md)): checks out real, known-defect commits from Defects4J (Java) and BugsJS (JavaScript), runs `/code-review` against the buggy revision, and scores whether its findings actually cover the real defect — with a dedicated Missed Defects report. Adapters and scoring are unit-tested against real fetched dataset samples; a live sweep against the actual corpora requires a local Defects4J/BugsJS install (see the harness README for prerequisites and usage).
+**`/code-review` benchmark harness** ([`evals/code-review-benchmark/`](https://github.com/bdfinst/agentic-dev-team/blob/main/evals/code-review-benchmark/README.md)): checks out real, known-defect commits from Defects4J (Java) and BugsJS (JavaScript), runs `/code-review` against the buggy revision, and scores whether its findings cover the real defect. The harness also produces a dedicated Missed Defects report. Adapters and scoring are unit-tested against real fetched dataset samples. A live sweep against the actual corpora requires a local Defects4J/BugsJS install (see the harness README for prerequisites and usage).
 
 ## Documentation
 
-The full documentation — architecture, model routing, eval system, telemetry, ADRs, and experiment reports — lives at **[devteam.bryanfinster.com](https://devteam.bryanfinster.com/)**, with search and complete navigation.
+The full documentation lives at **[devteam.bryanfinster.com](https://devteam.bryanfinster.com/)**, with search and complete navigation. It covers architecture, model routing, the eval system, telemetry, ADRs, and experiment reports.
 
 Start here:
 
@@ -124,7 +124,7 @@ Start here:
 | [Contributing](CONTRIBUTING.md) | Local development, testing, adding agents/skills, releasing |
 | [Plugin Development Guide](https://github.com/bdfinst/agentic-dev-team/blob/main/CLAUDE.md) | Project North Star, repo structure, working rules |
 
-Per-plugin docs: **[dev-team](plugins/dev-team/README.md)** · **[security-assessment](plugins/security-assessment/README.md)** · **[marketplace-dev](plugins/marketplace-dev/README.md)** — each plugin's README is the entry point to its architecture, commands, and deeper guides.
+Per-plugin docs: **[dev-team](plugins/dev-team/README.md)** · **[security-assessment](plugins/security-assessment/README.md)** · **[marketplace-dev](plugins/marketplace-dev/README.md)**. Each plugin's README is the entry point to its architecture, commands, and deeper guides.
 
 ## CodeGraph
 

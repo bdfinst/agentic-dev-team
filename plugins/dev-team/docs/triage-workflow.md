@@ -1,4 +1,4 @@
-# Triage Workflow: Discovery to Applied Fix
+# Triage workflow: discovery to applied fix
 
 How a defect or review finding travels from discovery to an applied fix. The
 pieces are three individual skills; this document is the lifecycle that
@@ -23,9 +23,9 @@ Two entry points feed one fix pipeline:
   the bug — the record hands off to `/plan`/`/build` or a direct fix.
 - **A review finding** enters through
   [`/code-review`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/SKILL.md), whose fix loop
-  auto-applies actionable issues and emits everything else as **correction
-  prompts** — self-contained JSON files in `corrections/` — which
-  [`/apply-fixes`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/apply-fixes/SKILL.md) later consumes.
+  auto-applies actionable issues. The loop emits everything else as **correction
+  prompts**: self-contained JSON files in `corrections/`.
+  [`/apply-fixes`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/apply-fixes/SKILL.md) later consumes them.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dbeafe', 'primaryTextColor': '#1e3a5f', 'primaryBorderColor': '#3b82f6', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#e0f2fe', 'background': '#ffffff', 'mainBkg': '#dbeafe', 'nodeBorder': '#2563eb', 'clusterBkg': '#eff6ff', 'clusterBorder': '#bfdbfe', 'titleColor': '#1e3a5f', 'edgeLabelBackground': '#f8fafc'}}}%%
@@ -47,13 +47,13 @@ flowchart TD
 ## 1. Intake — when to reach for `/triage`
 
 Use `/triage` when a defect arrives as a *report*: a bug description, an
-error message, a failing behavior someone wants investigated — anything
-phrased like "triage this", "investigate and write it up", or where you want
-a hands-off investigation that produces an actionable record instead of an
-immediate code change.
+error message, or a failing behavior someone wants investigated. Also use it
+for anything phrased like "triage this" or "investigate and write it up". Use
+it when you want a hands-off investigation that produces an actionable record
+instead of an immediate code change.
 
 Go straight to a fix (skip `/triage`) when the root cause is already known
-and the fix is small enough to implement immediately — a triage record adds
+and the fix is small enough to implement immediately. A triage record adds
 no value if you would write it and then act on it in the same breath.
 
 **The one-question capture rule.** `/triage` takes the bug description from
@@ -85,15 +85,15 @@ The investigation applies the systematic debugging protocol from
    reference code.
 3. **Root cause** — form and test a hypothesis.
 
-Deep codebase exploration is delegated to an `Explore` sub-agent: related
-source files and dependencies, existing tests (covered vs missing), recent
-changes to affected files (`git log`), error handling in the code path, and
-similar patterns elsewhere that work correctly.
+`/triage` delegates deep codebase exploration to an `Explore` sub-agent. The
+sub-agent covers related source files and dependencies, existing tests
+(covered vs missing), recent changes to affected files (`git log`), error
+handling in the code path, and similar patterns elsewhere that work correctly.
 
 ## 3. The triage record
 
-The record is written to `.dev-team-reports/triage/<slug>.md` — YAML frontmatter (`id`,
-`created`, `status: open`) followed by four sections:
+`/triage` writes the record to `.dev-team-reports/triage/<slug>.md`. The record has
+YAML frontmatter (`id`, `created`, `status: open`) followed by four sections:
 
 | Section | Contents |
 | --------- | ---------- |
@@ -106,11 +106,11 @@ If no root cause was determined, the TDD Fix Plan body is exactly
 `Root cause not determined — manual investigation required` — the record
 still captures the investigation, but flags itself as incomplete.
 
-**Slug and collisions.** The slug is derived from the bug title by a
-deterministic normalization (lowercase, ASCII-only, hyphens, ≤ 60 chars, no
+**Slug and collisions.** A deterministic normalization derives the slug from
+the bug title (lowercase, ASCII-only, hyphens, ≤ 60 chars, no
 split words; empty result falls back to `triage-YYYYMMDD`). If
-`.dev-team-reports/triage/<slug>.md` already exists, `-2`, `-3`, … up to `-99` is appended —
-an existing record is **never overwritten**. If `.dev-team-reports/triage/` cannot be written
+`.dev-team-reports/triage/<slug>.md` already exists, `/triage` appends `-2`, `-3`, … up to `-99`.
+It **never overwrites** an existing record. If `.dev-team-reports/triage/` cannot be written
 at all, the same content goes to a temp file and to chat so nothing is lost.
 
 **Why issue-tracker independent?** The record is a plain file in the repo,
@@ -141,16 +141,16 @@ auto-applies and what is report-only:
 | suggestion | any | No — report only, never auto-applied |
 
 After the report, `/code-review` writes one **correction prompt** per
-remaining issue — suggestion-severity findings, issues whose auto-fix failed,
-and anything else the loop did not resolve — as JSON files in `corrections/`.
-Each prompt carries `priority`, `confidence`, `category` (the reviewing agent),
+remaining issue as a JSON file in `corrections/`. Remaining issues include
+suggestion-severity findings, issues whose auto-fix failed, and anything else
+the loop did not resolve. Each prompt carries `priority`, `confidence`, `category` (the reviewing agent),
 `instruction`, `context`, and `affectedFiles`; the full field schema is in
 [`skills/code-review/output-format.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/output-format.md#correction-prompt-json).
 
 Severity maps to priority: error→high, warning→medium, suggestion→low.
-Correction prompts are only generated for `confidence: high` or
-`confidence: medium` findings — `confidence: none` findings appear in the
-review report only and must be resolved by a human.
+`/code-review` generates correction prompts only for `confidence: high` or
+`confidence: medium` findings. `confidence: none` findings appear in the
+review report only, and a human must resolve them.
 
 Each prompt is self-contained: it names the reviewing agent, the fix
 instruction, and the affected files, so it can be actioned in a later
@@ -175,22 +175,23 @@ It first loads the target repository's rules (`CLAUDE.md`, `.clinerules`,
 by priority (high first), then confidence (high before medium):
 
 - **`confidence: high`** — auto-applied.
-- **`confidence: medium`** — the suggested diff is shown and the user
-  confirms (`y/n/skip`); declined prompts are recorded as "skipped by user".
-  Running non-interactively (e.g. CI), medium is treated as high.
+- **`confidence: medium`** — `/apply-fixes` shows the suggested diff, and the
+  user confirms (`y/n/skip`).
+- **Declined prompts** — recorded as "skipped by user".
+- **Non-interactive runs** (for example, CI) — medium is treated as high.
 
 Three constraints govern every fix:
 
 1. **Minimal fix** — apply exactly what the instruction says; no
    refactoring or improvement beyond it.
 2. **Validate after each fix** — lint, build, and tests run after every
-   individual fix (unless skipped); a validation failure is reported and the
-   run moves on — no cascading fix attempts.
+   individual fix (unless skipped). A validation failure is reported, and the
+   run moves on with no cascading fix attempts.
 3. **One concern per fix** — prompts are never combined or reordered.
 
-Results are reported as a Fix Summary table (Applied / Skipped / Failed /
-Validation Failed, per category), and successfully applied prompt files are
-moved to a `completed/` subdirectory so a re-run does not re-apply them.
+`/apply-fixes` reports results as a Fix Summary table (Applied / Skipped /
+Failed / Validation Failed, per category). It moves successfully applied
+prompt files to a `completed/` subdirectory so a re-run does not re-apply them.
 
 ## 6. Ownership of leftover corrections
 
@@ -208,7 +209,7 @@ moved to a `completed/` subdirectory so a re-run does not re-apply them.
    then delete the file in the same change. The issue is now the record and
    has an assignee.
 3. **Decline** — delete the file, recording why in the commit message
-   (e.g. `chore: decline stale corrections — superseded by refactor #NNN`).
+   (for example, `chore: decline stale corrections — superseded by refactor #NNN`).
 
 **If a `corrections/*.json` is found on `main` anyway**: the owner is the
 author of the commit that introduced it — find them with

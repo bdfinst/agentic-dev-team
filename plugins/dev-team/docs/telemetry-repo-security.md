@@ -2,24 +2,24 @@
 
 The cross-machine telemetry repo (Delta D, #178) is a **private append-only
 database**, not a code repo. This doc explains how to wire it up so machines can
-write to it directly — **no pull-request toil for data** — while keeping access
+write to it directly, with **no pull-request toil for data**. Access stays
 least-privilege and revocable.
 
 ## The model: treat the repo like a database
 
 - **One writer-owned file per machine:** `digests/<host>/session-digest.jsonl`.
-  Because no two machines touch the same file, concurrent writes never conflict —
-  the same property a per-shard append log gives a database.
+  Because no two machines touch the same file, concurrent writes never conflict.
+  A per-shard append log gives a database the same property.
 - **Direct writes to the default branch.** Each machine does
-  `extract → commit → pull --rebase → push`. There is **no PR**, because review
-  adds toil with no security value over append-only, non-executable metric rows.
-- **Producer-enforced privacy.** The extractor emits metrics only — counts,
+  `extract → commit → pull --rebase → push`. There is **no PR**. Review
+  adds toil and no security value over append-only, non-executable metric rows.
+- **Producer-enforced privacy.** The extractor emits metrics only: counts,
   ratios, token numbers, model ids, and a project **basename** (never a path,
   prompt, command, or code). The repo is a sink for already-sanitized data.
 
 ## Repository settings
 
-Configure the data repo (e.g. `agent-telemetry`) like this:
+Configure the data repo (for example, `agent-telemetry`) like this:
 
 | Setting | Value | Why |
 |---|---|---|
@@ -28,14 +28,14 @@ Configure the data repo (e.g. `agent-telemetry`) like this:
 | Push access | **Only you / your machines** (see deploy keys below) | Least privilege. |
 | Contents | **Metrics JSONL only** | No code runs from here; keep it that way. |
 
-There is intentionally **no CI and no merge queue** on this repo — it is data, so
+There is intentionally **no CI and no merge queue** on this repo. It holds data, so
 the dev-team quality gates (which guard *code*) do not apply.
 
 ## Authentication — least privilege, per machine
 
 Do **not** point this at your account-wide SSH key or a classic personal access
-token with `repo` scope: either would grant every machine access to *all* your
-repositories. Use one of these, scoped to **this repo only**:
+token with `repo` scope. Either would grant every machine access to *all* your
+repositories. Use one of these options, scoped to **this repo only**:
 
 ### Option A — per-host deploy key (recommended)
 
@@ -51,7 +51,7 @@ cat ~/.ssh/agent-telemetry.pub
 #   - CHECK "Allow write access"
 ```
 
-Point git at that key for this repo (so it isn't used for anything else):
+Point git at that key for this repo, so git does not use the key for anything else:
 
 ```bash
 # ~/.ssh/config
@@ -64,24 +64,24 @@ Host agent-telemetry.github.com
 …and set the remote to that host alias:
 `git@agent-telemetry.github.com:<owner>/agent-telemetry.git`.
 
-**Revocation:** lose a laptop → delete that one deploy key. Other machines are
+**Revocation:** if you lose a laptop, delete that one deploy key. Other machines are
 unaffected, and nothing else of yours was ever exposed.
 
 ### Option B — fine-grained personal access token
 
-If you prefer HTTPS: create a **fine-grained** PAT scoped to **only** the
-`agent-telemetry` repository with **Repository permissions → Contents: Read and
-write** and nothing else. Store it in a credential helper (macOS Keychain, git
-credential manager) — never in plaintext or in the repo. Prefer one token per
-machine so tokens are individually revocable.
+If you prefer HTTPS, create a **fine-grained** PAT scoped to **only** the
+`agent-telemetry` repository. Grant **Repository permissions → Contents: Read and
+write** and nothing else. Store the token in a credential helper (macOS Keychain, git
+credential manager), never in plaintext or in the repo. Prefer one token per
+machine so you can revoke tokens individually.
 
-> Avoid classic PATs and broad SSH keys. The whole point is that a compromised
-> telemetry credential leaks *metrics for one repo*, not your code or account.
+> Avoid classic PATs and broad SSH keys. A compromised
+> telemetry credential must leak *metrics for one repo*, not your code or account.
 
 ## Configure dev-team to use it
 
-Tell the plugin where the repo is (the `/session-review` skill will prompt and
-write this for you on first run):
+Tell the plugin where the repo is. The `/session-review` skill prompts for this and
+writes it for you on first run:
 
 ```bash
 # Env var (highest precedence):
@@ -104,17 +104,20 @@ scripts/telemetry-sync.sh           # extract -> commit -> pull --rebase -> push
 
 ## What is and isn't protected
 
-- **Protected by design:** access is per-repo and per-machine (revocable); writes
-  are conflict-free; the repo is private; only sanitized metrics ever leave a
-  machine; raw `~/.claude/projects/**` transcripts never leave.
-- **Your responsibility:** keep the repo private, keep deploy keys/tokens scoped
-  and rotated, and don't add collaborators who shouldn't see your usage metrics.
+- **Protected by design:** access is per-repo and per-machine (revocable).
+- **Protected by design:** writes are conflict-free, and the repo is private.
+- **Protected by design:** only sanitized metrics leave a
+  machine. Raw `~/.claude/projects/**` transcripts never leave.
+- **Your responsibility:** keep the repo private.
+- **Your responsibility:** keep deploy keys and tokens scoped
+  and rotated.
+- **Your responsibility:** do not add collaborators who should not see your usage metrics.
 
 ## Why no PR gate is the right call here
 
 PRs exist to review *changes to code that will execute*. This repo stores
-append-only, non-executable metric rows in per-host files. A PR per sync would be
-pure toil — it cannot catch a "bug" (there is no logic), and the privacy boundary
-is enforced upstream by the extractor, not by a reviewer. So: gate the **code**
+append-only, non-executable metric rows in per-host files. A PR per sync is
+pure toil. It cannot catch a "bug" because there is no logic. The extractor enforces the privacy boundary
+upstream, not a reviewer. So gate the **code**
 that produces the data (the dev-team repo's CI does), and let the **data** flow
 directly into its database.

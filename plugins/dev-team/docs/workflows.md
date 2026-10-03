@@ -8,30 +8,30 @@ Commands within each group are split into two tiers:
 - **Standalone (single-pass)** — single-agent or self-contained; return in one pass without
   inter-phase human gates.
 
-The two multi-phase pipelines with inter-phase gates are [`/ship`](#ship) —
-whose full phase table appears at the end of this page — and
-[`/test-improve`](#test-improve), whose phase reference lives on its own page,
+The plugin has two multi-phase pipelines with inter-phase gates.
+[`/ship`](#ship) has its full phase table at the end of this page.
+[`/test-improve`](#test-improve) has its phase reference on its own page,
 [test-improve.md](test-improve.md).
 
 **On this page:**
 
-- [Planning and Specification](#planning-and-specification)
+- [Planning and specification](#planning-and-specification)
 - [Implementation](#implementation)
-- [Code Review and Quality](#code-review-and-quality)
+- [Code review and quality](#code-review-and-quality)
 - [Testing](#testing)
-- [Agent and Session Tooling](#agent-and-session-tooling)
-- [Session Guards and Scope Control](#session-guards-and-scope-control)
+- [Agent and session tooling](#agent-and-session-tooling)
+- [Session guards and scope control](#session-guards-and-scope-control)
 - [Infrastructure and Docker](#infrastructure-and-docker)
-- [Multi-Phase Pipeline Reference](#multi-phase-pipeline-reference) — [`/ship`](#ship), [`/test-improve`](#test-improve)
+- [Multi-phase pipeline reference](#multi-phase-pipeline-reference) — [`/ship`](#ship), [`/test-improve`](#test-improve)
 - [Cross-command lifecycle](#cross-command-lifecycle)
 
 ---
 
-## Planning and Specification
+## Planning and specification
 
 ### Multi-agent
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/specs` | `skills/specs/SKILL.md` | Produce Intent, Architecture Notes, and Acceptance Criteria; gates on human approval before `/plan` | `<task description>` (positional) |
 | `/plan` | `skills/plan/SKILL.md` | Decompose a feature into vertical slices with Gherkin scenarios; dispatches plan-review personas (1–5 by tier) plus `progress-guardian` | `<task-description> [--output <path>] [--yes] [--spec-issue <url>]` |
@@ -40,7 +40,7 @@ whose full phase table appears at the end of this page — and
 
 ### Standalone
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/design-interrogation` | `skills/design-interrogation/SKILL.md` | Relentlessly interview the user about a plan or spec to surface hidden assumptions | `<plan or spec text>` (positional) |
 | `/design-it-twice` | `skills/design-it-twice/SKILL.md` | Generate multiple radically different interface designs for a module | `<module or interface description>` |
@@ -58,7 +58,7 @@ whose full phase table appears at the end of this page — and
 
 ### Multi-agent
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/build` | `skills/build/SKILL.md` | Execute an approved plan in small per-behavior batches (Code-First Small Batches) with inline review checkpoints and verification evidence | `[--plan <path>] [--yes]` |
 | `/setup` | `skills/setup/SKILL.md` | Provision a repo end to end: install prerequisites, generate project config, activate agent templates | `[--yes] [--dry-run]` |
@@ -67,7 +67,7 @@ whose full phase table appears at the end of this page — and
 
 ### Standalone
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/triage` | `skills/triage/SKILL.md` | Investigate a bug and write a triage record to `.dev-team-reports/triage/<slug>.md` with a TDD fix plan | `<bug description or error message> [--pdf]` |
 | `/apply-fixes` | `skills/apply-fixes/SKILL.md` | Apply correction prompts from `/code-review` output | `<corrections-dir> [--dry] [--skip-tests] [--skip-build] [--skip-lint]` |
@@ -79,11 +79,11 @@ whose full phase table appears at the end of this page — and
 
 ---
 
-## Code Review and Quality
+## Code review and quality
 
 ### Multi-agent
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/code-review` | `skills/code-review/SKILL.md` | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations); short-circuits documentation-only changesets | `[--agent <name>] [--since <ref>] [--path <dir>] [--all] [--json] [--internal] [--force --reason "<text>"] [--static-analysis\|--no-static-analysis] [--init-risks] [--background] [--pdf]` |
 | `/review` | `skills/review/SKILL.md` | Alias for `/code-review` — same arguments, same behavior | same as `/code-review` |
@@ -92,7 +92,7 @@ whose full phase table appears at the end of this page — and
 
 ### Standalone
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/review-agent` | `skills/review-agent/SKILL.md` | Run a single named review agent (used for inline checkpoints) | `<agent-name> [--since <ref>] [--path <dir>] [--internal]` |
 | `/semgrep-analyze` | `skills/semgrep-analyze/SKILL.md` | Run Semgrep SAST and return structured findings | `[path] [--rules <ruleset>]` |
@@ -108,7 +108,7 @@ whose full phase table appears at the end of this page — and
 
 ### Multi-agent
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/test-health` | `skills/test-health/SKILL.md` | Project-wide test-strategy audit; runs `/test-design` and `mutation-testing`, folds results in | `[--path <dir>] [--pdf]` |
 | `/test-design` | `skills/test-design/SKILL.md` | Deep test-design review: dispatch `test-review` + `test-smell-review`, Farley Score, testability/refactor recommendations | `[--path <dir>] [--since <ref>] [--advise]` |
@@ -118,7 +118,7 @@ whose full phase table appears at the end of this page — and
 
 ### Standalone
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/mutation-testing` | `skills/mutation-testing/SKILL.md` | Run a real mutation testing tool and triage survivors | `[--scope <files-or-globs>] [--emit-json <path>] [--workflow-managed-approval]` |
 | `/coverage-baseline` | `skills/coverage-baseline/SKILL.md` | Capture line+branch coverage percentages as the pre-improvement baseline | `<repo-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>]` |
@@ -139,11 +139,11 @@ whose full phase table appears at the end of this page — and
 
 ---
 
-## Agent and Session Tooling
+## Agent and session tooling
 
 ### Multi-agent
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/agent-audit` | `skills/agent-audit/SKILL.md` | Audit agents/skills/hooks for structural compliance | `[file-path \| --all] [--fix]` |
 | `/agent-eval` | `skills/agent-eval/SKILL.md` | Run eval fixtures, grade accuracy, detect regressions | `[--agent <name>] [--skill <name>] [--fixture <name>] [--trials <n>] [--in-session] [--integration] [--ablation <agent>] [--no-cache] [--verbose]` |
@@ -160,7 +160,7 @@ whose full phase table appears at the end of this page — and
 
 ### Standalone
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/harness-e2e-check` | `skills/harness-e2e-check/SKILL.md` | On-demand end-to-end integration check of the harness's own mechanisms | `[--item N] [--output <path>]` |
 | `/headless-run` | `skills/headless-run/SKILL.md` | Run a skill/command headlessly in an isolated subprocess | `<prompt-or-slash-command> [--cwd DIR] [--model MODEL] [--timeout SECS]` |
@@ -176,11 +176,11 @@ whose full phase table appears at the end of this page — and
 
 ---
 
-## Session Guards and Scope Control
+## Session guards and scope control
 
 ### Standalone
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/careful` | `skills/careful/SKILL.md` | Toggle destructive command blocking (rm -rf, force-push, DROP TABLE, etc.) | `[off]` |
 | `/freeze` | `skills/freeze/SKILL.md` | Scope-lock editing to a glob pattern; blocks edits outside the pattern | `<glob-pattern>` |
@@ -194,14 +194,14 @@ whose full phase table appears at the end of this page — and
 
 ### Standalone
 
-| Command | File | What It Does | Arguments |
+| Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
 | `/docker-image-audit` | `skills/docker-image-audit/SKILL.md` | Audit Docker images and Dockerfiles for security vulnerabilities, bloat, and best-practice violations | `[path] [--image <name>]` |
 | `/docker-image-create` | `skills/docker-image-create/SKILL.md` | Generate production-ready Dockerfiles from project source code | `[path]` |
 
 ---
 
-## Multi-Phase Pipeline Reference
+## Multi-phase pipeline reference
 
 The two commands below are the plugin's **multi-phase pipelines with inter-phase human gates**.
 
@@ -229,11 +229,12 @@ wants the spec → plan → build → PR flow without re-assembling it each time
 ### Agents involved (dispatched by the delegated skills)
 
 `/build`'s inline review checkpoints dispatch the review agents listed in
-[`team-structure.md` → Review Agent Dispatch](team-structure.md#review-agent-dispatch-phase-3-inline-checkpoints).
+[`team-structure.md` → Review agent dispatch](team-structure.md#review-agent-dispatch-phase-3-inline-checkpoints).
 `/plan` dispatches a tier-scaled subset of the five plan-review persona
-agents (`agents/plan-review-*.md`) — the Acceptance Test Critic always
-runs; the rest are added as the plan's tier (`trivial`/`standard`/`complex`)
-warrants — and the
+agents (`agents/plan-review-*.md`).
+The Acceptance Test Critic always runs. The plan's tier
+(`trivial`/`standard`/`complex`) warrants the rest.
+`/plan` also dispatches the
 [`progress-guardian`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/progress-guardian.md) gate-keeper.
 `/code-review` re-runs the same review agents over the full changeset.
 
@@ -262,28 +263,28 @@ warrants — and the
 **File:** [`skills/test-improve/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/test-improve/SKILL.md)
 **Role:** orchestrator.
 
-The full ten-phase (0-9) reference — phase-by-phase gates, arguments, and the
-flow diagram — lives on its own page: **[test-improve.md](test-improve.md)**.
+The full ten-phase (0-9) reference lives on its own page:
+**[test-improve.md](test-improve.md)**. It covers phase-by-phase gates,
+arguments, and the flow diagram.
 
 ---
 
 ## Cross-command lifecycle
 
-Use `/test-improve` alongside `/ship` for multi-phase quality pipelines — run
-`/test-improve` to raise baseline coverage and health first, then `/ship` to
+Use `/test-improve` alongside `/ship` for multi-phase quality pipelines. Run
+`/test-improve` to raise baseline coverage and health first. Then run `/ship` to
 carry the feature through spec → build → PR.
 
 `/ship` and `/test-improve` are the two **multi-phase pipelines with
 inter-phase human gates** in the plugin. Every other slash
 command is either a single-step worker (e.g. `/coverage-baseline`,
 `/triage`) or a one-shot orchestrator that returns in a single pass (e.g.
-`/code-review`, `/test-design`). Knowing the phase order, the owning skill
-or agent for each step, and where the human gates fall is the difference
-between operating these workflows confidently and re-reading every SKILL.md
-each time.
+`/code-review`, `/test-design`). Know the phase order, the owning skill
+or agent for each step, and where the human gates fall. Then you can operate
+these workflows confidently without re-reading every SKILL.md.
 
-One cross-command lifecycle *is* documented separately: the defect workflow
+One cross-command lifecycle *is* documented separately.
+[triage-workflow.md](triage-workflow.md) covers the defect workflow
 that connects `/triage`'s triage records, `/code-review`'s correction
-prompts, and `/apply-fixes` — from discovery to applied fix, including who
-owns leftover `corrections/` files — lives in
-[triage-workflow.md](triage-workflow.md).
+prompts, and `/apply-fixes`. It runs from discovery to applied fix and says who
+owns leftover `corrections/` files.

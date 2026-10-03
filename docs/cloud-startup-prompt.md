@@ -1,27 +1,27 @@
 # Cloud startup prompt
 
 The Setup script ([`.claude/cloud-setup.sh`](https://github.com/bdfinst/agentic-dev-team/blob/main/.claude/cloud-setup.sh)) provisions
-the machine. This is the other half: the **first message** to send in a fresh
-cloud session, so Claude confirms the environment is actually sound before it
-starts changing code.
+the machine. This page covers the other half: the **first message** to send in a fresh
+cloud session. The message makes Claude confirm that the environment is sound before
+Claude starts changing code.
 
 Provisioning and verification are separate concerns on purpose. The Setup script
-runs pre-boot and **must** exit 0 — a non-zero exit fails session startup — so it
-can only *report* a broken toolchain, never refuse to hand one over. This prompt
-is what makes the session act on that report.
+runs pre-boot and **must** exit 0, because a non-zero exit fails session startup. It
+can only *report* a broken toolchain. It can never refuse to hand one over. This prompt
+makes the session act on that report.
 
 ## Why bother
 
 A provisioning run can finish, print green checkmarks, and still leave a
-container where `semgrep --version` aborts. That exact thing happened: a
+container where `semgrep --version` aborts. That exact failure happened. A
 distro-packaged PyJWT that `pip` could not uninstall left `semgrep` importing a
 `cryptography` whose Rust bindings could not load. `command -v semgrep`
-succeeded throughout. The damage showed up much later and in a shape that
-pointed nowhere near the cause — every `plugins/security-assessment/` rule
+succeeded throughout. The damage showed up much later and pointed nowhere near
+the cause. Every `plugins/security-assessment/` rule
 silently matched nothing, and the fixture audit failed with 27 rules reported as
 NO-FIRE.
 
-Ten seconds of exercising the tools up front is cheaper than diagnosing that
+Ten seconds of exercising the tools up front is cheaper than diagnosing the failure
 from the far end.
 
 ## The prompt
@@ -61,8 +61,7 @@ say which and why rather than continuing quietly.
 
 ## Cutting it down
 
-The prompt is long because each step earned its place. If you want a one-liner
-for a session where you only intend to read code, this is the load-bearing part:
+The prompt is long because each step earned its place. For a session where you only intend to read code, use this one-liner. It is the load-bearing part:
 
 ```text
 Run `python3 scripts/verify_toolchain.py` first and report the result. It executes
@@ -73,13 +72,13 @@ any REQUIRED failure before starting, and tell me what you repaired.
 ## Making it automatic
 
 To skip the pasting, put the same instruction in the environment's system prompt
-or a `SessionStart` hook. Two caveats if you do:
+or a `SessionStart` hook. Two caveats apply:
 
 - A `SessionStart` hook runs *after* Claude boots, so it cannot fix the
-  plugin-loading problem in step 3 — that one genuinely needs the Setup script.
-- Keep it fail-open and time-boxed, like the hooks already registered in
+  plugin-loading problem in step 3. That problem needs the Setup script.
+- Keep the hook fail-open and time-boxed, like the hooks already registered in
   [`.claude/settings.json`](https://github.com/bdfinst/agentic-dev-team/blob/main/.claude/settings.json). A verification step that
-  hangs session startup is worse than the drift it was guarding against.
+  hangs session startup is worse than the drift the step guards against.
 
 ## See also
 

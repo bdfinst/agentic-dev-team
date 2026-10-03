@@ -1,40 +1,39 @@
-# Context Management
+# Context management
 
-How the plugin keeps a session's context in check: the harness compacts at a
-percentage `/dev-team:setup` configures, a pair of small SessionStart hooks
-nudge and restore state, and `/handoff` stays available by hand. For the
+How the plugin keeps a session's context in check. The harness compacts at a
+percentage that `/dev-team:setup` configures. A pair of small SessionStart hooks
+nudge and restore state. `/handoff` stays available by hand. For the
 runtime procedure (what to load, when), see [Context Loading
-Protocol](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/context-loading-protocol/SKILL.md);
-for manual compression and side-task forks, see
+Protocol](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/context-loading-protocol/SKILL.md).
+For manual compression and side-task forks, see
 [Handoff](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/handoff/SKILL.md).
 
-The design record is [ADR 0043](../../../docs/adr/0043-replace-the-context-ceiling-guard-with-harness-autocompact.md),
-which replaced the former context-ceiling hook (ADRs 0011, 0016, 0037-0039).
+The design record is [ADR 0043](../../../docs/adr/0043-replace-the-context-ceiling-guard-with-harness-autocompact.md).
+It replaced the former context-ceiling hook (ADRs 0011, 0016, 0037-0039).
 
 ## How it works
 
 1. **Harness autocompact, configured per repo.** `/dev-team:setup` writes
    `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` into the repo's `.claude/settings.json`
    `env` block (default `40`). The harness then compacts the conversation
-   when it reaches that percentage of its auto-compact window. It applies to
+   when it reaches that percentage of its auto-compact window. The setting applies to
    subagents as well as the main session.
-2. **A setup nudge.** On `startup`, `resume` and `clear`, the SessionStart
+2. **A setup nudge.** On `startup`, `resume`, and `clear`, the SessionStart
    hook `autocompact_setup_nudge.py` prints one line recommending
-   `/dev-team:setup` when the key is absent or invalid in the process env,
-   `.claude/settings.local.json`, `.claude/settings.json` and user settings.
-   It is advisory, never blocks, and never fires on `compact`.
+   `/dev-team:setup`. It prints the line when the key is absent or invalid in the process env,
+   `.claude/settings.local.json`, `.claude/settings.json`, and user settings.
+   The nudge is advisory, never blocks, and never fires on `compact`.
 3. **State restore after compaction.** A SessionStart hook with matcher
    `compact`, `post_compact_state_reinject.py`, re-injects the active `/build`
-   phase, step, plan path and unchecked `## Build Progress` items as
-   `additionalContext` (at most 10,000 characters; phase and step survive
-   truncation first). It reads `.claude/memory/build-phase.json`, so it only
+   phase, step, plan path, and unchecked `## Build Progress` items as
+   `additionalContext`. The limit is 10,000 characters, and phase and step survive
+   truncation first. The hook reads `.claude/memory/build-phase.json`, so it only
    has something to restore while a build is in progress (a step, or
-   between steps). It is
-   best-effort and fail-open.
-4. **`/handoff` is manual.** Run it yourself to compress the conversation
+   between steps). It is best-effort and fail-open.
+4. **`/handoff` is manual.** Run `/handoff` yourself to compress the conversation
    (continue mode) or split off a side task (fork mode).
    Write a full summary to `.claude/memory/` so the next phase starts from a
-   file. Nothing forces or blocks on it.
+   file. Nothing forces or blocks on `/handoff`.
 
 ## Configuring the threshold
 
@@ -46,11 +45,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/set_autocompact_env.py" --project-dir . -
 
 `/dev-team:setup` runs the same script (Step 9b). The value is an integer
 1-100 written as a string, merged into existing `env` entries. The harness
-can only lower its threshold; values above its default (about 83%, reported)
-have no effect, and the script warns when you pick one. It also warns when a
+can only lower its threshold. Values above its default (about 83%, reported)
+have no effect, and the script warns when you pick one. The script also warns when a
 process-env or `settings.local.json` entry shadows the project value.
 
-There is no absolute token cap: the percentage applies to the window, so 40%
+There is no absolute token cap. The percentage applies to the window, so 40%
 of a 1M window is 400K. The former 350K cap was deliberately dropped.
 
 To silence the nudge without configuring autocompact, set
@@ -60,17 +59,17 @@ To silence the nudge without configuring autocompact, set
 ## What to expect
 
 - **Coverage is per repo.** A repo that never runs `/setup` keeps the harness
-  default, which is much later than 40%. The nudge advises; it does not
+  default, which is much later than 40%. The nudge advises. It does not
   enforce.
 - **Compaction is generic.** The harness summary can drop plan-step state,
-  file:line anchors and acceptance criteria. The re-inject hook restores
-  `/build` phase/step and plan progress only; for anything else, write a
+  file:line anchors, and acceptance criteria. The re-inject hook restores
+  `/build` phase/step and plan progress only. For anything else, write a
   structured summary with `/handoff` before you need it.
-- **Timing.** The threshold is checked between turns (reported, not
+- **Timing.** The harness checks the threshold between turns (reported, not
   verified), so one long tool loop can overshoot it.
-- **`compact` SessionStart firing is unconfirmed.** That it fires after a
-  real compaction and reaches the model is tracked in
-  [#2233](https://github.com/bdfinst/agentic-dev-team/issues/2233).
+- **`compact` SessionStart firing is unconfirmed.** Issue
+  [#2233](https://github.com/bdfinst/agentic-dev-team/issues/2233) tracks whether the hook fires after a
+  real compaction and reaches the model.
 
 ## Why a low threshold
 
@@ -78,9 +77,9 @@ The 40% default is a conservative planning target, not a claimed accuracy
 cliff:
 
 - Chroma's [Context Rot study](https://www.trychroma.com/research/context-rot)
-  found degradation across 18 models (including Claude 4) is gradual, not a
+  found that degradation across 18 models (including Claude 4) is gradual, not a
   sharp drop at any single percentage.
-- Needle-in-a-haystack benchmarks like RULER and NoLiMa show a model's
+- Needle-in-a-haystack benchmarks like RULER and NoLiMa show that a model's
   *effective* context is often only about half its advertised window.
 - Anthropic's [effective context engineering
   guidance](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
@@ -89,16 +88,22 @@ cliff:
 ## Troubleshooting
 
 **"The nudge keeps firing after I ran setup."** A process-env or
-`settings.local.json` value can shadow the project one; the nudge names the
+`settings.local.json` value can shadow the project one. The nudge names the
 source of an invalid value. Fix or remove that entry.
 
-**"Nothing restored after compaction."** `build-phase.json` is deleted when the plan
-completes, and records older than four hours are ignored; with no active
-build there is nothing to restore. Also check #2233.
+**"Nothing restored after compaction."** The plugin deletes `build-phase.json` when the plan
+completes, and it ignores records older than four hours. With no active
+build, there is nothing to restore. Also check #2233.
 
-**"The setup script refuses to write."** It aborts, leaving the file
-untouched, when `.claude/settings.json` is malformed, is a symlink, is not a
-JSON object, or has a non-object `env`. Fix the file and re-run.
+**"The setup script refuses to write."** The script aborts and leaves the file
+untouched in these cases:
+
+- `.claude/settings.json` is malformed.
+- `.claude/settings.json` is a symlink.
+- `.claude/settings.json` is not a JSON object.
+- `.claude/settings.json` has a non-object `env`.
+
+Fix the file and re-run.
 
 ## Source
 

@@ -11,7 +11,7 @@ Skills are the unified reusable capability layer in this system. Every skill liv
 Most skills are **user-invocable** as slash commands — shown as `/name`; run them directly or let the Orchestrator dispatch them. The rest are **agent-loaded** knowledge modules — shown as a plain `name` — that agents read for domain expertise.
 
 
-## Specs & Planning
+## Specs and planning
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |
@@ -28,7 +28,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | `/specs` | no flags — run directly | [`specs/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/specs/SKILL.md) | Collaborative workflow for producing the three specification artifacts (intent, architecture notes, acceptance criteria) that describe a change and its goals before any implementation begins. Its value is resolving ambiguity with a human before build starts — not synthesizing edge cases. Use when starting any new feature or behavior change — do not write code until artifacts pass the consistency gate. BDD/Gherkin scenarios are authored later, per slice, in /plan. |
 
 
-## Build & Ship
+## Build and ship
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | `/test-driven-development` | no flags — run directly | [`test-driven-development/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/test-driven-development/SKILL.md) | Advisory reference for the Classic RED-GREEN-REFACTOR TDD discipline with hard gates — not a build cadence toggle. The plugin's single build cadence is Code-First Small Batches (docs/experiments/RECOMMENDATIONS.md Rec 3); /build does not dispatch into this skill. Use on explicit user request when someone wants test-first discipline for the code being written, or when reviewing code to verify TDD discipline was followed by hand. |
 
 
-## Code Review & Static Analysis
+## Code review and static analysis
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |
@@ -57,7 +57,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | static-analysis-integration | agent-loaded — not directly invocable | [`static-analysis-integration/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/SKILL.md) | SARIF-first pre-pass stage for /code-review that runs available static analysis tools and normalizes their output to the unified finding envelope defined in security-primitives-contract v1.0.0. Deduplicates findings across tools and passes confirmed issues to AI agents so they can focus on semantic concerns. |
 
 
-## Testing & Coverage
+## Testing and coverage
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |
@@ -86,7 +86,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | `/threat-modeling` | no flags — run directly | [`threat-modeling/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/threat-modeling/SKILL.md) | Structured STRIDE security analysis for identifying threats, attack surfaces, and mitigations. Use before implementing any new API, service, authentication change, or data flow crossing trust boundaries — security analysis belongs in the design phase, not after. |
 
 
-## Architecture & Domain Modeling
+## Architecture and domain modeling
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | `/ubiquitous-language` | [path-to-source-root] | [`ubiquitous-language/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/ubiquitous-language/SKILL.md) | Build or refresh the project's ubiquitous language glossary — one markdown file per business concept at `.plans/domain/<Concept>.md` plus a `_index.md`. Mines grep-based signals (class names, enum values, interface names, domain-event names, BDD scenario names, validator rules) and applies a four-gate filter to keep only genuine business concepts. Optional interactive interview phase to refine definitions and capture behavior (state transitions, invariants, synonyms to avoid). Language-agnostic — works for JS/TS, C#, Java, Python, Go, or any mix. Use whenever the user says "build the glossary", "extract domain terms", "document the ubiquitous language", "what are the domain concepts", or when domain-review surfaces pervasive terminology inconsistency (3+ names for the same concept). |
 
 
-## Performance, Containers & Browser
+## Performance, containers, and browser
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |
@@ -109,7 +109,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | performance-benchmark | agent-loaded — not directly invocable | [`performance-benchmark/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/performance-benchmark/SKILL.md) | Capture runtime performance metrics (Core Web Vitals, resource sizes, load times) against defined budgets. Compare to baselines, flag regressions, and maintain trend history. Complements the code-level performance-review agent with actual runtime measurement. |
 
 
-## Debugging & Diagnostics
+## Debugging and diagnostics
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |
@@ -119,7 +119,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | `/triage` | <bug description or error message> [--pdf] | [`triage/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/triage/SKILL.md) | Investigate a bug, find its root cause, and write a portable triage record to .dev-team-reports/triage/<slug>.md with a TDD fix plan. Use when the user reports a bug and wants it triaged, says "triage this", "investigate and write it up", or wants a hands-off bug investigation that produces an actionable record. |
 
 
-## Setup, Config & Plugin Management
+## Setup, config, and plugin management
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |
@@ -130,7 +130,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | `/version` | no flags — run directly | [`version/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/version/SKILL.md) | Report the installed version of the dev-team plugin. |
 
 
-## Session, Context & Telemetry
+## Session, context, and telemetry
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |
@@ -143,7 +143,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | `/telemetry` | [on\|off\|status\|report] | [`telemetry/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/telemetry/SKILL.md) | Manage and report the opt-in, privacy-clean usage telemetry beacon. Use when the user asks to "enable/disable telemetry", "show telemetry", "usage stats", "which commands do I use", or "how often is the commit gate bypassed". |
 
 
-## Safety Modes
+## Safety modes
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |
@@ -153,7 +153,7 @@ Most skills are **user-invocable** as slash commands — shown as `/name`; run t
 | `/unfreeze` | no flags — run directly | [`unfreeze/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/unfreeze/SKILL.md) | Lift the scope lock set by /freeze. All files become editable again. |
 
 
-## Harness Governance & Tuning
+## Harness governance and tuning
 
 | Skill | Options | File | Description |
 | --- | --- | --- | --- |

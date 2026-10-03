@@ -40,7 +40,7 @@ def test_agent_info_review_agents_superset_of_registry() -> None:
     info_text = AGENT_INFO.read_text(encoding="utf-8")
 
     registry_agents = _agent_names(_section(registry_text, "Review Agents"))
-    info_agents = _agent_names(_section(info_text, "Review Agents"))
+    info_agents = _agent_names(_section(info_text, "Review agents"))
 
     assert registry_agents, "expected to find review-agent rows in agent-registry.md"
     missing = registry_agents - info_agents
@@ -52,6 +52,6 @@ def test_agent_info_review_agents_superset_of_registry() -> None:
 
 def test_mutation_kill_and_session_analysis_rows_present() -> None:
     info_text = AGENT_INFO.read_text(encoding="utf-8")
-    info_agents = _agent_names(_section(info_text, "Review Agents"))
+    info_agents = _agent_names(_section(info_text, "Review agents"))
     assert "mutation-kill" in info_agents
     assert "session-analysis" in info_agents

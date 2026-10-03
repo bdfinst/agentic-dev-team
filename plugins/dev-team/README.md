@@ -1,18 +1,18 @@
 # dev-team
 
-A Claude Code plugin that adds a full persona-driven AI development team to any project. The Orchestrator routes tasks to specialized agents, inline review checkpoints catch quality issues during implementation, and skills provide reusable knowledge modules that any agent can draw on.
+A Claude Code plugin that adds a full persona-driven AI development team to any project. The Orchestrator routes tasks to specialized agents. Inline review checkpoints catch quality issues during implementation. Skills provide reusable knowledge modules that any agent can draw on.
 
 For the workflow overview, team philosophy, and three-phase (Research → Plan → Implement) process, see the [repository README](../../README.md).
 
 ## Install
 
-Three commands total: register the marketplace, install the plugin, then run `/setup` in your project. That's the whole flow.
+Install takes three commands: register the marketplace, install the plugin, then run `/setup` in your project.
 
-**Prerequisite:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), installed and authenticated. Nothing else needs to be installed by hand — `/setup` installs the tools your stack needs.
+**Prerequisite:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), installed and authenticated. You do not install anything else by hand. `/setup` installs the tools your stack needs.
 
 ### Install
 
-Register the marketplace, then install the plugin. The marketplace is named **`bfinster`** (the `name` field in `marketplace.json`); the plugin is **`dev-team`**. `claude plugin marketplace add` accepts a GitHub `owner/repo`, any git URL, or a local path; `claude plugin install` takes `<plugin>@<marketplace>`.
+Register the marketplace, then install the plugin. The marketplace is named **`bfinster`** (the `name` field in `marketplace.json`). The plugin is **`dev-team`**. `claude plugin marketplace add` accepts a GitHub `owner/repo`, any git URL, or a local path. `claude plugin install` takes `<plugin>@<marketplace>`.
 
 **From GitHub (recommended):**
 
@@ -31,23 +31,23 @@ Open Claude Code in your project and run one command:
 /setup
 ```
 
-`/setup` detects your stack, shows you a plan, and — once you confirm it — installs everything the team needs and writes project config. You do not pre-install anything:
+`/setup` detects your stack and shows you a plan. After you confirm the plan, `/setup` installs everything the team needs and writes project config. You do not pre-install anything:
 
-- **Tool dependencies** — `jq` and `python3` (used by the hooks and gates), and for a recognized stack, the stack's linters, formatters, type checkers, test runner, and per-language mutation testing (Stryker for JS/TS, pitest for Java/Kotlin, Stryker.NET for C#).
+- **Tool dependencies** — `jq` and `python3` (used by the hooks and gates). For a recognized stack, `/setup` also installs the stack's linters, formatters, type checkers, test runner, and per-language mutation testing (Stryker for JS/TS, pitest for Java/Kotlin, Stryker.NET for C#).
 - **Capability tools, each installed only when its signal fires** — `gh` when the repo has a GitHub remote (used by `/pr` and `/issues-from-plan`), `semgrep` for static analysis, Playwright + Chromium for `/browse`, the docker scanners (`hadolint`/`trivy`/`grype`) when a Dockerfile is present, and ADR tooling when the repo already keeps ADRs.
 - **Optional code-intelligence indexes** — CodeGraph, Repowise, and Graphify, offered as keyless opt-ins for faster code navigation.
 - **Project config** — a project-level `CLAUDE.md`, the auto-format PostToolUse hook, language-specific agent templates, a generated `/pr` command, and `.gitignore` entries for the workflow's runtime artifacts.
 
-Recognized stacks are **JS/TS, Python, C#, and Java**. On a stack that isn't recognized, `/setup` installs the language-neutral pieces and tells you plainly what it could not set up — it never guesses at a toolchain.
+Recognized stacks are **JS/TS, Python, C#, and Java**. On a stack that is not recognized, `/setup` installs the language-neutral pieces and tells you what it could not set up. It never guesses at a toolchain.
 
-For an unattended run (CI, scripted onboarding), pass `--yes` to accept the detected plan without the confirmation prompt: `/setup --yes`. Add `--dry-run` to report what it would install and configure without writing anything.
+For an unattended run (CI, scripted onboarding), pass `--yes` to accept the detected plan without the confirmation prompt: `/setup --yes`. Add `--dry-run` to report what `/setup` would install and configure without writing anything.
 
-After `/setup`, you're ready to work: run `/specs` to start a feature, or just describe a task and let the Orchestrator route it. To confirm the team is live, see [Verify](#verify).
+After `/setup`, you can start work. Run `/specs` to start a feature, or describe a task and let the Orchestrator route it. To confirm the team is live, see [Verify](#verify).
 
 <details>
 <summary><b>Manual / offline install of individual tools</b></summary>
 
-`/setup` installs all of these for you. This section is a reference for air-gapped machines, an unsupported stack, or installing a single tool by hand.
+`/setup` installs all of these tools for you. This section is a reference for air-gapped machines, an unsupported stack, or installing a single tool by hand.
 
 **Hard dependencies** (any stack): `jq` (`brew install jq` / `apt install jq`) and `python3`.
 
@@ -64,9 +64,9 @@ After `/setup`, you're ready to work: run `/specs` to start a feature, or just d
 | `glab` | `/test-modernize` when the parent issue lives on GitLab | `brew install glab` or [GitLab CLI install docs](https://gitlab.com/gitlab-org/cli#installation); then `glab auth login` |
 | `acli` | `/test-modernize` when the parent issue lives on Jira (Atlassian Cloud) | See [Atlassian CLI install docs](https://developer.atlassian.com/cloud/acli/); REST + `JIRA_TOKEN` is the fallback |
 
-`/test-modernize` falls back to local plan files under `./plans/test-modernize/` whenever the tracker CLI for the given parent URL is missing — the workflow continues uninterrupted, only the destination of the issues changes.
+`/test-modernize` falls back to local plan files under `./plans/test-modernize/` whenever the tracker CLI for the given parent URL is missing. The workflow continues uninterrupted. Only the destination of the issues changes.
 
-**Auto-formatting (the `post-format` hook, detected per language):** the hook auto-formats files on every edit, detecting available formatters and degrading silently if none are installed.
+**Auto-formatting (the `post-format` hook, detected per language):** the hook auto-formats files on every edit. It detects available formatters and degrades silently if none are installed.
 
 | Tool | Language | Install |
 | --- | --- | --- |
@@ -81,7 +81,7 @@ After `/setup`, you're ready to work: run `/specs` to start a feature, or just d
 | `ktlint` | Kotlin | `brew install ktlint` or [GitHub releases](https://github.com/pinterest/ktlint/releases) |
 | `dotnet format` | C# | Included with .NET SDK 6+ |
 
-**Quality gates in `/pr` (detected per stack):** `/pr` auto-detects test runners, type checkers, and linters from project manifests — if the tool is installed and the project has the relevant config file, it runs automatically.
+**Quality gates in `/pr` (detected per stack):** `/pr` auto-detects test runners, type checkers, and linters from project manifests. If the tool is installed and the project has the relevant config file, `/pr` runs the tool automatically.
 
 | Tool | Detected via | Install |
 | --- | --- | --- |
@@ -94,7 +94,7 @@ After `/setup`, you're ready to work: run `/specs` to start a feature, or just d
 
 ### Self-hosted / other git hosts
 
-For a self-hosted or other git host (GitLab, Bitbucket, Gitea, Azure DevOps, on-prem), end the URL with `.git` so Claude Code clones the repository instead of treating the URL as a direct link to a `marketplace.json`, and append `#<branch-or-tag>` to pin a ref. The repository must contain `.claude-plugin/marketplace.json` at its root.
+For a self-hosted or other git host (GitLab, Bitbucket, Gitea, Azure DevOps, on-prem), end the URL with `.git`. This makes Claude Code clone the repository instead of treating the URL as a direct link to a `marketplace.json`. Append `#<branch-or-tag>` to pin a ref. The repository must contain `.claude-plugin/marketplace.json` at its root.
 
 ```bash
 # HTTPS (private repos use your git credential helper)
@@ -110,7 +110,7 @@ claude plugin marketplace add https://gitlab.example.com/team/agentic-dev-team.g
 claude plugin install dev-team@bfinster
 ```
 
-For a private host that needs a token, embed a **read-scoped** token in the URL — `https://<user>:<token>@host/team/agentic-dev-team.git` — but never commit it or paste it in chat (Azure DevOps PATs need **Code (Read)** scope). Behind a corporate proxy, clone first and add the local path: `git clone <url> /path/to/clone && claude plugin marketplace add /path/to/clone`.
+For a private host that needs a token, embed a **read-scoped** token in the URL: `https://<user>:<token>@host/team/agentic-dev-team.git`. Never commit the token or paste it in chat. Azure DevOps PATs need **Code (Read)** scope. Behind a corporate proxy, clone first and add the local path: `git clone <url> /path/to/clone && claude plugin marketplace add /path/to/clone`.
 
 **Scope and monorepo options** — these flags apply to `marketplace add` and `install`:
 
@@ -131,7 +131,7 @@ Run `/upgrade` from any session, or update manually:
 claude plugin update --scope <scope> dev-team@bfinster
 ```
 
-To re-point the marketplace (e.g., after moving git hosts), remove it by its **marketplace name** (`bfinster`) and re-add the source:
+To re-point the marketplace (for example, after moving git hosts), remove it by its **marketplace name** (`bfinster`) and re-add the source:
 
 ```bash
 claude plugin marketplace remove bfinster
@@ -140,7 +140,7 @@ claude plugin marketplace add bdfinst/agentic-dev-team
 
 ### Verify
 
-After `/setup` completes, confirm the system is working:
+After `/setup` completes, confirm that the system works:
 
 ```
 > What agents are available on this team?

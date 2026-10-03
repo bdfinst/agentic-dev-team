@@ -1,8 +1,8 @@
 # Giving CI read access to the telemetry repo
 
-To make the cost-regression gate (#171) — and any future rollup-based gate —
-enforce against **real** data, CI needs to **read** the private `agent-telemetry`
-repo and build the cross-machine rollup. This doc sets that up with least
+The cost-regression gate (#171), and any future rollup-based gate, must
+enforce against **real** data. For that, CI needs to **read** the private `agent-telemetry`
+repo and build the cross-machine rollup. This doc sets up that access with least
 privilege: **read-only, single-repo, revocable**, and with no write access to
 your data.
 
@@ -11,19 +11,19 @@ machines *write* digests) and the watermark/sync flow in `/session-review`.
 
 ## Principle
 
-- CI only ever **reads** the digest database — it never writes telemetry.
-- The credential is scoped to the **one** `agent-telemetry` repo, **read-only**,
-  and can be revoked without touching anything else.
-- The raw `~/.claude/projects` transcripts are never involved; CI consumes the
-  already-sanitized, metrics-only digest.
+- CI only **reads** the digest database. It never writes telemetry.
+- The credential is scoped to the **one** `agent-telemetry` repo and is **read-only**.
+- You can revoke the credential without touching anything else.
+- The raw `~/.claude/projects` transcripts are never involved.
+- CI consumes the already-sanitized, metrics-only digest.
 
 ## Recommended: a read-only deploy key
 
-A deploy key authorizes an SSH key for a **single repository**. The credential
-model — why per-repo, per-machine keys over account-wide SSH keys or classic
-PATs — is documented canonically in
-[`telemetry-repo-security.md`](telemetry-repo-security.md); the one difference
-here is that CI's key is **read-only** so it can clone but never push.
+A deploy key authorizes an SSH key for a **single repository**.
+[`telemetry-repo-security.md`](telemetry-repo-security.md) documents the credential
+model, including why per-repo, per-machine keys beat account-wide SSH keys and classic
+PATs. The one difference
+here is that CI's key is **read-only**, so it can clone but never push.
 
 ### 1. Generate a dedicated keypair (locally)
 
@@ -48,17 +48,17 @@ GitHub → `agentic-dev-team` → Settings → Secrets and variables → Actions
 - Name: `TELEMETRY_DEPLOY_KEY`
 - Value: contents of `telemetry-ci` (the private key)
 
-Then delete the local key files (`rm telemetry-ci telemetry-ci.pub`) — GitHub now
+Then delete the local key files (`rm telemetry-ci telemetry-ci.pub`). GitHub now
 holds both halves where they belong.
 
 ### 4. Consume it in the workflow
 
-This wiring is **already in place** — see the `cost-regression` job in
+This wiring is **already in place**. See the `cost-regression` job in
 [`.github/workflows/plugin-tests.yml`](https://github.com/bdfinst/agentic-dev-team/blob/main/.github/workflows/plugin-tests.yml).
 The job loads the key, clones the data repo read-only, builds a per-session cost
 series from the digests, and runs the regression check against it. The
-credential steps are gated so fork PRs and Dependabot PRs (neither of which get
-secret access) skip them and fall back to the blocking self-test:
+credential steps are gated. Fork PRs and Dependabot PRs get no
+secret access, so they skip those steps and fall back to the blocking self-test:
 
 ```yaml
   cost-regression:
@@ -87,43 +87,43 @@ secret access) skip them and fall back to the blocking self-test:
 
 > Why `--cost-log` and not `--rollup`? The regression meter
 > (`cost_meter.py regression`) compares the **latest** session against the
-> rolling mean of priors, so it needs a *time-ordered per-session series*, not a
+> rolling mean of priors. It needs a *time-ordered per-session series*, not a
 > single aggregate. `session_report.py --profile maintainer --cost-log <digests>` emits exactly that
 > (`{"total":{"cost_usd":..}}` records, oldest→newest, deduped on `session_id`).
-> The real cross-machine check is **warn-only** — a non-deterministic meter must
+> The real cross-machine check is **warn-only**. A non-deterministic meter must
 > not hard-fail an unrelated code PR.
 
 ## Alternative: a fine-grained PAT (read-only)
 
-If you prefer HTTPS, use a **fine-grained** PAT — same credential model as
-[`telemetry-repo-security.md`](telemetry-repo-security.md) Option B, but scoped
-**Contents: Read-only** since CI never writes. Store it as the
-`TELEMETRY_DEPLOY_KEY` (or `TELEMETRY_TOKEN`) secret and clone via
+If you prefer HTTPS, use a **fine-grained** PAT. It follows the same credential model as
+[`telemetry-repo-security.md`](telemetry-repo-security.md) Option B, but with scope
+**Contents: Read-only**, because CI never writes. Store it as the
+`TELEMETRY_DEPLOY_KEY` (or `TELEMETRY_TOKEN`) secret and clone through
 `https://x-access-token:${TOKEN}@github.com/bdfinst/agent-telemetry.git`. Prefer
-the deploy key — tightest scope (one repo, read-only) and no account-level
+the deploy key. It has the tightest scope (one repo, read-only) and needs no account-level
 token.
 
 ## Security notes and caveats
 
-- **Read-only, by construction.** The deploy key has no write access, so a leak
-  exposes *read* of one private metrics repo — never write, never your account.
+- **Read-only, by construction.** The deploy key has no write access. A leak
+  exposes *read* of one private metrics repo, never write access and never your account.
 - **Fork-PR and Dependabot-PR caveat (important).** GitHub does not expose
-  secrets to workflows triggered by pull requests from forks, and it withholds
-  the same secrets from Dependabot-triggered runs even when the PR's head
-  branch is not a fork (Dependabot PRs are treated as untrusted for this
+  secrets to workflows triggered by pull requests from forks. GitHub also withholds
+  the same secrets from Dependabot-triggered runs, even when the PR's head
+  branch is not a fork (GitHub treats Dependabot PRs as untrusted for this
   purpose). So the cost gate runs on branches in this repo and on internal
-  human PRs, but **not** on fork PRs or Dependabot PRs — those fall back to the
-  mechanism self-test. For a solo/private setup this is a non-issue; documented so
+  human PRs, but **not** on fork PRs or Dependabot PRs. Those PRs fall back to the
+  mechanism self-test. For a solo or private setup this is a non-issue. This doc records it so
   the coverage boundary is honest.
-- **Rotation.** To rotate: generate a new key, add it, update the secret, delete
-  the old deploy key. To revoke entirely: delete the deploy key on
-  `agent-telemetry` — CI loses read access immediately, nothing else affected.
-- **Never echo the key** in workflow logs; `ssh-agent` keeps it out of the
+- **Rotation.** To rotate, generate a new key, add it, update the secret, and delete
+  the old deploy key. To revoke entirely, delete the deploy key on
+  `agent-telemetry`. CI loses read access immediately, and nothing else is affected.
+- **Never echo the key** in workflow logs. `ssh-agent` keeps it out of the
   environment dump.
 
 ## What this unblocks
 
-- **#171** — the cost-regression gate compares each run against the real
+- **#171**: the cost-regression gate compares each run against the real
   cross-machine baseline instead of only self-testing the mechanism.
-- Any future gate that wants cross-machine rollup data in CI (the same clone +
+- Any future gate that needs cross-machine rollup data in CI (the same clone +
   `--rollup` pattern).

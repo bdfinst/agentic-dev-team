@@ -127,9 +127,9 @@ def test_a_description_with_a_pipe_is_escaped_for_the_table(tmp_path: Path) -> N
 
 def test_catalog_is_grouped_by_capability_not_by_invocation_type() -> None:
     md = (REPO_ROOT / "plugins" / "dev-team" / "docs" / "skills.md").read_text()
-    assert re.search(r"^## Specs & Planning", md, re.MULTILINE)
-    assert re.search(r"^## Testing & Coverage", md, re.MULTILINE)
-    assert re.search(r"^## Harness Governance & Tuning", md, re.MULTILINE)
+    assert re.search(r"^## Specs and planning", md, re.MULTILINE)
+    assert re.search(r"^## Testing and coverage", md, re.MULTILINE)
+    assert re.search(r"^## Harness governance and tuning", md, re.MULTILINE)
     # the old invocation-type sections are gone
     assert not re.search(r"^## User-invocable skills", md, re.MULTILINE)
     assert not re.search(r"^## Agent-loaded skills", md, re.MULTILINE)
