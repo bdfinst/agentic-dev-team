@@ -14,6 +14,8 @@ from __future__ import annotations
 import json
 import sys
 import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -28,7 +30,16 @@ for _path in (
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from model_effort import grading, outcome, runner, tools, transcript
+import model_effort_ab
+from model_effort import (
+    agent_spec,
+    artifact,
+    grading,
+    outcome,
+    runner,
+    tools,
+    transcript,
+)
 
 
 def _write_agent(agents_dir: Path, name: str, tools_line: str | None) -> None:
@@ -205,7 +216,13 @@ import json, os, sys, time
 from pathlib import Path
 
 RECORD = Path(__RECORD__)
+QUEUE = Path(__QUEUE__)
 BEHAVIOR = json.loads(__BEHAVIOR__)
+if QUEUE.exists():
+    queued = json.loads(QUEUE.read_text())
+    if queued:
+        BEHAVIOR = {**BEHAVIOR, **queued.pop(0)}
+        QUEUE.write_text(json.dumps(queued))
 cwd = Path(os.getcwd())
 files_before = {
     str(p.relative_to(cwd)): p.read_text()
@@ -219,6 +236,8 @@ if BEHAVIOR.get("tamper"):
     for p in cwd.rglob("*"):
         if p.is_file():
             p.write_text(p.read_text() + "TAMPERED")
+if BEHAVIOR.get("touch"):
+    Path(BEHAVIOR["touch"]).write_text("created during the run")
 time.sleep(BEHAVIOR.get("sleep", 0))
 sys.stdout.write(BEHAVIOR.get("stdout", ""))
 sys.stderr.write(BEHAVIOR.get("stderr", ""))
@@ -232,16 +251,23 @@ class StubClaude:
     def __init__(self, directory: Path, **behavior):
         self.path = directory / "claude-stub"
         self._record = directory / "calls.json"
+        self._queue = directory / "queue.json"
         self.path.write_text(
-            STUB_TEMPLATE.replace("__RECORD__", repr(str(self._record))).replace(
-                "__BEHAVIOR__", repr(json.dumps(behavior))
-            ),
+            STUB_TEMPLATE.replace("__RECORD__", repr(str(self._record)))
+            .replace("__QUEUE__", repr(str(self._queue)))
+            .replace("__BEHAVIOR__", repr(json.dumps(behavior))),
             encoding="utf-8",
         )
         self.path.chmod(0o755)
 
+    def queue(self, *per_call_behaviors: dict) -> None:
+        """Make call N use the Nth behavior (merged over the defaults); later calls use the defaults."""
+        self._queue.write_text(json.dumps(list(per_call_behaviors)), encoding="utf-8")
+
     @property
     def calls(self) -> list[dict]:
+        if not self._record.exists():
+            return []
         return json.loads(self._record.read_text(encoding="utf-8"))
 
 
@@ -941,3 +967,582 @@ class TestTrialOutcomes:
 
         with pytest.raises(AttributeError):
             result.outcome = "pass"
+
+
+NOW = datetime(2026, 10, 8, 12, 30, 45, tzinfo=timezone.utc)
+RUN_ID = "20261008T123045Z-scout-haiku-high-0ab3"
+SONNET_MODEL_ID = "claude-sonnet-5-5"
+SCOUT_TOOLS = "Read, Grep, mcp__x__y, Bash(graphify *)"
+PASS_VERDICT = {"status": "pass", "issues": [], "summary": "Nothing to report."}
+FAIL_VERDICT = {"status": "fail", "issues": [], "summary": "Layer violation."}
+TRIAL_COST = 0.01
+
+
+class FixedRng:
+    """Stands in for `random.Random`: always returns the same bits."""
+
+    def getrandbits(self, bits: int) -> int:
+        assert bits == 16
+        return 0x0AB3
+
+
+class TestAgentSpec:
+    def test_reads_baseline_model_effort_and_body_as_system_prompt(self, agents_dir):
+        (agents_dir / "scout.md").write_text(
+            "---\nname: scout\nmodel: sonnet\neffort: high\n---\n\nYou are scout.\n",
+            encoding="utf-8",
+        )
+
+        spec = agent_spec.load_agent_spec("scout", agents_dir)
+
+        assert (spec.model, spec.effort) == ("sonnet", "high")
+        assert spec.system_prompt == "You are scout.\n"
+
+    def test_missing_model_raises_naming_the_key(self, agents_dir):
+        (agents_dir / "scout.md").write_text(
+            "---\nname: scout\neffort: high\n---\nBody\n", encoding="utf-8"
+        )
+
+        with pytest.raises(tools.AgentFrontmatterError) as excinfo:
+            agent_spec.load_agent_spec("scout", agents_dir)
+
+        assert "model" in str(excinfo.value)
+
+
+def _trial_result(outcome_name: str, cost=TRIAL_COST, model_id=None, note=None):
+    return outcome.TrialResult(
+        outcome=outcome_name,
+        cost_usd=cost,
+        model_id=model_id,
+        model_id_note=note,
+        grader_messages=(),
+        error=None,
+    )
+
+
+def _arm_run(fixtures: list[artifact.FixtureTrials]) -> artifact.ArmRun:
+    spec = artifact.ArmSpec("candidate", "haiku", "high", ("Read",), ())
+    return artifact.ArmRun(spec, 1, fixtures)
+
+
+def _built_arm(fixtures: list[artifact.FixtureTrials]) -> dict:
+    metadata = artifact.RunMetadata(RUN_ID, NOW, None, "scout", "knowledge")
+    return artifact.build_artifact(metadata, [_arm_run(fixtures)])["arms"][0]
+
+
+class TestRunId:
+    def test_run_id_joins_utc_time_agent_candidate_model_effort_and_four_hex(self):
+        run_id = artifact.make_run_id(NOW, "scout", "haiku", "high", FixedRng())
+
+        assert run_id == RUN_ID
+
+
+class TestArmTotals:
+    def test_every_outcome_is_counted_with_zeros_included(self):
+        arm = _built_arm(
+            [
+                artifact.FixtureTrials(
+                    "f",
+                    "file",
+                    False,
+                    [
+                        _trial_result(outcome.OUTCOME_PASS),
+                        _trial_result(outcome.OUTCOME_PARSE_FAILURE),
+                    ],
+                )
+            ]
+        )
+
+        assert arm["totals"] == {
+            "pass": 1,
+            "graded_fail": 0,
+            "parse_failure": 1,
+            "tool_violation": 0,
+            "cli_error": 0,
+            "timeout": 0,
+            "clean_fixture_failures": 0,
+            "actual_cost_usd": pytest.approx(0.02),
+        }
+
+    def test_clean_fixture_failures_count_every_non_pass_on_clean_fixtures_only(self):
+        arm = _built_arm(
+            [
+                artifact.FixtureTrials(
+                    "clean",
+                    "file",
+                    True,
+                    [
+                        _trial_result(outcome.OUTCOME_PASS),
+                        _trial_result(outcome.OUTCOME_GRADED_FAIL),
+                        _trial_result(outcome.OUTCOME_CLI_ERROR),
+                    ],
+                ),
+                artifact.FixtureTrials(
+                    "dirty",
+                    "file",
+                    False,
+                    [_trial_result(outcome.OUTCOME_GRADED_FAIL)],
+                ),
+            ]
+        )
+
+        assert arm["totals"]["clean_fixture_failures"] == 2
+
+    def test_model_id_is_reported_when_every_reporting_trial_agrees(self):
+        arm = _built_arm(
+            [
+                artifact.FixtureTrials(
+                    "f",
+                    "file",
+                    False,
+                    [
+                        _trial_result(outcome.OUTCOME_PASS, model_id="m-1"),
+                        _trial_result(outcome.OUTCOME_CLI_ERROR, note="no result"),
+                    ],
+                )
+            ]
+        )
+
+        assert (arm["model_id"], arm["model_id_note"]) == ("m-1", None)
+
+    def test_conflicting_model_ids_yield_null_with_a_note_naming_them(self):
+        arm = _built_arm(
+            [
+                artifact.FixtureTrials(
+                    "f",
+                    "file",
+                    False,
+                    [
+                        _trial_result(outcome.OUTCOME_PASS, model_id="m-1"),
+                        _trial_result(outcome.OUTCOME_PASS, model_id="m-2"),
+                    ],
+                )
+            ]
+        )
+
+        assert arm["model_id"] is None
+        assert "m-1" in arm["model_id_note"] and "m-2" in arm["model_id_note"]
+
+    def test_no_reported_model_id_yields_null_with_the_trial_note(self):
+        arm = _built_arm(
+            [
+                artifact.FixtureTrials(
+                    "f",
+                    "file",
+                    False,
+                    [_trial_result(outcome.OUTCOME_CLI_ERROR, note="no result event")],
+                )
+            ]
+        )
+
+        assert (arm["model_id"], arm["model_id_note"]) == (None, "no result event")
+
+
+def _write_ab_agent(agents_dir: Path, name: str, tools_line: str) -> None:
+    (agents_dir / f"{name}.md").write_text(
+        f"---\nname: {name}\ntools: {tools_line}\nmodel: sonnet\neffort: high\n---\n\n"
+        f"You are {name}.\n",
+        encoding="utf-8",
+    )
+
+
+def _write_expected(expected_dir: Path, stem: str, agent: str, status: str) -> None:
+    entry = {
+        "fixture": stem,
+        "applicableAgents": [agent],
+        "agents": {agent: {"expectedStatus": status}},
+    }
+    (expected_dir / f"{stem}.json").write_text(json.dumps(entry), encoding="utf-8")
+
+
+@dataclass
+class World:
+    """A throwaway repo slice: agents, expected entries, fixtures and a runs dir."""
+
+    root: Path
+    deps: model_effort_ab.Deps
+
+    @property
+    def runs_dir(self) -> Path:
+        return self.root / "runs"
+
+    @property
+    def stub_dir(self) -> Path:
+        return self.root / "stub"
+
+    @property
+    def artifacts(self) -> list[Path]:
+        return sorted(self.runs_dir.iterdir())
+
+
+@pytest.fixture
+def world(tmp_path: Path) -> World:
+    agents, expected, fixtures = (
+        tmp_path / name for name in ("agents", "expected", "fixtures")
+    )
+    for directory in (agents, expected, fixtures, tmp_path / "runs", tmp_path / "stub"):
+        directory.mkdir()
+    _write_ab_agent(agents, "scout", SCOUT_TOOLS)
+    _write_ab_agent(agents, "write-capable", "Read, Edit")
+    _write_ab_agent(agents, "lonely", "Read")
+    _write_ab_agent(agents, "other", "Read")
+    _write_expected(expected, "clean-form", "scout", "pass")
+    _write_expected(expected, "layered-svc", "scout", "fail")
+    _write_expected(expected, "other-only", "other", "pass")
+    (fixtures / "clean-form.html").write_text("<form></form>", encoding="utf-8")
+    (fixtures / "layered-svc" / "src").mkdir(parents=True)
+    (fixtures / "layered-svc" / "src" / "app.py").write_text("app", encoding="utf-8")
+    (fixtures / "other-only.txt").write_text("other", encoding="utf-8")
+    deps = model_effort_ab.Deps(
+        clock=lambda: NOW,
+        rng=FixedRng(),
+        git_sha=lambda: "abc123",
+        agents_dir=agents,
+        expected_dir=expected,
+        fixtures_dir=fixtures,
+    )
+    return World(tmp_path, deps)
+
+
+def _cli(world: World, stub: StubClaude, *args: str) -> int:
+    argv = [
+        *args,
+        "--claude-bin",
+        str(stub.path),
+        "--runs-dir",
+        str(world.runs_dir),
+    ]
+    return model_effort_ab.main(argv, deps=world.deps)
+
+
+def _verdict_call(verdict: dict, model_id: str, *tool_names: str) -> dict:
+    events = [_tool_use_event(*tool_names)] if tool_names else []
+    result = _result_event(json.dumps(verdict), model_usage={model_id: {}})
+    return {"stdout": _stream(*events, result)}
+
+
+def _unparseable_call(model_id: str) -> dict:
+    result = _result_event("No JSON here.", model_usage={model_id: {}})
+    return {"stdout": _stream(result)}
+
+
+def _expected_trial(outcome_name: str, error: str | None = None) -> dict:
+    return {
+        "outcome": outcome_name,
+        "cost_usd": TRIAL_COST,
+        "grader_messages": [],
+        "error": error,
+    }
+
+
+def _passes(count: int) -> list[dict]:
+    return [_expected_trial("pass") for _ in range(count)]
+
+
+def _expected_arm(
+    label: str,
+    model: str,
+    model_id: str,
+    fixtures: list[dict],
+    clean_fixture_failures: int = 0,
+) -> dict:
+    results = [t["outcome"] for fixture in fixtures for t in fixture["trials"]]
+    counts = {
+        name: results.count(name)
+        for name in (
+            "pass",
+            "graded_fail",
+            "parse_failure",
+            "tool_violation",
+            "cli_error",
+            "timeout",
+        )
+    }
+    return {
+        "label": label,
+        "model": model,
+        "model_id": model_id,
+        "model_id_note": None,
+        "effort": "high",
+        "tools_enabled": ["Read", "Grep"],
+        "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
+        "trials": 3,
+        "estimated_cost_usd": None,
+        "fixtures": fixtures,
+        "totals": {
+            **counts,
+            "clean_fixture_failures": clean_fixture_failures,
+            "actual_cost_usd": pytest.approx(TRIAL_COST * len(results)),
+        },
+    }
+
+
+def _expected_fixture(stem: str, kind: str, clean: bool, trials: list[dict]) -> dict:
+    return {"stem": stem, "kind": kind, "expected_clean": clean, "trials": trials}
+
+
+def _two_arm_stub(world: World) -> StubClaude:
+    """Calls alternate baseline, candidate over clean-form x3 then layered-svc x3.
+
+    The candidate's second clean-form trial returns no JSON and its first
+    layered-svc trial calls WebFetch.
+    """
+    stub = StubClaude(world.stub_dir)
+    baseline_pass = _verdict_call(PASS_VERDICT, SONNET_MODEL_ID)
+    baseline_fail = _verdict_call(FAIL_VERDICT, SONNET_MODEL_ID)
+    candidate_pass = _verdict_call(PASS_VERDICT, HAIKU_MODEL_ID)
+    candidate_fail = _verdict_call(FAIL_VERDICT, HAIKU_MODEL_ID)
+    stub.queue(
+        baseline_pass,
+        candidate_pass,
+        baseline_pass,
+        _unparseable_call(HAIKU_MODEL_ID),
+        baseline_pass,
+        candidate_pass,
+        baseline_fail,
+        _verdict_call(FAIL_VERDICT, HAIKU_MODEL_ID, "WebFetch"),
+        baseline_fail,
+        candidate_fail,
+        baseline_fail,
+        candidate_fail,
+    )
+    return stub
+
+
+class TestTwoArmRun:
+    def test_artifact_records_both_arms_over_two_fixtures_with_exact_totals(
+        self, world
+    ):
+        stub = _two_arm_stub(world)
+
+        code = _cli(world, stub, "scout", "--model", "haiku", "--trials", "3")
+
+        assert code == 0
+        assert [path.name for path in world.artifacts] == [f"{RUN_ID}.json"]
+        written = json.loads(world.artifacts[0].read_text(encoding="utf-8"))
+        candidate_clean = [
+            _expected_trial("pass"),
+            _expected_trial("parse_failure", "no JSON object in the result text"),
+            _expected_trial("pass"),
+        ]
+        candidate_layered = [
+            _expected_trial(
+                "tool_violation", "tools outside the enabled set: WebFetch"
+            ),
+            _expected_trial("pass"),
+            _expected_trial("pass"),
+        ]
+        arms = written.pop("arms")
+        assert written == {
+            "run_id": RUN_ID,
+            "status": "complete",
+            "abort_reason": None,
+            "created": "2026-10-08T12:30:45Z",
+            "git_sha": "abc123",
+            "agent": "scout",
+            "grader": "expected-findings",
+            "fidelity": "read-only-profile",
+            "knowledge_dir": "plugins/dev-team/knowledge",
+            "session_config": None,
+        }
+        assert arms == [
+            _expected_arm(
+                "baseline",
+                "sonnet",
+                SONNET_MODEL_ID,
+                [
+                    _expected_fixture("clean-form", "file", True, _passes(3)),
+                    _expected_fixture("layered-svc", "directory", False, _passes(3)),
+                ],
+            ),
+            _expected_arm(
+                "candidate",
+                "haiku",
+                HAIKU_MODEL_ID,
+                [
+                    _expected_fixture("clean-form", "file", True, candidate_clean),
+                    _expected_fixture(
+                        "layered-svc", "directory", False, candidate_layered
+                    ),
+                ],
+                clean_fixture_failures=1,
+            ),
+        ]
+
+    def test_arms_alternate_trial_by_trial_fixture_by_fixture(self, world):
+        stub = _two_arm_stub(world)
+
+        _cli(world, stub, "scout", "--model", "haiku", "--trials", "3")
+
+        calls = stub.calls
+        assert [_flag_value(c["argv"], "--model") for c in calls] == [
+            "sonnet",
+            "haiku",
+        ] * 6
+        staged = [sorted(c["files_before"]) for c in calls]
+        assert staged[:6] == [["clean-form.html"]] * 6
+        assert staged[6:] == [["layered-svc/src/app.py"]] * 6
+
+    def test_candidate_inherits_baseline_values_for_omitted_flags(self, world):
+        stub = StubClaude(world.stub_dir)
+        stub.queue(*[_verdict_call(PASS_VERDICT, SONNET_MODEL_ID)] * 2)
+
+        _cli(
+            world,
+            stub,
+            "scout",
+            "--fixtures",
+            "clean-form",
+            "--effort",
+            "low",
+            "--trials",
+            "1",
+        )
+
+        baseline, candidate = json.loads(
+            world.artifacts[0].read_text(encoding="utf-8")
+        )["arms"]
+        assert (baseline["model"], baseline["effort"]) == ("sonnet", "high")
+        assert (candidate["model"], candidate["effort"]) == ("sonnet", "low")
+
+    def test_fixtures_flag_restricts_the_run_to_the_named_stems(self, world):
+        stub = StubClaude(world.stub_dir)
+
+        _cli(world, stub, "scout", "--fixtures", "layered-svc", "--trials", "1")
+
+        assert len(stub.calls) == 2
+        assert all("layered-svc/src/app.py" in c["files_before"] for c in stub.calls)
+
+
+class TestPreRunRefusals:
+    def test_existing_artifact_path_exits_2_before_any_trial_and_stays_unchanged(
+        self, world
+    ):
+        stub = StubClaude(world.stub_dir)
+        existing = world.runs_dir / f"{RUN_ID}.json"
+        existing.write_text("sentinel", encoding="utf-8")
+
+        code = _cli(world, stub, "scout", "--model", "haiku")
+
+        assert code == 2
+        assert stub.calls == []
+        assert existing.read_text(encoding="utf-8") == "sentinel"
+
+    def test_collision_message_says_what_is_wrong_and_how_to_fix_it(
+        self, world, capsys
+    ):
+        stub = StubClaude(world.stub_dir)
+        (world.runs_dir / f"{RUN_ID}.json").write_text("x", encoding="utf-8")
+
+        _cli(world, stub, "scout", "--model", "haiku")
+
+        stderr = capsys.readouterr().err
+        assert "already exists" in stderr and "rerun" in stderr
+
+    def test_unknown_agent_exits_2_listing_valid_agents_and_writes_nothing(
+        self, world, capsys
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "no-such-agent")
+
+        stderr = capsys.readouterr().err
+        assert code == 2
+        assert "no-such-agent" in stderr
+        assert "scout" in stderr and "lonely" in stderr
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_unknown_fixture_exits_2_naming_it_and_listing_valid_stems(
+        self, world, capsys
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "scout", "--fixtures", "clean-form,nope")
+
+        stderr = capsys.readouterr().err
+        assert code == 2
+        assert "nope" in stderr
+        assert "clean-form" in stderr and "layered-svc" in stderr
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_fixture_whose_expected_entry_names_another_agent_exits_2(
+        self, world, capsys
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "scout", "--fixtures", "other-only")
+
+        assert code == 2
+        assert "other-only" in capsys.readouterr().err
+        assert stub.calls == []
+
+    def test_agent_with_no_expected_entries_exits_2_stating_no_fixtures_found(
+        self, world, capsys
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "lonely")
+
+        assert code == 2
+        assert "no fixtures were found" in capsys.readouterr().err
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_write_capable_agent_exits_2_before_any_trial(self, world, capsys):
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "write-capable")
+
+        assert code == 2
+        assert "write-capable agents are not supported yet" in capsys.readouterr().err
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_missing_runs_directory_exits_2_before_any_trial(self, world, capsys):
+        stub = StubClaude(world.stub_dir)
+        world.runs_dir.rmdir()
+
+        code = _cli(world, stub, "scout")
+
+        assert code == 2
+        assert "runs directory" in capsys.readouterr().err
+        assert stub.calls == []
+
+    def test_zero_trials_is_a_usage_error_and_runs_nothing(self, world):
+        stub = StubClaude(world.stub_dir)
+
+        with pytest.raises(SystemExit) as excinfo:
+            _cli(world, stub, "scout", "--trials", "0")
+
+        assert excinfo.value.code == 2
+        assert stub.calls == [] and world.artifacts == []
+
+
+class TestArtifactWriteFailure:
+    def test_failed_write_after_trials_prints_the_artifact_to_stdout_and_exits_1(
+        self, world, capsys
+    ):
+        existing = world.runs_dir / f"{RUN_ID}.json"
+        # The stub creates the artifact path mid-run, so exclusive-create fails.
+        stub = StubClaude(
+            world.stub_dir,
+            touch=str(existing),
+            **_verdict_call(PASS_VERDICT, SONNET_MODEL_ID),
+        )
+
+        code = _cli(
+            world,
+            stub,
+            "scout",
+            "--model",
+            "haiku",
+            "--fixtures",
+            "clean-form",
+            "--trials",
+            "1",
+        )
+
+        captured = capsys.readouterr()
+        printed = json.loads(captured.out)
+        assert code == 1
+        assert printed["run_id"] == RUN_ID and printed["status"] == "complete"
+        assert existing.read_text(encoding="utf-8") == "created during the run"
+        assert "stdout" in captured.err
