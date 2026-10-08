@@ -18,6 +18,7 @@ from __future__ import annotations
 import dataclasses
 import io
 import json
+import math
 import os
 import shutil
 import signal
@@ -67,6 +68,7 @@ from model_effort.arm import (
     arm_by_label,
 )
 from model_effort.errors import UsageError
+from model_effort.formatting import format_usd
 from model_effort.outcome import Outcome
 
 TRANSCRIPT_FIXTURES = Path(__file__).parent / "fixtures" / "model_effort_ab"
@@ -95,10 +97,24 @@ PINNED_OUTPUT_TOKENS = 100
 # cheap (166*1 + 200*5) / 1e6 = 0.001166.
 BASELINE_TWO_ARM_ESTIMATE = 0.004664 * 3
 CANDIDATE_TWO_ARM_ESTIMATE = 0.001166 * 3
+TWO_ARM_ESTIMATE = BASELINE_TWO_ARM_ESTIMATE + CANDIDATE_TWO_ARM_ESTIMATE
+# A `--max-cost` under the estimate, so the startup refusal applies.
+MAX_COST_BELOW_ESTIMATE = TWO_ARM_ESTIMATE / 2
 ARM_COUNT = 2
 TERMINATION_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
 # The `scout` world resolves two fixtures: clean-form and layered-svc.
 SCOUT_FIXTURE_COUNT = 2
+SCOUT_TRIALS = 3
+# Calls and cost of one arm, and of both, when every planned trial runs.
+ARM_RUN_CALLS = SCOUT_FIXTURE_COUNT * SCOUT_TRIALS
+FULL_RUN_CALLS = ARM_COUNT * ARM_RUN_CALLS
+FULL_RUN_COST = FULL_RUN_CALLS * TRIAL_COST
+MAX_COST_ABOVE_FULL_RUN = 2 * FULL_RUN_COST
+SINGLE_TRIAL_RUN_CALLS = ARM_COUNT * SCOUT_FIXTURE_COUNT
+# A spend limit of two and a half trials' cost: the third trial takes the total past it.
+LIMIT_IN_TRIALS = 2.5
+MAX_COST_MID_RUN = LIMIT_IN_TRIALS * TRIAL_COST
+TRIALS_BEFORE_STOP = math.ceil(LIMIT_IN_TRIALS)
 ENABLED = ("Read", "Grep")
 # Long enough that a slow interpreter start still reaches the stub before the kill.
 TIMEOUT_SECONDS = 3
@@ -2164,6 +2180,27 @@ def _cli(
     return model_effort_ab.main(argv, deps=deps or world.deps)
 
 
+def assert_nothing_ran(stub: StubClaude, world: World) -> None:
+    assert stub.calls == [], "a trial ran"
+    assert world.artifacts == [], "an artifact or placeholder was left behind"
+
+
+def _run_over_max_cost(world: World, stub: StubClaude, **cli_options) -> int:
+    """Run the CLI with a spend limit under the run's estimate, so startup refuses it."""
+    return _cli(
+        world,
+        stub,
+        "scout",
+        "--model",
+        "haiku",
+        "--trials",
+        str(SCOUT_TRIALS),
+        "--max-cost",
+        str(MAX_COST_BELOW_ESTIMATE),
+        **cli_options,
+    )
+
+
 def _written(world: World) -> dict:
     return json.loads(world.artifacts[0].read_text(encoding="utf-8"))
 
@@ -2208,7 +2245,7 @@ def _two_arm_stub(world: World) -> StubClaude:
 
 def _run_two_arm_scenario(world: World) -> tuple[int, dict, StubClaude]:
     stub = _two_arm_stub(world)
-    code = _cli(world, stub, "scout", "--model", "haiku", "--trials", "3")
+    code = _cli(world, stub, "scout", "--model", "haiku", "--trials", str(SCOUT_TRIALS))
     return code, _written(world), stub
 
 
@@ -2258,7 +2295,7 @@ class TestTwoArmRun:
             "effort": "high",
             "tools_enabled": ["Read", "Grep"],
             "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
-            "trials": 3,
+            "trials": SCOUT_TRIALS,
             "estimated_cost_usd": pytest.approx(BASELINE_TWO_ARM_ESTIMATE),
             "session_config": _expected_session_config(SONNET_MODEL_ID),
             "fixtures": [
@@ -2289,7 +2326,7 @@ class TestTwoArmRun:
             "effort": "high",
             "tools_enabled": ["Read", "Grep"],
             "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
-            "trials": 3,
+            "trials": SCOUT_TRIALS,
             "estimated_cost_usd": pytest.approx(CANDIDATE_TWO_ARM_ESTIMATE),
             "session_config": _expected_session_config(HAIKU_MODEL_ID),
             "fixtures": [
@@ -2413,9 +2450,10 @@ class TestTwoArmRun:
             "--trials",
             "1",
             "--trial-timeout",
-            "1",
+            str(TIMEOUT_SECONDS),
         )
 
+        assert stub.calls, "the stub never started, so the timeout proved nothing"
         baseline = _arm_block(_written(world), BASELINE_LABEL)
         assert baseline["totals"]["timeout"] == 1
         assert baseline["fixtures"][0]["trials"][0]["outcome"] == "timeout"
@@ -2456,7 +2494,7 @@ class TestPreRunRefusals:
         assert code == 2
         assert "no-such-agent" in stderr
         assert "scout" in stderr and "lonely" in stderr
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_unknown_fixture_exits_2_naming_it_and_listing_valid_stems(
         self, world, capsys
@@ -2469,7 +2507,7 @@ class TestPreRunRefusals:
         assert code == 2
         assert "nope" in stderr
         assert "clean-form" in stderr and "layered-svc" in stderr
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_fixture_whose_expected_entry_names_another_agent_exits_2(
         self, world, capsys
@@ -2491,7 +2529,7 @@ class TestPreRunRefusals:
 
         assert code == 2
         assert "no fixtures were found" in capsys.readouterr().err
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_write_capable_agent_exits_2_before_any_trial(self, world, capsys):
         stub = StubClaude(world.stub_dir)
@@ -2500,7 +2538,7 @@ class TestPreRunRefusals:
 
         assert code == 2
         assert "write-capable agents are not supported yet" in capsys.readouterr().err
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_missing_runs_directory_exits_2_before_any_trial(self, world, capsys):
         stub = StubClaude(world.stub_dir)
@@ -2519,7 +2557,7 @@ class TestPreRunRefusals:
             _cli(world, stub, "scout", "--trials", "0")
 
         assert excinfo.value.code == 2
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_malformed_expected_json_exits_2_naming_the_file(self, world, capsys):
         stub = StubClaude(world.stub_dir)
@@ -2530,7 +2568,7 @@ class TestPreRunRefusals:
 
         assert code == 2
         assert str(broken) in capsys.readouterr().err
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_misspelled_candidate_effort_exits_2_before_any_trial(self, world, capsys):
         stub = StubClaude(world.stub_dir)
@@ -2540,7 +2578,7 @@ class TestPreRunRefusals:
         stderr = capsys.readouterr().err
         assert code == 2
         assert "hgih" in stderr and "high" in stderr
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_candidate_model_with_path_characters_exits_2_before_any_trial(
         self, world, capsys
@@ -2551,7 +2589,7 @@ class TestPreRunRefusals:
 
         assert code == 2
         assert "--model" in capsys.readouterr().err
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
 
 class TestArtifactReservationAndWrite:
@@ -2750,7 +2788,7 @@ class TestConfigurationEcho:
     ):
         stub = _passing_stub(world)
 
-        _cli(world, stub, "scout", "--model", "haiku", "--trials", "3")
+        _cli(world, stub, "scout", "--model", "haiku", "--trials", str(SCOUT_TRIALS))
 
         assert _stderr_lines(capsys)[:9] == [
             "Agent: scout",
@@ -2769,11 +2807,13 @@ class TestConfigurationEcho:
     ):
         stub = _passing_stub(world)
 
-        _cli(world, stub, "scout", "--model", "haiku", "--trials", "3")
+        _cli(world, stub, "scout", "--model", "haiku", "--trials", str(SCOUT_TRIALS))
 
         assert (
             "Estimate (rough; real cost may be higher): "
-            "baseline $0.0140, candidate $0.0035, total $0.0175"
+            f"baseline {format_usd(BASELINE_TWO_ARM_ESTIMATE)}, "
+            f"candidate {format_usd(CANDIDATE_TWO_ARM_ESTIMATE)}, "
+            f"total {format_usd(TWO_ARM_ESTIMATE)}"
         ) in _stderr_lines(capsys)
 
     def test_trials_line_says_default_when_the_flag_is_absent(self, world, capsys):
@@ -2824,15 +2864,15 @@ class TestArtifactEstimate:
     def test_artifact_records_each_arms_estimated_cost(self, world):
         stub = _passing_stub(world)
 
-        _cli(world, stub, "scout", "--model", "haiku", "--trials", "3")
+        _cli(world, stub, "scout", "--model", "haiku", "--trials", str(SCOUT_TRIALS))
 
         written = _written(world)
         assert _arm_block(written, BASELINE_LABEL)[
             "estimated_cost_usd"
-        ] == pytest.approx(0.013992)
+        ] == pytest.approx(BASELINE_TWO_ARM_ESTIMATE)
         assert _arm_block(written, CANDIDATE_LABEL)[
             "estimated_cost_usd"
-        ] == pytest.approx(0.003498)
+        ] == pytest.approx(CANDIDATE_TWO_ARM_ESTIMATE)
 
 
 class TestSpendRefusals:
@@ -2847,46 +2887,27 @@ class TestSpendRefusals:
         assert code == 2
         assert "'opus' (candidate arm)" in stderr
         assert "sonnet" not in stderr
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_estimate_above_max_cost_exits_2_naming_both_figures_with_no_trial_and_no_placeholder(
         self, world, capsys
     ):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(
-            world,
-            stub,
-            "scout",
-            "--model",
-            "haiku",
-            "--trials",
-            "3",
-            "--max-cost",
-            "0.01",
-        )
+        code = _run_over_max_cost(world, stub, yes=True)
 
         stderr = capsys.readouterr().err
         assert code == 2
-        assert "$0.0175" in stderr and "$0.0100" in stderr
-        assert stub.calls == [] and world.artifacts == []
+        assert format_usd(TWO_ARM_ESTIMATE) in stderr
+        assert format_usd(MAX_COST_BELOW_ESTIMATE) in stderr
+        assert_nothing_ran(stub, world)
 
     def test_refused_run_still_printed_the_configuration_and_estimate(
         self, world, capsys
     ):
         stub = StubClaude(world.stub_dir)
 
-        _cli(
-            world,
-            stub,
-            "scout",
-            "--model",
-            "haiku",
-            "--trials",
-            "3",
-            "--max-cost",
-            "0.01",
-        )
+        _run_over_max_cost(world, stub)
 
         lines = _stderr_lines(capsys)
         assert "Agent: scout" in lines
@@ -2902,13 +2923,13 @@ class TestSpendRefusals:
             "--model",
             "haiku",
             "--trials",
-            "3",
+            str(SCOUT_TRIALS),
             "--max-cost",
-            "0.2",
+            str(MAX_COST_ABOVE_FULL_RUN),
         )
 
         assert code == 0
-        assert len(stub.calls) == 12
+        assert len(stub.calls) == FULL_RUN_CALLS
 
     @pytest.mark.parametrize("value", ["0", "-1", "nan", "inf", "cheap"])
     def test_max_cost_that_is_not_a_positive_number_is_a_usage_error(
@@ -2920,7 +2941,7 @@ class TestSpendRefusals:
             _cli(world, stub, "scout", "--max-cost", value)
 
         assert excinfo.value.code == 2
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
 
 class RaisingStdin:
@@ -2971,7 +2992,7 @@ class TestApprovalGate:
         )
 
         assert code == 0
-        assert len(stub.calls) == 4
+        assert len(stub.calls) == SINGLE_TRIAL_RUN_CALLS
         assert "Proceed?" not in capsys.readouterr().err
 
     def test_yes_flag_runs_trials_when_stdin_is_not_a_tty(self, world):
@@ -2987,7 +3008,7 @@ class TestApprovalGate:
         )
 
         assert code == 0
-        assert len(stub.calls) == 4
+        assert len(stub.calls) == SINGLE_TRIAL_RUN_CALLS
 
     @pytest.mark.parametrize("answer", ["y", "yes", " YES ", "Y", "Yes\t"])
     def test_affirmative_answer_prompts_on_stderr_then_runs_trials(
@@ -3001,7 +3022,7 @@ class TestApprovalGate:
         assert code == 0
         assert err.index("Estimate (rough") < err.index("Proceed? [y/N] ")
         assert err.index("Proceed? [y/N] ") < err.index("artifact written")
-        assert len(stub.calls) == 4
+        assert len(stub.calls) == SINGLE_TRIAL_RUN_CALLS
 
     @pytest.mark.parametrize(
         "answer", ["n", "no", "", "  ", "ye", "yess", "yes please"]
@@ -3015,7 +3036,7 @@ class TestApprovalGate:
 
         assert code == 1
         assert capsys.readouterr().err.endswith(DECLINED_MESSAGE + "\n")
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_end_of_input_at_the_prompt_declines_on_its_own_line_with_no_trial(
         self, world, capsys
@@ -3026,7 +3047,7 @@ class TestApprovalGate:
 
         assert code == 1
         assert capsys.readouterr().err.endswith("\n" + DECLINED_MESSAGE + "\n")
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_ctrl_c_at_the_prompt_declines_with_no_trial_and_no_traceback(
         self, world, capsys
@@ -3039,7 +3060,7 @@ class TestApprovalGate:
         assert code == 1
         assert err.endswith("\n" + DECLINED_MESSAGE + "\n")
         assert "Traceback" not in err
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_no_tty_without_yes_prints_the_estimate_then_exits_1_telling_how_to_proceed(
         self, world, capsys
@@ -3055,48 +3076,19 @@ class TestApprovalGate:
         assert lines[-1] == (
             "error: approval required and stdin is not a TTY: rerun with --yes"
         )
-        assert stub.calls == [] and world.artifacts == []
-
-    def test_yes_flag_does_not_bypass_the_max_cost_refusal(self, world, capsys):
-        stub = _passing_stub(world)
-
-        code = _cli(
-            world,
-            stub,
-            "scout",
-            "--model",
-            "haiku",
-            "--trials",
-            "3",
-            "--max-cost",
-            "0.01",
-        )
-
-        assert code == 2
-        assert "above --max-cost" in capsys.readouterr().err
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
     def test_estimate_above_max_cost_exits_2_before_prompting(self, world, capsys):
         stub = _passing_stub(world)
         stdin = RaisingStdin(AssertionError("stdin must not be read"))
 
-        code = _cli(
-            world,
-            stub,
-            "scout",
-            "--model",
-            "haiku",
-            "--trials",
-            "3",
-            "--max-cost",
-            "0.01",
-            yes=False,
-            deps=_gated_deps(world, stdin),
+        code = _run_over_max_cost(
+            world, stub, yes=False, deps=_gated_deps(world, stdin)
         )
 
         assert code == 2
         assert "Proceed?" not in capsys.readouterr().err
-        assert stub.calls == [] and world.artifacts == []
+        assert_nothing_ran(stub, world)
 
 
 # --- Stop rules --------------------------------------------------------------
@@ -3249,12 +3241,18 @@ class TestSpendLimitStop:
         stub = _passing_stub(world)
 
         code = _cli(
-            world, stub, *CLEAN_FORM_ARGS, "--trials", "5", "--max-cost", "0.025"
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            "--max-cost",
+            str(MAX_COST_MID_RUN),
         )
 
         written = _written(world)
         assert code == 1
-        assert len(stub.calls) == 3
+        assert len(stub.calls) == TRIALS_BEFORE_STOP
         assert (written["status"], written["abort_reason"]) == (
             "incomplete",
             "max-cost",
@@ -3265,19 +3263,35 @@ class TestSpendLimitStop:
     def test_incomplete_totals_count_only_the_completed_trials(self, world):
         stub = _passing_stub(world)
 
-        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5", "--max-cost", "0.025")
+        _cli(
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            "--max-cost",
+            str(MAX_COST_MID_RUN),
+        )
 
         written = _written(world)
         assert _arm_block(written, BASELINE_LABEL)["totals"]["pass"] == 2
         assert _arm_block(written, BASELINE_LABEL)["totals"][
             "actual_cost_usd"
-        ] == pytest.approx(0.02)
+        ] == pytest.approx(2 * TRIAL_COST)
         assert _arm_block(written, CANDIDATE_LABEL)["totals"]["pass"] == 1
 
     def test_stderr_names_the_abort_reason_and_the_artifact_path(self, world, capsys):
         stub = _passing_stub(world)
 
-        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5", "--max-cost", "0.025")
+        _cli(
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            "--max-cost",
+            str(MAX_COST_MID_RUN),
+        )
 
         err = capsys.readouterr().err
         assert "run stopped early (max-cost)" in err
@@ -3287,11 +3301,17 @@ class TestSpendLimitStop:
         stub = _passing_stub(world)
 
         code = _cli(
-            world, stub, *CLEAN_FORM_ARGS, "--trials", "1", "--max-cost", "0.02"
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "1",
+            "--max-cost",
+            str(ARM_COUNT * TRIAL_COST),
         )
 
         assert code == 0
-        assert len(stub.calls) == 2
+        assert len(stub.calls) == ARM_COUNT
         assert _written(world)["status"] == "complete"
 
     @pytest.mark.parametrize(
@@ -3321,7 +3341,7 @@ class TestSpendLimitStop:
             "--model",
             "haiku",
             "--trials",
-            "3",
+            str(SCOUT_TRIALS),
             "--max-cost",
             str(limit),
             "--trial-timeout",
@@ -3336,11 +3356,11 @@ class TestSpendLimitStop:
             for trial in fixture["trials"]
             if not trial["cost_reported"]
         ]
-        per_trial_estimate = BASELINE_TWO_ARM_ESTIMATE / (SCOUT_FIXTURE_COUNT * 3)
+        per_trial_estimate = BASELINE_TWO_ARM_ESTIMATE / ARM_RUN_CALLS
         actual = sum(arm["totals"]["actual_cost_usd"] for arm in written["arms"])
         assert code == 1
         assert written["abort_reason"] == "max-cost"
-        assert len(stub.calls) < ARM_COUNT * SCOUT_FIXTURE_COUNT * 3
+        assert len(stub.calls) < FULL_RUN_CALLS
         assert unreported_trials
         assert baseline["totals"]["estimated_cost_charged_usd"] == pytest.approx(
             len(unreported_trials) * per_trial_estimate
@@ -3380,10 +3400,17 @@ class TestSystemicFailureStop:
         stub = StubClaude(world.stub_dir, **behavior)
 
         code = _cli(
-            world, stub, *CLEAN_FORM_ARGS, "--trials", "5", "--trial-timeout", "1"
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            "--trial-timeout",
+            str(TIMEOUT_SECONDS),
         )
 
         written = _written(world)
+        assert stub.calls, "the stub never started, so the stop proved nothing"
         assert code == 1
         assert len(stub.calls) == 1
         assert (written["status"], written["abort_reason"]) == (
@@ -3406,17 +3433,33 @@ class TestSystemicFailureStop:
         assert _outcomes(written, BASELINE_LABEL) == ["pass"]
         assert _outcomes(written, CANDIDATE_LABEL) == ["cli_error"]
 
+    @pytest.mark.parametrize(
+        ("outcome", "behavior", "cause"),
+        [
+            ("cli_error", CLI_FAILURE, "exit code 1: boom: auth failed"),
+            ("timeout", {"sleep": 30}, "trial exceeded the time limit"),
+        ],
+    )
     def test_stderr_names_the_abort_reason_the_failing_trials_error_and_the_artifact(
-        self, world, capsys
+        self, world, capsys, outcome, behavior, cause
     ):
-        stub = StubClaude(world.stub_dir, **CLI_FAILURE)
+        stub = StubClaude(world.stub_dir, **behavior)
 
-        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+        _cli(
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            "--trial-timeout",
+            str(TIMEOUT_SECONDS),
+        )
 
         err = capsys.readouterr().err
+        assert stub.calls, "the stub never started, so the stop proved nothing"
         assert (
-            "error: run stopped early (infra-failure): the baseline arm ended in "
-            "cli_error. Likely cause: exit code 1: boom: auth failed. Fix that and rerun"
+            f"error: run stopped early (infra-failure): the baseline arm ended in "
+            f"{outcome}. Likely cause: {cause}. Fix that and rerun"
         ) in err
         assert f"artifact written: {world.artifact_path}" in err
 
@@ -3697,15 +3740,16 @@ class TestProgressAndSummary:
     def test_one_progress_line_per_completed_trial_in_run_order(self, world, capsys):
         _cli(world, _passing_stub(world), "scout", "--model", "haiku", "--trials", "2")
 
+        cost = format_usd(TRIAL_COST)
         assert _progress_lines(capsys) == [
-            "[baseline] fixture 1/2 clean-form trial 1/2: pass $0.0100",
-            "[candidate] fixture 1/2 clean-form trial 1/2: pass $0.0100",
-            "[baseline] fixture 1/2 clean-form trial 2/2: pass $0.0100",
-            "[candidate] fixture 1/2 clean-form trial 2/2: pass $0.0100",
-            "[baseline] fixture 2/2 layered-svc trial 1/2: graded_fail $0.0100",
-            "[candidate] fixture 2/2 layered-svc trial 1/2: graded_fail $0.0100",
-            "[baseline] fixture 2/2 layered-svc trial 2/2: graded_fail $0.0100",
-            "[candidate] fixture 2/2 layered-svc trial 2/2: graded_fail $0.0100",
+            f"[baseline] fixture 1/2 clean-form trial 1/2: pass {cost}",
+            f"[candidate] fixture 1/2 clean-form trial 1/2: pass {cost}",
+            f"[baseline] fixture 1/2 clean-form trial 2/2: pass {cost}",
+            f"[candidate] fixture 1/2 clean-form trial 2/2: pass {cost}",
+            f"[baseline] fixture 2/2 layered-svc trial 1/2: graded_fail {cost}",
+            f"[candidate] fixture 2/2 layered-svc trial 1/2: graded_fail {cost}",
+            f"[baseline] fixture 2/2 layered-svc trial 2/2: graded_fail {cost}",
+            f"[candidate] fixture 2/2 layered-svc trial 2/2: graded_fail {cost}",
         ]
 
     def test_progress_lines_stop_with_the_run_and_match_the_trials_that_completed(
@@ -3713,9 +3757,17 @@ class TestProgressAndSummary:
     ):
         stub = _passing_stub(world)
 
-        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5", "--max-cost", "0.025")
+        _cli(
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            "--max-cost",
+            str(MAX_COST_MID_RUN),
+        )
 
-        assert len(_progress_lines(capsys)) == len(stub.calls) == 3
+        assert len(_progress_lines(capsys)) == len(stub.calls) == TRIALS_BEFORE_STOP
 
     def test_progress_line_is_printed_before_the_next_trial_starts(self, world, capsys):
         _cli(
@@ -3728,22 +3780,34 @@ class TestProgressAndSummary:
         )
 
         assert _progress_lines(capsys) == [
-            "[baseline] fixture 1/1 clean-form trial 1/5: pass $0.0100"
+            f"[baseline] fixture 1/1 clean-form trial 1/5: pass {format_usd(TRIAL_COST)}"
         ]
 
     def test_summary_shows_per_arm_outcome_totals_and_actual_against_estimated_cost(
         self, world, capsys
     ):
-        _cli(world, _passing_stub(world), "scout", "--model", "haiku", "--trials", "3")
+        _cli(
+            world,
+            _passing_stub(world),
+            "scout",
+            "--model",
+            "haiku",
+            "--trials",
+            str(SCOUT_TRIALS),
+        )
 
         err = capsys.readouterr().err
+        arm_cost = format_usd(ARM_RUN_CALLS * TRIAL_COST)
         assert (
             "Summary:\n"
             "  baseline: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, "
-            "graded_fail 3, pass 3; cost $0.0600, estimated $0.0140\n"
+            f"graded_fail {SCOUT_TRIALS}, pass {SCOUT_TRIALS}; cost {arm_cost}, "
+            f"estimated {format_usd(BASELINE_TWO_ARM_ESTIMATE)}\n"
             "  candidate: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, "
-            "graded_fail 3, pass 3; cost $0.0600, estimated $0.0035\n"
-            "  total: cost $0.1200, estimated $0.0175\n"
+            f"graded_fail {SCOUT_TRIALS}, pass {SCOUT_TRIALS}; cost {arm_cost}, "
+            f"estimated {format_usd(CANDIDATE_TWO_ARM_ESTIMATE)}\n"
+            f"  total: cost {format_usd(FULL_RUN_COST)}, "
+            f"estimated {format_usd(TWO_ARM_ESTIMATE)}\n"
             f"artifact written: {world.artifact_path}\n"
         ) in err
 
@@ -3774,8 +3838,11 @@ class TestProgressAndSummary:
             "--trials",
             "5",
             "--max-cost",
-            "0.025",
+            str(MAX_COST_MID_RUN),
         )
 
         err = capsys.readouterr().err
-        assert "  total: cost $0.0300, estimated " in err
+        assert (
+            f"  total: cost {format_usd(TRIALS_BEFORE_STOP * TRIAL_COST)}, estimated "
+            in err
+        )
