@@ -94,6 +94,9 @@ SCOUT_TOOLS = "Read, Grep, mcp__x__y, Bash(graphify *)"
 PASS_VERDICT = {"status": "pass", "issues": [], "summary": "Nothing to report."}
 FAIL_VERDICT = {"status": "fail", "issues": [], "summary": "Layer violation."}
 TRIAL_COST = 0.01
+# The scout agent with its candidate arm on haiku, the tail most CLI runs share.
+SCOUT_HAIKU_ARGS = ("scout", "--model", "haiku")
+CLEAN_FORM_ARGS = (*SCOUT_HAIKU_ARGS, "--fixtures", "clean-form")
 # Dollars per million tokens. Aliases mirror the agent files' `sonnet` and the
 # candidate `haiku`; `opus` is deliberately absent so it is unpriced.
 PRICEY_RATE = {"input": 4.0, "output": 20.0}
@@ -2587,9 +2590,7 @@ def _run_over_max_cost(world: World, stub: StubClaude, **cli_options) -> int:
     return _cli(
         world,
         stub,
-        "scout",
-        "--model",
-        "haiku",
+        *SCOUT_HAIKU_ARGS,
         "--trials",
         str(SCOUT_TRIALS),
         "--max-cost",
@@ -2642,7 +2643,7 @@ def _two_arm_stub(world: World) -> StubClaude:
 
 def _run_two_arm_scenario(world: World) -> tuple[int, dict, StubClaude]:
     stub = _two_arm_stub(world)
-    code = _cli(world, stub, "scout", "--model", "haiku", "--trials", str(SCOUT_TRIALS))
+    code = _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", str(SCOUT_TRIALS))
     return code, _written(world), stub
 
 
@@ -2872,9 +2873,7 @@ class TestTwoArmRun:
         code = _cli(
             world,
             stub,
-            "scout",
-            "--model",
-            "haiku",
+            *SCOUT_HAIKU_ARGS,
             "--fixtures",
             "layered-svc",
             "--trials",
@@ -2893,11 +2892,7 @@ class TestTwoArmRun:
         _cli(
             world,
             stub,
-            "scout",
-            "--model",
-            "haiku",
-            "--fixtures",
-            "clean-form",
+            *CLEAN_FORM_ARGS,
             "--trials",
             "1",
         )
@@ -2914,11 +2909,7 @@ class TestTwoArmRun:
         _cli(
             world,
             stub,
-            "scout",
-            "--model",
-            "haiku",
-            "--fixtures",
-            "clean-form",
+            *CLEAN_FORM_ARGS,
             "--trials",
             "1",
         )
@@ -2951,7 +2942,7 @@ class TestPreRunRefusals:
         stub = StubClaude(world.stub_dir)
         world.artifact_path.write_text("sentinel", encoding="utf-8")
 
-        code = _cli(world, stub, "scout", "--model", "haiku")
+        code = _cli(world, stub, *SCOUT_HAIKU_ARGS)
 
         assert code == 2
         assert stub.calls == []
@@ -2963,7 +2954,7 @@ class TestPreRunRefusals:
         stub = StubClaude(world.stub_dir)
         world.artifact_path.write_text("x", encoding="utf-8")
 
-        _cli(world, stub, "scout", "--model", "haiku")
+        _cli(world, stub, *SCOUT_HAIKU_ARGS)
 
         stderr = capsys.readouterr().err
         assert "already exists" in stderr and "rerun" in stderr
@@ -3029,7 +3020,7 @@ class TestPreRunRefusals:
         stub = StubClaude(world.stub_dir)
         world.runs_dir.rmdir()
 
-        code = _cli(world, stub, "scout", "--model", "haiku")
+        code = _cli(world, stub, *SCOUT_HAIKU_ARGS)
 
         assert code == 2
         assert "runs directory" in capsys.readouterr().err
@@ -3145,7 +3136,7 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
         stub = StubClaude(world.stub_dir)
 
         with pytest.raises(SystemExit) as excinfo:
-            _cli(world, stub, "scout", "--model", "haiku", "--trials", trials)
+            _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", trials)
 
         self._assert_refused(
             world, stub, capsys, excinfo.value.code, "a whole number of 1 or more"
@@ -3154,7 +3145,7 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
     def test_rubric_grader_is_refused_as_not_implemented(self, world, capsys):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "scout", "--model", "haiku", "--grader", "rubric")
+        code = _cli(world, stub, *SCOUT_HAIKU_ARGS, "--grader", "rubric")
 
         self._assert_refused(
             world, stub, capsys, code, "not implemented yet; rubric grading is planned"
@@ -3164,7 +3155,7 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
         stub = StubClaude(world.stub_dir)
 
         with pytest.raises(SystemExit) as excinfo:
-            _cli(world, stub, "scout", "--model", "haiku", "--grader", "vibes")
+            _cli(world, stub, *SCOUT_HAIKU_ARGS, "--grader", "vibes")
 
         self._assert_refused(
             world, stub, capsys, excinfo.value.code, "expected-findings"
@@ -3176,9 +3167,7 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
         code = _cli(
             world,
             stub,
-            "scout",
-            "--model",
-            "haiku",
+            *SCOUT_HAIKU_ARGS,
             "--grader",
             "expected-findings",
             "--trials",
@@ -3234,11 +3223,7 @@ class TestArtifactReservationAndWrite:
         code = _cli(
             world,
             stub,
-            "scout",
-            "--model",
-            "haiku",
-            "--fixtures",
-            "clean-form",
+            *CLEAN_FORM_ARGS,
             "--trials",
             "1",
         )
@@ -3259,11 +3244,7 @@ class TestArtifactReservationAndWrite:
         code = _cli(
             world,
             stub,
-            "scout",
-            "--model",
-            "haiku",
-            "--fixtures",
-            "clean-form",
+            *CLEAN_FORM_ARGS,
             "--trials",
             "1",
         )
@@ -3416,7 +3397,7 @@ class TestConfigurationEcho:
     ):
         stub = _passing_stub(world)
 
-        _cli(world, stub, "scout", "--model", "haiku", "--trials", str(SCOUT_TRIALS))
+        _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", str(SCOUT_TRIALS))
 
         assert _stderr_lines(capsys)[:9] == [
             "Agent: scout",
@@ -3435,7 +3416,7 @@ class TestConfigurationEcho:
     ):
         stub = _passing_stub(world)
 
-        _cli(world, stub, "scout", "--model", "haiku", "--trials", str(SCOUT_TRIALS))
+        _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", str(SCOUT_TRIALS))
 
         assert (
             "Estimate (rough; real cost may be higher): "
@@ -3447,7 +3428,7 @@ class TestConfigurationEcho:
     def test_trials_line_says_default_when_the_flag_is_absent(self, world, capsys):
         stub = _passing_stub(world)
 
-        _cli(world, stub, "scout", "--model", "haiku", "--fixtures", "clean-form")
+        _cli(world, stub, *CLEAN_FORM_ARGS)
 
         assert "Trials per arm per fixture: 5 (default)" in _stderr_lines(capsys)
 
@@ -3475,11 +3456,7 @@ class TestConfigurationEcho:
         _cli(
             world,
             _passing_stub(world),
-            "scout",
-            "--model",
-            "haiku",
-            "--fixtures",
-            "clean-form",
+            *CLEAN_FORM_ARGS,
             "--trials",
             "1",
             deps=dataclasses.replace(world.deps, run_trial=snapshot_then_run),
@@ -3494,7 +3471,7 @@ class TestArtifactEstimate:
     def test_artifact_records_each_arms_estimated_cost(self, world):
         stub = _passing_stub(world)
 
-        _cli(world, stub, "scout", "--model", "haiku", "--trials", str(SCOUT_TRIALS))
+        _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", str(SCOUT_TRIALS))
 
         written = _written(world)
         assert _arm_block(written, BASELINE_LABEL)[
@@ -3549,9 +3526,7 @@ class TestSpendRefusals:
         code = _cli(
             world,
             stub,
-            "scout",
-            "--model",
-            "haiku",
+            *SCOUT_HAIKU_ARGS,
             "--trials",
             str(SCOUT_TRIALS),
             "--max-cost",
@@ -3592,9 +3567,7 @@ def _gated_cli(world: World, stub: StubClaude, stdin, *, is_tty: bool = True) ->
     return _cli(
         world,
         stub,
-        "scout",
-        "--model",
-        "haiku",
+        *SCOUT_HAIKU_ARGS,
         "--trials",
         "1",
         yes=False,
@@ -3617,9 +3590,7 @@ class TestApprovalGate:
         code = _cli(
             world,
             stub,
-            "scout",
-            "--model",
-            "haiku",
+            *SCOUT_HAIKU_ARGS,
             "--trials",
             "1",
             deps=_gated_deps(world, stdin),
@@ -3635,9 +3606,7 @@ class TestApprovalGate:
         code = _cli(
             world,
             stub,
-            "scout",
-            "--model",
-            "haiku",
+            *SCOUT_HAIKU_ARGS,
             "--trials",
             "1",
             deps=_gated_deps(world, io.StringIO(""), is_tty=False),
@@ -3849,7 +3818,6 @@ CLI_FAILURE = {"exit_code": 1, "stdout": "", "stderr": "boom: auth failed"}
 TIMED_OUT_RECORD = process_record.TrialProcessRecord(
     exit_code=None, stdout="", stderr="", timed_out=True
 )
-CLEAN_FORM_ARGS = ("scout", "--model", "haiku", "--fixtures", "clean-form")
 
 
 def _deps_acting_after(
@@ -4043,9 +4011,7 @@ class TestSpendLimitStop:
         code = _cli(
             world,
             stub,
-            "scout",
-            "--model",
-            "haiku",
+            *SCOUT_HAIKU_ARGS,
             "--trials",
             str(SCOUT_TRIALS),
             "--max-cost",
@@ -5040,7 +5006,7 @@ class TestRenderProgress:
 
 class TestProgressAndSummary:
     def test_one_progress_line_per_completed_trial_in_run_order(self, world, capsys):
-        _cli(world, _passing_stub(world), "scout", "--model", "haiku", "--trials", "2")
+        _cli(world, _passing_stub(world), *SCOUT_HAIKU_ARGS, "--trials", "2")
 
         cost = format_usd(TRIAL_COST)
         assert _progress_lines(capsys) == [
@@ -5091,9 +5057,7 @@ class TestProgressAndSummary:
         _cli(
             world,
             _passing_stub(world),
-            "scout",
-            "--model",
-            "haiku",
+            *SCOUT_HAIKU_ARGS,
             "--trials",
             str(SCOUT_TRIALS),
         )
