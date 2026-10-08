@@ -28,7 +28,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2591,6 +2591,13 @@ def _cli(
     return model_effort_ab.main(argv, deps=deps or world.deps)
 
 
+def _cli_canned(
+    world: World, deps: model_effort_ab.Deps, *args: str, yes: bool = True
+) -> int:
+    """Run the CLI over deps whose trials run no process; the stub binary is never called."""
+    return _cli(world, StubClaude(world.stub_dir), *args, yes=yes, deps=deps)
+
+
 def assert_nothing_ran(stub: StubClaude, world: World) -> None:
     assert stub.calls == [], "a trial ran"
     assert world.artifacts == [], "an artifact or placeholder was left behind"
@@ -2673,27 +2680,35 @@ def _fixture_block(stem: str, kind: str, clean: bool, trials: list[dict]) -> dic
 
 
 def _deps_with_canned_trials(
-    world: World,
+    deps: model_effort_ab.Deps,
+    *,
+    cost: float = TRIAL_COST,
+    default: process_record.TrialProcessRecord | None = None,
+    overrides: Mapping[int, process_record.TrialProcessRecord] | None = None,
 ) -> tuple[model_effort_ab.Deps, list[tuple]]:
-    """Deps whose trials run no process: each returns a passing record and is logged.
+    """Deps whose trials run no process: each returns a canned record and is logged.
 
-    For tests of what the run does with trials (how many, with what arguments, what
-    it prints), not of the process itself; the call log holds each trial's positional
-    arguments (fixture path, config, timeout).
+    The record is a passing verdict costing `cost`, unless `default` replaces it for
+    every trial or `overrides` replaces it for the trials at those 0-based call
+    numbers. For tests of what the run does with trials (how many, with what
+    arguments, what it prints and records), not of the process itself; the call log
+    holds each trial's positional arguments (fixture path, config, timeout).
     """
     calls: list[tuple] = []
-    record = process_record.TrialProcessRecord(
+    passing = process_record.TrialProcessRecord(
         exit_code=0,
-        stdout=_verdict_call(PASS_VERDICT, SONNET_MODEL_ID)["stdout"],
+        stdout=_verdict_call(PASS_VERDICT, SONNET_MODEL_ID, cost=cost)["stdout"],
         stderr="",
         timed_out=False,
     )
+    overrides = overrides or {}
 
     def canned_trial(*args, **kwargs):
+        call_number = len(calls)
         calls.append(args)
-        return record
+        return overrides.get(call_number, default or passing)
 
-    return dataclasses.replace(world.deps, run_trial=canned_trial), calls
+    return dataclasses.replace(deps, run_trial=canned_trial), calls
 
 
 class TestReadGitHeadSha:
@@ -2920,7 +2935,7 @@ class TestTwoArmRun:
         assert all("layered-svc/src/app.py" in c["files_before"] for c in stub.calls)
 
     def test_a_fixture_named_twice_runs_once_per_arm(self, world):
-        deps, trial_calls = _deps_with_canned_trials(world)
+        deps, trial_calls = _deps_with_canned_trials(world.deps)
 
         code = _cli(
             world,
@@ -3147,7 +3162,7 @@ class TestTrialDefaults:
         self, world, capsys, agent, trials, echo_label
     ):
         _add_agent(world, agent)
-        deps, trial_calls = _deps_with_canned_trials(world)
+        deps, trial_calls = _deps_with_canned_trials(world.deps)
 
         code = _cli(
             world, StubClaude(world.stub_dir), agent, "--model", "haiku", deps=deps
@@ -3161,7 +3176,7 @@ class TestTrialDefaults:
 
     def test_explicit_trials_override_the_high_stakes_default(self, world, capsys):
         _add_agent(world, "security-review")
-        deps, trial_calls = _deps_with_canned_trials(world)
+        deps, trial_calls = _deps_with_canned_trials(world.deps)
 
         code = _cli(
             world,
@@ -3503,7 +3518,7 @@ class TestConfigurationEcho:
         ) in _stderr_lines(capsys)
 
     def test_trial_timeout_flag_reaches_every_trial_and_the_echo(self, world, capsys):
-        deps, trial_calls = _deps_with_canned_trials(world)
+        deps, trial_calls = _deps_with_canned_trials(world.deps)
 
         code = _cli(
             world,
@@ -3676,53 +3691,50 @@ DECLINED_MESSAGE = (
 
 
 class TestApprovalGate:
+    def _run(self, world, stdin, *, is_tty=True, yes=False) -> tuple[int, list[tuple]]:
+        """Run one trial per arm behind the gate; return the exit code and the trials that ran."""
+        deps, trial_calls = _deps_with_canned_trials(
+            _gated_deps(world, stdin, is_tty=is_tty)
+        )
+        code = _cli(
+            world,
+            StubClaude(world.stub_dir),
+            *SCOUT_HAIKU_ARGS,
+            "--trials",
+            "1",
+            yes=yes,
+            deps=deps,
+        )
+        return code, trial_calls
+
     def test_yes_flag_runs_trials_without_prompting_or_reading_stdin(
         self, world, capsys
     ):
-        stub = _passing_stub(world)
         stdin = RaisingStdin(AssertionError("stdin must not be read"))
 
-        code = _cli(
-            world,
-            stub,
-            *SCOUT_HAIKU_ARGS,
-            "--trials",
-            "1",
-            deps=_gated_deps(world, stdin),
-        )
+        code, trial_calls = self._run(world, stdin, yes=True)
 
         assert code == 0
-        assert len(stub.calls) == SINGLE_TRIAL_RUN_CALLS
+        assert len(trial_calls) == SINGLE_TRIAL_RUN_CALLS
         assert "Proceed?" not in capsys.readouterr().err
 
     def test_yes_flag_runs_trials_when_stdin_is_not_a_tty(self, world):
-        stub = _passing_stub(world)
-
-        code = _cli(
-            world,
-            stub,
-            *SCOUT_HAIKU_ARGS,
-            "--trials",
-            "1",
-            deps=_gated_deps(world, io.StringIO(""), is_tty=False),
-        )
+        code, trial_calls = self._run(world, io.StringIO(""), is_tty=False, yes=True)
 
         assert code == 0
-        assert len(stub.calls) == SINGLE_TRIAL_RUN_CALLS
+        assert len(trial_calls) == SINGLE_TRIAL_RUN_CALLS
 
     @pytest.mark.parametrize("answer", ["y", "yes", " YES ", "Y", "Yes\t"])
     def test_affirmative_answer_prompts_on_stderr_then_runs_trials(
         self, world, capsys, answer
     ):
-        stub = _passing_stub(world)
-
-        code = _gated_cli(world, stub, io.StringIO(f"{answer}\n"))
+        code, trial_calls = self._run(world, io.StringIO(f"{answer}\n"))
 
         err = capsys.readouterr().err
         assert code == 0
         assert err.index("Estimate (rough") < err.index("Proceed? [y/N] ")
         assert err.index("Proceed? [y/N] ") < err.index("artifact written")
-        assert len(stub.calls) == SINGLE_TRIAL_RUN_CALLS
+        assert len(trial_calls) == SINGLE_TRIAL_RUN_CALLS
 
     @pytest.mark.parametrize(
         "answer", ["n", "no", "", "  ", "ye", "yess", "yes please"]
@@ -3730,45 +3742,38 @@ class TestApprovalGate:
     def test_any_other_answer_exits_1_with_one_line_message_and_no_trial(
         self, world, capsys, answer
     ):
-        stub = _passing_stub(world)
-
-        code = _gated_cli(world, stub, io.StringIO(f"{answer}\n"))
+        code, trial_calls = self._run(world, io.StringIO(f"{answer}\n"))
 
         assert code == 1
         assert capsys.readouterr().err.endswith(DECLINED_MESSAGE + "\n")
-        assert_nothing_ran(stub, world)
+        assert (trial_calls, world.artifacts) == ([], [])
 
     def test_end_of_input_at_the_prompt_declines_on_its_own_line_with_no_trial(
         self, world, capsys
     ):
-        stub = _passing_stub(world)
-
-        code = _gated_cli(world, stub, io.StringIO(""))
+        code, trial_calls = self._run(world, io.StringIO(""))
 
         assert code == 1
         assert capsys.readouterr().err.endswith("\n" + DECLINED_MESSAGE + "\n")
-        assert_nothing_ran(stub, world)
+        assert (trial_calls, world.artifacts) == ([], [])
 
     def test_ctrl_c_at_the_prompt_declines_with_no_trial_and_no_traceback(
         self, world, capsys
     ):
-        stub = _passing_stub(world)
-
-        code = _gated_cli(world, stub, RaisingStdin(KeyboardInterrupt()))
+        code, trial_calls = self._run(world, RaisingStdin(KeyboardInterrupt()))
 
         err = capsys.readouterr().err
         assert code == 1
         assert err.endswith("\n" + DECLINED_MESSAGE + "\n")
         assert "Traceback" not in err
-        assert_nothing_ran(stub, world)
+        assert (trial_calls, world.artifacts) == ([], [])
 
     def test_no_tty_without_yes_prints_the_estimate_then_exits_1_telling_how_to_proceed(
         self, world, capsys
     ):
-        stub = _passing_stub(world)
         stdin = RaisingStdin(AssertionError("stdin must not be read"))
 
-        code = _gated_cli(world, stub, stdin, is_tty=False)
+        code, trial_calls = self._run(world, stdin, is_tty=False)
 
         lines = capsys.readouterr().err.splitlines()
         assert code == 1
@@ -3776,7 +3781,7 @@ class TestApprovalGate:
         assert lines[-1] == (
             "error: approval required and stdin is not a TTY: rerun with --yes"
         )
-        assert_nothing_ran(stub, world)
+        assert (trial_calls, world.artifacts) == ([], [])
 
     def test_estimate_above_max_cost_exits_2_before_prompting(self, world, capsys):
         stub = _passing_stub(world)
@@ -3910,6 +3915,9 @@ class TestStopRules:
 # --- Stopping early and keeping partial results ------------------------------
 
 CLI_FAILURE = {"exit_code": 1, "stdout": "", "stderr": "boom: auth failed"}
+CLI_FAILURE_RECORD = process_record.TrialProcessRecord(
+    exit_code=1, stdout="", stderr="boom: auth failed", timed_out=False
+)
 TIMED_OUT_RECORD = process_record.TrialProcessRecord(
     exit_code=None, stdout="", stderr="", timed_out=True
 )
@@ -3978,13 +3986,12 @@ def _deps_timing_out(
     return dataclasses.replace(world.deps, run_trial=run_or_time_out)
 
 
-def _always_failing(
+def _deps_always_failing(
     world: World, outcome_name: str
-) -> tuple[StubClaude, model_effort_ab.Deps]:
-    """A stub and deps under which every trial ends in `outcome_name` (cli_error or timeout)."""
-    if outcome_name == "timeout":
-        return StubClaude(world.stub_dir), _deps_timing_out(world)
-    return StubClaude(world.stub_dir, **CLI_FAILURE), world.deps
+) -> tuple[model_effort_ab.Deps, list[tuple]]:
+    """Deps under which every trial ends in `outcome_name` (cli_error or timeout)."""
+    record = TIMED_OUT_RECORD if outcome_name == "timeout" else CLI_FAILURE_RECORD
+    return _deps_with_canned_trials(world.deps, default=record)
 
 
 def _interrupting_deps(world: World, completed_trials: int) -> model_effort_ab.Deps:
@@ -4012,11 +4019,11 @@ class TestSpendLimitStop:
     def test_run_stops_after_the_trial_that_passes_max_cost_and_starts_no_more(
         self, world
     ):
-        stub = _passing_stub(world)
+        deps, trial_calls = _deps_with_canned_trials(world.deps)
 
-        code = _cli(
+        code = _cli_canned(
             world,
-            stub,
+            deps,
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
@@ -4026,7 +4033,7 @@ class TestSpendLimitStop:
 
         written = _written(world)
         assert code == 1
-        assert len(stub.calls) == TRIALS_BEFORE_STOP
+        assert len(trial_calls) == TRIALS_BEFORE_STOP
         assert (written["status"], written["abort_reason"]) == (
             "incomplete",
             "max-cost",
@@ -4035,11 +4042,11 @@ class TestSpendLimitStop:
         assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
 
     def test_incomplete_totals_count_only_the_completed_trials(self, world):
-        stub = _passing_stub(world)
+        deps, _ = _deps_with_canned_trials(world.deps)
 
-        _cli(
+        _cli_canned(
             world,
-            stub,
+            deps,
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
@@ -4055,11 +4062,11 @@ class TestSpendLimitStop:
         assert _arm_block(written, CANDIDATE_LABEL)["totals"]["pass"] == 1
 
     def test_stderr_names_the_abort_reason_and_the_artifact_path(self, world, capsys):
-        stub = _passing_stub(world)
+        deps, _ = _deps_with_canned_trials(world.deps)
 
-        _cli(
+        _cli_canned(
             world,
-            stub,
+            deps,
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
@@ -4072,11 +4079,11 @@ class TestSpendLimitStop:
         assert f"artifact written: {world.artifact_path}" in err
 
     def test_actual_cost_equal_to_max_cost_lets_the_run_finish(self, world):
-        stub = _passing_stub(world)
+        deps, trial_calls = _deps_with_canned_trials(world.deps)
 
-        code = _cli(
+        code = _cli_canned(
             world,
-            stub,
+            deps,
             *CLEAN_FORM_ARGS,
             "--trials",
             "1",
@@ -4085,7 +4092,7 @@ class TestSpendLimitStop:
         )
 
         assert code == 0
-        assert len(stub.calls) == ARM_COUNT
+        assert len(trial_calls) == ARM_COUNT
         assert _written(world)["status"] == "complete"
 
     @staticmethod
@@ -4093,25 +4100,21 @@ class TestSpendLimitStop:
         """Run to a limit the reported costs never pass, with the baseline's unreported trials charged."""
         limit = MAX_COST_ESTIMATE_FACTOR * TWO_ARM_ESTIMATE
         reported_cost = limit / (REPORTED_CALLS + SPARE_TRIAL_SHARE)
-        stub = StubClaude(
-            world.stub_dir,
-            **_verdict_call(PASS_VERDICT, SONNET_MODEL_ID, cost=reported_cost),
+        failure = TIMED_OUT_RECORD if kind == "timeout" else CLI_FAILURE_RECORD
+        unreported_calls = range(2, FULL_RUN_CALLS, 4)
+        deps, _ = _deps_with_canned_trials(
+            world.deps,
+            cost=reported_cost,
+            overrides={call: failure for call in unreported_calls},
         )
-        if kind == "timeout":
-            unreported_calls = range(2, FULL_RUN_CALLS, 4)
-            deps = _deps_timing_out(world, set(unreported_calls))
-        else:
-            stub.queue(*[{}, {}, CLI_FAILURE, {}] * SCOUT_TRIALS)
-            deps = world.deps
-        code = _cli(
+        code = _cli_canned(
             world,
-            stub,
+            deps,
             *SCOUT_HAIKU_ARGS,
             "--trials",
             str(SCOUT_TRIALS),
             "--max-cost",
             str(limit),
-            deps=deps,
         )
         return code, _written(world)
 
@@ -4150,11 +4153,11 @@ class TestSpendLimitStop:
     def test_cost_passing_max_cost_on_the_last_planned_trial_leaves_the_run_complete(
         self, world, capsys
     ):
-        stub = _passing_stub(world)
+        deps, trial_calls = _deps_with_canned_trials(world.deps)
 
-        code = _cli(
+        code = _cli_canned(
             world,
-            stub,
+            deps,
             *CLEAN_FORM_ARGS,
             "--trials",
             "1",
@@ -4164,7 +4167,7 @@ class TestSpendLimitStop:
 
         written = _written(world)
         assert code == 0
-        assert len(stub.calls) == 2
+        assert len(trial_calls) == 2
         assert (written["status"], written["abort_reason"]) == ("complete", None)
         assert "run stopped early" not in capsys.readouterr().err
 
@@ -4174,9 +4177,9 @@ class TestSystemicFailureStop:
     def test_first_trial_ending_in_an_infra_outcome_stops_the_run_with_no_further_trial(
         self, world, outcome
     ):
-        stub, deps = _always_failing(world, outcome)
+        deps, _ = _deps_always_failing(world, outcome)
 
-        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5", deps=deps)
+        code = _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "5")
 
         written = _written(world)
         assert code == 1
@@ -4190,14 +4193,15 @@ class TestSystemicFailureStop:
     def test_candidate_whose_first_trial_fails_stops_the_run_after_one_trial_each(
         self, world
     ):
-        stub = _passing_stub(world)
-        stub.queue({}, CLI_FAILURE)
+        deps, trial_calls = _deps_with_canned_trials(
+            world.deps, overrides={1: CLI_FAILURE_RECORD}
+        )
 
-        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+        code = _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "5")
 
         written = _written(world)
         assert code == 1
-        assert len(stub.calls) == 2
+        assert len(trial_calls) == 2
         assert _outcomes(written, BASELINE_LABEL) == ["pass"]
         assert _outcomes(written, CANDIDATE_LABEL) == ["cli_error"]
 
@@ -4211,9 +4215,9 @@ class TestSystemicFailureStop:
     def test_stderr_names_the_abort_reason_the_failing_trials_error_and_the_artifact(
         self, world, capsys, outcome, cause
     ):
-        stub, deps = _always_failing(world, outcome)
+        deps, _ = _deps_always_failing(world, outcome)
 
-        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5", deps=deps)
+        _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "5")
 
         err = capsys.readouterr().err
         assert (
@@ -4227,14 +4231,7 @@ class TestSystemicFailureStop:
     ):
         deps = _deps_timing_out(world, stderr="auth token expired")
 
-        _cli(
-            world,
-            StubClaude(world.stub_dir),
-            *CLEAN_FORM_ARGS,
-            "--trials",
-            "5",
-            deps=deps,
-        )
+        _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "5")
 
         assert (
             "Likely cause: trial exceeded the time limit: auth token expired. "
@@ -4243,9 +4240,10 @@ class TestSystemicFailureStop:
 
     def test_stderr_shows_the_cause_cut_at_the_cause_limit(self, world, capsys):
         long_stderr = "x" * (4 * CAUSE_LIMIT)
-        stub = StubClaude(world.stub_dir, **{**CLI_FAILURE, "stderr": long_stderr})
+        failure = dataclasses.replace(CLI_FAILURE_RECORD, stderr=long_stderr)
+        deps, _ = _deps_with_canned_trials(world.deps, default=failure)
 
-        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+        _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "5")
 
         assert_cut_at_limit(capsys.readouterr().err, "exit code 1: ", "x")
 
@@ -4253,9 +4251,10 @@ class TestSystemicFailureStop:
         self, world, capsys
     ):
         hostile = "\x1b]0;pwned\x07\x1b[31mred\x1b[0m"
-        stub = StubClaude(world.stub_dir, **{**CLI_FAILURE, "stderr": hostile})
+        failure = dataclasses.replace(CLI_FAILURE_RECORD, stderr=hostile)
+        deps, _ = _deps_with_canned_trials(world.deps, default=failure)
 
-        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+        _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "5")
 
         err = capsys.readouterr().err
         assert "\x1b" not in err and "\x07" not in err
@@ -4266,15 +4265,16 @@ class TestSystemicFailureStop:
     def test_three_consecutive_failures_in_the_baseline_arm_stop_the_run_on_the_third(
         self, world
     ):
-        stub = _passing_stub(world)
         # Calls alternate baseline, candidate: the baseline fails on its trials 2, 3 and 4.
-        stub.queue({}, {}, CLI_FAILURE, {}, CLI_FAILURE, {}, CLI_FAILURE)
+        deps, trial_calls = _deps_with_canned_trials(
+            world.deps, overrides={call: CLI_FAILURE_RECORD for call in (2, 4, 6)}
+        )
 
-        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+        code = _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "5")
 
         written = _written(world)
         assert code == 1
-        assert len(stub.calls) == 7
+        assert len(trial_calls) == 7
         assert written["abort_reason"] == "infra-failure"
         assert _outcomes(written, BASELINE_LABEL) == [
             "pass",
@@ -4285,14 +4285,15 @@ class TestSystemicFailureStop:
         assert _outcomes(written, CANDIDATE_LABEL) == ["pass", "pass", "pass"]
 
     def test_single_later_cli_error_does_not_stop_the_run(self, world):
-        stub = _passing_stub(world)
-        stub.queue({}, {}, CLI_FAILURE)
+        deps, trial_calls = _deps_with_canned_trials(
+            world.deps, overrides={2: CLI_FAILURE_RECORD}
+        )
 
-        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "3")
+        code = _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "3")
 
         written = _written(world)
         assert code == 0
-        assert len(stub.calls) == 6
+        assert len(trial_calls) == 6
         assert written["status"] == "complete"
         assert _outcomes(written, BASELINE_LABEL) == ["pass", "cli_error", "pass"]
 
@@ -5101,7 +5102,9 @@ class TestRenderProgress:
 
 class TestProgressAndSummary:
     def test_one_progress_line_per_completed_trial_in_run_order(self, world, capsys):
-        _cli(world, _passing_stub(world), *SCOUT_HAIKU_ARGS, "--trials", "2")
+        deps, _ = _deps_with_canned_trials(world.deps)
+
+        _cli_canned(world, deps, *SCOUT_HAIKU_ARGS, "--trials", "2")
 
         cost = format_usd(TRIAL_COST)
         assert _progress_lines(capsys) == [
@@ -5118,11 +5121,11 @@ class TestProgressAndSummary:
     def test_progress_lines_stop_with_the_run_and_match_the_trials_that_completed(
         self, world, capsys
     ):
-        stub = _passing_stub(world)
+        deps, trial_calls = _deps_with_canned_trials(world.deps)
 
-        _cli(
+        _cli_canned(
             world,
-            stub,
+            deps,
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
@@ -5130,7 +5133,7 @@ class TestProgressAndSummary:
             str(MAX_COST_MID_RUN),
         )
 
-        assert len(_progress_lines(capsys)) == len(stub.calls) == TRIALS_BEFORE_STOP
+        assert len(_progress_lines(capsys)) == len(trial_calls) == TRIALS_BEFORE_STOP
 
     def test_progress_line_is_printed_before_the_next_trial_starts(self, world, capsys):
         _cli(
@@ -5149,13 +5152,9 @@ class TestProgressAndSummary:
     def test_summary_shows_per_arm_outcome_totals_and_actual_against_estimated_cost(
         self, world, capsys
     ):
-        _cli(
-            world,
-            _passing_stub(world),
-            *SCOUT_HAIKU_ARGS,
-            "--trials",
-            str(SCOUT_TRIALS),
-        )
+        deps, _ = _deps_with_canned_trials(world.deps)
+
+        _cli_canned(world, deps, *SCOUT_HAIKU_ARGS, "--trials", str(SCOUT_TRIALS))
 
         err = capsys.readouterr().err
         arm_cost = format_usd(ARM_RUN_CALLS * TRIAL_COST)
@@ -5175,10 +5174,11 @@ class TestProgressAndSummary:
     def test_summary_marks_an_arms_cost_as_a_lower_bound_when_a_trial_reported_none(
         self, world, capsys
     ):
-        stub = _passing_stub(world)
-        stub.queue({}, {}, CLI_FAILURE)
+        deps, _ = _deps_with_canned_trials(
+            world.deps, overrides={2: CLI_FAILURE_RECORD}
+        )
 
-        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "3")
+        _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "3")
 
         lines = capsys.readouterr().err.splitlines()
         baseline = next(
@@ -5192,9 +5192,11 @@ class TestProgressAndSummary:
         assert "lower bound" not in candidate
 
     def test_incomplete_run_summary_counts_only_completed_trials(self, world, capsys):
-        _cli(
+        deps, _ = _deps_with_canned_trials(world.deps)
+
+        _cli_canned(
             world,
-            _passing_stub(world),
+            deps,
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
