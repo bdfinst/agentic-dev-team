@@ -28,7 +28,7 @@ for _path in (
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from model_effort import runner, tools
+from model_effort import grading, outcome, runner, tools, transcript
 
 
 def _write_agent(agents_dir: Path, name: str, tools_line: str | None) -> None:
@@ -510,3 +510,434 @@ class TestExecution:
         assert record.timed_out is True
         assert record.exit_code is None
         assert time.monotonic() - started < 15
+
+    def test_missing_claude_binary_yields_exit_127_with_the_os_error_as_stderr(
+        self, tmp_path, fixture_root
+    ):
+        fixture = fixture_root / "a.txt"
+        fixture.write_text("a", encoding="utf-8")
+        missing = tmp_path / "no-such-claude"
+
+        record = runner.run_trial(
+            fixture,
+            runner.TrialConfig(
+                model="haiku",
+                effort="low",
+                system_prompt="x",
+                enabled_tools=("Read",),
+                claude_bin=str(missing),
+            ),
+        )
+
+        assert (record.exit_code, record.timed_out) == (127, False)
+        assert "no-such-claude" in record.stderr
+
+    def test_non_executable_claude_binary_yields_exit_127(self, tmp_path, fixture_root):
+        fixture = fixture_root / "a.txt"
+        fixture.write_text("a", encoding="utf-8")
+        not_executable = tmp_path / "claude-plain-file"
+        not_executable.write_text("not a program", encoding="utf-8")
+        not_executable.chmod(0o644)
+
+        record = runner.run_trial(
+            fixture,
+            runner.TrialConfig(
+                model="haiku",
+                effort="low",
+                system_prompt="x",
+                enabled_tools=("Read",),
+                claude_bin=str(not_executable),
+            ),
+        )
+
+        assert record.exit_code == 127
+        assert record.stderr != ""
+
+
+TRANSCRIPT_FIXTURES = Path(__file__).parent / "fixtures" / "model_effort_ab"
+HAIKU_MODEL_ID = "claude-haiku-5-5"
+
+
+def _read_transcript(name: str) -> transcript.ParsedTranscript:
+    text = (TRANSCRIPT_FIXTURES / f"{name}.jsonl").read_text(encoding="utf-8")
+    return transcript.parse_stream(text)
+
+
+def _stream(*events: dict | str) -> str:
+    return "\n".join(e if isinstance(e, str) else json.dumps(e) for e in events)
+
+
+def _result_event(text="ok", model_usage=None, **fields) -> dict:
+    usage = {HAIKU_MODEL_ID: {}} if model_usage is None else model_usage
+    return {
+        "type": "result",
+        "result": text,
+        "is_error": False,
+        "total_cost_usd": 0.01,
+        "modelUsage": usage,
+        **fields,
+    }
+
+
+def _tool_use_event(*names: str) -> dict:
+    blocks = [{"type": "tool_use", "name": n, "input": {}} for n in names]
+    return {"type": "assistant", "message": {"content": blocks}}
+
+
+class TestParseStream:
+    def test_real_read_only_run_yields_result_cost_model_and_tool_names(self):
+        parsed = _read_transcript("pass-readonly")
+
+        assert parsed.has_result is True
+        assert parsed.is_error is False
+        assert parsed.result_text == '{"status": "ok", "knowledge_read": true}'
+        assert parsed.cost_usd == pytest.approx(0.00041539)
+        assert parsed.model_id == HAIKU_MODEL_ID
+        assert parsed.model_id_note is None
+        assert parsed.tool_names == ("Read", "Read")
+
+    def test_real_bad_model_run_is_an_error_with_no_model_id_and_a_note(self):
+        parsed = _read_transcript("bad-model")
+
+        assert parsed.has_result is True
+        assert parsed.is_error is True
+        assert parsed.cost_usd == 0
+        assert parsed.model_id is None
+        assert parsed.model_id_note
+
+    def test_real_run_where_the_model_declines_bash_has_no_tool_use(self):
+        parsed = _read_transcript("tool-denied-bash")
+
+        assert parsed.tool_names == ()
+        assert parsed.model_id == HAIKU_MODEL_ID
+
+    def test_real_run_with_no_tools_has_no_tool_use(self):
+        parsed = _read_transcript("no-tools")
+
+        assert parsed.tool_names == ()
+        assert parsed.result_text == "ok"
+        assert parsed.has_result is True
+
+    def test_blank_and_unparseable_lines_are_skipped(self):
+        parsed = transcript.parse_stream(
+            _stream("", "not json", "[1, 2]", _result_event("hi"), "   ")
+        )
+
+        assert (parsed.has_result, parsed.result_text) == (True, "hi")
+
+    def test_rate_limit_and_system_events_are_ignored(self):
+        parsed = transcript.parse_stream(
+            _stream(
+                {"type": "system", "subtype": "init", "tools": ["Read"]},
+                {"type": "rate_limit_event", "rate_limit_info": {}},
+                _tool_use_event("Read"),
+                {"type": "rate_limit_event", "rate_limit_info": {}},
+                _result_event("done"),
+            )
+        )
+
+        assert parsed.tool_names == ("Read",)
+        assert parsed.result_text == "done"
+
+    def test_missing_result_event_reports_has_result_false(self):
+        parsed = transcript.parse_stream(_stream(_tool_use_event("Grep")))
+
+        assert parsed.has_result is False
+        assert parsed.result_text is None
+        assert parsed.tool_names == ("Grep",)
+        assert parsed.cost_usd == 0
+
+    def test_empty_stdout_has_no_result(self):
+        assert transcript.parse_stream("").has_result is False
+
+    def test_missing_model_usage_gives_no_model_id_and_a_note(self):
+        event = _result_event()
+        del event["modelUsage"]
+
+        parsed = transcript.parse_stream(_stream(event))
+
+        assert parsed.model_id is None
+        assert parsed.model_id_note
+
+    def test_multiple_models_in_model_usage_are_ambiguous_and_noted(self):
+        usage = {"claude-haiku-5-5": {}, "claude-sonnet-5-5": {}}
+
+        parsed = transcript.parse_stream(_stream(_result_event(model_usage=usage)))
+
+        assert parsed.model_id is None
+        assert "claude-haiku-5-5" in parsed.model_id_note
+        assert "claude-sonnet-5-5" in parsed.model_id_note
+
+    def test_tool_names_from_several_assistant_events_keep_order_and_skip_text(self):
+        text_block = {
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": "thinking"}]},
+        }
+
+        parsed = transcript.parse_stream(
+            _stream(
+                _tool_use_event("Read", "Grep"),
+                text_block,
+                _tool_use_event("WebFetch"),
+                _result_event(),
+            )
+        )
+
+        assert parsed.tool_names == ("Read", "Grep", "WebFetch")
+
+
+class TestExtractAgentJson:
+    def test_bare_object_is_parsed(self):
+        assert transcript.extract_agent_json('{"status": "pass"}') == {"status": "pass"}
+
+    def test_fenced_json_block_is_preferred_over_earlier_bare_object(self):
+        text = 'Draft {"status": "fail"}\n```json\n{"status": "pass"}\n```'
+
+        assert transcript.extract_agent_json(text) == {"status": "pass"}
+
+    def test_two_objects_without_a_fence_first_wins(self):
+        text = '{"status": "pass"} then {"status": "fail"}'
+
+        assert transcript.extract_agent_json(text) == {"status": "pass"}
+
+    def test_prose_around_the_object_is_ignored(self):
+        text = 'Here is my review:\n{"status": "warn", "issues": []}\nHope it helps.'
+
+        assert transcript.extract_agent_json(text) == {"status": "warn", "issues": []}
+
+    def test_braces_inside_strings_do_not_break_balancing(self):
+        text = 'x {"summary": "uses } and { inside", "status": "pass"} y'
+
+        assert transcript.extract_agent_json(text) == {
+            "summary": "uses } and { inside",
+            "status": "pass",
+        }
+
+    def test_nested_objects_are_returned_whole(self):
+        text = '{"issues": [{"severity": "error"}], "status": "fail"}'
+
+        assert transcript.extract_agent_json(text)["issues"] == [{"severity": "error"}]
+
+    def test_invalid_fenced_block_falls_back_to_a_bare_object(self):
+        text = '```json\n{broken\n```\n{"status": "pass"}'
+
+        assert transcript.extract_agent_json(text) == {"status": "pass"}
+
+    @pytest.mark.parametrize(
+        "text", ["", "no json here", "{not: json}", "[1, 2]", None]
+    )
+    def test_text_without_a_json_object_gives_none(self, text):
+        assert transcript.extract_agent_json(text) is None
+
+
+CLEAN_STEM = "a11y-clean-form"
+CLEAN_AGENT = "a11y-review"
+PASSING_VERDICT = {"status": "pass", "issues": [], "summary": "No problems."}
+
+
+class TestGradeTrial:
+    def test_verdict_matching_the_real_expected_entry_passes(self):
+        passed, messages = grading.grade_trial(CLEAN_AGENT, CLEAN_STEM, PASSING_VERDICT)
+
+        assert (passed, messages) == (True, [])
+
+    def test_verdict_with_the_wrong_status_fails_with_a_status_message(self):
+        wrong = {"status": "fail", "issues": [], "summary": ""}
+
+        passed, messages = grading.grade_trial(CLEAN_AGENT, CLEAN_STEM, wrong)
+
+        assert passed is False
+        assert any("status" in message for message in messages)
+
+    def test_only_the_named_expected_file_reaches_the_grader(self, tmp_path):
+        expected_dir = tmp_path / "expected"
+        expected_dir.mkdir()
+        (expected_dir / "one.json").write_text(
+            json.dumps({"agents": {"x-review": {"expectedStatus": "pass"}}}),
+            encoding="utf-8",
+        )
+        # A malformed sibling would crash the grader if it were copied too.
+        (expected_dir / "two.json").write_text("{not json", encoding="utf-8")
+
+        passed, _ = grading.grade_trial(
+            "x-review", "one", {"status": "pass"}, expected_dir=expected_dir
+        )
+
+        assert passed is True
+
+    def test_agent_absent_from_the_expected_entry_fails_with_a_message(self):
+        passed, messages = grading.grade_trial("no-such-agent", CLEAN_STEM, {})
+
+        assert passed is False
+        assert messages
+
+    def test_grading_leaves_no_temp_dir_behind(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(grading.tempfile, "tempdir", str(tmp_path))
+
+        grading.grade_trial(CLEAN_AGENT, CLEAN_STEM, PASSING_VERDICT)
+
+        assert list(tmp_path.iterdir()) == []
+
+
+class TestIsExpectedClean:
+    def test_expected_status_pass_is_clean(self):
+        entry = {"agents": {"a": {"expectedStatus": "pass"}}}
+
+        assert grading.is_expected_clean(entry, "a") is True
+
+    def test_expected_status_fail_is_not_clean(self):
+        entry = {"agents": {"a": {"expectedStatus": "fail"}}}
+
+        assert grading.is_expected_clean(entry, "a") is False
+
+    def test_agent_missing_from_entry_is_not_clean(self):
+        assert grading.is_expected_clean({"agents": {}}, "a") is False
+
+    def test_real_clean_fixture_entry_is_clean(self):
+        entry = json.loads(
+            (grading.EXPECTED_DIR / f"{CLEAN_STEM}.json").read_text(encoding="utf-8")
+        )
+
+        assert grading.is_expected_clean(entry, CLEAN_AGENT) is True
+
+
+ENABLED = ("Read", "Grep")
+
+
+def _record(exit_code=0, stdout="", stderr="", timed_out=False) -> runner.RunRecord:
+    return runner.RunRecord(
+        exit_code=exit_code, stdout=stdout, stderr=stderr, timed_out=timed_out
+    )
+
+
+def _resolve(stdout: str, grader=None, **record_fields) -> outcome.TrialResult:
+    record = _record(stdout=stdout, **record_fields)
+    parsed = transcript.parse_stream(stdout)
+    grader = grader or (lambda agent_json: (True, []))
+    return outcome.resolve_outcome(record, parsed, ENABLED, grader)
+
+
+def _real_grader(agent_json: dict) -> tuple[bool, list[str]]:
+    return grading.grade_trial(CLEAN_AGENT, CLEAN_STEM, agent_json)
+
+
+def _verdict_stream(verdict: dict, *tool_names: str) -> str:
+    events = [_tool_use_event(*tool_names)] if tool_names else []
+    return _stream(*events, _result_event(json.dumps(verdict)))
+
+
+class TestTrialOutcomes:
+    def test_json_satisfying_the_expected_entry_is_pass(self):
+        result = _resolve(_verdict_stream(PASSING_VERDICT), _real_grader)
+
+        assert result.outcome == outcome.OUTCOME_PASS
+        assert result.error is None
+        assert result.grader_messages == ()
+
+    def test_json_with_the_wrong_status_is_graded_fail_with_grader_messages(self):
+        wrong = {"status": "fail", "issues": [], "summary": ""}
+
+        result = _resolve(_verdict_stream(wrong), _real_grader)
+
+        assert result.outcome == outcome.OUTCOME_GRADED_FAIL
+        assert any("status" in m for m in result.grader_messages)
+
+    def test_text_with_no_json_object_is_parse_failure(self):
+        result = _resolve(_stream(_result_event("I found nothing to report.")))
+
+        assert result.outcome == outcome.OUTCOME_PARSE_FAILURE
+        assert result.error
+
+    def test_call_to_a_tool_outside_the_enabled_set_is_tool_violation_naming_it(self):
+        result = _resolve(_verdict_stream(PASSING_VERDICT, "Read", "Bash"))
+
+        assert result.outcome == outcome.OUTCOME_TOOL_VIOLATION
+        assert "Bash" in result.error
+        assert "Read" not in result.error
+
+    def test_webfetch_call_with_passing_json_is_tool_violation(self):
+        result = _resolve(_verdict_stream(PASSING_VERDICT, "WebFetch"), _real_grader)
+
+        assert result.outcome == outcome.OUTCOME_TOOL_VIOLATION
+        assert "WebFetch" in result.error
+
+    def test_non_zero_exit_is_cli_error_carrying_stderr(self):
+        result = _resolve(
+            _verdict_stream(PASSING_VERDICT), exit_code=1, stderr="model not found"
+        )
+
+        assert result.outcome == outcome.OUTCOME_CLI_ERROR
+        assert "model not found" in result.error
+
+    def test_webfetch_call_with_non_zero_exit_is_cli_error(self):
+        result = _resolve(_verdict_stream(PASSING_VERDICT, "WebFetch"), exit_code=1)
+
+        assert result.outcome == outcome.OUTCOME_CLI_ERROR
+
+    def test_exit_zero_with_no_result_event_is_cli_error(self):
+        result = _resolve(_stream(_tool_use_event("Read")))
+
+        assert result.outcome == outcome.OUTCOME_CLI_ERROR
+        assert "result" in result.error
+
+    def test_result_event_flagged_is_error_is_cli_error_even_with_exit_zero(self):
+        stdout = _stream(_result_event("model gone", is_error=True))
+
+        result = _resolve(stdout)
+
+        assert result.outcome == outcome.OUTCOME_CLI_ERROR
+        assert "model gone" in result.error
+
+    def test_timed_out_run_is_timeout_even_with_other_failures(self):
+        result = _resolve(
+            _stream(_tool_use_event("WebFetch")),
+            exit_code=None,
+            timed_out=True,
+        )
+
+        assert result.outcome == outcome.OUTCOME_TIMEOUT
+
+    def test_grader_is_not_called_unless_every_earlier_check_passed(self):
+        calls = []
+
+        def spy(agent_json):
+            calls.append(agent_json)
+            return True, []
+
+        _resolve(_verdict_stream(PASSING_VERDICT, "WebFetch"), spy)
+        _resolve(_stream(_result_event("no json")), spy)
+        _resolve(_verdict_stream(PASSING_VERDICT), spy, exit_code=1)
+        _resolve(_verdict_stream(PASSING_VERDICT), spy, exit_code=None, timed_out=True)
+
+        assert calls == []
+
+    def test_cost_and_model_id_come_from_the_transcript(self):
+        result = _resolve(_verdict_stream(PASSING_VERDICT))
+
+        assert result.cost_usd == pytest.approx(0.01)
+        assert result.model_id == HAIKU_MODEL_ID
+        assert result.model_id_note is None
+
+    def test_cost_is_kept_for_a_failed_trial(self):
+        result = _resolve(_verdict_stream(PASSING_VERDICT, "WebFetch"))
+
+        assert result.cost_usd == pytest.approx(0.01)
+
+    def test_grader_messages_and_error_are_capped_at_500_characters(self):
+        long_message = "m" * 900
+
+        graded = _resolve(
+            _verdict_stream(PASSING_VERDICT), lambda j: (False, [long_message])
+        )
+        errored = _resolve(
+            _verdict_stream(PASSING_VERDICT), exit_code=1, stderr="e" * 900
+        )
+
+        assert [len(m) for m in graded.grader_messages] == [500]
+        assert len(errored.error) == 500
+
+    def test_trial_result_is_immutable(self):
+        result = _resolve(_verdict_stream(PASSING_VERDICT))
+
+        with pytest.raises(AttributeError):
+            result.outcome = "pass"

@@ -23,6 +23,8 @@ KNOWLEDGE_DIR = PLUGIN_ROOT / "knowledge"
 
 DEFAULT_CLAUDE_BIN = "claude"
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 600
+# Shell convention for "command not found or not executable".
+COMMAND_NOT_RUNNABLE_EXIT_CODE = 127
 PLUGIN_ROOT_PLACEHOLDER = "${CLAUDE_PLUGIN_ROOT}"
 TEMP_DIR_PREFIX = "model-effort-ab-"
 
@@ -103,7 +105,11 @@ def staged_fixture(fixture: Path) -> Iterator[Path]:
 
 
 def execute(argv: Sequence[str], cwd: Path, timeout: float) -> RunRecord:
-    """Run `argv` in `cwd`; on timeout the child is killed and `timed_out` is set."""
+    """Run `argv` in `cwd`.
+
+    On timeout the child is killed and `timed_out` is set. A binary that cannot
+    be started yields exit code 127 with the OS error as stderr.
+    """
     try:
         completed = subprocess.run(
             argv,
@@ -113,6 +119,13 @@ def execute(argv: Sequence[str], cwd: Path, timeout: float) -> RunRecord:
             text=True,
             timeout=timeout,
             check=False,
+        )
+    except OSError as err:
+        return RunRecord(
+            exit_code=COMMAND_NOT_RUNNABLE_EXIT_CODE,
+            stdout="",
+            stderr=str(err),
+            timed_out=False,
         )
     except subprocess.TimeoutExpired as expired:
         return RunRecord(
