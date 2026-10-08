@@ -15,6 +15,8 @@ has one named smoke test; the transcripts are the harness's parser fixtures.
 
 from __future__ import annotations
 
+import dataclasses
+import io
 import json
 import os
 import shutil
@@ -1975,15 +1977,23 @@ def world(tmp_path: Path, monkeypatch) -> World:
     return World(tmp_path, deps)
 
 
-def _cli(world: World, stub: StubClaude, *args: str) -> int:
+def _cli(
+    world: World,
+    stub: StubClaude,
+    *args: str,
+    yes: bool = True,
+    deps: model_effort_ab.Deps | None = None,
+) -> int:
+    """Run the CLI; `yes` passes the approval gate unless a test exercises the gate itself."""
     argv = [
         *args,
+        *(["--yes"] if yes else []),
         "--claude-bin",
         str(stub.path),
         "--runs-dir",
         str(world.runs_dir),
     ]
-    return model_effort_ab.main(argv, deps=world.deps)
+    return model_effort_ab.main(argv, deps=deps or world.deps)
 
 
 def _written(world: World) -> dict:
@@ -2723,4 +2733,180 @@ class TestSpendRefusals:
             _cli(world, stub, "scout", "--max-cost", value)
 
         assert excinfo.value.code == 2
+        assert stub.calls == [] and world.artifacts == []
+
+
+class RaisingStdin:
+    """A stdin whose read fails the way a terminal does on Ctrl-C."""
+
+    def __init__(self, error: BaseException):
+        self._error = error
+
+    def readline(self) -> str:
+        raise self._error
+
+
+def _gated_deps(world: World, stdin, *, is_tty: bool = True) -> model_effort_ab.Deps:
+    return dataclasses.replace(world.deps, stdin=stdin, stdin_is_tty=lambda: is_tty)
+
+
+def _gated_cli(world: World, stub: StubClaude, stdin, *, is_tty: bool = True) -> int:
+    return _cli(
+        world,
+        stub,
+        "scout",
+        "--trials",
+        "1",
+        yes=False,
+        deps=_gated_deps(world, stdin, is_tty=is_tty),
+    )
+
+
+DECLINED_MESSAGE = (
+    "error: declined at the prompt, so no trial ran: rerun and answer y, or pass --yes"
+)
+
+
+class TestApprovalGate:
+    def test_yes_flag_runs_trials_without_prompting_or_reading_stdin(
+        self, world, capsys
+    ):
+        stub = _passing_stub(world)
+        stdin = RaisingStdin(AssertionError("stdin must not be read"))
+
+        code = _cli(
+            world,
+            stub,
+            "scout",
+            "--trials",
+            "1",
+            deps=_gated_deps(world, stdin),
+        )
+
+        assert code == 0
+        assert len(stub.calls) == 4
+        assert "Proceed?" not in capsys.readouterr().err
+
+    def test_yes_flag_runs_trials_when_stdin_is_not_a_tty(self, world):
+        stub = _passing_stub(world)
+
+        code = _cli(
+            world,
+            stub,
+            "scout",
+            "--trials",
+            "1",
+            deps=_gated_deps(world, io.StringIO(""), is_tty=False),
+        )
+
+        assert code == 0
+        assert len(stub.calls) == 4
+
+    @pytest.mark.parametrize("answer", ["y", "yes", " YES ", "Y", "Yes\t"])
+    def test_affirmative_answer_prompts_on_stderr_then_runs_trials(
+        self, world, capsys, answer
+    ):
+        stub = _passing_stub(world)
+
+        code = _gated_cli(world, stub, io.StringIO(f"{answer}\n"))
+
+        err = capsys.readouterr().err
+        assert code == 0
+        assert err.index("Estimate (rough") < err.index("Proceed? [y/N] ")
+        assert err.index("Proceed? [y/N] ") < err.index("artifact written")
+        assert len(stub.calls) == 4
+
+    @pytest.mark.parametrize(
+        "answer", ["n", "no", "", "  ", "ye", "yess", "yes please"]
+    )
+    def test_any_other_answer_exits_1_with_one_line_message_and_no_trial(
+        self, world, capsys, answer
+    ):
+        stub = _passing_stub(world)
+
+        code = _gated_cli(world, stub, io.StringIO(f"{answer}\n"))
+
+        assert code == 1
+        assert capsys.readouterr().err.endswith(DECLINED_MESSAGE + "\n")
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_end_of_input_at_the_prompt_declines_on_its_own_line_with_no_trial(
+        self, world, capsys
+    ):
+        stub = _passing_stub(world)
+
+        code = _gated_cli(world, stub, io.StringIO(""))
+
+        assert code == 1
+        assert capsys.readouterr().err.endswith("\n" + DECLINED_MESSAGE + "\n")
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_ctrl_c_at_the_prompt_declines_with_no_trial_and_no_traceback(
+        self, world, capsys
+    ):
+        stub = _passing_stub(world)
+
+        code = _gated_cli(world, stub, RaisingStdin(KeyboardInterrupt()))
+
+        err = capsys.readouterr().err
+        assert code == 1
+        assert err.endswith("\n" + DECLINED_MESSAGE + "\n")
+        assert "Traceback" not in err
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_no_tty_without_yes_prints_the_estimate_then_exits_1_telling_how_to_proceed(
+        self, world, capsys
+    ):
+        stub = _passing_stub(world)
+        stdin = RaisingStdin(AssertionError("stdin must not be read"))
+
+        code = _gated_cli(world, stub, stdin, is_tty=False)
+
+        lines = capsys.readouterr().err.splitlines()
+        assert code == 1
+        assert any(line.startswith("Estimate (rough") for line in lines)
+        assert lines[-1] == (
+            "error: approval required and stdin is not a TTY: rerun with --yes"
+        )
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_yes_flag_does_not_bypass_the_max_cost_refusal(self, world, capsys):
+        stub = _passing_stub(world)
+
+        code = _cli(
+            world,
+            stub,
+            "scout",
+            "--model",
+            "haiku",
+            "--trials",
+            "3",
+            "--max-cost",
+            "0.01",
+        )
+
+        assert code == 2
+        assert "above --max-cost" in capsys.readouterr().err
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_estimate_above_max_cost_exits_2_before_prompting(self, world, capsys):
+        stub = _passing_stub(world)
+        stdin = RaisingStdin(AssertionError("stdin must not be read"))
+
+        code = _cli(
+            world,
+            stub,
+            "scout",
+            "--model",
+            "haiku",
+            "--trials",
+            "3",
+            "--max-cost",
+            "0.01",
+            yes=False,
+            deps=_gated_deps(world, stdin),
+        )
+
+        assert code == 2
+        assert "Proceed?" not in capsys.readouterr().err
         assert stub.calls == [] and world.artifacts == []

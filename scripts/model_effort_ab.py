@@ -25,6 +25,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TextIO
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 # The only sys.path bootstrap: the package imports `eval_grade` (scripts/) and `minimal_yaml`.
@@ -37,7 +38,15 @@ for _path in (
         sys.path.insert(0, str(_path))
 
 import pricing
-from model_effort import artifact, artifact_store, config_echo, estimate, paths, runner
+from model_effort import (
+    approval,
+    artifact,
+    artifact_store,
+    config_echo,
+    estimate,
+    paths,
+    runner,
+)
 from model_effort.errors import UsageError
 from model_effort.execution import TrialSettings, run_trials
 from model_effort.plan import RunPlan, plan_run
@@ -65,6 +74,10 @@ def _read_git_head_sha() -> str | None:
     return completed.stdout.strip() or None
 
 
+def _stdin_is_tty() -> bool:
+    return sys.stdin.isatty()
+
+
 @dataclass(frozen=True)
 class Deps:
     """Everything nondeterministic or environment-specific, so tests can inject it."""
@@ -78,6 +91,8 @@ class Deps:
     pricing_table: dict = field(
         default_factory=lambda: pricing.load_pricing(paths.PRICING_PATH)
     )
+    stdin: TextIO = field(default_factory=lambda: sys.stdin)
+    stdin_is_tty: Callable[[], bool] = _stdin_is_tty
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -119,6 +134,11 @@ def _build_parser() -> argparse.ArgumentParser:
         type=_positive_float,
         help="refuse to run when the estimated total cost in dollars is above this "
         "(no default)",
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="start without the confirmation prompt (required when stdin is not a TTY)",
     )
     parser.add_argument(
         "--claude-bin",
@@ -213,6 +233,15 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
         except UsageError as error:
             print(f"error: {error}", file=sys.stderr)
             return EXIT_USAGE
+        refusal = approval.request_approval(
+            yes=args.yes,
+            stdin=deps.stdin,
+            stdin_is_tty=deps.stdin_is_tty,
+            stderr=sys.stderr,
+        )
+        if refusal is not None:
+            print(f"error: {refusal}", file=sys.stderr)
+            return EXIT_FAILED
         arm_runs = run_trials(plan, settings, dict(run_estimate.by_arm))
         data = artifact.build_artifact(plan.metadata, arm_runs)
         return _save_artifact(plan.artifact_path, data)
