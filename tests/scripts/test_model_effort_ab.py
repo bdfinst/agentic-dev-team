@@ -64,6 +64,7 @@ from model_effort import (
     paths,
     plan,
     process_record,
+    report,
     run_types,
     runner,
     session,
@@ -4956,6 +4957,38 @@ class TestFinishRun:
 
         saved = json.loads(scout_plan.artifact_path.read_text(encoding="utf-8"))
         assert (saved["status"], saved["abort_reason"]) == ("incomplete", "max-cost")
+
+
+class TestRenderProgress:
+    def _line(self, result: outcome.TrialResult) -> str:
+        return report.render_progress(
+            run_types.TrialProgress(
+                arm_label=BASELINE_LABEL,
+                fixture_number=1,
+                fixture_count=2,
+                fixture_stem="clean-form",
+                trial_number=3,
+                trials_per_fixture=4,
+                result=result,
+            )
+        )
+
+    def test_reported_cost_is_shown_in_dollars(self):
+        line = self._line(_trial_result(Outcome.PASS, cost=0.0123))
+
+        assert line == "[baseline] fixture 1/2 clean-form trial 3/4: pass $0.0123"
+
+    def test_trial_that_reported_no_cost_says_so_instead_of_a_zero_dollar_figure(self):
+        line = self._line(_trial_result(Outcome.TIMEOUT, cost=0.0, cost_reported=False))
+
+        assert line == (
+            "[baseline] fixture 1/2 clean-form trial 3/4: timeout cost not reported"
+        )
+
+    def test_reported_cost_of_zero_is_still_shown_as_a_figure(self):
+        line = self._line(_trial_result(Outcome.PASS, cost=0.0))
+
+        assert line.endswith("pass $0.0000")
 
 
 class TestProgressAndSummary:

@@ -16,10 +16,13 @@ NO_ERROR_TEXT = "no error text was recorded"
 def render_progress(progress: TrialProgress) -> str:
     """One line per completed trial: arm, fixture, trial number, outcome and cost."""
     result = progress.result
+    cost_text = (
+        format_usd(result.cost_usd) if result.cost_reported else "cost not reported"
+    )
     return (
         f"[{progress.arm_label}] fixture {progress.fixture_number}/{progress.fixture_count} "
         f"{progress.fixture_stem} trial {progress.trial_number}/{progress.trials_per_fixture}: "
-        f"{result.outcome.value} {format_usd(result.cost_usd)}"
+        f"{result.outcome.value} {cost_text}"
     )
 
 
