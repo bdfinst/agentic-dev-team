@@ -6,9 +6,9 @@ from collections.abc import Sequence
 
 from .artifact import ArmTotals
 from .cost import total_cost_usd
-from .execution import RunResult, TrialProgress
 from .formatting import escape_unprintable, format_usd
 from .run_status import AbortReason
+from .run_types import RunResult, TrialProgress
 
 NO_ERROR_TEXT = "no error text was recorded"
 

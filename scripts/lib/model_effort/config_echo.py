@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from .estimate import RunEstimate
-from .execution import TrialSettings
 from .formatting import format_usd
 from .plan import RunPlan
+from .run_types import TrialSettings
 
 NO_TOOLS_TEXT = "no tools enabled"
 NONE_TEXT = "none"

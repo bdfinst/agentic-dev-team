@@ -10,55 +10,18 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
 
-from .arm import BASELINE_LABEL, Arm
+from .arm import BASELINE_LABEL
 from .cost import total_cost_usd
 from .estimate import RunEstimate
-from .fixtures import FixtureKind
 from .outcome import Outcome, TrialResult
 from .run_status import AbortReason, RunStatus
+from .run_types import ArmRun, FixtureTrials, RunMetadata
 
 FIDELITY = "read-only-profile"
 GRADER = "expected-findings"
 
-RUN_ID_TIME_FORMAT = "%Y%m%dT%H%M%SZ"
 CREATED_TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
-RUN_ID_RANDOM_BITS = 16
-RUN_ID_RANDOM_HEX_DIGITS = RUN_ID_RANDOM_BITS // 4
-
-
-@dataclass(frozen=True)
-class RunMetadata:
-    """Run-level fields. `created` must be a timezone-aware UTC datetime."""
-
-    run_id: str
-    created: datetime
-    git_sha: str | None
-    agent: str
-    knowledge_dir: str
-
-
-@dataclass(frozen=True)
-class FixtureTrials:
-    stem: str
-    kind: FixtureKind
-    expected_clean: bool
-    results: Sequence[TrialResult]
-
-
-@dataclass(frozen=True)
-class ArmRun:
-    arm: Arm
-    trials_per_fixture: int
-    fixture_trials: Sequence[FixtureTrials]
-
-
-def make_run_id(now: datetime, agent: str, model: str, effort: str, rng) -> str:
-    """Return `<UTC time>-<agent>-<model>-<effort>-<4 random hex>`; `rng` needs `getrandbits`."""
-    stamp = now.strftime(RUN_ID_TIME_FORMAT)
-    suffix = f"{rng.getrandbits(RUN_ID_RANDOM_BITS):0{RUN_ID_RANDOM_HEX_DIGITS}x}"
-    return f"{stamp}-{agent}-{model}-{effort}-{suffix}"
 
 
 def build_artifact(

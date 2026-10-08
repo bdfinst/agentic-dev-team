@@ -12,12 +12,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import artifact, artifact_store, external, paths
+from . import artifact_store, external, paths
 from .agent_file import AgentFrontmatterError, UnknownAgentError, load_agent_file
 from .agent_spec import AgentSpec, build_agent_spec
 from .arm import BASELINE_LABEL, CANDIDATE_LABEL, Arm
 from .errors import UsageError
 from .fixtures import ResolvedFixture, resolve_fixtures
+from .run_types import RunMetadata, make_run_id
 from .tools import ToolProfile, WriteCapableAgentError, resolve_tool_profile
 
 AGENT_ERROR_FIX_HINTS = {
@@ -32,7 +33,7 @@ class RunPlan:
     system_prompt: str
     arms: tuple[Arm, ...]
     fixtures: tuple[ResolvedFixture, ...]
-    metadata: artifact.RunMetadata
+    metadata: RunMetadata
     artifact_path: Path
 
 
@@ -72,13 +73,13 @@ def plan_run(
         profile,
     )
     _refuse_identical_arms(baseline, candidate)
-    run_id = artifact.make_run_id(now, agent, candidate.model, candidate.effort, rng)
+    run_id = make_run_id(now, agent, candidate.model, candidate.effort, rng)
     return RunPlan(
         agent=agent,
         system_prompt=agent_spec.system_prompt,
         arms=(baseline, candidate),
         fixtures=tuple(fixtures),
-        metadata=artifact.RunMetadata(
+        metadata=RunMetadata(
             run_id=run_id,
             created=now,
             git_sha=git_sha,

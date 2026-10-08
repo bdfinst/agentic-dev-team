@@ -14,10 +14,11 @@ from typing import TextIO
 
 from . import approval, artifact, artifact_store, config_echo, estimate, report
 from .errors import UsageError
-from .execution import RunResult, TrialProgress, TrialRunner, TrialSettings, run_trials
+from .execution import TrialRunner, run_trials
 from .formatting import format_usd
 from .plan import RunPlan
 from .run_status import AbortReason
+from .run_types import RunResult, TrialProgress, TrialSettings
 from .stop_rules import SpendLimit
 
 EXIT_OK = 0

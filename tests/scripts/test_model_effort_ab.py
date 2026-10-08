@@ -52,7 +52,6 @@ from model_effort import (
     artifact,
     artifact_store,
     estimate,
-    execution,
     external,
     grading,
     interrupts,
@@ -61,6 +60,7 @@ from model_effort import (
     path_scrub,
     paths,
     plan,
+    run_types,
     runner,
     session,
     stop_rules,
@@ -1833,20 +1833,20 @@ def _arm(label: str = CANDIDATE_LABEL) -> Arm:
 
 def _arm_run(
     label: str, results: list[outcome.TrialResult], expected_clean: bool = False
-) -> artifact.ArmRun:
-    fixture = artifact.FixtureTrials(
+) -> run_types.ArmRun:
+    fixture = run_types.FixtureTrials(
         stem="f",
         kind=fixture_resolution.FixtureKind.FILE,
         expected_clean=expected_clean,
         results=results,
     )
-    return artifact.ArmRun(
+    return run_types.ArmRun(
         arm=_arm(label), trials_per_fixture=1, fixture_trials=[fixture]
     )
 
 
-def _metadata() -> artifact.RunMetadata:
-    return artifact.RunMetadata(
+def _metadata() -> run_types.RunMetadata:
+    return run_types.RunMetadata(
         run_id=RUN_ID,
         created=NOW,
         git_sha=None,
@@ -1883,7 +1883,7 @@ def _built_arm(
 
 class TestRunId:
     def test_run_id_joins_utc_time_agent_candidate_model_effort_and_four_hex(self):
-        run_id = artifact.make_run_id(NOW, "scout", "haiku", "high", FixedRng())
+        run_id = run_types.make_run_id(NOW, "scout", "haiku", "high", FixedRng())
 
         assert run_id == RUN_ID
 
@@ -2869,17 +2869,17 @@ class TestTrialDefaults:
         ["security-review", "correctness-review", "architect", "security-engineer"],
     )
     def test_resolver_gives_every_high_stakes_agent_ten_trials(self, agent):
-        assert model_effort_ab.resolve_trials(None, agent) == execution.TrialCount(
+        assert run_types.resolve_trials(None, agent) == run_types.TrialCount(
             10, "high-stakes default"
         )
 
     def test_resolver_gives_other_agents_five_trials(self):
-        assert model_effort_ab.resolve_trials(None, "security-reviewer") == (
-            execution.TrialCount(5, "default")
+        assert run_types.resolve_trials(None, "security-reviewer") == (
+            run_types.TrialCount(5, "default")
         )
 
     def test_resolver_prefers_the_flag_over_the_high_stakes_default(self):
-        assert model_effort_ab.resolve_trials(2, "architect") == execution.TrialCount(
+        assert run_types.resolve_trials(2, "architect") == run_types.TrialCount(
             2, "--trials"
         )
 
@@ -4215,9 +4215,9 @@ def _scout_plan(world: World) -> plan.RunPlan:
     )
 
 
-def _run_with_one_trial_each(abort_reason: AbortReason | None) -> execution.RunResult:
+def _run_with_one_trial_each(abort_reason: AbortReason | None) -> run_types.RunResult:
     passed = [_trial_result(Outcome.PASS)]
-    return execution.RunResult(
+    return run_types.RunResult(
         arm_runs=[_arm_run(BASELINE_LABEL, passed), _arm_run(CANDIDATE_LABEL, passed)],
         abort_reason=abort_reason,
         started_trials=ARM_COUNT,
@@ -4242,7 +4242,7 @@ class TestFinishRun:
         scout_plan = _scout_plan(world)
         stderr = io.StringIO()
         console = session.Console(io.StringIO(), lambda: False, io.StringIO(), stderr)
-        run = execution.RunResult(
+        run = run_types.RunResult(
             arm_runs=[],
             abort_reason=AbortReason.INTERRUPT,
             started_trials=0,

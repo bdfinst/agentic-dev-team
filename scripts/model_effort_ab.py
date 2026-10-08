@@ -50,20 +50,18 @@ from model_effort import (
     session,
 )
 from model_effort.errors import UsageError
-from model_effort.execution import TrialCount, TrialRunner, TrialSettings
+from model_effort.execution import TrialRunner
 from model_effort.plan import RunPlan, plan_run
+from model_effort.run_types import (
+    DEFAULT_TRIALS,
+    HIGH_STAKES_AGENTS,
+    HIGH_STAKES_TRIALS,
+    TrialSettings,
+    resolve_trials,
+)
 from model_effort.session import EXIT_FAILED, EXIT_USAGE
 from model_effort.stop_rules import SpendLimit
 
-DEFAULT_TRIALS = 5
-HIGH_STAKES_TRIALS = 10
-# Exact agent names: `security-reviewer` is not in the set.
-HIGH_STAKES_AGENTS = frozenset(
-    {"security-review", "correctness-review", "architect", "security-engineer"}
-)
-TRIALS_DEFAULT_REASON = "default"
-TRIALS_HIGH_STAKES_REASON = "high-stakes default"
-TRIALS_FLAG_REASON = "--trials"
 RUBRIC_GRADER = "rubric"
 RUBRIC_GRADER_REFUSAL = (
     "--grader rubric is not implemented yet; rubric grading is planned: "
@@ -205,15 +203,6 @@ def _split_csv(text: str | None) -> list[str] | None:
     if text is None:
         return None
     return list(dict.fromkeys(part.strip() for part in text.split(",") if part.strip()))
-
-
-def resolve_trials(flag_value: int | None, agent: str) -> TrialCount:
-    """Return `--trials` if given, else the high-stakes or the general default."""
-    if flag_value is not None:
-        return TrialCount(flag_value, TRIALS_FLAG_REASON)
-    if agent in HIGH_STAKES_AGENTS:
-        return TrialCount(HIGH_STAKES_TRIALS, TRIALS_HIGH_STAKES_REASON)
-    return TrialCount(DEFAULT_TRIALS, TRIALS_DEFAULT_REASON)
 
 
 INTERRUPTED_MESSAGE = (

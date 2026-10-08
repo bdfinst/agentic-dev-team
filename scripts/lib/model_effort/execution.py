@@ -15,84 +15,24 @@ from pathlib import Path
 
 from . import invocation, runner, stop_rules, transcript
 from .arm import Arm
-from .artifact import ArmRun, FixtureTrials
 from .cost import total_cost_usd
 from .estimate import RunEstimate
 from .fixtures import ResolvedFixture
 from .grading import grade_trial
 from .outcome import MAX_MESSAGE_CHARS, Grader, Outcome, TrialResult, resolve_outcome
 from .plan import RunPlan
-from .run_status import AbortReason, RunStatus
+from .run_status import AbortReason
+from .run_types import (
+    ArmRun,
+    FixtureTrials,
+    RunResult,
+    TrialProgress,
+    TrialSettings,
+)
 from .stop_rules import SpendLimit
 
 # Runs one trial of a config against a fixture; `runner.run_trial` in production.
 TrialRunner = Callable[[Path, invocation.TrialConfig, float], runner.TrialProcessRecord]
-
-
-@dataclass(frozen=True)
-class TrialCount:
-    """Trials per arm per fixture, and why that number was chosen."""
-
-    count: int
-    reason: str
-
-
-@dataclass(frozen=True)
-class TrialSettings:
-    """How each trial runs, apart from what the plan fixes."""
-
-    trials_per_fixture: TrialCount
-    trial_timeout_seconds: float
-    claude_bin: str
-    expected_dir: Path
-
-
-@dataclass(frozen=True)
-class TrialProgress:
-    """One completed trial and where it sits in the run. Numbers are 1-based."""
-
-    arm_label: str
-    fixture_number: int
-    fixture_count: int
-    fixture_stem: str
-    trial_number: int
-    trial_count: int
-    result: TrialResult
-
-
-@dataclass(frozen=True)
-class RunResult:
-    """What a run produced. `abort_reason` is `None` when every planned trial ran.
-
-    Arms list only completed trials, and omit a fixture the arm never completed
-    a trial for. An interrupted run drops the trial in flight, but still counts
-    it in `started_trials`.
-    """
-
-    arm_runs: list[ArmRun]
-    abort_reason: AbortReason | None
-    started_trials: int
-    # The trial whose completion ended the run; `None` after an interrupt, which
-    # lands between trials or mid-trial rather than on a completed one.
-    stopping_trial: TrialProgress | None
-    # The error type and message that ended the run, for `harness-error` only.
-    harness_error: str | None = None
-
-    @property
-    def status(self) -> RunStatus:
-        return RunStatus.of(self.abort_reason)
-
-    @property
-    def is_complete(self) -> bool:
-        return self.status is RunStatus.COMPLETE
-
-    @property
-    def completed_trials(self) -> int:
-        return sum(
-            len(fixture.results)
-            for arm_run in self.arm_runs
-            for fixture in arm_run.fixture_trials
-        )
 
 
 @dataclass(frozen=True)
