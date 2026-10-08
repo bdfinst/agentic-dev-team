@@ -1,7 +1,9 @@
 """Resolve one trial's outcome from the CLI run, its transcript and the grader.
 
 Precedence when several conditions hold is the declaration order of `Outcome`.
-Grading runs only when every earlier check passed.
+Grading runs only when every earlier check passed. A grader reports the agent's
+answer being wrong as a failed verdict; an error it raises is a harness fault and
+propagates.
 """
 
 from __future__ import annotations
@@ -91,16 +93,7 @@ def _decide(
 
 
 def _grade(agent_json: dict, grader: Grader) -> tuple[Outcome, str | None, list[str]]:
-    # Valid JSON can still be shaped so the grader raises; that is the agent's
-    # answer being wrong, not a harness crash that would discard paid trials.
-    try:
-        passed, messages = grader(agent_json)
-    except Exception as error:  # noqa: BLE001 - any grader failure is a verdict, not a crash
-        return (
-            Outcome.GRADED_FAIL,
-            None,
-            [f"grader raised {type(error).__name__}: {error}"],
-        )
+    passed, messages = grader(agent_json)
     if not passed:
         return Outcome.GRADED_FAIL, None, messages
     return Outcome.PASS, None, []

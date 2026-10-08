@@ -1366,6 +1366,56 @@ class TestGradeTrial:
         assert passed is False
         assert messages
 
+    @pytest.mark.parametrize(
+        "error",
+        [TypeError, KeyError, AttributeError, ValueError],
+        ids=lambda e: e.__name__,
+    )
+    def test_agent_answer_shaped_errors_from_the_grader_fail_the_trial_naming_the_error(
+        self, graded_expected_dir, monkeypatch, error
+    ):
+        def raising_grader(**_kwargs):
+            raise error("bad shape")
+
+        monkeypatch.setattr(grading, "run_grading", raising_grader)
+
+        passed, messages = grading.grade_trial(
+            GRADED_AGENT, GRADED_STEM, {}, expected_dir=graded_expected_dir
+        )
+
+        assert passed is False
+        assert len(messages) == 1 and error.__name__ in messages[0]
+
+    def test_other_errors_from_the_grader_propagate(
+        self, graded_expected_dir, monkeypatch
+    ):
+        def failing_grader(**_kwargs):
+            raise OSError("disk gone")
+
+        monkeypatch.setattr(grading, "run_grading", failing_grader)
+
+        with pytest.raises(OSError, match="disk gone"):
+            grading.grade_trial(
+                GRADED_AGENT, GRADED_STEM, {}, expected_dir=graded_expected_dir
+            )
+
+    @pytest.mark.parametrize("error", [OSError, ValueError], ids=lambda e: e.__name__)
+    def test_errors_while_staging_the_expected_entry_propagate(
+        self, graded_expected_dir, monkeypatch, error
+    ):
+        def failing_copy(*_args, **_kwargs):
+            raise error("cannot stage")
+
+        monkeypatch.setattr(grading, "shutil", SimpleNamespace(copy2=failing_copy))
+
+        with pytest.raises(error, match="cannot stage"):
+            grading.grade_trial(
+                GRADED_AGENT,
+                GRADED_STEM,
+                PASS_VERDICT,
+                expected_dir=graded_expected_dir,
+            )
+
     def test_grading_leaves_no_temp_dir_behind(
         self, graded_expected_dir, tmp_path, monkeypatch
     ):
@@ -1478,6 +1528,13 @@ class TestTrialOutcomes:
         assert result.outcome == Outcome.GRADED_FAIL
         assert len(result.grader_messages) == 1
         assert error_type in result.grader_messages[0]
+
+    def test_error_raised_by_the_grader_is_not_a_verdict_and_propagates(self):
+        def failing_grader(_agent_json):
+            raise OSError("grading disk gone")
+
+        with pytest.raises(OSError, match="grading disk gone"):
+            _resolve(_verdict_stream(PASS_VERDICT), failing_grader)
 
     def test_text_with_no_json_object_is_parse_failure(self):
         result = _resolve(_stream(_result_event("I found nothing to report.")))
@@ -3980,6 +4037,22 @@ class TestUnexpectedTrialError:
         err = capsys.readouterr().err
         assert "\x1b" not in err
         assert "RuntimeError: \\x1b[2Jgone" in err
+
+    def test_staging_failure_while_grading_is_a_harness_error_not_a_graded_fail(
+        self, world, capsys, monkeypatch
+    ):
+        def failing_copy(*_args, **_kwargs):
+            raise OSError("no space left")
+
+        monkeypatch.setattr(grading, "shutil", SimpleNamespace(copy2=failing_copy))
+
+        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "2")
+
+        written = _written(world)
+        assert code == 1
+        assert written["abort_reason"] == "harness-error"
+        assert [arm["fixtures"] for arm in written["arms"]] == [[], []]
+        assert "OSError: no space left" in capsys.readouterr().err
 
     def test_error_in_the_first_trial_still_writes_an_artifact_with_no_results(
         self, world

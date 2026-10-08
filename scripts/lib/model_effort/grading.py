@@ -18,6 +18,9 @@ from .paths import EXPECTED_DIR
 
 EXPECTED_STATUS_CLEAN = "pass"
 TEMP_DIR_PREFIX = "model-effort-grade-"
+# What the grader raises on agent JSON of an unexpected shape. Any other error is a
+# harness fault and propagates, so it is not recorded as the agent's answer failing.
+AGENT_ANSWER_ERRORS = (TypeError, KeyError, AttributeError, ValueError)
 
 
 def grade_trial(
@@ -29,17 +32,20 @@ def grade_trial(
     """Grade `parsed` for `agent` on fixture `stem`; return (passed, failure messages).
 
     Only the one expected file is copied into the grading dir, so the grader
-    never sees other fixtures' entries. The grader may raise on agent JSON of an
-    unexpected shape; callers decide how to treat that.
+    never sees other fixtures' entries. Agent JSON the grader cannot handle fails
+    the trial; an error from staging or any other part of grading propagates.
     """
     with tempfile.TemporaryDirectory(prefix=TEMP_DIR_PREFIX) as grading_dir:
         shutil.copy2(expected_dir / f"{stem}.json", grading_dir)
-        results, _ = run_grading(
-            expected_dir=Path(grading_dir),
-            actuals={stem: {"agents": {agent: parsed}}},
-            baseline=None,
-            only={agent},
-        )
+        try:
+            results, _ = run_grading(
+                expected_dir=Path(grading_dir),
+                actuals={stem: {"agents": {agent: parsed}}},
+                baseline=None,
+                only={agent},
+            )
+        except AGENT_ANSWER_ERRORS as error:
+            return False, [f"grader raised {type(error).__name__}: {error}"]
     if not results:
         return False, [f"expected entry for {agent!r} not found in {stem}.json"]
     messages = [message for _, _, fails in results for message in fails]
