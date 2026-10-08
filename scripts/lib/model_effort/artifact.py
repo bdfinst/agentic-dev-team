@@ -51,7 +51,7 @@ class FixtureTrials:
 class ArmRun:
     arm: Arm
     trials_per_fixture: int
-    fixtures: Sequence[FixtureTrials]
+    fixture_trials: Sequence[FixtureTrials]
 
 
 def make_run_id(now: datetime, agent: str, model: str, effort: str, rng) -> str:
@@ -109,10 +109,10 @@ def _arm_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
         "tools_enabled": list(arm.profile.enabled_tools),
         "tools_withheld": list(arm.profile.withheld_tools),
         "trials": arm_run.trials_per_fixture,
-        "estimated_cost_usd": run_estimate.for_arm(arm.label),
+        "estimated_cost_usd": run_estimate.cost_usd_for_arm(arm.label),
         "session_config": _first_session_config(arm_run),
-        "fixtures": [_fixture_dict(fixture) for fixture in arm_run.fixtures],
-        "totals": _totals(arm_run, run_estimate),
+        "fixtures": [_fixture_dict(fixture) for fixture in arm_run.fixture_trials],
+        "totals": _build_totals_dict(arm_run, run_estimate),
     }
 
 
@@ -136,16 +136,16 @@ def _trial_dict(result: TrialResult) -> dict:
 
 
 def _all_results(arm_run: ArmRun) -> list[TrialResult]:
-    return [result for fixture in arm_run.fixtures for result in fixture.results]
+    return [result for fixture in arm_run.fixture_trials for result in fixture.results]
 
 
-def _totals(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
+def _build_totals_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
     results = _all_results(arm_run)
     counts = Counter(result.outcome for result in results)
     totals: dict = {outcome.value: counts[outcome] for outcome in Outcome}
     totals["clean_fixture_failures"] = sum(
         1
-        for fixture in arm_run.fixtures
+        for fixture in arm_run.fixture_trials
         if fixture.expected_clean
         for result in fixture.results
         if result.outcome != Outcome.PASS
@@ -192,7 +192,7 @@ class ArmTotals:
     estimated_cost_usd: float
 
 
-def arm_totals(data: dict) -> list[ArmTotals]:
+def read_arm_totals(data: dict) -> list[ArmTotals]:
     """Read each arm's totals back out of an artifact dict.
 
     Consumers such as the console summary start from the dict, so what they show

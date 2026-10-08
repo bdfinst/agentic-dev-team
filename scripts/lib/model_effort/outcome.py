@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from .path_scrub import scrub_paths
-from .runner import RunRecord
+from .runner import TrialProcessRecord
 from .transcript import ParsedTranscript, extract_agent_json
 
 MAX_MESSAGE_CHARS = 500
@@ -50,7 +50,7 @@ class TrialResult:
 
 
 def resolve_outcome(
-    record: RunRecord,
+    record: TrialProcessRecord,
     parsed: ParsedTranscript,
     enabled_tools: Collection[str],
     grader: Grader,
@@ -70,7 +70,7 @@ def resolve_outcome(
 
 
 def _decide(
-    record: RunRecord,
+    record: TrialProcessRecord,
     parsed: ParsedTranscript,
     enabled_tools: Collection[str],
     grader: Grader,
@@ -80,7 +80,7 @@ def _decide(
     cli_error = _cli_error(record, parsed)
     if cli_error is not None:
         return Outcome.CLI_ERROR, cli_error, []
-    violations = sorted(set(parsed.tool_names) - set(enabled_tools))
+    violations = sorted(set(parsed.called_tool_names) - set(enabled_tools))
     if violations:
         return (
             Outcome.TOOL_VIOLATION,
@@ -100,7 +100,7 @@ def _grade(agent_json: dict, grader: Grader) -> tuple[Outcome, str | None, list[
     return Outcome.PASS, None, []
 
 
-def _cli_error(record: RunRecord, parsed: ParsedTranscript) -> str | None:
+def _cli_error(record: TrialProcessRecord, parsed: ParsedTranscript) -> str | None:
     if record.exit_code != 0:
         summary = f"exit code {record.exit_code}"
         detail = record.stderr.strip() or parsed.result_text

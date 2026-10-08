@@ -119,6 +119,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--fixtures",
+        dest="fixture_stems",
         help="comma-separated fixture stems (default: every evals/expected/*.json "
         "entry that names the agent)",
     )
@@ -138,6 +139,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--trial-timeout",
         type=_positive_int,
+        dest="trial_timeout_seconds",
         default=runner.DEFAULT_TRIAL_TIMEOUT_SECONDS,
         help="seconds before a trial is killed and recorded as timeout "
         f"(default: {runner.DEFAULT_TRIAL_TIMEOUT_SECONDS})",
@@ -231,8 +233,8 @@ def _run(args: argparse.Namespace, deps: Deps) -> int:
     except UsageError as error:
         return _report_usage_error(error)
     settings = TrialSettings(
-        trials=resolve_trials(args.trials, args.agent),
-        trial_timeout=args.trial_timeout,
+        trials_per_fixture=resolve_trials(args.trials, args.agent),
+        trial_timeout_seconds=args.trial_timeout_seconds,
         claude_bin=args.claude_bin,
         expected_dir=deps.expected_dir,
     )
@@ -260,7 +262,7 @@ def _plan_from(args: argparse.Namespace, deps: Deps) -> RunPlan:
         args.agent,
         candidate_model=args.model,
         candidate_effort=args.effort,
-        fixture_stems=_split_csv(args.fixtures),
+        fixture_stems=_split_csv(args.fixture_stems),
         runs_dir=args.runs_dir,
         now=deps.clock(),
         rng=deps.rng,

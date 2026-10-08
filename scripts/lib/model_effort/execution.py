@@ -26,7 +26,7 @@ from .run_status import AbortReason, RunStatus
 from .stop_rules import SpendLimit
 
 # Runs one trial of a config against a fixture; `runner.run_trial` in production.
-TrialRunner = Callable[[Path, runner.TrialConfig, float], runner.RunRecord]
+TrialRunner = Callable[[Path, runner.TrialConfig, float], runner.TrialProcessRecord]
 
 
 @dataclass(frozen=True)
@@ -41,8 +41,8 @@ class TrialCount:
 class TrialSettings:
     """How each trial runs, apart from what the plan fixes."""
 
-    trials: TrialCount
-    trial_timeout: float
+    trials_per_fixture: TrialCount
+    trial_timeout_seconds: float
     claude_bin: str
     expected_dir: Path
 
@@ -91,7 +91,7 @@ class RunResult:
         return sum(
             len(fixture.results)
             for arm_run in self.arm_runs
-            for fixture in arm_run.fixtures
+            for fixture in arm_run.fixture_trials
         )
 
 
@@ -109,7 +109,7 @@ class _Ledger:
     def __init__(self, plan: RunPlan, run_estimate: RunEstimate) -> None:
         self._plan = plan
         self._run_estimate = run_estimate
-        self._results: dict[tuple[str, str], list[TrialResult]] = {}
+        self._results_by_arm_and_fixture: dict[tuple[str, str], list[TrialResult]] = {}
         self._outcomes_by_arm: dict[str, list[Outcome]] = {
             arm.label: [] for arm in plan.arms
         }
@@ -117,7 +117,7 @@ class _Ledger:
 
     def record(self, slot: _TrialSlot, result: TrialResult) -> None:
         key = (slot.arm.label, slot.fixture.stem)
-        self._results.setdefault(key, []).append(result)
+        self._results_by_arm_and_fixture.setdefault(key, []).append(result)
         self._outcomes_by_arm[slot.arm.label].append(result.outcome)
         self._costs_usd.append(self._cost_charged_usd(slot, result))
 
@@ -140,15 +140,17 @@ class _Ledger:
             ArmRun(
                 arm=arm,
                 trials_per_fixture=trials_per_fixture,
-                fixtures=[
+                fixture_trials=[
                     FixtureTrials(
                         stem=fixture.stem,
                         kind=fixture.kind,
                         expected_clean=fixture.expected_clean,
-                        results=self._results[(arm.label, fixture.stem)],
+                        results=self._results_by_arm_and_fixture[
+                            (arm.label, fixture.stem)
+                        ],
                     )
                     for fixture in self._plan.fixtures
-                    if (arm.label, fixture.stem) in self._results
+                    if (arm.label, fixture.stem) in self._results_by_arm_and_fixture
                 ],
             )
             for arm in self._plan.arms
@@ -198,7 +200,7 @@ def run_trials(
         abort_reason = AbortReason.HARNESS_ERROR
         harness_error = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
     return RunResult(
-        arm_runs=ledger.arm_runs(settings.trials.count),
+        arm_runs=ledger.arm_runs(settings.trials_per_fixture.count),
         abort_reason=abort_reason,
         started_trials=started_trials,
         stopping_trial=stopping_trial,
@@ -209,7 +211,7 @@ def run_trials(
 def _trial_slots(plan: RunPlan, settings: TrialSettings) -> Iterator[_TrialSlot]:
     """Every planned trial in run order: arms alternate, round by round, fixture by fixture."""
     for fixture_number, fixture in enumerate(plan.fixtures, start=1):
-        for trial_number in range(1, settings.trials.count + 1):
+        for trial_number in range(1, settings.trials_per_fixture.count + 1):
             for arm in plan.arms:
                 yield _TrialSlot(arm, fixture, fixture_number, trial_number)
 
@@ -223,7 +225,7 @@ def _progress(
         fixture_count=len(plan.fixtures),
         fixture_stem=slot.fixture.stem,
         trial_number=slot.trial_number,
-        trial_count=settings.trials.count,
+        trial_count=settings.trials_per_fixture.count,
         result=result,
     )
 
@@ -236,7 +238,7 @@ def _run_slot(
     )
     config = _trial_config(slot.arm, plan, settings)
     return _run_and_grade_trial(
-        slot.fixture, config, settings.trial_timeout, grader, run_trial
+        slot.fixture, config, settings.trial_timeout_seconds, grader, run_trial
     )
 
 
@@ -251,10 +253,10 @@ def _trial_config(
 def _run_and_grade_trial(
     fixture: ResolvedFixture,
     config: runner.TrialConfig,
-    trial_timeout: float,
+    trial_timeout_seconds: float,
     grader: Grader,
     run_trial: TrialRunner,
 ) -> TrialResult:
-    record = run_trial(fixture.path, config, trial_timeout)
+    record = run_trial(fixture.path, config, trial_timeout_seconds)
     parsed = transcript.parse_stream(record.stdout)
     return resolve_outcome(record, parsed, config.arm.profile.enabled_tools, grader)

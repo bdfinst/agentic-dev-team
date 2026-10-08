@@ -34,7 +34,7 @@ class ParsedTranscript:
     cost_usd: float | None
     model_id: str | None
     model_id_note: str | None
-    tool_names: tuple[str, ...]
+    called_tool_names: tuple[str, ...]
     has_result: bool
     permission_denials: int = 0
     session_config: dict | None = None
@@ -61,7 +61,7 @@ def parse_stream(stdout: str) -> ParsedTranscript:
             cost_usd=None,
             model_id=None,
             model_id_note="no result event in stream",
-            tool_names=tuple(tool_names),
+            called_tool_names=tuple(tool_names),
             has_result=False,
             session_config=session_config,
         )
@@ -72,9 +72,9 @@ def parse_stream(stdout: str) -> ParsedTranscript:
         cost_usd=_as_cost(result_event.get("total_cost_usd")),
         model_id=model_id,
         model_id_note=note,
-        tool_names=tuple(tool_names),
+        called_tool_names=tuple(tool_names),
         has_result=True,
-        permission_denials=_count(result_event.get("permission_denials")),
+        permission_denials=_count_denials(result_event.get("permission_denials")),
         session_config=session_config,
     )
 
@@ -142,7 +142,7 @@ def _names(entries) -> list[str]:
     return [name for name in names if isinstance(name, str)]
 
 
-def _count(value) -> int:
+def _count_denials(value) -> int:
     return len(value) if isinstance(value, list) else 0
 
 

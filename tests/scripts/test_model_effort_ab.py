@@ -602,7 +602,7 @@ class TestStagingFixtures:
         stub = StubClaude(stub_dir, sleep=30)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
-        runner.run_trial(fixture, _config(stub), trial_timeout=TIMEOUT_SECONDS)
+        runner.run_trial(fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS)
 
         assert stub.calls, "the stub never started, so the timeout proved nothing"
         assert not Path(stub.calls[0]["cwd"]).exists()
@@ -942,7 +942,9 @@ class TestExecution:
         stub = StubClaude(stub_dir, sleep=30)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
-        record = runner.run_trial(fixture, _config(stub), trial_timeout=TIMEOUT_SECONDS)
+        record = runner.run_trial(
+            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS
+        )
 
         assert stub.calls, "the stub never started, so the timeout proved nothing"
         assert record.timed_out is True
@@ -964,7 +966,7 @@ class TestExecution:
         runner.run_trial(
             _make_file_fixture(fixture_root, "a.txt", "a"),
             _config(stub),
-            trial_timeout=TIMEOUT_SECONDS,
+            trial_timeout_seconds=TIMEOUT_SECONDS,
         )
         _wait_until_after(started, GRANDCHILD_DELAY_SECONDS)
 
@@ -998,7 +1000,7 @@ class TestExecution:
             runner.run_trial(
                 _make_file_fixture(fixture_root, "a.txt", "a"),
                 _config(stub),
-                trial_timeout=60,
+                trial_timeout_seconds=60,
             )
         _wait_until_after(started, delay)
 
@@ -1096,13 +1098,13 @@ class TestParseStream:
         assert parsed.cost_usd == pytest.approx(0.00041539)
         assert parsed.model_id == HAIKU_MODEL_ID
         assert parsed.model_id_note is None
-        assert parsed.tool_names == ("Read", "Read")
+        assert parsed.called_tool_names == ("Read", "Read")
 
     def test_real_run_with_a_denied_read_shows_the_attempt_and_the_denial(self):
         parsed = _read_transcript("read-outside-denied")
 
         assert parsed.has_result is True
-        assert parsed.tool_names == ("Read",)
+        assert parsed.called_tool_names == ("Read",)
         assert parsed.permission_denials == 1
 
     def test_real_run_with_allowed_reads_has_no_permission_denials(self):
@@ -1120,13 +1122,13 @@ class TestParseStream:
     def test_real_run_where_the_model_declines_bash_has_no_tool_use(self):
         parsed = _read_transcript("tool-denied-bash")
 
-        assert parsed.tool_names == ()
+        assert parsed.called_tool_names == ()
         assert parsed.model_id == HAIKU_MODEL_ID
 
     def test_real_run_with_no_tools_has_no_tool_use(self):
         parsed = _read_transcript("no-tools")
 
-        assert parsed.tool_names == ()
+        assert parsed.called_tool_names == ()
         assert parsed.result_text == "ok"
         assert parsed.has_result is True
 
@@ -1148,7 +1150,7 @@ class TestParseStream:
             )
         )
 
-        assert parsed.tool_names == ("Read",)
+        assert parsed.called_tool_names == ("Read",)
         assert parsed.result_text == "done"
 
     def test_missing_result_event_reports_has_result_false(self):
@@ -1156,7 +1158,7 @@ class TestParseStream:
 
         assert parsed.has_result is False
         assert parsed.result_text is None
-        assert parsed.tool_names == ("Grep",)
+        assert parsed.called_tool_names == ("Grep",)
         assert parsed.cost_usd is None
 
     def test_zero_cost_is_reported_not_unknown(self):
@@ -1217,7 +1219,7 @@ class TestParseStream:
             )
         )
 
-        assert parsed.tool_names == ("Read", "Grep", "WebFetch")
+        assert parsed.called_tool_names == ("Read", "Grep", "WebFetch")
 
 
 class TestSessionConfig:
@@ -1476,8 +1478,10 @@ class TestShippedExpectedEntrySmoke:
         assert (passed, messages) == (True, [])
 
 
-def _record(exit_code=0, stdout="", stderr="", timed_out=False) -> runner.RunRecord:
-    return runner.RunRecord(
+def _record(
+    exit_code=0, stdout="", stderr="", timed_out=False
+) -> runner.TrialProcessRecord:
+    return runner.TrialProcessRecord(
         exit_code=exit_code, stdout=stdout, stderr=stderr, timed_out=timed_out
     )
 
@@ -1835,7 +1839,9 @@ def _arm_run(
         expected_clean=expected_clean,
         results=results,
     )
-    return artifact.ArmRun(arm=_arm(label), trials_per_fixture=1, fixtures=[fixture])
+    return artifact.ArmRun(
+        arm=_arm(label), trials_per_fixture=1, fixture_trials=[fixture]
+    )
 
 
 def _metadata() -> artifact.RunMetadata:
@@ -3099,9 +3105,9 @@ class TestEstimateRun:
 
         # Per trial across both fixtures: 4000 input tokens, 200 output tokens.
         # pricey: (4000*4 + 200*20) / 1e6 = 0.02, x3 trials. cheap: (4000*1 + 200*5) / 1e6 = 0.005, x3.
-        assert result.for_arm("baseline") == pytest.approx(0.06)
-        assert result.for_arm("candidate") == pytest.approx(0.015)
-        assert result.total_usd == pytest.approx(0.075)
+        assert result.cost_usd_for_arm("baseline") == pytest.approx(0.06)
+        assert result.cost_usd_for_arm("candidate") == pytest.approx(0.015)
+        assert result.total_cost_usd == pytest.approx(0.075)
 
     def test_directory_fixture_counts_the_summed_size_of_its_files(self, tmp_path):
         directory = tmp_path / "d" / "service"
@@ -3114,8 +3120,8 @@ class TestEstimateRun:
         (tmp_path / "f").mkdir()
         as_file = _file_fixture_of_size(tmp_path / "f", "service", 3000)
 
-        assert self._estimate(tmp_path, [as_directory]).total_usd == pytest.approx(
-            self._estimate(tmp_path, [as_file]).total_usd
+        assert self._estimate(tmp_path, [as_directory]).total_cost_usd == pytest.approx(
+            self._estimate(tmp_path, [as_file]).total_cost_usd
         )
 
     def test_per_trial_estimate_is_the_arm_estimate_over_its_planned_trials(

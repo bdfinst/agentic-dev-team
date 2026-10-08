@@ -26,8 +26,8 @@ def render_config(
         f"Tools: {', '.join(profile.enabled_tools) or NO_TOOLS_TEXT}",
         f"Withheld tools: {', '.join(profile.withheld_tools) or NONE_TEXT}",
         f"Fixtures: {', '.join(fixture.stem for fixture in plan.fixtures)}",
-        f"Trials per arm per fixture: {settings.trials.count} ({settings.trials.reason})",
-        f"Trial timeout: {settings.trial_timeout:g} s",
+        f"Trials per arm per fixture: {settings.trials_per_fixture.count} ({settings.trials_per_fixture.reason})",
+        f"Trial timeout: {settings.trial_timeout_seconds:g} s",
         _render_estimate(run_estimate),
     ]
 
@@ -38,5 +38,5 @@ def _render_estimate(run_estimate: RunEstimate) -> str:
     )
     return (
         "Estimate (rough; real cost may be higher): "
-        f"{per_arm}, total {format_usd(run_estimate.total_usd)}"
+        f"{per_arm}, total {format_usd(run_estimate.total_cost_usd)}"
     )

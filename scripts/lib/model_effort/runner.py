@@ -49,7 +49,7 @@ class TrialConfig:
 
 
 @dataclass(frozen=True)
-class RunRecord:
+class TrialProcessRecord:
     """Raw outcome of one CLI process. `exit_code` is None when it timed out.
 
     `cwd` is the directory the process ran in, so text it printed can be scrubbed of it.
@@ -149,9 +149,9 @@ def _report_cleanup_failure(_function, path, error) -> None:
 def run_cli_process(
     argv: Sequence[str],
     cwd: Path,
-    trial_timeout: float,
+    trial_timeout_seconds: float,
     env: Mapping[str, str] | None = None,
-) -> RunRecord:
+) -> TrialProcessRecord:
     """Run `argv` in `cwd` in its own process group.
 
     On timeout or interrupt the whole group is killed, so grandchildren the CLI
@@ -182,7 +182,7 @@ def run_cli_process(
         signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
         if not isinstance(error, OSError):
             raise
-        return RunRecord(
+        return TrialProcessRecord(
             exit_code=COMMAND_NOT_RUNNABLE_EXIT_CODE,
             stdout="",
             stderr=str(error),
@@ -193,11 +193,11 @@ def run_cli_process(
         # Unblocking inside the try means a signal held back during the start
         # raises here, where the handler below kills the new group.
         signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
-        stdout, stderr = process.communicate(timeout=trial_timeout)
+        stdout, stderr = process.communicate(timeout=trial_timeout_seconds)
     except subprocess.TimeoutExpired:
         _kill_process_group(process)
         stdout, stderr = _collect_after_kill(process)
-        return RunRecord(
+        return TrialProcessRecord(
             exit_code=None, stdout=stdout, stderr=stderr, timed_out=True, cwd=cwd
         )
     except BaseException:
@@ -211,7 +211,7 @@ def run_cli_process(
         finally:
             signal.pthread_sigmask(signal.SIG_SETMASK, interrupted_mask)
         raise
-    return RunRecord(
+    return TrialProcessRecord(
         exit_code=process.returncode,
         stdout=stdout,
         stderr=stderr,
@@ -242,10 +242,10 @@ def _kill_process_group(process: subprocess.Popen) -> None:
 def run_trial(
     fixture: Path,
     config: TrialConfig,
-    trial_timeout: float = DEFAULT_TRIAL_TIMEOUT_SECONDS,
-) -> RunRecord:
+    trial_timeout_seconds: float = DEFAULT_TRIAL_TIMEOUT_SECONDS,
+) -> TrialProcessRecord:
     """Run one trial of `config` against a fresh copy of `fixture`."""
     argv = build_argv(config, build_user_prompt(fixture.name))
     env = build_trial_env(os.environ)
     with staged_fixture(fixture) as staging_dir:
-        return run_cli_process(argv, staging_dir, trial_timeout, env)
+        return run_cli_process(argv, staging_dir, trial_timeout_seconds, env)

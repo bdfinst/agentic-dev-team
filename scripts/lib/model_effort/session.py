@@ -95,14 +95,14 @@ def estimate_and_echo(
         plan.arms,
         plan.system_prompt,
         plan.fixtures,
-        settings.trials.count,
+        settings.trials_per_fixture.count,
         pricing_table,
     )
     for line in config_echo.render_config(plan, settings, run_estimate):
         print(line, file=console.stderr)
-    if spend_limit is not None and spend_limit.refuses(run_estimate.total_usd):
+    if spend_limit is not None and spend_limit.refuses(run_estimate.total_cost_usd):
         raise UsageError(
-            f"estimated total {format_usd(run_estimate.total_usd)} is above "
+            f"estimated total {format_usd(run_estimate.total_cost_usd)} is above "
             f"--max-cost {format_usd(spend_limit.max_cost_usd)}: raise --max-cost, "
             "or lower --trials or --fixtures"
         )
@@ -127,7 +127,7 @@ def finish_run(
     save_exit_code = save_artifact(plan.artifact_path, text, console)
     if not run.is_complete:
         print(report.render_stop_notice(run), file=console.stderr)
-    for line in report.render_summary(artifact.arm_totals(data)):
+    for line in report.render_summary(artifact.read_arm_totals(data)):
         print(line, file=console.stderr)
     if save_exit_code == EXIT_OK:
         print(f"artifact written: {plan.artifact_path}", file=console.stderr)

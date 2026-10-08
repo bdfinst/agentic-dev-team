@@ -48,15 +48,15 @@ class RunEstimate:
     trials_per_arm: int
 
     @property
-    def total_usd(self) -> float:
+    def total_cost_usd(self) -> float:
         return total_cost_usd(cost_usd for _, cost_usd in self.by_arm)
 
-    def for_arm(self, label: str) -> float:
+    def cost_usd_for_arm(self, label: str) -> float:
         return dict(self.by_arm)[label]
 
     def per_trial_usd(self, label: str) -> float:
         """The arm's estimate averaged over its planned trials."""
-        return self.for_arm(label) / self.trials_per_arm
+        return self.cost_usd_for_arm(label) / self.trials_per_arm
 
 
 def fixture_size_bytes(path: Path) -> int:
@@ -70,7 +70,7 @@ def estimate_run(
     arms: Sequence[Arm],
     system_prompt: str,
     fixtures: Sequence[ResolvedFixture],
-    trials: int,
+    trials_per_fixture: int,
     pricing_table: dict,
 ) -> RunEstimate:
     """Estimate each arm's cost: (input + output allowance) priced, times fixtures times trials.
@@ -78,21 +78,23 @@ def estimate_run(
     Raises:
         UsageError: an arm's model has no rate in `pricing_table`.
     """
-    rates = _rates_by_label(arms, pricing_table)
+    rates = _rates_by_arm(arms, pricing_table)
     input_tokens = sum(_input_tokens(system_prompt, fixture) for fixture in fixtures)
     return RunEstimate(
         by_arm=tuple(
             (
                 arm.label,
-                _arm_cost(rates[arm.label], input_tokens, len(fixtures), trials),
+                _arm_cost_usd(
+                    rates[arm.label], input_tokens, len(fixtures), trials_per_fixture
+                ),
             )
             for arm in arms
         ),
-        trials_per_arm=len(fixtures) * trials,
+        trials_per_arm=len(fixtures) * trials_per_fixture,
     )
 
 
-def _rates_by_label(arms: Sequence[Arm], pricing_table: dict) -> dict[str, dict]:
+def _rates_by_arm(arms: Sequence[Arm], pricing_table: dict) -> dict[str, dict]:
     rates = {arm.label: pricing.rate(pricing_table, arm.model) for arm in arms}
     unpriced = [arm for arm in arms if rates[arm.label] is None]
     if unpriced:
@@ -114,12 +116,12 @@ def _input_tokens(system_prompt: str, fixture: ResolvedFixture) -> float:
     return chars / CHARS_PER_TOKEN * TOOL_TURN_MULTIPLIER
 
 
-def _arm_cost(
-    rate: dict, input_tokens: float, fixture_count: int, trials: int
+def _arm_cost_usd(
+    rate: dict, input_tokens: float, fixture_count: int, trials_per_fixture: int
 ) -> float:
     """`input_tokens` is summed over fixtures; the output allowance is per fixture."""
     output_tokens = OUTPUT_TOKENS_PER_TRIAL * fixture_count
-    trial_cost_usd = (
+    per_trial_usd = (
         input_tokens * rate["input"] + output_tokens * rate["output"]
     ) / TOKENS_PER_RATE_UNIT
-    return trial_cost_usd * trials
+    return per_trial_usd * trials_per_fixture
