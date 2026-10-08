@@ -2198,24 +2198,24 @@ def _metadata() -> run_types.RunMetadata:
 ARM_ESTIMATE = 0.005
 
 
-def _run_estimate(trials_per_arm: int = 1) -> estimate.RunEstimate:
+def _run_estimate(total_trials_per_arm: int = 1) -> estimate.RunEstimate:
     return estimate.RunEstimate(
         by_arm=(
-            (BASELINE_LABEL, ARM_ESTIMATE * trials_per_arm),
-            (CANDIDATE_LABEL, ARM_ESTIMATE * trials_per_arm),
+            (BASELINE_LABEL, ARM_ESTIMATE * total_trials_per_arm),
+            (CANDIDATE_LABEL, ARM_ESTIMATE * total_trials_per_arm),
         ),
-        trials_per_arm=trials_per_arm,
+        total_trials_per_arm=total_trials_per_arm,
     )
 
 
 def _built_arm(
     results: list[outcome.TrialResult],
     expected_clean: bool = False,
-    trials_per_arm: int = 1,
+    total_trials_per_arm: int = 1,
 ) -> dict:
     run = _arm_run(CANDIDATE_LABEL, results, expected_clean)
     built = artifact.build_artifact(
-        _metadata(), [run], _run_estimate(trials_per_arm), None
+        _metadata(), [run], _run_estimate(total_trials_per_arm), None
     )
     return built["arms"][0]
 
@@ -2277,7 +2277,7 @@ class TestArmTotals:
                 _trial_result(Outcome.TIMEOUT, cost=0.0, cost_reported=False),
                 _trial_result(Outcome.CLI_ERROR, cost=0.0, cost_reported=False),
             ],
-            trials_per_arm=3,
+            total_trials_per_arm=3,
         )
 
         trials = arm["fixtures"][0]["trials"]
@@ -2288,7 +2288,7 @@ class TestArmTotals:
         )
 
     def test_arm_records_its_estimated_cost_from_the_run_estimate(self):
-        arm = _built_arm([_trial_result(Outcome.PASS)], trials_per_arm=4)
+        arm = _built_arm([_trial_result(Outcome.PASS)], total_trials_per_arm=4)
 
         assert arm["estimated_cost_usd"] == pytest.approx(4 * ARM_ESTIMATE)
 
@@ -2925,7 +2925,7 @@ class TestTwoArmRun:
             "effort": "high",
             "tools_enabled": ["Read", "Grep"],
             "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
-            "trials": SCOUT_TRIALS,
+            "trials_per_fixture": SCOUT_TRIALS,
             "estimated_cost_usd": pytest.approx(BASELINE_TWO_ARM_ESTIMATE),
             "session_config": _expected_session_config(SONNET_MODEL_ID),
             "fixtures": [
@@ -2956,7 +2956,7 @@ class TestTwoArmRun:
             "effort": "high",
             "tools_enabled": ["Read", "Grep"],
             "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
-            "trials": SCOUT_TRIALS,
+            "trials_per_fixture": SCOUT_TRIALS,
             "estimated_cost_usd": pytest.approx(CANDIDATE_TWO_ARM_ESTIMATE),
             "session_config": _expected_session_config(HAIKU_MODEL_ID),
             "fixtures": [
@@ -3557,7 +3557,7 @@ class TestEstimateRun:
 
         result = self._estimate(tmp_path, fixtures, trials=3)
 
-        assert result.trials_per_arm == 2 * 3
+        assert result.total_trials_per_arm == 2 * 3
         assert result.per_trial_usd("baseline") == pytest.approx(0.06 / (2 * 3))
 
     def test_unpriced_model_is_refused_naming_the_model_and_its_arm(self, tmp_path):
@@ -3590,7 +3590,7 @@ class TestChargedCost:
     def test_trial_with_no_reported_cost_is_charged_its_arms_per_trial_estimate(self):
         result = _trial_result(Outcome.CLI_ERROR, cost=0.0, cost_reported=False)
         run_estimate = estimate.RunEstimate(
-            by_arm=((BASELINE_LABEL, 0.06), (CANDIDATE_LABEL, 0.015)), trials_per_arm=3
+            by_arm=((BASELINE_LABEL, 0.06), (CANDIDATE_LABEL, 0.015)), total_trials_per_arm=3
         )
 
         assert run_estimate.charged_usd(CANDIDATE_LABEL, result) == pytest.approx(0.005)

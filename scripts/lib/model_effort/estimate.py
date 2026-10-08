@@ -46,10 +46,13 @@ PRICING_FILE_HINT = "plugins/dev-team/knowledge/model-pricing.json"
 
 @dataclass(frozen=True)
 class RunEstimate:
-    """Estimated dollars per arm label, in arm order, and the trials each arm plans."""
+    """Estimated dollars per arm label, in arm order, and the trials each arm plans in total.
+
+    `total_trials_per_arm` is fixtures times `--trials`: every trial one arm runs.
+    """
 
     by_arm: tuple[tuple[str, float], ...]
-    trials_per_arm: int
+    total_trials_per_arm: int
 
     @property
     def estimated_total_usd(self) -> float:
@@ -60,7 +63,7 @@ class RunEstimate:
 
     def per_trial_usd(self, label: str) -> float:
         """The arm's estimate averaged over its planned trials."""
-        return self.cost_usd_for_arm(label) / self.trials_per_arm
+        return self.cost_usd_for_arm(label) / self.total_trials_per_arm
 
     def charged_usd(self, label: str, result: TrialResult) -> float:
         """What a trial counts for toward the spend limit and the artifact's charged total.
@@ -101,7 +104,7 @@ def estimate_run(
             )
             for arm in arms
         ),
-        trials_per_arm=len(fixtures) * trials_per_fixture,
+        total_trials_per_arm=len(fixtures) * trials_per_fixture,
     )
 
 

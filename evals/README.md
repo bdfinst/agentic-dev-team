@@ -446,6 +446,7 @@ trial writes no artifact and exits 1. The key fields:
 | --- | --- |
 | `status` | `complete`, or `incomplete` when `abort_reason` is set. |
 | `abort_reason` | A stop reason from the table above, or `null`. |
+| `arms[].trials_per_fixture` | The `--trials` value: trials the arm ran on each fixture. |
 | `arms[].fixtures[].trials[].outcome` | The trial result, such as `pass`, `timeout` or `cli_error`. |
 | `arms[].fixtures[].trials[].cost_reported` | `false` when `claude` reported no cost; `cost_usd` is then 0. |
 | `arms[].estimated_cost_usd` | The pre-run estimate for the arm. |

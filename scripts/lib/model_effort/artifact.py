@@ -71,7 +71,7 @@ def _arm_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
         "effort": arm.effort,
         "tools_enabled": list(arm.profile.enabled_tools),
         "tools_withheld": list(arm.profile.withheld_tools),
-        "trials": arm_run.trials_per_fixture,
+        "trials_per_fixture": arm_run.trials_per_fixture,
         "estimated_cost_usd": run_estimate.cost_usd_for_arm(arm.label),
         "session_config": _first_session_config(arm_run),
         "fixtures": [_fixture_dict(fixture) for fixture in arm_run.fixture_trials],
