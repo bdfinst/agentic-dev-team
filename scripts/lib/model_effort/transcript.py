@@ -84,7 +84,9 @@ def extract_agent_json(text: str | None) -> dict | None:
         parsed = _decode_object(fenced.strip(), 0)
         if parsed is not None:
             return parsed
-    return _first_bare_object(text)
+    # Fenced blocks were tried above; blank them so an unclosed `{` in one cannot
+    # swallow a later top-level object.
+    return _first_bare_object(FENCED_JSON_PATTERN.sub(" ", text))
 
 
 def _iter_events(stdout: str):
@@ -173,13 +175,38 @@ def _as_cost(value) -> float:
 
 
 def _first_bare_object(text: str) -> dict | None:
-    start = text.find("{")
-    while start != -1:
+    for start in _top_level_brace_starts(text):
         parsed = _decode_object(text, start)
         if parsed is not None:
             return parsed
-        start = text.find("{", start + 1)
     return None
+
+
+def _top_level_brace_starts(text: str):
+    """Yield each `{` that opens at brace depth 0, skipping braces inside JSON strings.
+
+    Quotes only open a string once inside a brace, so prose quotes before the object
+    are ignored. An unclosed object keeps its inner `{` off depth 0.
+    """
+    depth = 0
+    in_string = False
+    escaped = False
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"' and depth:
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                yield index
+            depth += 1
+        elif char == "}" and depth:
+            depth -= 1
 
 
 def _decode_object(text: str, start: int) -> dict | None:

@@ -1068,6 +1068,9 @@ class TestSessionConfig:
         assert parsed.session_config == _expected_session_config(HAIKU_MODEL_ID)
 
 
+TRUNCATED_OUTER_OBJECT = '{"status":"fail","issues":[{"severity":"error","message":"x"}'
+
+
 class TestExtractAgentJson:
     def test_bare_object_is_parsed(self):
         assert transcript.extract_agent_json('{"status": "pass"}') == {"status": "pass"}
@@ -1110,6 +1113,24 @@ class TestExtractAgentJson:
     )
     def test_text_without_a_json_object_gives_none(self, text):
         assert transcript.extract_agent_json(text) is None
+
+    def test_truncated_outer_object_does_not_yield_its_inner_object(self):
+        assert transcript.extract_agent_json(TRUNCATED_OUTER_OBJECT) is None
+
+    def test_object_inside_an_unclosed_outer_with_escaped_quote_is_not_top_level(self):
+        text = r'{"summary": "say \"hi\" {", "issues": [{"severity": "error"}]'
+
+        assert transcript.extract_agent_json(text) is None
+
+    def test_top_level_object_after_a_closed_invalid_one_is_returned(self):
+        text = '{not: json} then {"status": "pass"}'
+
+        assert transcript.extract_agent_json(text) == {"status": "pass"}
+
+    def test_apostrophe_or_quote_in_prose_before_the_object_is_ignored(self):
+        text = 'It said "hello and then: {"status": "pass"}'
+
+        assert transcript.extract_agent_json(text) == {"status": "pass"}
 
 
 # --- Grading and outcomes ----------------------------------------------------
@@ -1282,6 +1303,11 @@ class TestTrialOutcomes:
 
         assert result.outcome == Outcome.PARSE_FAILURE
         assert result.error
+
+    def test_truncated_outer_object_is_parse_failure_not_its_inner_object(self):
+        result = _resolve(_stream(_result_event(TRUNCATED_OUTER_OBJECT)))
+
+        assert result.outcome == Outcome.PARSE_FAILURE
 
     def test_call_to_a_tool_outside_the_enabled_set_is_tool_violation_naming_it(self):
         result = _resolve(_verdict_stream(PASS_VERDICT, "Read", "Bash"))
