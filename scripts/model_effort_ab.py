@@ -59,15 +59,15 @@ from model_effort import (
 from model_effort.errors import UsageError
 from model_effort.execution import TrialRunner
 from model_effort.plan import RunPlan, plan_run
-from model_effort.run_types import (
+from model_effort.run_types import TrialSettings
+from model_effort.session import EXIT_FAILED, EXIT_USAGE
+from model_effort.stop_rules import SpendLimit
+from model_effort.trial_count import (
     DEFAULT_TRIALS,
     HIGH_STAKES_AGENTS,
     HIGH_STAKES_TRIALS,
-    TrialSettings,
     resolve_trials,
 )
-from model_effort.session import EXIT_FAILED, EXIT_USAGE
-from model_effort.stop_rules import SpendLimit
 
 RUBRIC_GRADER = "rubric"
 RUBRIC_GRADER_REFUSAL = (

@@ -1,4 +1,4 @@
-"""The data a run is made of: its identity, trial counts, settings, progress and result.
+"""The data a run is made of: its identity, settings, progress and result.
 
 Plain types shared by planning, execution, the artifact and the reports, so none of
 those has to import another to name them.
@@ -15,10 +15,7 @@ from .arm import Arm
 from .fixtures import FixtureKind
 from .outcome import TrialResult
 from .run_status import AbortReason, RunStatus
-
-RUN_ID_TIME_FORMAT = "%Y%m%dT%H%M%SZ"
-RUN_ID_RANDOM_BITS = 16
-RUN_ID_RANDOM_HEX_DIGITS = RUN_ID_RANDOM_BITS // 4
+from .trial_count import TrialCount
 
 
 @dataclass(frozen=True)
@@ -30,41 +27,6 @@ class RunMetadata:
     git_sha: str | None
     agent: str
     knowledge_dir: str
-
-
-def make_run_id(now: datetime, agent: str, model: str, effort: str, rng) -> str:
-    """Return `<UTC time>-<agent>-<model>-<effort>-<4 random hex>`; `rng` needs `getrandbits`."""
-    stamp = now.strftime(RUN_ID_TIME_FORMAT)
-    suffix = f"{rng.getrandbits(RUN_ID_RANDOM_BITS):0{RUN_ID_RANDOM_HEX_DIGITS}x}"
-    return f"{stamp}-{agent}-{model}-{effort}-{suffix}"
-
-
-# Exact agent names: `security-reviewer` is not in the set.
-HIGH_STAKES_AGENTS = frozenset(
-    {"security-review", "correctness-review", "architect", "security-engineer"}
-)
-DEFAULT_TRIALS = 5
-HIGH_STAKES_TRIALS = 10
-TRIALS_DEFAULT_REASON = "default"
-TRIALS_HIGH_STAKES_REASON = "high-stakes default"
-TRIALS_FLAG_REASON = "--trials"
-
-
-@dataclass(frozen=True)
-class TrialCount:
-    """Trials per arm per fixture, and why that number was chosen."""
-
-    count: int
-    reason: str
-
-
-def resolve_trials(flag_value: int | None, agent: str) -> TrialCount:
-    """Return `--trials` if given, else the high-stakes or the general default."""
-    if flag_value is not None:
-        return TrialCount(flag_value, TRIALS_FLAG_REASON)
-    if agent in HIGH_STAKES_AGENTS:
-        return TrialCount(HIGH_STAKES_TRIALS, TRIALS_HIGH_STAKES_REASON)
-    return TrialCount(DEFAULT_TRIALS, TRIALS_DEFAULT_REASON)
 
 
 @dataclass(frozen=True)

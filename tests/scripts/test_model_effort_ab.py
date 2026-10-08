@@ -66,12 +66,14 @@ from model_effort import (
     plan,
     process_record,
     report,
+    run_id,
     run_types,
     runner,
     session,
     stop_rules,
     tools,
     transcript,
+    trial_count,
 )
 from model_effort import fixtures as fixture_resolution
 from model_effort.arm import (
@@ -2230,9 +2232,9 @@ def _built_arm(
 
 class TestRunId:
     def test_run_id_joins_utc_time_agent_candidate_model_effort_and_four_hex(self):
-        run_id = run_types.make_run_id(NOW, "scout", "haiku", "high", FixedRng())
+        made = run_id.make_run_id(NOW, "scout", "haiku", "high", FixedRng())
 
-        assert run_id == RUN_ID
+        assert made == RUN_ID
 
 
 class TestArtifactStatus:
@@ -3429,17 +3431,17 @@ class TestTrialDefaults:
         ["security-review", "correctness-review", "architect", "security-engineer"],
     )
     def test_resolver_gives_every_high_stakes_agent_ten_trials(self, agent):
-        assert run_types.resolve_trials(None, agent) == run_types.TrialCount(
+        assert trial_count.resolve_trials(None, agent) == trial_count.TrialCount(
             10, "high-stakes default"
         )
 
     def test_resolver_gives_other_agents_five_trials(self):
-        assert run_types.resolve_trials(None, "security-reviewer") == (
-            run_types.TrialCount(5, "default")
+        assert trial_count.resolve_trials(None, "security-reviewer") == (
+            trial_count.TrialCount(5, "default")
         )
 
     def test_resolver_prefers_the_flag_over_the_high_stakes_default(self):
-        assert run_types.resolve_trials(2, "architect") == run_types.TrialCount(
+        assert trial_count.resolve_trials(2, "architect") == trial_count.TrialCount(
             2, "--trials"
         )
 
@@ -4920,7 +4922,7 @@ class TestInterruptsAreHeldForTheRun:
     def test_signal_pending_before_the_first_trial_starts_no_trial(self, world):
         scout_plan = _scout_plan(world)
         settings = run_types.TrialSettings(
-            trials=run_types.TrialCount(1, "test"),
+            trials=trial_count.TrialCount(1, "test"),
             trial_timeout_seconds=TIMEOUT_SECONDS,
             claude_bin="unused",
             expected_dir=world.expected_dir,

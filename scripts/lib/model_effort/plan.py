@@ -18,7 +18,8 @@ from .agent_spec import AgentSpec, build_agent_spec
 from .arm import BASELINE_LABEL, CANDIDATE_LABEL, Arm
 from .errors import UsageError
 from .fixtures import ResolvedFixture, resolve_fixtures
-from .run_types import RunMetadata, make_run_id
+from .run_id import make_run_id
+from .run_types import RunMetadata
 from .tools import ToolProfile, WriteCapableAgentError, resolve_tool_profile
 
 AGENT_ERROR_FIX_HINTS = {
