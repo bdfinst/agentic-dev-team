@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from .artifact import AbortReason
-from .config_echo import format_usd
 from .cost import total_cost_usd
 from .execution import RunResult, TrialProgress
+from .formatting import escape_unprintable, format_usd
 from .outcome import Outcome
 
 NO_ERROR_TEXT = "no error text was recorded"
@@ -35,7 +35,7 @@ def render_stop_notice(run: RunResult) -> str:
         )
     if reason is AbortReason.INFRA_FAILURE and run.stopping_trial is not None:
         trial = run.stopping_trial
-        cause = trial.result.error or NO_ERROR_TEXT
+        cause = escape_unprintable(trial.result.error or NO_ERROR_TEXT)
         return (
             f"error: run stopped early ({reason.value}): the {trial.arm} arm ended in "
             f"{trial.result.outcome.value}. Likely cause: {cause}. "
@@ -48,7 +48,8 @@ def render_stop_notice(run: RunResult) -> str:
         )
     if reason is AbortReason.HARNESS_ERROR:
         return (
-            f"error: run stopped early ({reason.value}): {run.harness_error}. "
+            f"error: run stopped early ({reason.value}): "
+            f"{escape_unprintable(run.harness_error or '')}. "
             f"{run.completed_trials} completed trials were kept; fix that and rerun"
         )
     raise ValueError(f"run was not aborted for a reportable reason: {reason!r}")

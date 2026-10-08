@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .estimate import RunEstimate
+from .formatting import format_usd
 from .plan import RunPlan
 
 NO_TOOLS_TEXT = "no tools enabled"
@@ -17,11 +18,6 @@ class TrialCount:
 
     count: int
     reason: str
-
-
-def format_usd(amount: float) -> str:
-    """Four decimals, so a sub-cent haiku estimate does not read as $0.00."""
-    return f"${amount:.4f}"
 
 
 def render_config(

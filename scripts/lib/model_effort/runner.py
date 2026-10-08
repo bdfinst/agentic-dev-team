@@ -30,6 +30,9 @@ PLUGIN_ROOT_PLACEHOLDER = "${CLAUDE_PLUGIN_ROOT}"
 TEMP_DIR_PREFIX = "model-effort-ab-"
 OUTPUT_ENCODING = "utf-8"
 KILL_COLLECT_TIMEOUT_SECONDS = 5
+# Held back while the process starts, so an interrupt cannot land before `Popen`
+# returns the pid the group kill needs.
+INTERRUPT_SIGNALS = frozenset({signal.SIGINT, signal.SIGTERM, signal.SIGHUP})
 # Python 3.12 renamed rmtree's `onerror` to `onexc` and changed what it receives.
 RMTREE_HAS_ONEXC = sys.version_info >= (3, 12)
 
@@ -149,6 +152,7 @@ def run_cli_process(
     partial output. A binary that cannot be started yields exit code 127 with
     the OS error as stderr.
     """
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, INTERRUPT_SIGNALS)
     try:
         process = subprocess.Popen(
             argv,
@@ -162,7 +166,10 @@ def run_cli_process(
             errors="replace",
             start_new_session=True,
         )
-    except OSError as error:
+    except Exception as error:
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+        if not isinstance(error, OSError):
+            raise
         return RunRecord(
             exit_code=COMMAND_NOT_RUNNABLE_EXIT_CODE,
             stdout="",
@@ -170,6 +177,9 @@ def run_cli_process(
             timed_out=False,
         )
     try:
+        # Unblocking inside the try means a signal held back during the start
+        # raises here, where the handler below kills the new group.
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
         stdout, stderr = process.communicate(timeout=trial_timeout)
     except subprocess.TimeoutExpired:
         _kill_process_group(process)

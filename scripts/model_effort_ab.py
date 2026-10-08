@@ -46,6 +46,7 @@ from model_effort import (
     artifact_store,
     config_echo,
     estimate,
+    interrupts,
     paths,
     report,
     runner,
@@ -215,6 +216,11 @@ def _save_artifact(path: Path, data: dict) -> int:
 def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
     deps = deps or Deps()
     args = _build_parser().parse_args(argv)
+    with interrupts.termination_as_interrupt():
+        return _run(args, deps)
+
+
+def _run(args: argparse.Namespace, deps: Deps) -> int:
     try:
         plan = plan_run(
             args.agent,

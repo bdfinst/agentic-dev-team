@@ -21,9 +21,11 @@ import json
 import os
 import shutil
 import signal
+import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -94,6 +96,7 @@ PINNED_OUTPUT_TOKENS = 100
 BASELINE_TWO_ARM_ESTIMATE = 0.004664 * 3
 CANDIDATE_TWO_ARM_ESTIMATE = 0.001166 * 3
 ARM_COUNT = 2
+TERMINATION_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
 # The `scout` world resolves two fixtures: clean-form and layered-svc.
 SCOUT_FIXTURE_COUNT = 2
 ENABLED = ("Read", "Grep")
@@ -603,6 +606,73 @@ class TestStagingFixtures:
         finally:
             (leftover / "locked").chmod(0o700)
             shutil.rmtree(leftover)
+
+
+def _raise_keyboard_interrupt(_signum, _frame) -> None:
+    raise KeyboardInterrupt
+
+
+INTERRUPT_SIGNALS = (signal.SIGINT, *TERMINATION_SIGNALS)
+
+
+def _blocked_signals() -> set[signal.Signals]:
+    return set(signal.pthread_sigmask(signal.SIG_BLOCK, []))
+
+
+class TestSignalsAroundSpawn:
+    def test_interrupt_signals_are_blocked_while_the_process_starts_and_free_afterwards(
+        self, stub_dir, fixture_root, monkeypatch
+    ):
+        blocked_during_spawn = []
+        real_popen = subprocess.Popen
+
+        def record_mask_then_spawn(*args, **kwargs):
+            blocked_during_spawn.append(_blocked_signals())
+            return real_popen(*args, **kwargs)
+
+        monkeypatch.setattr(subprocess, "Popen", record_mask_then_spawn)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        runner.run_trial(fixture, _config(StubClaude(stub_dir)))
+
+        assert set(INTERRUPT_SIGNALS) <= blocked_during_spawn[0]
+        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+
+    def test_signals_are_free_again_when_the_binary_cannot_start(self, fixture_root):
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        record = runner.run_trial(fixture, _config(claude_bin="/no/such/claude"))
+
+        assert record.exit_code == runner.COMMAND_NOT_RUNNABLE_EXIT_CODE
+        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+
+    def test_signal_arriving_during_the_spawn_still_kills_the_new_process_group(
+        self, stub_dir, fixture_root, monkeypatch
+    ):
+        stub = StubClaude(stub_dir, sleep=30)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        children = []
+        real_popen = subprocess.Popen
+
+        def spawn_then_terminate(*args, **kwargs):
+            child = real_popen(*args, **kwargs)
+            children.append(child)
+            os.kill(os.getpid(), signal.SIGTERM)
+            return child
+
+        monkeypatch.setattr(subprocess, "Popen", spawn_then_terminate)
+        previous = signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
+        try:
+            with pytest.raises(KeyboardInterrupt):
+                runner.run_trial(fixture, _config(stub))
+            assert children[0].poll() is not None, "the child outlived the interrupt"
+        finally:
+            signal.signal(signal.SIGTERM, previous)
+            for child in children:
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
 
 class TestTrialArgv:
@@ -3118,19 +3188,37 @@ CLI_FAILURE = {"exit_code": 1, "stdout": "", "stderr": "boom: auth failed"}
 CLEAN_FORM_ARGS = ("scout", "--model", "haiku", "--fixtures", "clean-form")
 
 
-def _deps_raising_after(
-    world: World, completed_trials: int, error: BaseException
+def _deps_acting_after(
+    world: World, completed_trials: int, action: Callable[[], None]
 ) -> model_effort_ab.Deps:
-    """Let the first `completed_trials` trials run for real, then raise `error` inside the next."""
+    """Let the first `completed_trials` trials run for real, then run `action` in place of the next."""
     started = []
 
-    def run_then_raise(*args, **kwargs):
+    def run_then_act(*args, **kwargs):
         if len(started) == completed_trials:
-            raise error
+            action()
         started.append(args)
         return runner.run_trial(*args, **kwargs)
 
-    return dataclasses.replace(world.deps, run_trial=run_then_raise)
+    return dataclasses.replace(world.deps, run_trial=run_then_act)
+
+
+def _deps_raising_after(
+    world: World, completed_trials: int, error: BaseException
+) -> model_effort_ab.Deps:
+    def raise_error() -> None:
+        raise error
+
+    return _deps_acting_after(world, completed_trials, raise_error)
+
+
+def _deps_signalling_after(
+    world: World, completed_trials: int, signum: int
+) -> model_effort_ab.Deps:
+    """Send `signum` to this process inside the trial after `completed_trials` real ones."""
+    return _deps_acting_after(
+        world, completed_trials, lambda: os.kill(os.getpid(), signum)
+    )
 
 
 def _interrupting_deps(world: World, completed_trials: int) -> model_effort_ab.Deps:
@@ -3341,6 +3429,20 @@ class TestSystemicFailureStop:
         assert "x" * 487 + "." in err
         assert "x" * 488 not in err
 
+    def test_terminal_control_sequences_in_the_cause_are_shown_escaped_not_executed(
+        self, world, capsys
+    ):
+        hostile = "\x1b]0;pwned\x07\x1b[31mred\x1b[0m"
+        stub = StubClaude(world.stub_dir, **{**CLI_FAILURE, "stderr": hostile})
+
+        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+
+        err = capsys.readouterr().err
+        assert "\x1b" not in err and "\x07" not in err
+        assert (
+            "Likely cause: exit code 1: \\x1b]0;pwned\\x07\\x1b[31mred\\x1b[0m." in err
+        )
+
     def test_three_consecutive_failures_in_the_baseline_arm_stop_the_run_on_the_third(
         self, world
     ):
@@ -3462,6 +3564,59 @@ class TestInterrupt:
         assert f"artifact written: {world.artifact_path}" in err
 
 
+def _note_signal(_signum, _frame) -> None:
+    """A harmless handler: the signal is delivered and nothing else happens."""
+
+
+@pytest.fixture
+def harmless_termination_signals():
+    """Swap in a no-op SIGTERM/SIGHUP handler so a signal a test sends cannot end pytest."""
+    originals = {
+        signum: signal.signal(signum, _note_signal) for signum in TERMINATION_SIGNALS
+    }
+    yield
+    for signum, handler in originals.items():
+        signal.signal(signum, handler)
+
+
+@pytest.mark.usefixtures("harmless_termination_signals")
+class TestTerminationSignals:
+    @pytest.mark.parametrize("signum", TERMINATION_SIGNALS, ids=lambda n: n.name)
+    def test_termination_signal_ends_the_run_like_ctrl_c_and_keeps_the_completed_trials(
+        self, world, capsys, signum
+    ):
+        code = _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=_deps_signalling_after(world, 3, signum),
+        )
+
+        written = _written(world)
+        assert code == 1
+        assert (written["status"], written["abort_reason"]) == (
+            "incomplete",
+            "interrupt",
+        )
+        assert _outcomes(written, BASELINE_LABEL) == ["pass", "pass"]
+        assert "Traceback" not in capsys.readouterr().err
+
+    @pytest.mark.parametrize("signum", TERMINATION_SIGNALS, ids=lambda n: n.name)
+    def test_previous_handlers_are_back_in_place_after_the_run(self, world, signum):
+        _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
+
+        assert signal.getsignal(signum) is _note_signal
+
+    def test_previous_handlers_are_back_in_place_after_a_declined_run(self, world):
+        _gated_cli(world, _passing_stub(world), io.StringIO("n\n"))
+
+        assert all(
+            signal.getsignal(signum) is _note_signal for signum in TERMINATION_SIGNALS
+        )
+
+
 class TestUnexpectedTrialError:
     def test_error_in_a_trial_keeps_the_completed_trials_and_marks_the_artifact_harness_error(
         self, world, capsys
@@ -3503,6 +3658,22 @@ class TestUnexpectedTrialError:
         err = capsys.readouterr().err
         assert "RuntimeError: " + "m" * 486 in err
         assert "m" * 487 not in err
+
+    def test_terminal_control_sequences_in_the_error_are_shown_escaped(
+        self, world, capsys
+    ):
+        _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=_deps_raising_after(world, 1, RuntimeError("\x1b[2Jgone")),
+        )
+
+        err = capsys.readouterr().err
+        assert "\x1b" not in err
+        assert "RuntimeError: \\x1b[2Jgone" in err
 
     def test_error_in_the_first_trial_still_writes_an_artifact_with_no_results(
         self, world
