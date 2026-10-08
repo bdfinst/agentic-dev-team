@@ -213,12 +213,13 @@ def _split_csv(text: str | None) -> list[str] | None:
 
 
 # While the run is under way the session holds the signals, so an interrupt
-# reaches `main` only before the run starts or after it has ended and been saved.
+# reaches `main` only before the run starts or after the session has finished
+# and reported what it saved.
 INTERRUPTED_BEFORE_RUN_MESSAGE = (
     "error: interrupted before the first trial started: nothing was run or spent"
 )
 INTERRUPTED_AFTER_RUN_MESSAGE = (
-    "error: interrupted after the run ended: its results were saved (see above)"
+    "error: interrupted after the run ended: the messages above say what was saved"
 )
 
 
