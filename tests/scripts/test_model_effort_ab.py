@@ -53,6 +53,7 @@ from model_effort import (
     estimate,
     execution,
     grading,
+    interrupts,
     outcome,
     paths,
     plan,
@@ -420,7 +421,7 @@ class TestShippedAgentSmoke:
 # --- Trial runner ------------------------------------------------------------
 
 STUB_TEMPLATE = """#!/usr/bin/env python3
-import json, os, subprocess, sys, time
+import json, os, signal, subprocess, sys, time
 from pathlib import Path
 
 RECORD = Path(__RECORD__)
@@ -452,6 +453,9 @@ calls.append({
     "files_before": files_before,
     "symlinks": symlinks,
     "env_names": sorted(os.environ),
+    "blocked_signals": sorted(
+        s.name for s in signal.pthread_sigmask(signal.SIG_BLOCK, [])
+    ),
     "observed": observed,
 })
 RECORD.write_text(json.dumps(calls))
@@ -666,6 +670,17 @@ class TestSignalsAroundSpawn:
         assert record.exit_code == runner.COMMAND_NOT_RUNNABLE_EXIT_CODE
         assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
 
+    def test_the_cli_process_starts_with_the_interrupt_signals_unblocked(
+        self, stub_dir, fixture_root
+    ):
+        stub = StubClaude(stub_dir)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        runner.run_trial(fixture, _config(stub))
+
+        blocked_in_child = set(stub.calls[0]["blocked_signals"])
+        assert not {signum.name for signum in INTERRUPT_SIGNALS} & blocked_in_child
+
     def test_signal_arriving_during_the_spawn_still_kills_the_new_process_group(
         self, stub_dir, fixture_root, monkeypatch
     ):
@@ -693,6 +708,36 @@ class TestSignalsAroundSpawn:
                     os.killpg(child.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
+
+    def test_interrupt_signals_are_blocked_while_the_group_is_killed_and_free_afterwards(
+        self, stub_dir, fixture_root, monkeypatch
+    ):
+        stub = StubClaude(stub_dir, sleep=30)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        blocked_during_kill = []
+        real_kill = runner._kill_process_group
+        real_popen = subprocess.Popen
+
+        def record_mask_then_kill(process):
+            blocked_during_kill.append(_blocked_signals())
+            real_kill(process)
+
+        def spawn_then_terminate(*args, **kwargs):
+            child = real_popen(*args, **kwargs)
+            os.kill(os.getpid(), signal.SIGTERM)
+            return child
+
+        monkeypatch.setattr(runner, "_kill_process_group", record_mask_then_kill)
+        monkeypatch.setattr(subprocess, "Popen", spawn_then_terminate)
+        previous = signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
+        try:
+            with pytest.raises(KeyboardInterrupt):
+                runner.run_trial(fixture, _config(stub))
+        finally:
+            signal.signal(signal.SIGTERM, previous)
+
+        assert set(INTERRUPT_SIGNALS) <= blocked_during_kill[0]
+        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
 
 
 class TestTrialArgv:
@@ -3812,6 +3857,29 @@ def harmless_termination_signals():
     yield
     for signum, handler in originals.items():
         signal.signal(signum, handler)
+
+
+class TestIgnoredTerminationSignals:
+    def test_a_signal_that_was_ignored_stays_ignored_while_the_others_raise_interrupt(
+        self,
+    ):
+        originals = {
+            signum: signal.signal(signum, _note_signal)
+            for signum in TERMINATION_SIGNALS
+        }
+        ignored, handled = TERMINATION_SIGNALS[0], TERMINATION_SIGNALS[1:]
+        signal.signal(ignored, signal.SIG_IGN)
+        try:
+            with interrupts.termination_as_interrupt():
+                assert signal.getsignal(ignored) is signal.SIG_IGN
+                for signum in handled:
+                    assert signal.getsignal(signum) is not _note_signal
+            assert signal.getsignal(ignored) is signal.SIG_IGN
+            for signum in handled:
+                assert signal.getsignal(signum) is _note_signal
+        finally:
+            for signum, handler in originals.items():
+                signal.signal(signum, handler)
 
 
 @pytest.mark.usefixtures("harmless_termination_signals")

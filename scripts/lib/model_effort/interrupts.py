@@ -22,10 +22,14 @@ def _raise_interrupt(_signum, _frame) -> None:
 
 @contextmanager
 def termination_as_interrupt() -> Iterator[None]:
-    """Make SIGTERM and SIGHUP raise `KeyboardInterrupt`; restore the old handlers on exit."""
+    """Make SIGTERM and SIGHUP raise `KeyboardInterrupt`; restore the old handlers on exit.
+
+    A signal the process was started ignoring (`nohup` ignores SIGHUP) stays ignored.
+    """
     previous = {
         signum: signal.signal(signum, _raise_interrupt)
         for signum in TERMINATION_SIGNALS
+        if signal.getsignal(signum) is not signal.SIG_IGN
     }
     try:
         yield

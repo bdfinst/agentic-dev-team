@@ -165,6 +165,11 @@ def run_cli_process(
             encoding=OUTPUT_ENCODING,
             errors="replace",
             start_new_session=True,
+            # The child inherits the mask held during the start; undo it there.
+            # The harness is single-threaded and the hook only sets a signal mask.
+            preexec_fn=lambda: signal.pthread_sigmask(  # noqa: PLW1509
+                signal.SIG_SETMASK, previous_mask
+            ),
         )
     except Exception as error:
         signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
@@ -187,9 +192,14 @@ def run_cli_process(
         return RunRecord(exit_code=None, stdout=stdout, stderr=stderr, timed_out=True)
     except BaseException:
         # The new session detaches the child from the terminal, so Ctrl-C no
-        # longer reaches it; kill it here before propagating.
-        _kill_process_group(process)
-        process.wait()
+        # longer reaches it; kill it here before propagating. A second signal is
+        # held back until the group is dead, so it cannot skip the kill.
+        interrupted_mask = signal.pthread_sigmask(signal.SIG_BLOCK, INTERRUPT_SIGNALS)
+        try:
+            _kill_process_group(process)
+            process.wait()
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, interrupted_mask)
         raise
     return RunRecord(
         exit_code=process.returncode, stdout=stdout, stderr=stderr, timed_out=False
