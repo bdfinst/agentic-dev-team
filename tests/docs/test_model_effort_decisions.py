@@ -139,8 +139,8 @@ def check_keep_row(name: str, row: dict[str, str]) -> list[str]:
         return violation(name, "keep row must not report a cost saving")
     if evidence == "no fixture" and row["Fixtures"] != "0":
         return violation(name, "'no fixture' requires Fixtures of 0")
-    if evidence not in KEEP_REASONS and not EVIDENCE_RE.match(evidence):
-        return violation(name, "keep-row evidence is neither a reason nor well-formed")
+    if evidence not in KEEP_REASONS:
+        return violation(name, "keep-row evidence must be one of the known reasons")
     return []
 
 
@@ -415,7 +415,7 @@ def test_known_keep_reasons_are_accepted(reason, fixtures):
 
 
 def test_unknown_keep_reason_is_rejected():
-    assert any("keep-row evidence" in e for e in errors_for(make_row(evidence="TBD")))
+    assert any("known reasons" in e for e in errors_for(make_row(evidence="TBD")))
 
 
 def test_no_fixture_reason_requires_zero_fixtures():
@@ -424,3 +424,7 @@ def test_no_fixture_reason_requires_zero_fixtures():
 
 def test_keep_row_with_saving_is_rejected():
     assert any("must not report" in e for e in errors_for(make_row(saving="0.2")))
+
+
+def test_keep_row_cannot_carry_an_eval_record():
+    assert any("known reasons" in e for e in errors_for(make_row(evidence=GOOD_EVIDENCE)))
