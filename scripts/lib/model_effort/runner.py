@@ -124,44 +124,84 @@ def run_cli_process(
 def _wait_for_exit(
     process: subprocess.Popen, cwd: Path, trial_timeout_seconds: float
 ) -> TrialProcessRecord:
-    """Wait for the process to exit, in slices short enough to notice an interrupt."""
+    """Wait for the process to exit and its output to end, noticing an interrupt.
+
+    A trial times out only when the process itself is still running at the
+    deadline. If the process exited but a descendant keeps its pipes open, the
+    output gets `KILL_COLLECT_TIMEOUT_SECONDS` to end, then the group is killed;
+    the process's own exit code is kept either way.
+    """
     deadline = time.monotonic() + trial_timeout_seconds
+    output = _read_output(process, deadline, stop_at_exit=True)
+    if output is None and process.poll() is None:
+        stdout, stderr = _kill_group_and_collect(process)
+        return TrialProcessRecord(
+            exit_code=None, stdout=stdout, stderr=stderr, timed_out=True, cwd=cwd
+        )
+    if output is None:
+        grace_deadline = time.monotonic() + KILL_COLLECT_TIMEOUT_SECONDS
+        output = _read_output(process, grace_deadline, stop_at_exit=False)
+    if output is None:
+        output = _kill_group_and_collect(process)
+    stdout, stderr = output
+    return TrialProcessRecord(
+        exit_code=process.returncode,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=False,
+        cwd=cwd,
+    )
+
+
+def _read_output(
+    process: subprocess.Popen, deadline: float, *, stop_at_exit: bool
+) -> tuple[str, str] | None:
+    """Read the output to its end, in slices short enough to notice an interrupt.
+
+    Returns None at the deadline, or, with `stop_at_exit`, as soon as the process
+    has exited with its pipes still open. Reading continues while the process
+    runs, so a child blocked on a full pipe is not deadlocked.
+    """
     while True:
         if interrupts.take_pending():
             raise KeyboardInterrupt
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            stdout, stderr = _kill_group_and_collect(process)
-            return TrialProcessRecord(
-                exit_code=None, stdout=stdout, stderr=stderr, timed_out=True, cwd=cwd
-            )
+            return None
         try:
-            stdout, stderr = process.communicate(
-                timeout=min(INTERRUPT_POLL_SECONDS, remaining)
-            )
+            return process.communicate(timeout=min(INTERRUPT_POLL_SECONDS, remaining))
         except subprocess.TimeoutExpired:
-            continue
-        return TrialProcessRecord(
-            exit_code=process.returncode,
-            stdout=stdout,
-            stderr=stderr,
-            timed_out=False,
-            cwd=cwd,
-        )
+            if stop_at_exit and process.poll() is not None:
+                return None
 
 
 def _kill_group_and_collect(process: subprocess.Popen) -> tuple[str, str]:
     """Kill the whole group, reap the process and return the output captured so far.
 
     A descendant that left the process group can still hold the pipes open;
-    give up on the output after a bounded wait rather than hang the run.
+    give up on the rest of the output after a bounded wait rather than hang the
+    run. If the process itself does not die within a bounded wait either, it is
+    left unreaped.
     """
     _kill_process_group(process)
     try:
         return process.communicate(timeout=KILL_COLLECT_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as expired:
+        captured = _decode_partial(expired.stdout), _decode_partial(expired.stderr)
+    try:
+        process.wait(timeout=KILL_COLLECT_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
-        process.wait()
-        return "", ""
+        pass  # Not reaped; the run goes on without the process's exit status.
+    return captured
+
+
+def _decode_partial(data: bytes | str | None) -> str:
+    """Output a timed-out `communicate` had read: bytes, even in text mode."""
+    if data is None:
+        return ""
+    if isinstance(data, bytes):
+        return data.decode(OUTPUT_ENCODING, errors="replace")
+    return data
 
 
 def _kill_process_group(process: subprocess.Popen) -> None:

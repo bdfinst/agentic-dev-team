@@ -506,6 +506,12 @@ if BEHAVIOR.get("grandchild_marker"):
     )
     subprocess.Popen([sys.executable, "-c", code])
     Path(BEHAVIOR["grandchild_spawned"]).write_text("spawned")
+if BEHAVIOR.get("holder_sleep"):
+    # Inherits stdout and stderr, so it keeps both pipes open after this process exits.
+    subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(%s)" % BEHAVIOR["holder_sleep"]],
+        start_new_session=bool(BEHAVIOR.get("holder_new_session")),
+    )
 if BEHAVIOR.get("stdout_hex"):
     sys.stdout.buffer.write(bytes.fromhex(BEHAVIOR["stdout_hex"]))
     sys.stdout.flush()
@@ -918,6 +924,8 @@ class TestTrialEnvironment:
 
 
 GRANDCHILD_DELAY_SECONDS = 4
+# Short grace for the output of an exited child, so the tests do not wait the real 5 s.
+HOLDER_GRACE_SECONDS = 1
 
 
 def _wait_until_after(started: float, delay: float) -> None:
@@ -926,6 +934,11 @@ def _wait_until_after(started: float, delay: float) -> None:
     remaining = started + delay + margin - time.monotonic()
     if remaining > 0:
         time.sleep(remaining)
+
+
+@pytest.fixture
+def short_output_grace(monkeypatch) -> None:
+    monkeypatch.setattr(runner, "KILL_COLLECT_TIMEOUT_SECONDS", HOLDER_GRACE_SECONDS)
 
 
 class TestExecution:
@@ -979,6 +992,93 @@ class TestExecution:
         assert stub.calls, "the stub never started, so the timeout proved nothing"
         assert record.timed_out is True
         assert record.exit_code is None
+
+    def test_clean_exit_is_not_a_timeout_when_a_descendant_holds_the_pipes_open(
+        self, stub_dir, fixture_root, short_output_grace
+    ):
+        stub = StubClaude(stub_dir, stdout="result", exit_code=0, holder_sleep=30)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        started = time.monotonic()
+
+        record = runner.run_trial(
+            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS * 10
+        )
+
+        assert time.monotonic() - started < TIMEOUT_SECONDS
+        assert (record.exit_code, record.stdout, record.timed_out) == (
+            0,
+            "result",
+            False,
+        )
+
+    def test_failing_exit_code_is_kept_when_a_descendant_holds_the_pipes_open(
+        self, stub_dir, fixture_root, short_output_grace
+    ):
+        stub = StubClaude(stub_dir, stderr="boom", exit_code=3, holder_sleep=30)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        record = runner.run_trial(
+            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS * 10
+        )
+
+        assert (record.exit_code, record.stderr, record.timed_out) == (3, "boom", False)
+
+    def test_output_is_kept_when_a_descendant_in_another_session_holds_the_pipes(
+        self, stub_dir, fixture_root, short_output_grace
+    ):
+        stub = StubClaude(
+            stub_dir,
+            stdout="result",
+            holder_sleep=HOLDER_GRACE_SECONDS * 6,
+            holder_new_session=True,
+        )
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        started = time.monotonic()
+
+        record = runner.run_trial(
+            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS * 10
+        )
+
+        assert time.monotonic() - started < HOLDER_GRACE_SECONDS * 4
+        assert (record.exit_code, record.stdout, record.timed_out) == (
+            0,
+            "result",
+            False,
+        )
+
+    def test_child_that_outlives_the_deadline_is_still_a_timeout_with_a_descendant_holding_the_pipes(
+        self, stub_dir, fixture_root
+    ):
+        stub = StubClaude(stub_dir, sleep=30, holder_sleep=30)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        record = runner.run_trial(
+            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS
+        )
+
+        assert (record.exit_code, record.timed_out) == (None, True)
+
+    def test_process_that_survives_the_kill_is_left_unreaped_after_a_bounded_wait(
+        self, monkeypatch
+    ):
+        waits = []
+
+        class UnkillableProcess:
+            pid = 0
+
+            def communicate(self, timeout):
+                raise subprocess.TimeoutExpired("claude", timeout)
+
+            def wait(self, timeout):
+                waits.append(timeout)
+                raise subprocess.TimeoutExpired("claude", timeout)
+
+        monkeypatch.setattr(runner, "_kill_process_group", lambda _process: None)
+
+        output = runner._kill_group_and_collect(UnkillableProcess())
+
+        assert output == ("", "")
+        assert waits == [runner.KILL_COLLECT_TIMEOUT_SECONDS]
 
     def test_timeout_kills_the_whole_process_group_not_just_the_child(
         self, stub_dir, fixture_root
