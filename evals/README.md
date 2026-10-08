@@ -407,7 +407,7 @@ The estimate is a rough heuristic, and the real cost can be higher.
 | --- | --- |
 | 0 | The run completed and the artifact was written. |
 | 1 | The run was declined or stopped early, or the artifact could not be written. When the write fails, the artifact JSON goes to stdout so the paid results survive. |
-| 2 | Usage error or refusal before the run: an invalid argument, an unknown agent or fixture, identical arms, or a write-capable agent. No estimate is printed and no artifact is reserved. |
+| 2 | Usage error or refusal before the run: an invalid argument, an unknown agent or fixture, identical arms, or a write-capable agent, with no estimate printed; or an unpriced model or an estimate above `--max-cost`, after the configuration is printed. No trial runs and no artifact is written. |
 
 Messages go to stderr.
 
