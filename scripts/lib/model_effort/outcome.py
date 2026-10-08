@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from .path_scrub import scrub_paths
-from .runner import TrialProcessRecord
+from .process_record import TrialProcessRecord
 from .transcript import ParsedTranscript, extract_agent_json
 
 MAX_MESSAGE_CHARS = 500

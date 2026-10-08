@@ -96,14 +96,16 @@ def estimate_and_echo(
         plan.arms,
         plan.system_prompt,
         plan.fixtures,
-        settings.trials_per_fixture.count,
+        settings.trial_count.count,
         pricing_table,
     )
     for line in config_echo.render_config(plan, settings, run_estimate):
         print(line, file=console.stderr)
-    if spend_limit is not None and spend_limit.refuses(run_estimate.total_cost_usd):
+    if spend_limit is not None and spend_limit.refuses(
+        run_estimate.estimated_total_usd
+    ):
         raise UsageError(
-            f"estimated total {format_usd(run_estimate.total_cost_usd)} is above "
+            f"estimated total {format_usd(run_estimate.estimated_total_usd)} is above "
             f"--max-cost {format_usd(spend_limit.max_cost_usd)}: raise --max-cost, "
             "or lower --trials or --fixtures"
         )

@@ -16,10 +16,10 @@ import sys
 import tempfile
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 
 from . import invocation
+from .process_record import TrialProcessRecord
 
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 600
 # Shell convention for "command not found or not executable".
@@ -32,20 +32,6 @@ KILL_COLLECT_TIMEOUT_SECONDS = 5
 INTERRUPT_SIGNALS = frozenset({signal.SIGINT, signal.SIGTERM, signal.SIGHUP})
 # Python 3.12 renamed rmtree's `onerror` to `onexc` and changed what it receives.
 RMTREE_HAS_ONEXC = sys.version_info >= (3, 12)
-
-
-@dataclass(frozen=True)
-class TrialProcessRecord:
-    """Raw outcome of one CLI process. `exit_code` is None when it timed out.
-
-    `cwd` is the directory the process ran in, so text it printed can be scrubbed of it.
-    """
-
-    exit_code: int | None
-    stdout: str
-    stderr: str
-    timed_out: bool
-    cwd: Path | None = None
 
 
 @contextmanager

@@ -230,7 +230,7 @@ def _run(args: argparse.Namespace, deps: Deps) -> int:
     except UsageError as error:
         return _report_usage_error(error)
     settings = TrialSettings(
-        trials_per_fixture=resolve_trials(args.trials, args.agent),
+        trial_count=resolve_trials(args.trials, args.agent),
         trial_timeout_seconds=args.trial_timeout_seconds,
         claude_bin=args.claude_bin,
         expected_dir=deps.expected_dir,

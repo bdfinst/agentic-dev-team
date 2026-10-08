@@ -71,7 +71,7 @@ def resolve_trials(flag_value: int | None, agent: str) -> TrialCount:
 class TrialSettings:
     """How each trial runs, apart from what the plan fixes."""
 
-    trials_per_fixture: TrialCount
+    trial_count: TrialCount
     trial_timeout_seconds: float
     claude_bin: str
     expected_dir: Path

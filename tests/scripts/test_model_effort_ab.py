@@ -62,6 +62,7 @@ from model_effort import (
     path_scrub,
     paths,
     plan,
+    process_record,
     run_types,
     runner,
     session,
@@ -1129,10 +1130,10 @@ class TestParseStream:
 
         assert parsed.has_result is True
         assert parsed.called_tool_names == ("Read",)
-        assert parsed.permission_denials == 1
+        assert parsed.permission_denial_count == 1
 
     def test_real_run_with_allowed_reads_has_no_permission_denials(self):
-        assert _read_transcript("pass-readonly").permission_denials == 0
+        assert _read_transcript("pass-readonly").permission_denial_count == 0
 
     def test_real_bad_model_run_is_an_error_with_no_model_id_and_a_note(self):
         parsed = _read_transcript("bad-model")
@@ -1504,8 +1505,8 @@ class TestShippedExpectedEntrySmoke:
 
 def _record(
     exit_code=0, stdout="", stderr="", timed_out=False
-) -> runner.TrialProcessRecord:
-    return runner.TrialProcessRecord(
+) -> process_record.TrialProcessRecord:
+    return process_record.TrialProcessRecord(
         exit_code=exit_code, stdout=stdout, stderr=stderr, timed_out=timed_out
     )
 
@@ -3141,7 +3142,7 @@ class TestEstimateRun:
         # pricey: (4000*4 + 200*20) / 1e6 = 0.02, x3 trials. cheap: (4000*1 + 200*5) / 1e6 = 0.005, x3.
         assert result.cost_usd_for_arm("baseline") == pytest.approx(0.06)
         assert result.cost_usd_for_arm("candidate") == pytest.approx(0.015)
-        assert result.total_cost_usd == pytest.approx(0.075)
+        assert result.estimated_total_usd == pytest.approx(0.075)
 
     def test_directory_fixture_counts_the_summed_size_of_its_files(self, tmp_path):
         directory = tmp_path / "d" / "service"
@@ -3154,8 +3155,10 @@ class TestEstimateRun:
         (tmp_path / "f").mkdir()
         as_file = _file_fixture_of_size(tmp_path / "f", "service", 3000)
 
-        assert self._estimate(tmp_path, [as_directory]).total_cost_usd == pytest.approx(
-            self._estimate(tmp_path, [as_file]).total_cost_usd
+        assert self._estimate(
+            tmp_path, [as_directory]
+        ).estimated_total_usd == pytest.approx(
+            self._estimate(tmp_path, [as_file]).estimated_total_usd
         )
 
     def test_per_trial_estimate_is_the_arm_estimate_over_its_planned_trials(
@@ -3647,7 +3650,7 @@ class TestStopRules:
 # --- Stopping early and keeping partial results ------------------------------
 
 CLI_FAILURE = {"exit_code": 1, "stdout": "", "stderr": "boom: auth failed"}
-TIMED_OUT_RECORD = runner.TrialProcessRecord(
+TIMED_OUT_RECORD = process_record.TrialProcessRecord(
     exit_code=None, stdout="", stderr="", timed_out=True
 )
 CLEAN_FORM_ARGS = ("scout", "--model", "haiku", "--fixtures", "clean-form")

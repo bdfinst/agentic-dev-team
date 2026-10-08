@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from . import invocation, runner, stop_rules, transcript
+from . import invocation, stop_rules, transcript
 from .arm import Arm
 from .cost import total_cost_usd
 from .estimate import RunEstimate
@@ -21,6 +21,7 @@ from .fixtures import ResolvedFixture
 from .grading import grade_trial
 from .outcome import MAX_MESSAGE_CHARS, Outcome, TrialResult, resolve_outcome
 from .plan import RunPlan
+from .process_record import TrialProcessRecord
 from .run_status import AbortReason
 from .run_types import (
     ArmRun,
@@ -32,7 +33,7 @@ from .run_types import (
 from .stop_rules import SpendLimit
 
 # Runs one trial of a config against a fixture; `runner.run_trial` in production.
-TrialRunner = Callable[[Path, invocation.TrialConfig, float], runner.TrialProcessRecord]
+TrialRunner = Callable[[Path, invocation.TrialConfig, float], TrialProcessRecord]
 
 
 @dataclass(frozen=True)
@@ -138,7 +139,7 @@ def run_trials(
         abort_reason = AbortReason.HARNESS_ERROR
         harness_error = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
     return RunResult(
-        arm_runs=ledger.arm_runs(settings.trials_per_fixture.count),
+        arm_runs=ledger.arm_runs(settings.trial_count.count),
         abort_reason=abort_reason,
         started_trials=started_trials,
         stopping_trial=stopping_trial,
@@ -157,7 +158,7 @@ class _TrialExecutor:
     def slots(self) -> Iterator[_TrialSlot]:
         """Every planned trial in run order: arms alternate, round by round, fixture by fixture."""
         for fixture_number, fixture in enumerate(self.plan.fixtures, start=1):
-            for trial_number in range(1, self.settings.trials_per_fixture.count + 1):
+            for trial_number in range(1, self.settings.trial_count.count + 1):
                 for arm in self.plan.arms:
                     yield _TrialSlot(arm, fixture, fixture_number, trial_number)
 
@@ -191,6 +192,6 @@ class _TrialExecutor:
             fixture_count=len(self.plan.fixtures),
             fixture_stem=slot.fixture.stem,
             trial_number=slot.trial_number,
-            trial_count=self.settings.trials_per_fixture.count,
+            trial_count=self.settings.trial_count.count,
             result=result,
         )

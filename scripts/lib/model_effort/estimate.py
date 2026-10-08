@@ -52,7 +52,7 @@ class RunEstimate:
     trials_per_arm: int
 
     @property
-    def total_cost_usd(self) -> float:
+    def estimated_total_usd(self) -> float:
         return total_cost_usd(cost_usd for _, cost_usd in self.by_arm)
 
     def cost_usd_for_arm(self, label: str) -> float:
@@ -132,7 +132,7 @@ def _arm_cost_usd(
 ) -> float:
     """`input_tokens` is summed over fixtures; the output allowance is per fixture."""
     output_tokens = OUTPUT_TOKENS_PER_TRIAL * fixture_count
-    per_trial_usd = (
+    cost_per_round_usd = (
         input_tokens * rate["input"] + output_tokens * rate["output"]
     ) / TOKENS_PER_RATE_UNIT
-    return per_trial_usd * trials_per_fixture
+    return cost_per_round_usd * trials_per_fixture

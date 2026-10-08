@@ -14,13 +14,13 @@ import math
 import re
 from dataclasses import dataclass
 
+from .path_scrub import STAGED_PLACEHOLDER
+
 EVENT_RESULT = "result"
 EVENT_ASSISTANT = "assistant"
 EVENT_SYSTEM = "system"
 SUBTYPE_INIT = "init"
 BLOCK_TOOL_USE = "tool_use"
-# Stands in for the init event's cwd, a per-trial temp path that names the user's temp dir.
-STAGED_CWD_PLACEHOLDER = "<staged>"
 
 FENCED_JSON_PATTERN = re.compile(r"```json\s*\n(.*?)\n\s*```", re.DOTALL)
 
@@ -36,7 +36,7 @@ class ParsedTranscript:
     model_id_note: str | None
     called_tool_names: tuple[str, ...]
     has_result: bool
-    permission_denials: int = 0
+    permission_denial_count: int = 0
     session_config: dict | None = None
 
 
@@ -74,7 +74,7 @@ def parse_stream(stdout: str) -> ParsedTranscript:
         model_id_note=note,
         called_tool_names=tuple(tool_names),
         has_result=True,
-        permission_denials=_count_denials(result_event.get("permission_denials")),
+        permission_denial_count=_count_denials(result_event.get("permission_denials")),
         session_config=session_config,
     )
 
@@ -120,7 +120,7 @@ def _scrub_init(init_event: dict) -> dict:
         "tools": _string_items(init_event.get("tools")),
         "mcp_servers": _names(init_event.get("mcp_servers")),
         "plugins": _names(init_event.get("plugins")),
-        "cwd": STAGED_CWD_PLACEHOLDER,
+        "cwd": STAGED_PLACEHOLDER,
     }
 
 
