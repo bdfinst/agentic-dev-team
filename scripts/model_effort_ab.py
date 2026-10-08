@@ -212,25 +212,42 @@ def _split_csv(text: str | None) -> list[str] | None:
     return list(dict.fromkeys(part.strip() for part in text.split(",") if part.strip()))
 
 
-# Signals are held once the first trial can start, so an interrupt that reaches
-# `main` came earlier.
+# While the run is under way the session holds the signals, so an interrupt
+# reaches `main` only before the run starts or after it has ended and been saved.
 INTERRUPTED_BEFORE_RUN_MESSAGE = (
     "error: interrupted before the first trial started: nothing was run or spent"
 )
+INTERRUPTED_AFTER_RUN_MESSAGE = (
+    "error: interrupted after the run ended: its results were saved (see above)"
+)
+
+
+@dataclass
+class _RunMarker:
+    started: bool = False
+
+    def mark_started(self) -> None:
+        self.started = True
 
 
 def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
     deps = deps or Deps()
     args = _build_parser().parse_args(argv)
+    marker = _RunMarker()
     with interrupts.termination_as_interrupt():
         try:
-            return _run(args, deps)
+            return _run(args, deps, marker)
         except KeyboardInterrupt:
-            print(INTERRUPTED_BEFORE_RUN_MESSAGE, file=sys.stderr)
+            message = (
+                INTERRUPTED_AFTER_RUN_MESSAGE
+                if marker.started
+                else INTERRUPTED_BEFORE_RUN_MESSAGE
+            )
+            print(message, file=sys.stderr)
             return EXIT_FAILED
 
 
-def _run(args: argparse.Namespace, deps: Deps) -> int:
+def _run(args: argparse.Namespace, deps: Deps, marker: _RunMarker) -> int:
     if args.grader == RUBRIC_GRADER:
         return _report_usage_error(UsageError(RUBRIC_GRADER_REFUSAL))
     try:
@@ -257,6 +274,7 @@ def _run(args: argparse.Namespace, deps: Deps) -> int:
                 assume_yes=args.yes,
                 pricing_table=deps.pricing_table,
                 run_trial=deps.run_trial,
+                on_run_start=marker.mark_started,
             )
         except UsageError as error:
             return _report_usage_error(error)

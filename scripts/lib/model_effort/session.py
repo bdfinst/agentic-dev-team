@@ -51,13 +51,15 @@ def run_session(
     assume_yes: bool,
     pricing_table: dict,
     run_trial: TrialRunner,
+    on_run_start: Callable[[], None] = lambda: None,
 ) -> int:
     """Run the plan from estimate to artifact and return the exit code.
 
     The interrupt signals are held from just before the first trial until the
-    artifact is saved and the summary printed. One that arrives while the finished
-    run is being saved, or just after the signals are released, turns a clean exit
-    into `EXIT_FAILED` after the save.
+    artifact is saved and the summary printed; `on_run_start` is called once
+    they are held. One that arrives while the finished run is being saved, or as
+    the signals are released, turns a clean exit into `EXIT_FAILED` after the
+    save. One that arrives after this returns is the caller's to report.
 
     Raises:
         UsageError: a model is unpriced, or the estimate is above `spend_limit`.
@@ -81,6 +83,7 @@ def run_session(
     # Held from just before the first trial until the artifact is saved and the
     # summary printed, so a signal cannot cost a paid result. See `interrupts`.
     previous_mask = interrupts.block()
+    on_run_start()
     exit_code = EXIT_FAILED
     try:
         try:

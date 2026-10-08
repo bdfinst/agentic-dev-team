@@ -4597,12 +4597,12 @@ class TestSignalWhileFinishing:
         assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
         assert f"artifact written: {world.artifact_path}" in err
 
-    def test_a_signal_landing_just_after_the_signals_are_released_is_not_reported_as_before_the_run(
+    def test_a_signal_landing_as_the_signals_are_released_is_reported_as_finishing(
         self, world, capsys, monkeypatch
     ):
-        # Fault injected: one more SIGTERM right after `restore_reporting` returns.
-        # The public API cannot reach that window: it opens only once the run has
-        # finished and the mask is back, and no step of the run runs there.
+        # Fault injected: one more SIGTERM as `restore_reporting` hands the mask
+        # back, still inside the session's guarded region. The public API cannot
+        # reach that window: no step of the run runs there.
         real_restore = interrupts.restore_reporting
 
         def restore_then_receive_one_more(previous_mask):
@@ -4622,6 +4622,31 @@ class TestSignalWhileFinishing:
         assert (written["status"], written["abort_reason"]) == ("complete", None)
         assert f"the artifact was written to {world.artifact_path}" in err
         assert "nothing was run or spent" not in err
+        assert "Traceback" not in err
+
+    def test_a_signal_landing_after_the_session_returns_is_not_reported_as_before_the_run(
+        self, world, capsys, monkeypatch
+    ):
+        # Fault injected: a SIGTERM after `run_session` has returned, so it reaches
+        # `main` with the signals free. The public API cannot reach that window:
+        # the run is over and saved, and no step of it runs there.
+        real_run_session = session.run_session
+
+        def run_then_receive_one_more(*args, **kwargs):
+            code = real_run_session(*args, **kwargs)
+            os.kill(os.getpid(), signal.SIGTERM)
+            return code
+
+        monkeypatch.setattr(session, "run_session", run_then_receive_one_more)
+
+        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
+
+        written = _written(world)
+        err = capsys.readouterr().err
+        assert code == 1
+        assert (written["status"], written["abort_reason"]) == ("complete", None)
+        assert "nothing was run or spent" not in err
+        assert model_effort_ab.INTERRUPTED_AFTER_RUN_MESSAGE in err
         assert "Traceback" not in err
 
 
