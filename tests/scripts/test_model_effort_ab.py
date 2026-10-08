@@ -4552,6 +4552,33 @@ class TestSignalWhileFinishing:
         assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
         assert f"artifact written: {world.artifact_path}" in err
 
+    def test_a_signal_landing_just_after_the_signals_are_released_is_not_reported_as_before_the_run(
+        self, world, capsys, monkeypatch
+    ):
+        # Fault injected: one more SIGTERM right after `restore_reporting` returns.
+        # The public API cannot reach that window: it opens only once the run has
+        # finished and the mask is back, and no step of the run runs there.
+        real_restore = interrupts.restore_reporting
+
+        def restore_then_receive_one_more(previous_mask):
+            arrived = real_restore(previous_mask)
+            os.kill(os.getpid(), signal.SIGTERM)
+            return arrived
+
+        monkeypatch.setattr(
+            interrupts, "restore_reporting", restore_then_receive_one_more
+        )
+
+        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
+
+        written = _written(world)
+        err = capsys.readouterr().err
+        assert code == 1
+        assert (written["status"], written["abort_reason"]) == ("complete", None)
+        assert f"the artifact was written to {world.artifact_path}" in err
+        assert "nothing was run or spent" not in err
+        assert "Traceback" not in err
+
 
 class TestInterruptBeforeTheRun:
     def test_ctrl_c_before_the_first_trial_says_nothing_was_run_or_spent(

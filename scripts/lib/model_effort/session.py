@@ -56,7 +56,8 @@ def run_session(
 
     The interrupt signals are held from just before the first trial until the
     artifact is saved and the summary printed. One that arrives while the finished
-    run is being saved turns a clean exit into `EXIT_FAILED` after the save.
+    run is being saved, or just after the signals are released, turns a clean exit
+    into `EXIT_FAILED` after the save.
 
     Raises:
         UsageError: a model is unpriced, or the estimate is above `spend_limit`.
@@ -80,18 +81,24 @@ def run_session(
     # Held from just before the first trial until the artifact is saved and the
     # summary printed, so a signal cannot cost a paid result. See `interrupts`.
     held = interrupts.block()
+    exit_code = EXIT_FAILED
     try:
-        run = run_trials(
-            plan,
-            settings,
-            run_estimate,
-            run_trial=run_trial,
-            spend_limit=spend_limit,
-            on_trial=print_progress,
-        )
-        exit_code = finish_run(plan, run, run_estimate, console)
-    finally:
-        interrupted_while_finishing = interrupts.restore_reporting(held)
+        try:
+            run = run_trials(
+                plan,
+                settings,
+                run_estimate,
+                run_trial=run_trial,
+                spend_limit=spend_limit,
+                on_trial=print_progress,
+            )
+            exit_code = finish_run(plan, run, run_estimate, console)
+        finally:
+            interrupted_while_finishing = interrupts.restore_reporting(held)
+    except KeyboardInterrupt:
+        # The signals are free again, so one landing now is raised, not held. The
+        # run is over and saved: count it as arriving while finishing.
+        interrupted_while_finishing = True
     if interrupted_while_finishing and exit_code == EXIT_OK:
         print(
             "error: interrupted while finishing the run: the artifact was written "
