@@ -746,6 +746,8 @@ class TestSignalsAroundSpawn:
         stub = StubClaude(stub_dir, sleep=30)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
         blocked_during_kill = []
+        # Call-through spy on `_kill_process_group`: it records the signal mask at
+        # the kill. The mask is not visible from outside the process.
         real_kill = runner._kill_process_group
         real_popen = subprocess.Popen
 
@@ -767,6 +769,7 @@ class TestSignalsAroundSpawn:
         finally:
             signal.signal(signal.SIGTERM, previous)
 
+        assert blocked_during_kill, "the process group was never killed"
         assert set(INTERRUPT_SIGNALS) <= blocked_during_kill[0]
         assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
 
@@ -1015,20 +1018,28 @@ class TestExecution:
             grandchild_spawned=str(spawned),
         )
         started = time.monotonic()
+        cancelled = threading.Event()
 
         def interrupt_once_spawned() -> None:
             deadline = time.monotonic() + 10
             while not spawned.exists() and time.monotonic() < deadline:
-                time.sleep(0.05)
-            signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
+                if cancelled.wait(0.05):
+                    return
+            if spawned.exists() and not cancelled.is_set():
+                signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
 
-        threading.Thread(target=interrupt_once_spawned, daemon=True).start()
-        with pytest.raises(KeyboardInterrupt):
-            runner.run_trial(
-                _make_file_fixture(fixture_root, "a.txt", "a"),
-                _config(stub),
-                trial_timeout_seconds=60,
-            )
+        interrupter = threading.Thread(target=interrupt_once_spawned, daemon=True)
+        interrupter.start()
+        try:
+            with pytest.raises(KeyboardInterrupt):
+                runner.run_trial(
+                    _make_file_fixture(fixture_root, "a.txt", "a"),
+                    _config(stub),
+                    trial_timeout_seconds=60,
+                )
+        finally:
+            cancelled.set()
+            interrupter.join()
         _wait_until_after(started, delay)
 
         assert spawned.exists()
@@ -2553,6 +2564,18 @@ class TestDepsDefaults:
         )
         assert deps.run_trial is runner.run_trial
         assert deps.read_git_sha is model_effort_ab._read_git_head_sha
+
+    def test_default_stdin_is_the_process_stdin(self, monkeypatch):
+        stream = io.StringIO()
+        monkeypatch.setattr(sys, "stdin", stream)
+
+        assert model_effort_ab.Deps().stdin is stream
+
+    @pytest.mark.parametrize("is_tty", [True, False])
+    def test_default_tty_check_follows_the_process_stdin(self, monkeypatch, is_tty):
+        monkeypatch.setattr(sys, "stdin", SimpleNamespace(isatty=lambda: is_tty))
+
+        assert model_effort_ab.Deps().stdin_is_tty() is is_tty
 
     def test_default_clock_reads_a_timezone_aware_time(self):
         assert model_effort_ab.Deps().clock().tzinfo is not None
@@ -4215,6 +4238,13 @@ class TestTerminationSignals:
         assert "Traceback" not in capsys.readouterr().err
 
     @pytest.mark.parametrize("signum", TERMINATION_SIGNALS, ids=lambda n: n.name)
+    def test_a_termination_signal_raises_keyboard_interrupt_while_the_context_is_active(
+        self, signum
+    ):
+        with interrupts.termination_as_interrupt(), pytest.raises(KeyboardInterrupt):
+            os.kill(os.getpid(), signum)
+
+    @pytest.mark.parametrize("signum", TERMINATION_SIGNALS, ids=lambda n: n.name)
     def test_previous_handlers_are_back_in_place_after_the_run(self, world, signum):
         _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
 
@@ -4254,7 +4284,11 @@ def _deps_signalling_with_trial_run(
 
 
 def _signal_during(monkeypatch, owner, step: str, signum: int) -> list[str]:
-    """Send `signum` as `owner.step` starts; the returned list gets one entry per call."""
+    """Send `signum` as `owner.step` starts; the returned list gets one entry per call.
+
+    Call-through spy: the real step still runs. The public API cannot place a
+    signal inside one step of the finish sequence, so the step is wrapped.
+    """
     real_step = getattr(owner, step)
     calls = []
 
@@ -4268,6 +4302,11 @@ def _signal_during(monkeypatch, owner, step: str, signum: int) -> list[str]:
 
 
 def _spy_on_writes(monkeypatch) -> list[str]:
+    """Record each artifact write and still perform it.
+
+    Call-through spy: the public API shows only the final file, not how many
+    writes produced it.
+    """
     real_write = artifact_store.write_artifact
     writes = []
 
@@ -4354,6 +4393,9 @@ class TestInterruptsAreHeldForTheRun:
     ):
         stub = StubClaude(stub_dir, sleep=30)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        # Call-through spy on `_kill_process_group`: it sends a signal just before
+        # the real kill. The public API cannot time a signal to that step of the
+        # timeout handler.
         real_kill = runner._kill_process_group
         killed = []
 
@@ -4446,6 +4488,9 @@ class TestInterruptsAreHeldForTheRun:
             os.kill(os.getpid(), signal.SIGTERM)
             return False
 
+        # Fault injected: `take_pending` is replaced so a SIGTERM lands after the
+        # consume and before the restore. That window is a few bytecodes wide; the
+        # public API gives a test no way to send a signal into it.
         monkeypatch.setattr(interrupts, "take_pending", consume_then_receive_one_more)
         previous_handler = signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
         try:
@@ -4601,6 +4646,29 @@ class TestInterruptBeforeTheRun:
         assert err.splitlines()[-1] == model_effort_ab.INTERRUPTED_BEFORE_RUN_MESSAGE
         assert "nothing was run or spent" in err
         assert "artifact" not in err
+        assert_nothing_ran(stub, world)
+
+    @pytest.mark.usefixtures("harmless_termination_signals")
+    @pytest.mark.parametrize("signum", TERMINATION_SIGNALS, ids=lambda n: n.name)
+    def test_a_termination_signal_before_the_run_says_nothing_was_run_or_spent(
+        self, world, capsys, signum
+    ):
+        def clock_that_receives_the_signal():
+            os.kill(os.getpid(), signum)
+            return NOW
+
+        stub = _passing_stub(world)
+
+        code = _cli(
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            deps=dataclasses.replace(world.deps, clock=clock_that_receives_the_signal),
+        )
+
+        err = capsys.readouterr().err
+        assert code == 1
+        assert err.splitlines()[-1] == model_effort_ab.INTERRUPTED_BEFORE_RUN_MESSAGE
         assert_nothing_ran(stub, world)
 
 
