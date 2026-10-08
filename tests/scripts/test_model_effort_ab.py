@@ -2835,17 +2835,20 @@ class TestArtifactReservationAndWrite:
         assert "stdout" in captured.err
         assert world.artifacts == []
 
-    def test_second_ctrl_c_during_the_write_prints_the_artifact_to_stdout_then_propagates(
+    def test_second_ctrl_c_during_the_write_prints_the_artifact_to_stdout_and_exits_1_without_a_traceback(
         self, world, capsys, monkeypatch
     ):
         stub = _passing_stub(world)
         _store_with_failing_replace(monkeypatch, _interrupted_replace)
 
-        with pytest.raises(KeyboardInterrupt):
-            _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "1")
+        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "1")
 
-        printed = json.loads(capsys.readouterr().out)
+        captured = capsys.readouterr()
+        printed = json.loads(captured.out)
+        assert code == 1
         assert printed["run_id"] == RUN_ID and printed["status"] == "complete"
+        assert "Traceback" not in captured.err
+        assert captured.err.splitlines()[-1] == model_effort_ab.INTERRUPTED_MESSAGE
         assert world.artifacts == []
 
     def test_failed_final_write_keeps_a_placeholder_that_gained_content(
@@ -3996,23 +3999,47 @@ class TestUnexpectedTrialError:
         assert [arm["fixtures"] for arm in written["arms"]] == [[], []]
 
 
+def _scout_plan(world: World) -> plan.RunPlan:
+    return plan.plan_run(
+        "scout",
+        candidate_model="haiku",
+        candidate_effort=None,
+        fixture_stems=None,
+        runs_dir=world.runs_dir,
+        now=NOW,
+        rng=FixedRng(),
+        git_sha=None,
+        agents_dir=world.deps.agents_dir,
+        expected_dir=world.deps.expected_dir,
+        fixtures_dir=world.deps.fixtures_dir,
+    )
+
+
+def _run_with_one_trial_each(abort_reason: AbortReason | None) -> execution.RunResult:
+    passed = [_trial_result(Outcome.PASS)]
+    return execution.RunResult(
+        arm_runs=[_arm_run(BASELINE_LABEL, passed), _arm_run(CANDIDATE_LABEL, passed)],
+        abort_reason=abort_reason,
+        started_trials=ARM_COUNT,
+        stopping_trial=None,
+    )
+
+
+class UnwritableStream:
+    """A stderr whose reader has gone away."""
+
+    def write(self, _text: str) -> int:
+        raise BrokenPipeError("reader closed")
+
+    def flush(self) -> None:
+        pass
+
+
 class TestFinishRun:
     def test_run_cut_short_before_any_trial_started_writes_no_artifact_and_says_so(
         self, world
     ):
-        scout_plan = plan.plan_run(
-            "scout",
-            candidate_model="haiku",
-            candidate_effort=None,
-            fixture_stems=None,
-            runs_dir=world.runs_dir,
-            now=NOW,
-            rng=FixedRng(),
-            git_sha=None,
-            agents_dir=world.deps.agents_dir,
-            expected_dir=world.deps.expected_dir,
-            fixtures_dir=world.deps.fixtures_dir,
-        )
+        scout_plan = _scout_plan(world)
         stderr = io.StringIO()
         console = session.Console(io.StringIO(), lambda: False, io.StringIO(), stderr)
         run = execution.RunResult(
@@ -4027,6 +4054,48 @@ class TestFinishRun:
         assert code == 1
         assert scout_plan.artifact_path.read_text(encoding="utf-8") == ""
         assert "interrupted before any trial started" in stderr.getvalue()
+
+    def test_artifact_is_saved_before_the_stop_notice_is_printed(self, world):
+        scout_plan = _scout_plan(world)
+        console = session.Console(
+            io.StringIO(), lambda: False, io.StringIO(), UnwritableStream()
+        )
+        run = _run_with_one_trial_each(AbortReason.MAX_COST)
+
+        with pytest.raises(BrokenPipeError):
+            session.finish_run(scout_plan, run, _run_estimate(), console)
+
+        saved = json.loads(scout_plan.artifact_path.read_text(encoding="utf-8"))
+        assert (saved["status"], saved["abort_reason"]) == ("incomplete", "max-cost")
+
+    @pytest.mark.parametrize("step", ["build_artifact", "render_artifact"])
+    def test_ctrl_c_while_assembling_the_artifact_still_saves_it_as_interrupted(
+        self, world, monkeypatch, step
+    ):
+        scout_plan = _scout_plan(world)
+        stderr = io.StringIO()
+        console = session.Console(io.StringIO(), lambda: False, io.StringIO(), stderr)
+        owner = artifact if step == "build_artifact" else artifact_store
+        real_step = getattr(owner, step)
+        calls = []
+
+        def interrupted_once(*args, **kwargs):
+            calls.append(step)
+            if len(calls) == 1:
+                raise KeyboardInterrupt
+            return real_step(*args, **kwargs)
+
+        monkeypatch.setattr(owner, step, interrupted_once)
+
+        code = session.finish_run(
+            scout_plan, _run_with_one_trial_each(None), _run_estimate(), console
+        )
+
+        saved = json.loads(scout_plan.artifact_path.read_text(encoding="utf-8"))
+        assert code == 1
+        assert (saved["status"], saved["abort_reason"]) == ("incomplete", "interrupt")
+        assert [len(arm["fixtures"]) for arm in saved["arms"]] == [1, 1]
+        assert f"artifact written: {scout_plan.artifact_path}" in stderr.getvalue()
 
 
 class TestProgressAndSummary:

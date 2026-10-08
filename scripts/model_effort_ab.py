@@ -44,7 +44,7 @@ from model_effort import artifact, artifact_store, interrupts, paths, runner, se
 from model_effort.errors import UsageError
 from model_effort.execution import TrialCount, TrialRunner, TrialSettings
 from model_effort.plan import RunPlan, plan_run
-from model_effort.session import EXIT_USAGE
+from model_effort.session import EXIT_FAILED, EXIT_USAGE
 from model_effort.stop_rules import SpendLimit
 
 DEFAULT_TRIALS = 5
@@ -206,11 +206,21 @@ def resolve_trials(flag_value: int | None, agent: str) -> TrialCount:
     return TrialCount(DEFAULT_TRIALS, TRIALS_DEFAULT_REASON)
 
 
+INTERRUPTED_MESSAGE = (
+    "error: interrupted while finishing the run: the results are in the artifact "
+    "file or, if the write was cut short, on stdout"
+)
+
+
 def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
     deps = deps or Deps()
     args = _build_parser().parse_args(argv)
     with interrupts.termination_as_interrupt():
-        return _run(args, deps)
+        try:
+            return _run(args, deps)
+        except KeyboardInterrupt:
+            print(INTERRUPTED_MESSAGE, file=sys.stderr)
+            return EXIT_FAILED
 
 
 def _run(args: argparse.Namespace, deps: Deps) -> int:

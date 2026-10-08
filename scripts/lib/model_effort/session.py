@@ -6,6 +6,7 @@ touching the process's real streams.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,7 @@ from .errors import UsageError
 from .execution import RunResult, TrialProgress, TrialRunner, TrialSettings, run_trials
 from .formatting import format_usd
 from .plan import RunPlan
+from .run_status import AbortReason
 from .stop_rules import SpendLimit
 
 EXIT_OK = 0
@@ -113,27 +115,53 @@ def finish_run(
     run_estimate: estimate.RunEstimate,
     console: Console,
 ) -> int:
-    """Write the artifact for a run that started a trial, report, and pick the exit code."""
+    """Write the artifact for a run that started a trial, report, and pick the exit code.
+
+    The artifact is saved before anything is printed, so a failing or interrupted
+    terminal cannot cost the paid results.
+    """
     if run.started_trials == 0:
         print(report.render_no_trials_notice(), file=console.stderr)
         return EXIT_FAILED
-    data = artifact.build_artifact(
-        plan.metadata, run.arm_runs, run_estimate, run.abort_reason
-    )
+    run, data, text = _assemble_artifact(plan, run, run_estimate)
+    save_exit_code = save_artifact(plan.artifact_path, text, console)
     if not run.is_complete:
         print(report.render_stop_notice(run), file=console.stderr)
     for line in report.render_summary(artifact.arm_totals(data)):
         print(line, file=console.stderr)
-    save_exit_code = save_artifact(plan.artifact_path, data, console)
+    if save_exit_code == EXIT_OK:
+        print(f"artifact written: {plan.artifact_path}", file=console.stderr)
     return save_exit_code if run.is_complete else EXIT_FAILED
 
 
-def save_artifact(path: Path, data: dict, console: Console) -> int:
+def _assemble_artifact(
+    plan: RunPlan, run: RunResult, run_estimate: estimate.RunEstimate
+) -> tuple[RunResult, dict, str]:
+    """Build and render the artifact; a Ctrl-C while doing so marks the run interrupted and builds again.
+
+    Returns the run the artifact describes, which differs from `run` after an interrupt.
+    """
+    try:
+        return (run, *_build_and_render(plan, run, run_estimate))
+    except KeyboardInterrupt:
+        interrupted = dataclasses.replace(run, abort_reason=AbortReason.INTERRUPT)
+        return (interrupted, *_build_and_render(plan, interrupted, run_estimate))
+
+
+def _build_and_render(
+    plan: RunPlan, run: RunResult, run_estimate: estimate.RunEstimate
+) -> tuple[dict, str]:
+    data = artifact.build_artifact(
+        plan.metadata, run.arm_runs, run_estimate, run.abort_reason
+    )
+    return data, artifact_store.render_artifact(data)
+
+
+def save_artifact(path: Path, text: str, console: Console) -> int:
     """Write the artifact atomically; if the write fails or is interrupted, print the JSON.
 
     The trials are paid for, so their results must survive a failed write.
     """
-    text = artifact_store.render_artifact(data)
     try:
         artifact_store.write_artifact(path, text)
     except OSError as error:
@@ -148,5 +176,4 @@ def save_artifact(path: Path, data: dict, console: Console) -> int:
         # A second Ctrl-C or a termination signal mid-write.
         console.stdout.write(text)
         raise
-    print(f"artifact written: {path}", file=console.stderr)
     return EXIT_OK
