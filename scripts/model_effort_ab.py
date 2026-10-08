@@ -10,8 +10,8 @@ Exit codes:
   0  the run completed and the artifact was written
   1  the run was declined, stopped early (spend limit, systemic failure, Ctrl-C or
      a termination signal, or an unexpected error; the artifact keeps the
-     completed trials), or the artifact could not be written (its JSON is
-     printed to stdout so paid results survive)
+     completed trials), was interrupted again while finishing, or the artifact
+     could not be written (its JSON is printed to stdout so paid results survive)
   2  usage error or pre-run refusal
 Messages go to stderr.
 """

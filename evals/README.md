@@ -371,7 +371,7 @@ candidate, baseline, and so on, so a broken candidate fails on its first trial.
 | `agent` (positional) | none | Agent name, as in `plugins/dev-team/agents/<agent>.md`. |
 | `--model` | frontmatter `model:` | Candidate model. |
 | `--effort` | frontmatter `effort:` | Candidate effort level. |
-| `--fixtures` | every `evals/expected` entry that names the agent | Comma-separated fixture stems. |
+| `--fixtures` | every `evals/expected` entry that names the agent and has a matching fixture in `evals/fixtures` | Comma-separated fixture stems. |
 | `--trials` | 10 for `security-review`, `correctness-review`, `architect` and `security-engineer`; otherwise 5 | Trials per arm per fixture. Must be a whole number of 1 or more. |
 | `--grader` | `expected-findings` | Only `expected-findings` works. `rubric` is refused as not implemented yet. |
 | `--trial-timeout` | 600 | Seconds before a trial is killed and recorded as `timeout`. |
@@ -406,8 +406,8 @@ The estimate is a rough heuristic, and the real cost can be higher.
 | Code | Meaning |
 | --- | --- |
 | 0 | The run completed and the artifact was written. |
-| 1 | The run was declined or stopped early, or the artifact could not be written. When the write fails, the artifact JSON goes to stdout so the paid results survive. |
-| 2 | Usage error or refusal before the run: an invalid argument, an unknown agent or fixture, identical arms, or a write-capable agent, with no estimate printed; or an unpriced model or an estimate above `--max-cost`, after the configuration is printed. No trial runs and no artifact is written. |
+| 1 | The run was declined, stopped early, or interrupted again while it finished, or the artifact could not be written. When the write fails or is cut short, the artifact JSON goes to stdout so the paid results survive. A run interrupted before its first trial writes no artifact and exits 1. |
+| 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, identical arms, a write-capable agent, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
 
 Messages go to stderr.
 
@@ -427,7 +427,9 @@ A stopped run cannot resume. A rerun starts over.
 
 ### Artifact
 
-Each run writes `evals/model-effort/runs/<run-id>.json`. The key fields:
+Each run writes `evals/model-effort/runs/<run-id>.json`. The harness writes the
+artifact only when at least one trial started. A run interrupted before its first
+trial writes no artifact and exits 1. The key fields:
 
 | Field | Meaning |
 | --- | --- |
@@ -444,5 +446,7 @@ Each run writes `evals/model-effort/runs/<run-id>.json`. The key fields:
 Trials get only the agent's read-only tools: `Read`, `Grep` and `Glob`. Every
 other `tools:` entry is withheld and recorded in the artifact under
 `tools_withheld`. The harness refuses an agent that declares `Bash`, `Edit`,
-`Write`, `MultiEdit` or `NotebookEdit`, because it has no sandbox for them. Support
+`Write`, `MultiEdit` or `NotebookEdit`, because it has no sandbox for them. The
+refusal matches those names exactly. A scoped entry such as `Bash(graphify *)` is
+not refused: the harness withholds it and records it in `tools_withheld`. Support
 for write-capable agents is planned.
