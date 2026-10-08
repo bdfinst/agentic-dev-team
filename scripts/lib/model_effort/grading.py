@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 from . import external
-from .paths import EXPECTED_DIR
+from .paths import EvalPaths
 
 TEMP_DIR_PREFIX = "model-effort-grade-"
 # What the grader raises on agent JSON of an unexpected shape. Any other error is a
@@ -23,7 +23,7 @@ def grade_trial(
     agent: str,
     stem: str,
     parsed: dict,
-    expected_dir: Path = EXPECTED_DIR,
+    eval_paths: EvalPaths,
 ) -> tuple[bool, list[str]]:
     """Grade `parsed` for `agent` on fixture `stem`; return (passed, failure messages).
 
@@ -32,7 +32,7 @@ def grade_trial(
     the trial; an error from staging or any other part of grading propagates.
     """
     with tempfile.TemporaryDirectory(prefix=TEMP_DIR_PREFIX) as grading_dir:
-        shutil.copy2(expected_dir / f"{stem}.json", grading_dir)
+        shutil.copy2(eval_paths.expected_dir / f"{stem}.json", grading_dir)
         try:
             results, _ = external.eval_grade().run_grading(
                 expected_dir=Path(grading_dir),

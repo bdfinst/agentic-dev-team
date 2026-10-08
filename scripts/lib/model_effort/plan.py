@@ -16,6 +16,7 @@ from .agent_spec import AgentSpec, build_agent_spec
 from .arm import BASELINE_LABEL, CANDIDATE_LABEL, Arm
 from .errors import UsageError
 from .fixtures import ResolvedFixture, resolve_fixtures
+from .paths import EvalPaths
 from .run_id import make_run_id
 from .run_types import RunMetadata
 from .tools import ToolProfile, WriteCapableAgentError, resolve_tool_profile
@@ -47,9 +48,7 @@ def plan_run(
     now: datetime,
     rng,
     git_sha: str | None,
-    agents_dir: Path,
-    expected_dir: Path,
-    fixtures_dir: Path,
+    eval_paths: EvalPaths,
 ) -> RunPlan:
     """Return the plan, with the artifact path reserved; the reservation is the last step.
 
@@ -57,7 +56,8 @@ def plan_run(
     to the baseline (frontmatter) value. The baseline's frontmatter values and any
     explicit candidate values are checked against the agent contract before the
     run ID, which names the artifact file, is built from them. `rng` needs
-    `getrandbits`.
+    `getrandbits`. `eval_paths` names the
+    directories the agent file, expected entries and fixtures are read from.
 
     Raises:
         UsageError: the agent is unknown, write-capable or has unusable
@@ -66,7 +66,7 @@ def plan_run(
             baseline; fixtures cannot be resolved; or the artifact path is
             unavailable.
     """
-    agent_spec, profile = _load_agent(agent, agents_dir)
+    agent_spec, profile = _load_agent(agent, eval_paths.agents_dir)
     _refuse_invalid_values(
         agent_spec.model,
         agent_spec.effort,
@@ -74,7 +74,9 @@ def plan_run(
         effort_label=f"agent {agent!r} frontmatter `effort:`",
     )
     validate_candidate(candidate_model, candidate_effort)
-    fixtures = resolve_fixtures(agent, fixture_stems, expected_dir, fixtures_dir)
+    fixtures = resolve_fixtures(
+        agent, fixture_stems, eval_paths.expected_dir, eval_paths.fixtures_dir
+    )
     baseline = Arm(BASELINE_LABEL, agent_spec.model, agent_spec.effort)
     candidate = Arm(
         CANDIDATE_LABEL,
@@ -94,7 +96,7 @@ def plan_run(
             created=now,
             git_sha=git_sha,
             agent=agent,
-            knowledge_dir=_relative_to_repo(paths.KNOWLEDGE_DIR),
+            knowledge_dir=_relative_to_repo(eval_paths.knowledge_dir),
         ),
         artifact_path=artifact_store.reserve_artifact_path(runs_dir, run_id),
     )

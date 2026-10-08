@@ -9,11 +9,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 
 from .arm import Arm
 from .fixtures import FixtureKind
 from .outcome import TrialResult
+from .paths import EvalPaths
 from .run_status import AbortReason, RunStatus
 from .trial_count import TrialCount
 
@@ -36,7 +36,7 @@ class TrialSettings:
     trials: TrialCount
     trial_timeout_seconds: float
     claude_bin: str
-    expected_dir: Path
+    eval_paths: EvalPaths
 
 
 @dataclass(frozen=True)

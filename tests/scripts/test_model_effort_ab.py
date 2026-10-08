@@ -576,6 +576,11 @@ class StubClaude:
         return json.loads(self._record.read_text(encoding="utf-8"))
 
 
+def _eval_paths(**overrides: Path) -> paths.EvalPaths:
+    """The shipped paths, with the named directories redirected."""
+    return dataclasses.replace(paths.EvalPaths.default(), **overrides)
+
+
 def _config(
     stub: StubClaude | None = None,
     *,
@@ -584,7 +589,7 @@ def _config(
     enabled_tools: tuple[str, ...] = ENABLED,
     system_prompt: str = "You are a reviewer.",
     claude_bin: str | None = None,
-    **config_fields,
+    eval_paths: paths.EvalPaths | None = None,
 ) -> invocation.TrialConfig:
     profile = tools.ToolProfile(
         enabled_tools=tuple(enabled_tools), withheld_tools=(), refused_tools=()
@@ -593,8 +598,8 @@ def _config(
         arm=Arm(label=CANDIDATE_LABEL, model=model, effort=effort),
         system_prompt=system_prompt,
         profile=profile,
+        eval_paths=eval_paths or paths.EvalPaths.default(),
         claude_bin=claude_bin if claude_bin is not None else str(stub.path),
-        **config_fields,
     )
 
 
@@ -886,6 +891,18 @@ class TestTrialArgv:
         assert paths.EXPECTED_DIR != knowledge
         assert knowledge not in paths.EXPECTED_DIR.parents
 
+    def test_add_dir_follows_a_redirected_knowledge_dir(
+        self, stub_dir, fixture_root, tmp_path
+    ):
+        knowledge = tmp_path / "other-knowledge"
+        knowledge.mkdir()
+
+        call = self._run(
+            stub_dir, fixture_root, eval_paths=_eval_paths(knowledge_dir=knowledge)
+        )
+
+        assert _flag_value(call["argv"], "--add-dir") == str(knowledge)
+
     def test_cwd_is_the_staged_dir_outside_the_repo(self, stub_dir, fixture_root):
         call = self._run(stub_dir, fixture_root)
 
@@ -901,7 +918,7 @@ class TestTrialArgv:
             stub_dir,
             fixture_root,
             system_prompt="Read ${CLAUDE_PLUGIN_ROOT}/knowledge/x.md then ${CLAUDE_PLUGIN_ROOT}/y.md",
-            plugin_root=plugin_root,
+            eval_paths=_eval_paths(plugin_root=plugin_root),
         )
 
         assert _flag_value(call["argv"], "--system-prompt") == (
@@ -1613,7 +1630,10 @@ def graded_expected_dir(expected_dir: Path) -> Path:
 class TestGradeTrial:
     def test_verdict_matching_the_expected_entry_passes(self, graded_expected_dir):
         passed, messages = grading.grade_trial(
-            GRADED_AGENT, GRADED_STEM, PASS_VERDICT, expected_dir=graded_expected_dir
+            GRADED_AGENT,
+            GRADED_STEM,
+            PASS_VERDICT,
+            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
         )
 
         assert (passed, messages) == (True, [])
@@ -1624,7 +1644,10 @@ class TestGradeTrial:
         wrong = {"status": "fail", "issues": [], "summary": ""}
 
         passed, messages = grading.grade_trial(
-            GRADED_AGENT, GRADED_STEM, wrong, expected_dir=graded_expected_dir
+            GRADED_AGENT,
+            GRADED_STEM,
+            wrong,
+            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
         )
 
         assert passed is False
@@ -1635,7 +1658,10 @@ class TestGradeTrial:
         (graded_expected_dir / "two.json").write_text("{not json", encoding="utf-8")
 
         passed, _ = grading.grade_trial(
-            GRADED_AGENT, GRADED_STEM, PASS_VERDICT, expected_dir=graded_expected_dir
+            GRADED_AGENT,
+            GRADED_STEM,
+            PASS_VERDICT,
+            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
         )
 
         assert passed is True
@@ -1644,7 +1670,10 @@ class TestGradeTrial:
         self, graded_expected_dir
     ):
         passed, messages = grading.grade_trial(
-            "no-such-agent", GRADED_STEM, {}, expected_dir=graded_expected_dir
+            "no-such-agent",
+            GRADED_STEM,
+            {},
+            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
         )
 
         assert passed is False
@@ -1664,7 +1693,10 @@ class TestGradeTrial:
         monkeypatch.setattr(external.eval_grade(), "run_grading", raising_grader)
 
         passed, messages = grading.grade_trial(
-            GRADED_AGENT, GRADED_STEM, {}, expected_dir=graded_expected_dir
+            GRADED_AGENT,
+            GRADED_STEM,
+            {},
+            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
         )
 
         assert passed is False
@@ -1680,7 +1712,10 @@ class TestGradeTrial:
 
         with pytest.raises(OSError, match="disk gone"):
             grading.grade_trial(
-                GRADED_AGENT, GRADED_STEM, {}, expected_dir=graded_expected_dir
+                GRADED_AGENT,
+                GRADED_STEM,
+                {},
+                eval_paths=_eval_paths(expected_dir=graded_expected_dir),
             )
 
     @pytest.mark.parametrize("error", [OSError, ValueError], ids=lambda e: e.__name__)
@@ -1697,7 +1732,7 @@ class TestGradeTrial:
                 GRADED_AGENT,
                 GRADED_STEM,
                 PASS_VERDICT,
-                expected_dir=graded_expected_dir,
+                eval_paths=_eval_paths(expected_dir=graded_expected_dir),
             )
 
     def test_grading_leaves_no_temp_dir_behind(
@@ -1708,7 +1743,10 @@ class TestGradeTrial:
         monkeypatch.setattr(grading.tempfile, "tempdir", str(scratch))
 
         grading.grade_trial(
-            GRADED_AGENT, GRADED_STEM, PASS_VERDICT, expected_dir=graded_expected_dir
+            GRADED_AGENT,
+            GRADED_STEM,
+            PASS_VERDICT,
+            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
         )
 
         assert list(scratch.iterdir()) == []
@@ -1732,7 +1770,10 @@ class TestIsExpectedClean:
 class TestShippedExpectedEntrySmoke:
     def test_clean_form_verdict_grades_as_pass_against_the_shipped_entry(self):
         passed, messages = grading.grade_trial(
-            "a11y-review", "a11y-clean-form", PASS_VERDICT
+            "a11y-review",
+            "a11y-clean-form",
+            PASS_VERDICT,
+            paths.EvalPaths.default(),
         )
 
         assert (passed, messages) == (True, [])
@@ -1761,7 +1802,10 @@ def _resolve(stdout: str, grader=None, **record_fields) -> outcome.TrialResult:
 def real_grader(graded_expected_dir):
     def grade(agent_json: dict) -> tuple[bool, list[str]]:
         return grading.grade_trial(
-            GRADED_AGENT, GRADED_STEM, agent_json, expected_dir=graded_expected_dir
+            GRADED_AGENT,
+            GRADED_STEM,
+            agent_json,
+            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
         )
 
     return grade
@@ -2820,9 +2864,9 @@ def world(tmp_path: Path, monkeypatch) -> World:
         clock=lambda: NOW,
         rng=FixedRng(),
         read_git_sha=lambda: "abc123",
-        agents_dir=agents,
-        expected_dir=expected,
-        fixtures_dir=fixtures,
+        eval_paths=_eval_paths(
+            agents_dir=agents, expected_dir=expected, fixtures_dir=fixtures
+        ),
         pricing_table=TEST_PRICING,
     )
     return World(tmp_path, deps)
@@ -2995,11 +3039,7 @@ class TestDepsDefaults:
     def test_default_deps_use_the_shipped_directories_and_collaborators(self):
         deps = model_effort_ab.Deps()
 
-        assert (deps.agents_dir, deps.expected_dir, deps.fixtures_dir) == (
-            paths.AGENTS_DIR,
-            paths.EXPECTED_DIR,
-            paths.FIXTURES_DIR,
-        )
+        assert deps.eval_paths == paths.EvalPaths.default()
         assert deps.run_trial is runner.run_trial
         assert deps.read_git_sha is model_effort_ab._read_git_head_sha
 
@@ -3405,9 +3445,11 @@ class TestPreRunRefusals:
 
 def _add_agent(world: World, name: str) -> None:
     """Add a read-only agent with one fixture, so a run over it has one fixture."""
-    _write_agent(world.deps.agents_dir, name, "Read", model="sonnet", effort="high")
+    _write_agent(
+        world.deps.eval_paths.agents_dir, name, "Read", model="sonnet", effort="high"
+    )
     _write_expected(world.expected_dir, f"{name}-case", name, "pass")
-    _make_file_fixture(world.deps.fixtures_dir, f"{name}-case.txt")
+    _make_file_fixture(world.deps.eval_paths.fixtures_dir, f"{name}-case.txt")
 
 
 class TestTrialDefaults:
@@ -3560,9 +3602,11 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
     def test_malformed_frontmatter_value_is_refused_naming_the_key_and_value(
         self, world, capsys, model, effort, named_key, bad_value
     ):
-        _write_agent(world.deps.agents_dir, "odd", "Read", model=model, effort=effort)
+        _write_agent(
+            world.deps.eval_paths.agents_dir, "odd", "Read", model=model, effort=effort
+        )
         _write_expected(world.expected_dir, "odd-case", "odd", "pass")
-        _make_file_fixture(world.deps.fixtures_dir, "odd-case.txt")
+        _make_file_fixture(world.deps.eval_paths.fixtures_dir, "odd-case.txt")
         stub = StubClaude(world.stub_dir)
 
         code = _cli(world, stub, "odd", "--model", "haiku", "--effort", "low")
@@ -3833,9 +3877,15 @@ class TestConfigurationEcho:
     def test_agent_without_tools_prints_no_tools_enabled_and_withheld_none(
         self, world, capsys
     ):
-        _write_agent(world.deps.agents_dir, "bare", None, model="sonnet", effort="high")
+        _write_agent(
+            world.deps.eval_paths.agents_dir,
+            "bare",
+            None,
+            model="sonnet",
+            effort="high",
+        )
         _write_expected(world.expected_dir, "bare-fixture", "bare", "pass")
-        _make_file_fixture(world.deps.fixtures_dir, "bare-fixture.txt")
+        _make_file_fixture(world.deps.eval_paths.fixtures_dir, "bare-fixture.txt")
         stub = _passing_stub(world)
 
         _cli(world, stub, "bare", "--model", "haiku", "--trials", "1")
@@ -4977,7 +5027,7 @@ class TestInterruptsAreHeldForTheRun:
             trials=trial_count.TrialCount(1, "test"),
             trial_timeout_seconds=TIMEOUT_SECONDS,
             claude_bin="unused",
-            expected_dir=world.expected_dir,
+            eval_paths=world.deps.eval_paths,
         )
 
         def must_not_run(*_args):
@@ -5323,9 +5373,7 @@ def _scout_plan(world: World) -> plan.RunPlan:
         now=NOW,
         rng=FixedRng(),
         git_sha=None,
-        agents_dir=world.deps.agents_dir,
-        expected_dir=world.deps.expected_dir,
-        fixtures_dir=world.deps.fixtures_dir,
+        eval_paths=world.deps.eval_paths,
     )
 
 

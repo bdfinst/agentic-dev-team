@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
 
 from . import external, paths
 from .arm import Arm
@@ -25,9 +24,8 @@ class TrialConfig:
     arm: Arm
     system_prompt: str
     profile: ToolProfile
+    eval_paths: paths.EvalPaths
     claude_bin: str = DEFAULT_CLAUDE_BIN
-    plugin_root: Path = paths.PLUGIN_ROOT
-    knowledge_dir: Path = paths.KNOWLEDGE_DIR
 
 
 def build_user_prompt(staged_name: str) -> str:
@@ -46,7 +44,7 @@ def build_argv(config: TrialConfig, user_prompt: str) -> list[str]:
     absolute path outside those directories succeeds.
     """
     system_prompt = config.system_prompt.replace(
-        PLUGIN_ROOT_PLACEHOLDER, str(config.plugin_root)
+        PLUGIN_ROOT_PLACEHOLDER, str(config.eval_paths.plugin_root)
     )
     return [
         config.claude_bin,
@@ -65,7 +63,7 @@ def build_argv(config: TrialConfig, user_prompt: str) -> list[str]:
         "--tools",
         ",".join(config.profile.enabled_tools),
         "--add-dir",
-        str(config.knowledge_dir),
+        str(config.eval_paths.knowledge_dir),
         "--restricted",
         "--system-prompt",
         system_prompt,

@@ -96,9 +96,7 @@ class Deps:
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
     rng: random.Random = field(default_factory=random.Random)
     read_git_sha: Callable[[], str | None] = _read_git_head_sha
-    agents_dir: Path = paths.AGENTS_DIR
-    expected_dir: Path = paths.EXPECTED_DIR
-    fixtures_dir: Path = paths.FIXTURES_DIR
+    eval_paths: paths.EvalPaths = field(default_factory=paths.EvalPaths.default)
     pricing_table: dict = field(
         default_factory=lambda: external.pricing().load_pricing(paths.PRICING_PATH)
     )
@@ -255,7 +253,7 @@ def _run(args: argparse.Namespace, deps: Deps, marker: _RunMarker) -> int:
         trials=resolve_trials(args.trials, args.agent),
         trial_timeout_seconds=args.trial_timeout_seconds,
         claude_bin=args.claude_bin,
-        expected_dir=deps.expected_dir,
+        eval_paths=deps.eval_paths,
     )
     console = session.Console(deps.stdin, deps.stdin_is_tty, sys.stdout, sys.stderr)
     spend_limit = (
@@ -287,9 +285,7 @@ def _plan_from(args: argparse.Namespace, deps: Deps) -> RunPlan:
         now=deps.clock(),
         rng=deps.rng,
         git_sha=deps.read_git_sha(),
-        agents_dir=deps.agents_dir,
-        expected_dir=deps.expected_dir,
-        fixtures_dir=deps.fixtures_dir,
+        eval_paths=deps.eval_paths,
     )
 
 
