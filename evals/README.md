@@ -375,7 +375,7 @@ candidate, baseline, and so on, so a broken candidate fails on its first trial.
 | `--trials` | 10 for `security-review`, `correctness-review`, `architect` and `security-engineer`; otherwise 5 | Trials per arm per fixture. Must be a whole number of 1 or more. |
 | `--grader` | `expected-findings` | Only `expected-findings` works. `rubric` is refused as not implemented yet. |
 | `--trial-timeout` | 600 | Seconds before a trial is killed and recorded as `timeout`. |
-| `--max-cost` | none | Dollar limit, described in [Spend limit](#spend-limit). |
+| `--max-cost` | none | Dollar limit on the estimate and on the charged cost, described in [Spend limit](#spend-limit). |
 | `--yes` | off | Skip the confirmation prompt. |
 | `--claude-bin` | `claude` | The `claude` executable to run. |
 | `--runs-dir` | `evals/model-effort/runs` | Directory the artifact is written to. |
@@ -395,9 +395,9 @@ unless you pass `--yes`.
 `--max-cost` applies twice:
 
 - **At start.** The harness refuses to run when the estimate is above the limit.
-- **During the run.** The harness stops after the first trial that takes the actual
-  cost above the limit. A trial whose `claude` output reports no cost counts at
-  the per-trial estimate.
+- **During the run.** The harness stops after the first trial that takes the charged
+  cost above the limit. The charged cost is the reported cost, plus the per-trial
+  estimate for each trial whose `claude` output reports no cost.
 
 The estimate is a rough heuristic, and the real cost can be higher.
 
@@ -418,7 +418,7 @@ artifact records the reason in `abort_reason`:
 
 | `abort_reason` | Cause |
 | --- | --- |
-| `max-cost` | The actual cost went above `--max-cost`. |
+| `max-cost` | The charged cost went above `--max-cost`. |
 | `infra-failure` | An arm's first trial failed in the infrastructure, or three consecutive trials did. |
 | `interrupt` | Ctrl-C, SIGTERM or SIGHUP. |
 | `harness-error` | An unexpected error in the harness. |

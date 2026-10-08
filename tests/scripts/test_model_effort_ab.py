@@ -4341,7 +4341,32 @@ class TestSpendLimitStop:
         assert "run stopped early (max-cost)" in err
         assert f"artifact written: {world.artifact_path}" in err
 
-    def test_actual_cost_equal_to_max_cost_lets_the_run_finish(self, world):
+    def test_stop_notice_says_charged_cost_because_the_limit_counts_estimates(
+        self, world, capsys
+    ):
+        deps, _ = _deps_with_canned_trials(world.deps)
+
+        _cli_canned(
+            world,
+            deps,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            "--max-cost",
+            str(MAX_COST_MID_RUN),
+        )
+
+        err = capsys.readouterr().err
+        assert "charged cost passed --max-cost" in err
+        assert "actual cost" not in err
+
+    def test_max_cost_help_says_the_run_stops_on_charged_cost(self):
+        help_text = " ".join(model_effort_ab._build_parser().format_help().split())
+
+        assert "run once the charged cost (" in help_text
+        assert "actual cost" not in help_text
+
+    def test_charged_cost_equal_to_max_cost_lets_the_run_finish(self, world):
         deps, trial_calls = _deps_with_canned_trials(world.deps)
 
         code = _cli_canned(

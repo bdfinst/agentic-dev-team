@@ -39,7 +39,7 @@ def render_stop_notice(run: RunResult) -> str:
     reason = run.abort_reason
     if reason is AbortReason.MAX_COST:
         return (
-            f"error: run stopped early ({reason.value}): actual cost passed "
+            f"error: run stopped early ({reason.value}): charged cost passed "
             "--max-cost; raise --max-cost to run the rest"
         )
     if reason is AbortReason.INFRA_FAILURE and run.stopping_trial is not None:

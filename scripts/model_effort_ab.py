@@ -162,7 +162,8 @@ def _build_parser() -> argparse.ArgumentParser:
         type=_positive_float,
         dest="max_cost_usd",
         help="dollars; refuse to run when the estimate is above this, and stop the "
-        "run once the actual cost is above this (no default)",
+        "run once the charged cost (reported cost, or the estimate for a trial that "
+        "reported none) is above this (no default)",
     )
     parser.add_argument(
         "--yes",
