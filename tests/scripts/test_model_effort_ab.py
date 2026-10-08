@@ -1274,6 +1274,30 @@ class TestParseStream:
     def test_real_run_with_allowed_reads_has_no_permission_denials(self):
         assert _read_transcript("pass-readonly").permission_denial_count == 0
 
+    def test_real_run_with_an_allowed_read_outside_the_cwd_has_no_permission_denials(
+        self,
+    ):
+        parsed = _read_transcript("read-outside-allowed-default")
+
+        assert parsed.called_tool_names == ("Read",)
+        assert parsed.permission_denial_count == 0
+
+    def test_real_run_with_denied_grep_and_glob_counts_both_denials(self):
+        parsed = _read_transcript("grep-glob-outside-denied")
+
+        assert parsed.called_tool_names == ("Grep", "Glob")
+        assert parsed.permission_denial_count == 2
+
+    @pytest.mark.parametrize(
+        "recording",
+        sorted(path.stem for path in TRANSCRIPT_FIXTURES.glob("*.jsonl")),
+    )
+    def test_every_recorded_transcript_parses_to_a_result(self, recording):
+        parsed = _read_transcript(recording)
+
+        assert parsed.has_result is True
+        assert parsed.session_config is not None
+
     def test_real_bad_model_run_is_an_error_with_no_model_id_and_a_note(self):
         parsed = _read_transcript("bad-model")
 
