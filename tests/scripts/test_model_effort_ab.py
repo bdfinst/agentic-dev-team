@@ -1504,10 +1504,14 @@ class TestShippedExpectedEntrySmoke:
 
 
 def _record(
-    exit_code=0, stdout="", stderr="", timed_out=False
+    exit_code=0, stdout="", stderr="", timed_out=False, cwd=None
 ) -> process_record.TrialProcessRecord:
     return process_record.TrialProcessRecord(
-        exit_code=exit_code, stdout=stdout, stderr=stderr, timed_out=timed_out
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=timed_out,
+        cwd=cwd,
     )
 
 
@@ -1735,6 +1739,42 @@ class TestTrialOutcomes:
         result = _resolve(stdout)
 
         assert result.session_config == _expected_session_config(HAIKU_MODEL_ID)
+
+
+class TestErrorTextIsScrubbed:
+    def test_the_staged_directory_in_a_cli_error_becomes_a_placeholder(self):
+        staged = Path(tempfile.mkdtemp(prefix=runner.TEMP_DIR_PREFIX))
+        try:
+            result = _resolve(
+                "",
+                exit_code=1,
+                stderr=f"cannot read {staged}/form.html",
+                cwd=staged,
+            )
+        finally:
+            staged.rmdir()
+
+        assert "<staged>/form.html" in result.error
+        assert str(staged) not in result.error
+
+    def test_a_real_failed_trial_reports_no_part_of_its_temp_directory(
+        self, stub_dir, fixture_root
+    ):
+        stub = StubClaude(stub_dir, exit_code=1, stderr_cwd=True)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        record = runner.run_trial(fixture, _config(stub))
+        result = outcome.resolve_outcome(
+            record,
+            transcript.parse_stream(record.stdout),
+            ENABLED,
+            lambda agent_json: (True, []),
+        )
+
+        ran_in = stub.calls[0]["cwd"]
+        assert "<staged>/form.html" in result.error
+        assert ran_in not in result.error
+        assert str(record.cwd) not in result.error
 
 
 class TestScrubPaths:
@@ -2502,6 +2542,30 @@ class TestReadGitHeadSha:
         sha = model_effort_ab._read_git_head_sha()
 
         assert sha is not None and re.fullmatch(r"[0-9a-f]{40}", sha)
+
+
+class TestDepsDefaults:
+    def test_default_deps_use_the_shipped_directories_and_collaborators(self):
+        deps = model_effort_ab.Deps()
+
+        assert (deps.agents_dir, deps.expected_dir, deps.fixtures_dir) == (
+            paths.AGENTS_DIR,
+            paths.EXPECTED_DIR,
+            paths.FIXTURES_DIR,
+        )
+        assert deps.run_trial is runner.run_trial
+        assert deps.read_git_sha is model_effort_ab._read_git_head_sha
+
+    def test_default_clock_reads_a_timezone_aware_time(self):
+        assert model_effort_ab.Deps().clock().tzinfo is not None
+
+    def test_each_default_deps_has_its_own_random_generator(self):
+        assert model_effort_ab.Deps().rng is not model_effort_ab.Deps().rng
+
+    def test_default_pricing_table_is_the_shipped_one(self):
+        assert model_effort_ab.Deps().pricing_table == pricing.load_pricing(
+            paths.PRICING_PATH
+        )
 
 
 class TestTwoArmRun:
