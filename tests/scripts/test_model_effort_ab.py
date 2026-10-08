@@ -20,6 +20,7 @@ import io
 import json
 import math
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -46,6 +47,7 @@ for _path in (
         sys.path.insert(0, str(_path))
 
 import model_effort_ab
+import pricing
 from model_effort import (
     agent_file,
     agent_spec,
@@ -73,6 +75,7 @@ from model_effort.arm import (
     CANDIDATE_LABEL,
     Arm,
 )
+from model_effort.cost import total_cost_usd
 from model_effort.errors import UsageError
 from model_effort.formatting import format_usd
 from model_effort.outcome import Outcome
@@ -419,6 +422,15 @@ class TestShippedAgentSmoke:
         assert profile.enabled_tools == ("Read", "Grep", "Glob")
         assert "Bash(graphify *)" in profile.withheld_tools
         assert any(entry.startswith("mcp__") for entry in profile.withheld_tools)
+
+    def test_shipped_pricing_table_prices_the_smoke_agents_model(self):
+        loaded = agent_file.load_agent_file("data-flow-tracer", paths.AGENTS_DIR)
+        model = agent_spec.build_agent_spec("data-flow-tracer", loaded).model
+
+        rate = pricing.rate(pricing.load_pricing(paths.PRICING_PATH), model)
+
+        assert rate is not None
+        assert rate["input"] > 0 and rate["output"] > 0
 
 
 # --- Trial runner ------------------------------------------------------------
@@ -1767,6 +1779,23 @@ class TestScrubPaths:
         assert path_scrub.scrub_paths("/usr/bin/claude", None) == "/usr/bin/claude"
 
 
+class TestFormatUsd:
+    @pytest.mark.parametrize(
+        ("amount", "text"),
+        [(0.004664, "$0.0047"), (0, "$0.0000"), (12.5, "$12.5000")],
+    )
+    def test_amounts_show_four_decimals(self, amount, text):
+        assert format_usd(amount) == text
+
+
+class TestTotalCost:
+    def test_ten_tenths_sum_to_exactly_one(self):
+        assert total_cost_usd([0.1] * 10) == 1.0
+
+    def test_no_amounts_sum_to_zero(self):
+        assert total_cost_usd([]) == 0.0
+
+
 class TestMessageCaps:
     def test_error_is_capped_at_500_characters(self):
         errored = _resolve(_verdict_stream(PASS_VERDICT), exit_code=1, stderr="e" * 900)
@@ -2440,6 +2469,26 @@ def _fixture_block(stem: str, kind: str, clean: bool, trials: list[dict]) -> dic
     return {"stem": stem, "kind": kind, "expected_clean": clean, "trials": trials}
 
 
+class TestReadGitHeadSha:
+    @pytest.mark.parametrize(
+        "error",
+        [OSError("git missing"), subprocess.CalledProcessError(128, "git")],
+        ids=["git-not-installed", "not-a-repository"],
+    )
+    def test_a_failing_git_yields_none(self, monkeypatch, error):
+        def failing_run(*_args, **_kwargs):
+            raise error
+
+        monkeypatch.setattr(model_effort_ab.subprocess, "run", failing_run)
+
+        assert model_effort_ab._read_git_head_sha() is None
+
+    def test_the_real_repository_yields_a_full_commit_hash(self):
+        sha = model_effort_ab._read_git_head_sha()
+
+        assert sha is not None and re.fullmatch(r"[0-9a-f]{40}", sha)
+
+
 class TestTwoArmRun:
     def test_run_metadata_records_identity_status_and_the_baseline_session_config(
         self, world
@@ -2460,6 +2509,20 @@ class TestTwoArmRun:
             "knowledge_dir": "plugins/dev-team/knowledge",
             "session_config": _expected_session_config(SONNET_MODEL_ID),
         }
+
+    def test_artifact_git_sha_is_null_when_the_repository_has_no_head(self, world):
+        deps = dataclasses.replace(world.deps, read_git_sha=lambda: None)
+
+        _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "1",
+            deps=deps,
+        )
+
+        assert _written(world)["git_sha"] is None
 
     def test_baseline_arm_records_configuration_trials_and_totals(self, world):
         _, written, _ = _run_two_arm_scenario(world)
