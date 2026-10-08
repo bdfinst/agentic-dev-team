@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import re
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 sys.path.insert(0, str(REPO_ROOT / "tests" / "agents"))
 
 from _plugin_dirs import frontmatter_block, frontmatter_field

@@ -3,7 +3,7 @@
 name: test-smell-review
 description: xUnit test smells, test double selection, and test-pyramid layer placement
 tools: Read, Grep, Glob, Skill, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
-model: sonnet
+model: haiku
 effort: high
 color: green
 ---

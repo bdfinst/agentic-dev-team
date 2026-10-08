@@ -32,7 +32,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `arch-review` | [`arch-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
 | `claude-setup-review` | [`claude-setup-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
 | `component-architecture-review` | [`component-architecture-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/component-architecture-review.md) | sonnet | Reusable component extraction, UI duplication, prop drilling, component APIs |
-| `concurrency-review` | [`concurrency-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
+| `concurrency-review` | [`concurrency-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/concurrency-review.md) | haiku | Race conditions, async pitfalls |
 | `correctness-review` | [`correctness-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/correctness-review.md) | opus | Functional/behavioral defects — implementation diverges from evident intent |
 | `data-flow-tracer` | [`data-flow-tracer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/data-flow-tracer.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
 | `doc-review` | [`doc-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
@@ -51,7 +51,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `spec-reviewer` | [`spec-reviewer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/spec-reviewer.md) | haiku | Spec-to-diff matching for a single freshly-implemented unit — Stage 1 of the three-stage inline review |
 | `structure-review` | [`structure-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization, nesting depth, cognitive load, async-pattern judgment |
 | `test-review` | [`test-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
-| `test-smell-review` | [`test-smell-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-smell-review.md) | sonnet | xUnit test smells, test-double selection, pyramid placement |
+| `test-smell-review` | [`test-smell-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-smell-review.md) | haiku | xUnit test smells, test-double selection, pyramid placement |
 | `token-efficiency-review` | [`token-efficiency-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
 | `vue-reactivity-review` | [`vue-reactivity-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/vue-reactivity-review.md) | sonnet | Vue ref/reactive pitfalls, watchEffect tracking, proxy escapes, subscription leaks |
 

@@ -37,15 +37,15 @@ A/B per candidate: each fixture in `evals/expected` that names the agent and is 
 | claude-setup-review | plugins/dev-team/agents/claude-setup-review.md | haiku | high | haiku | high | keep | 6 | no fixture |  |
 | codebase-recon | plugins/dev-team/agents/codebase-recon.md | opus | high | opus | high | keep | 0 | no fixture |  |
 | component-architecture-review | plugins/dev-team/agents/component-architecture-review.md | haiku | high | haiku | high | keep | 3 |  |  |
-| concurrency-review | plugins/dev-team/agents/concurrency-review.md | haiku | high | haiku | high | keep | 10 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:medium; fixtures:10; trials:3; delta:0; cost:0.048->0.034 | 0.014 |
+| concurrency-review | plugins/dev-team/agents/concurrency-review.md | haiku | high | haiku | medium | downgrade | 10 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:medium; fixtures:10; trials:3; delta:0; cost:0.048->0.034 | 0.014 |
 | correctness-review | plugins/dev-team/agents/correctness-review.md | opus | high | opus | high | keep | 12 |  |  |
 | data-flow-tracer | plugins/dev-team/agents/data-flow-tracer.md | sonnet | high | sonnet | high | keep | 3 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:high; fixtures:3; trials:3; delta:0; cost:0.239->0.027 | 0.212 |
 | doc-review | plugins/dev-team/agents/doc-review.md | haiku | medium | haiku | medium | keep | 6 |  |  |
 | domain-review | plugins/dev-team/agents/domain-review.md | opus | high | opus | high | keep | 5 |  |  |
 | gherkin-quality-critic | plugins/dev-team/agents/gherkin-quality-critic.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
-| js-fp-review | plugins/dev-team/agents/js-fp-review.md | haiku | medium | haiku | medium | keep | 9 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:low; fixtures:9; trials:3; delta:0; cost:0.040->0.035 | 0.005 |
+| js-fp-review | plugins/dev-team/agents/js-fp-review.md | haiku | medium | haiku | low | downgrade | 9 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:low; fixtures:9; trials:3; delta:0; cost:0.040->0.035 | 0.005 |
 | mutation-kill | plugins/dev-team/agents/mutation-kill.md | opus | high | opus | high | keep | 0 | no fixture |  |
-| naming-review | plugins/dev-team/agents/naming-review.md | sonnet | high | sonnet | high | keep | 6 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:high; fixtures:6; trials:3; delta:0; cost:0.523->0.060 | 0.463 |
+| naming-review | plugins/dev-team/agents/naming-review.md | sonnet | high | haiku | high | downgrade | 6 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:high; fixtures:6; trials:3; delta:0; cost:0.523->0.060 | 0.463 |
 | orchestrator | plugins/dev-team/agents/orchestrator.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | performance-review | plugins/dev-team/agents/performance-review.md | haiku | high | haiku | high | keep | 1 | insufficient fixtures |  |
 | plan-review-acceptance | plugins/dev-team/agents/plan-review-acceptance.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
@@ -69,8 +69,8 @@ A/B per candidate: each fixture in `evals/expected` that names the agent and is 
 | structure-review | plugins/dev-team/agents/structure-review.md | sonnet | high | sonnet | high | keep | 12 |  |  |
 | tech-writer | plugins/dev-team/agents/tech-writer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | test-review | plugins/dev-team/agents/test-review.md | sonnet | high | sonnet | high | keep | 13 |  |  |
-| test-smell-review | plugins/dev-team/agents/test-smell-review.md | sonnet | high | sonnet | high | keep | 5 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:high; fixtures:5; trials:3; delta:0; cost:0.396->0.038 | 0.358 |
-| token-efficiency-review | plugins/dev-team/agents/token-efficiency-review.md | haiku | high | haiku | high | keep | 5 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:medium; fixtures:5; trials:3; delta:0; cost:0.055->0.039 | 0.016 |
+| test-smell-review | plugins/dev-team/agents/test-smell-review.md | sonnet | high | haiku | high | downgrade | 5 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:high; fixtures:5; trials:3; delta:0; cost:0.396->0.038 | 0.358 |
+| token-efficiency-review | plugins/dev-team/agents/token-efficiency-review.md | haiku | high | haiku | medium | downgrade | 5 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:medium; fixtures:5; trials:3; delta:0; cost:0.055->0.039 | 0.016 |
 | ui-ux-designer | plugins/dev-team/agents/ui-ux-designer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | vue-reactivity-review | plugins/dev-team/agents/vue-reactivity-review.md | haiku | medium | haiku | medium | keep | 2 | insufficient fixtures |  |
 | co-evolution-audit | plugins/dev-team/skills/co-evolution-audit/SKILL.md | n/a | low | n/a | low | keep | 0 | no fixture |  |
