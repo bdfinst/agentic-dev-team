@@ -28,7 +28,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -65,6 +65,7 @@ from model_effort import (
     run_types,
     runner,
     session,
+    snapshot,
     stop_rules,
     tools,
     transcript,
@@ -2083,6 +2084,19 @@ class TestErrorTextIsScrubbed:
 
 
 class TestScrubPaths:
+    def test_snapshot_directory_becomes_a_placeholder_even_inside_the_temp_directory(
+        self, tmp_path
+    ):
+        root = Path(tempfile.mkdtemp(prefix=snapshot.SNAPSHOT_DIR_PREFIX))
+        try:
+            scrubbed = path_scrub.scrub_paths(
+                f"cannot read {root}/plugin/knowledge/x.md", None, root
+            )
+        finally:
+            root.rmdir()
+
+        assert scrubbed == "cannot read <snapshot>/plugin/knowledge/x.md"
+
     def test_home_directory_becomes_a_tilde(self, tmp_path, monkeypatch):
         home = tmp_path / "alice"
         monkeypatch.setenv("HOME", str(home))
@@ -2802,6 +2816,9 @@ def _unparseable_call(model_id: str) -> dict:
     return {"stdout": _stream(_init_event(model_id), result)}
 
 
+WORLD_KNOWLEDGE_NOTE = "shared reference text"
+
+
 @dataclass
 class World:
     """A throwaway repo slice: agents, expected entries, fixtures and a runs dir."""
@@ -2860,12 +2877,19 @@ def world(tmp_path: Path, monkeypatch) -> World:
     (fixtures / "layered-svc" / "src").mkdir(parents=True)
     (fixtures / "layered-svc" / "src" / "app.py").write_text("app", encoding="utf-8")
     _make_file_fixture(fixtures, "other-only.txt", "other")
+    knowledge = tmp_path / "plugin" / "knowledge"
+    knowledge.mkdir(parents=True)
+    (knowledge / "note.md").write_text(WORLD_KNOWLEDGE_NOTE, encoding="utf-8")
     deps = model_effort_ab.Deps(
         clock=lambda: NOW,
         rng=FixedRng(),
         read_git_sha=lambda: "abc123",
         eval_paths=_eval_paths(
-            agents_dir=agents, expected_dir=expected, fixtures_dir=fixtures
+            agents_dir=agents,
+            expected_dir=expected,
+            fixtures_dir=fixtures,
+            plugin_root=knowledge.parent,
+            knowledge_dir=knowledge,
         ),
         pricing_table=TEST_PRICING,
     )
@@ -3084,7 +3108,7 @@ class TestTwoArmRun:
             "agent": "scout",
             "grader": "expected-findings",
             "fidelity": "read-only-profile",
-            "knowledge_dir": "plugins/dev-team/knowledge",
+            "knowledge_dir": str(world.deps.eval_paths.knowledge_dir),
             "session_config": _expected_session_config(SONNET_MODEL_ID),
         }
 
@@ -5021,8 +5045,9 @@ class TestInterruptsAreHeldForTheRun:
         assert set(INTERRUPT_SIGNALS) <= blocked["write"]
         assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
 
-    def test_signal_pending_before_the_first_trial_starts_no_trial(self, world):
-        scout_plan = _scout_plan(world)
+    def test_signal_pending_before_the_first_trial_starts_no_trial(
+        self, world, scout_plan
+    ):
         settings = run_types.TrialSettings(
             trials=trial_count.TrialCount(1, "test"),
             trial_timeout_seconds=TIMEOUT_SECONDS,
@@ -5363,8 +5388,10 @@ class TestUnexpectedTrialError:
         assert [arm["fixtures"] for arm in written["arms"]] == [[], []]
 
 
-def _scout_plan(world: World) -> plan.RunPlan:
-    return plan.plan_run(
+@pytest.fixture
+def scout_plan(world: World) -> Iterator[plan.RunPlan]:
+    """The planned `scout` run; its snapshot is removed when the test ends."""
+    planned = plan.plan_run(
         "scout",
         candidate_model="haiku",
         candidate_effort=None,
@@ -5375,6 +5402,8 @@ def _scout_plan(world: World) -> plan.RunPlan:
         git_sha=None,
         eval_paths=world.deps.eval_paths,
     )
+    with planned.snapshot:
+        yield planned
 
 
 def _run_with_one_trial_each(abort_reason: AbortReason | None) -> run_types.RunResult:
@@ -5399,9 +5428,8 @@ class UnwritableStream:
 
 class TestFinishRun:
     def test_run_cut_short_before_any_trial_started_writes_no_artifact_and_says_so(
-        self, world
+        self, scout_plan
     ):
-        scout_plan = _scout_plan(world)
         stderr = io.StringIO()
         console = session.Console(io.StringIO(), lambda: False, io.StringIO(), stderr)
         run = run_types.RunResult(
@@ -5417,8 +5445,7 @@ class TestFinishRun:
         assert scout_plan.artifact_path.read_text(encoding="utf-8") == ""
         assert "interrupted before any trial started" in stderr.getvalue()
 
-    def test_artifact_is_saved_before_the_stop_notice_is_printed(self, world):
-        scout_plan = _scout_plan(world)
+    def test_artifact_is_saved_before_the_stop_notice_is_printed(self, scout_plan):
         console = session.Console(
             io.StringIO(), lambda: False, io.StringIO(), UnwritableStream()
         )
@@ -5572,3 +5599,302 @@ class TestProgressAndSummary:
             f"  total: cost {format_usd(TRIALS_BEFORE_STOP * TRIAL_COST)}, estimated "
             in err
         )
+
+
+@pytest.fixture
+def private_tmp(tmp_path: Path, monkeypatch) -> Path:
+    """A temp directory only this test writes to, so a leftover directory shows."""
+    directory = tmp_path / "private-tmp"
+    directory.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(directory))
+    return directory
+
+
+class TestRunInputsAreFrozenAtPlanTime:
+    def _edit_the_sources(self, world: World) -> None:
+        paths_ = world.deps.eval_paths
+        (paths_.fixtures_dir / "clean-form.html").write_text("EDITED", encoding="utf-8")
+        (paths_.knowledge_dir / "note.md").write_text("EDITED", encoding="utf-8")
+        _write_expected(paths_.expected_dir, "clean-form", "scout", "fail")
+
+    def _deps_editing_sources_in_the_first_trial(self, world: World):
+        canned, _ = _deps_with_canned_trials(world.deps)
+        seen: list[tuple[str, str]] = []
+
+        def run_trial(fixture, config, timeout):
+            note = config.eval_paths.knowledge_dir / "note.md"
+            seen.append((fixture.read_text(encoding="utf-8"), note.read_text("utf-8")))
+            if len(seen) == 1:
+                self._edit_the_sources(world)
+            return canned.run_trial(fixture, config, timeout)
+
+        return dataclasses.replace(world.deps, run_trial=run_trial), seen
+
+    def test_editing_the_sources_mid_run_changes_neither_what_a_later_trial_sees_nor_its_grade(
+        self, world
+    ):
+        deps, seen = self._deps_editing_sources_in_the_first_trial(world)
+
+        code = _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "2")
+
+        written = _written(world)
+        assert code == 0
+        assert seen == [("<form></form>", WORLD_KNOWLEDGE_NOTE)] * 4
+        assert _outcomes(written, BASELINE_LABEL) == ["pass", "pass"]
+        assert _outcomes(written, CANDIDATE_LABEL) == ["pass", "pass"]
+
+    def test_the_trial_reads_a_private_copy_and_cannot_reach_the_expected_answers(
+        self, world
+    ):
+        canned, _ = _deps_with_canned_trials(world.deps)
+        seen = []
+
+        def run_trial(fixture, config, timeout):
+            knowledge = config.eval_paths.knowledge_dir
+            seen.append(
+                (
+                    fixture.parent,
+                    knowledge,
+                    sorted(path.name for path in knowledge.iterdir()),
+                    config.eval_paths.expected_dir,
+                )
+            )
+            return canned.run_trial(fixture, config, timeout)
+
+        _cli_canned(
+            world,
+            dataclasses.replace(world.deps, run_trial=run_trial),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "1",
+        )
+
+        source = world.deps.eval_paths
+        fixtures_dir, knowledge, knowledge_files, expected_dir = seen[0]
+        assert fixtures_dir != source.fixtures_dir
+        assert knowledge != source.knowledge_dir
+        assert knowledge_files == ["note.md"]
+        assert expected_dir not in (knowledge, *knowledge.parents)
+        assert knowledge not in expected_dir.parents
+
+    def test_the_artifact_still_names_the_source_knowledge_dir(self, world):
+        canned, _ = _deps_with_canned_trials(world.deps)
+
+        _cli_canned(world, canned, *CLEAN_FORM_ARGS, "--trials", "1")
+
+        assert _written(world)["knowledge_dir"] == str(
+            world.deps.eval_paths.knowledge_dir
+        )
+
+
+class TestSnapshotIsRemoved:
+    @pytest.fixture(autouse=True)
+    def _private_tmp(self, private_tmp) -> Path:
+        self.private_tmp = private_tmp
+        return private_tmp
+
+    def _left_over(self) -> list[str]:
+        return sorted(path.name for path in self.private_tmp.iterdir())
+
+    def test_after_a_complete_run(self, world):
+        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
+
+        assert code == 0
+        assert self._left_over() == []
+
+    def test_after_the_operator_declines(self, world):
+        code = _cli(
+            world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1", yes=False
+        )
+
+        assert code == 1
+        assert self._left_over() == []
+
+    def test_after_the_estimate_is_refused(self, world):
+        code = _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--max-cost",
+            str(MAX_COST_BELOW_ESTIMATE),
+        )
+
+        assert code == 2
+        assert self._left_over() == []
+
+    def test_after_the_artifact_path_cannot_be_reserved(self, world):
+        shutil.rmtree(world.runs_dir)
+
+        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS)
+
+        assert code == 2
+        assert self._left_over() == []
+
+    @pytest.mark.parametrize(
+        "error", [KeyboardInterrupt(), RuntimeError("boom")], ids=["interrupt", "error"]
+    )
+    def test_after_a_trial_is_cut_short(self, world, error):
+        deps = _deps_raising_after(world, 1, error)
+
+        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, deps=deps)
+
+        assert code == 1
+        assert self._left_over() == []
+
+
+class TestSnapshotPathsAreScrubbed:
+    def test_an_error_naming_the_snapshot_directory_is_recorded_with_a_placeholder(
+        self, world
+    ):
+        def failing_trial(_fixture, config, _timeout):
+            return process_record.TrialProcessRecord(
+                exit_code=1,
+                stdout="",
+                stderr=f"cannot read {config.eval_paths.knowledge_dir}/missing.md",
+                timed_out=False,
+            )
+
+        deps = dataclasses.replace(world.deps, run_trial=failing_trial)
+
+        _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "1")
+
+        trial = _arm_block(_written(world), BASELINE_LABEL)["fixtures"][0]["trials"][0]
+        assert trial["error"] == (
+            "exit code 1: cannot read <snapshot>/plugin/knowledge/missing.md"
+        )
+
+
+class TestTakeSnapshot:
+    def _source(self, tmp_path: Path) -> tuple[paths.EvalPaths, list]:
+        fixtures_dir, expected_dir = tmp_path / "fx", tmp_path / "ex"
+        knowledge = tmp_path / "kn"
+        for directory in (fixtures_dir, expected_dir, knowledge / "sub"):
+            directory.mkdir(parents=True)
+        (knowledge / "sub" / "deep.md").write_text("deep", encoding="utf-8")
+        _make_file_fixture(fixtures_dir, "a.html", "<a>")
+        _make_directory_fixture(fixtures_dir)
+        for stem in ("a", "service", "unused"):
+            _write_expected(expected_dir, stem, "scout", "pass")
+        fixtures = [
+            fixture_resolution.ResolvedFixture(
+                "a", fixtures_dir / "a.html", fixture_resolution.FixtureKind.FILE, True
+            ),
+            fixture_resolution.ResolvedFixture(
+                "service",
+                fixtures_dir / "service",
+                fixture_resolution.FixtureKind.DIRECTORY,
+                True,
+            ),
+        ]
+        source = _eval_paths(
+            agents_dir=tmp_path / "agents-elsewhere",
+            expected_dir=expected_dir,
+            fixtures_dir=fixtures_dir,
+            plugin_root=tmp_path / "plugin-elsewhere",
+            knowledge_dir=knowledge,
+        )
+        return source, fixtures
+
+    def test_copies_the_fixtures_their_expected_entries_and_the_knowledge_dir(
+        self, tmp_path, private_tmp
+    ):
+        source, fixtures = self._source(tmp_path)
+
+        with snapshot.take_snapshot(source, fixtures) as taken:
+            fixture_names = [fixture.path.name for fixture in taken.fixtures]
+            copied_contents = [
+                sorted(_snapshot(fixture.path).values()) for fixture in taken.fixtures
+            ]
+            expected_names = sorted(
+                path.name for path in taken.eval_paths.expected_dir.iterdir()
+            )
+            knowledge_contents = list(
+                _snapshot(taken.eval_paths.knowledge_dir).values()
+            )
+
+        assert fixture_names == ["a.html", "service"]
+        assert copied_contents == [
+            ["<a>"],
+            ["print('app')", "print('util')", "readme"],
+        ]
+        assert expected_names == ["a.json", "service.json"]
+        assert knowledge_contents == ["deep"]
+
+    def test_the_snapshot_paths_point_inside_it_and_the_agents_dir_is_kept(
+        self, tmp_path, private_tmp
+    ):
+        source, fixtures = self._source(tmp_path)
+
+        with snapshot.take_snapshot(source, fixtures) as taken:
+            root = taken.root
+            inside = [
+                taken.eval_paths.expected_dir,
+                taken.eval_paths.fixtures_dir,
+                taken.eval_paths.plugin_root,
+                taken.eval_paths.knowledge_dir,
+                *(fixture.path for fixture in taken.fixtures),
+            ]
+            assert all(root in directory.parents for directory in inside)
+            assert taken.eval_paths.knowledge_dir.parent == taken.eval_paths.plugin_root
+            assert taken.eval_paths.agents_dir == source.agents_dir
+            assert [fixture.stem for fixture in taken.fixtures] == ["a", "service"]
+
+        assert not root.exists()
+
+    def test_a_failed_copy_leaves_no_directory_behind(
+        self, tmp_path, private_tmp, monkeypatch
+    ):
+        source, fixtures = self._source(tmp_path)
+
+        def failing_copy(*_args, **_kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(snapshot.shutil, "copytree", failing_copy)
+
+        with pytest.raises(OSError, match="disk full"):
+            snapshot.take_snapshot(source, fixtures)
+
+        assert list(private_tmp.iterdir()) == []
+
+
+class TestPlanSnapshot:
+    def _plan(self, world: World, eval_paths: paths.EvalPaths) -> plan.RunPlan:
+        return plan.plan_run(
+            "scout",
+            candidate_model="haiku",
+            candidate_effort=None,
+            fixture_stems=["clean-form"],
+            runs_dir=world.runs_dir,
+            now=NOW,
+            rng=FixedRng(),
+            git_sha=None,
+            eval_paths=eval_paths,
+        )
+
+    def test_the_shipped_knowledge_dir_is_recorded_relative_to_the_repo(
+        self, world, private_tmp
+    ):
+        shipped_knowledge = _eval_paths(
+            agents_dir=world.deps.eval_paths.agents_dir,
+            expected_dir=world.deps.eval_paths.expected_dir,
+            fixtures_dir=world.deps.eval_paths.fixtures_dir,
+        )
+
+        planned = self._plan(world, shipped_knowledge)
+
+        with planned.snapshot:
+            assert planned.metadata.knowledge_dir == "plugins/dev-team/knowledge"
+
+    def test_inputs_that_cannot_be_copied_are_refused_and_leave_nothing_behind(
+        self, world, private_tmp, monkeypatch
+    ):
+        def failing_copy(*_args, **_kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(snapshot.shutil, "copytree", failing_copy)
+
+        with pytest.raises(UsageError, match="cannot copy the run's inputs.*disk full"):
+            self._plan(world, world.deps.eval_paths)
+
+        assert list(private_tmp.iterdir()) == []
+        assert world.artifacts == []

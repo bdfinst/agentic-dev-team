@@ -8,12 +8,15 @@ from pathlib import Path
 HOME_PLACEHOLDER = "~"
 TEMP_PLACEHOLDER = "<tmp>"
 STAGED_PLACEHOLDER = "<staged>"
+SNAPSHOT_PLACEHOLDER = "<snapshot>"
 # A prefix this short would rewrite unrelated text, as when HOME is "/".
 MIN_PREFIX_CHARS = 2
 
 
-def scrub_paths(text: str, staged_dir: Path | None) -> str:
-    """Replace the home, temp and staged directories in `text` with placeholders.
+def scrub_paths(
+    text: str, staged_dir: Path | None, snapshot_dir: Path | None = None
+) -> str:
+    """Replace the home, temp, staged and snapshot directories in `text` with placeholders.
 
     Both the path as given and its resolved spelling are replaced, because the CLI
     reports the directory it sees, which may be the symlink-resolved one. Longer
@@ -24,6 +27,7 @@ def scrub_paths(text: str, staged_dir: Path | None) -> str:
         (prefix, placeholder)
         for directory, placeholder in (
             (staged_dir, STAGED_PLACEHOLDER),
+            (snapshot_dir, SNAPSHOT_PLACEHOLDER),
             (Path(tempfile.gettempdir()), TEMP_PLACEHOLDER),
             (_home_dir(), HOME_PLACEHOLDER),
         )

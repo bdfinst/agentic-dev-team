@@ -8,6 +8,7 @@ directories as arguments and does no printing.
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -41,6 +42,14 @@ def describe_fixture(path: Path) -> tuple[str, FixtureKind]:
     if path.is_dir():
         return path.name, FixtureKind.DIRECTORY
     return path.stem, FixtureKind.FILE
+
+
+def copy_fixture(fixture: Path, target: Path) -> None:
+    """Copy a file or directory fixture to `target`, keeping symlinks inside a directory."""
+    if fixture.is_dir():
+        shutil.copytree(fixture, target, symlinks=True)
+    else:
+        shutil.copy2(fixture, target)
 
 
 def expected_entries(agent: str, expected_dir: Path) -> dict[str, dict]:

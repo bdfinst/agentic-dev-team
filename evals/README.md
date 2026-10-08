@@ -384,6 +384,19 @@ The candidate must differ from the frontmatter in `--model` or `--effort`. The
 harness refuses a candidate that ends up equal to the baseline, including a
 partial override such as `--model haiku` on an agent that already uses `haiku`.
 
+### Inputs are frozen when the run is planned
+
+When the harness plans a run, it copies the fixtures to run, their
+`evals/expected` entries and the plugin `knowledge/` directory into one private
+temp directory. Every trial stages its fixture from that copy, the `claude`
+process reads knowledge from it (`--add-dir`), and grading reads the expected
+entry from it. Editing a fixture, an expected entry or a knowledge file after the
+run is planned does not change the trials that follow. The `claude` process gets
+only the `knowledge` copy, never the expected entries. The harness removes the
+copy when the run ends, however it ends. The agent file is read once, at planning.
+The artifact's `knowledge_dir` names the source directory. Error text in the
+artifact shows the copy as `<snapshot>`.
+
 ### Approval
 
 Without `--yes`, the harness prompts `Proceed? [y/N]` on a terminal and

@@ -190,6 +190,7 @@ class _TrialExecutor:
             transcript.parse_stream(record.stdout),
             self.plan.profile.enabled_tools,
             grader,
+            snapshot_dir=self.plan.snapshot.root,
         )
 
     def progress(self, slot: _TrialSlot, result: TrialResult) -> TrialProgress:

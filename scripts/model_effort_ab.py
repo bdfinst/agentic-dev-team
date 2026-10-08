@@ -3,7 +3,9 @@
 
 Runs each trial through `claude -p` with the agent's read-only built-in tools
 against a fresh copy of a fixture, grades it against `evals/expected`, and
-writes one JSON artifact per run to the runs directory. Trials alternate
+writes one JSON artifact per run to the runs directory. The fixtures, their
+expected entries and the knowledge directory are copied once when the run is
+planned, so editing them mid-run changes nothing. Trials alternate
 baseline, candidate, baseline, ... so a broken candidate fails on its first trial.
 
 Ctrl-C, SIGTERM and SIGHUP are held from the first trial until the artifact is saved:
@@ -249,17 +251,17 @@ def _run(args: argparse.Namespace, deps: Deps, marker: _RunMarker) -> int:
         plan = _plan_from(args, deps)
     except UsageError as error:
         return _report_usage_error(error)
-    settings = TrialSettings(
-        trials=resolve_trials(args.trials, args.agent),
-        trial_timeout_seconds=args.trial_timeout_seconds,
-        claude_bin=args.claude_bin,
-        eval_paths=deps.eval_paths,
-    )
-    console = session.Console(deps.stdin, deps.stdin_is_tty, sys.stdout, sys.stderr)
-    spend_limit = (
-        SpendLimit(args.max_cost_usd) if args.max_cost_usd is not None else None
-    )
-    with artifact_store.release_if_unwritten(plan.artifact_path):
+    with plan.snapshot, artifact_store.release_if_unwritten(plan.artifact_path):
+        settings = TrialSettings(
+            trials=resolve_trials(args.trials, args.agent),
+            trial_timeout_seconds=args.trial_timeout_seconds,
+            claude_bin=args.claude_bin,
+            eval_paths=plan.snapshot.eval_paths,
+        )
+        console = session.Console(deps.stdin, deps.stdin_is_tty, sys.stdout, sys.stderr)
+        spend_limit = (
+            SpendLimit(args.max_cost_usd) if args.max_cost_usd is not None else None
+        )
         try:
             return session.run_session(
                 plan,

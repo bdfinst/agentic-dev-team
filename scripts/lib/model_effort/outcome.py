@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 
 from .path_scrub import scrub_paths
 from .process_record import TrialProcessRecord
@@ -54,8 +55,14 @@ def resolve_outcome(
     parsed: ParsedTranscript,
     enabled_tools: Collection[str],
     grader: Grader,
+    *,
+    snapshot_dir: Path | None = None,
 ) -> TrialResult:
-    """Apply the outcome precedence; `grader` is called only if all else passed."""
+    """Apply the outcome precedence; `grader` is called only if all else passed.
+
+    `snapshot_dir`, the run's frozen-inputs directory, is replaced by a placeholder
+    in the recorded error, as the trial's staging directory is.
+    """
     outcome, error, messages = _decide(record, parsed, enabled_tools, grader)
     return TrialResult(
         outcome=outcome,
@@ -63,7 +70,11 @@ def resolve_outcome(
         model_id=parsed.model_id,
         model_id_note=parsed.model_id_note,
         grader_messages=_truncate_messages(messages),
-        error=_truncate(scrub_paths(error, record.cwd)) if error is not None else None,
+        error=(
+            _truncate(scrub_paths(error, record.cwd, snapshot_dir))
+            if error is not None
+            else None
+        ),
         session_config=parsed.session_config,
         cost_reported=parsed.cost_usd is not None,
     )

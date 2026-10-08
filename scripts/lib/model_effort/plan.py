@@ -19,6 +19,7 @@ from .fixtures import ResolvedFixture, resolve_fixtures
 from .paths import EvalPaths
 from .run_id import make_run_id
 from .run_types import RunMetadata
+from .snapshot import InputSnapshot, take_snapshot
 from .tools import ToolProfile, WriteCapableAgentError, resolve_tool_profile
 
 AGENT_ERROR_FIX_HINTS = {
@@ -33,9 +34,14 @@ class RunPlan:
     system_prompt: str
     arms: tuple[Arm, ...]
     profile: ToolProfile
-    fixtures: tuple[ResolvedFixture, ...]
+    snapshot: InputSnapshot
     metadata: RunMetadata
     artifact_path: Path
+
+    @property
+    def fixtures(self) -> tuple[ResolvedFixture, ...]:
+        """The fixtures to run, as paths into the plan's snapshot."""
+        return self.snapshot.fixtures
 
 
 def plan_run(
@@ -56,15 +62,18 @@ def plan_run(
     to the baseline (frontmatter) value. The baseline's frontmatter values and any
     explicit candidate values are checked against the agent contract before the
     run ID, which names the artifact file, is built from them. `rng` needs
-    `getrandbits`. `eval_paths` names the
-    directories the agent file, expected entries and fixtures are read from.
+    `getrandbits`. `eval_paths` names the directories the agent file, expected
+    entries, fixtures and knowledge are read from.
+
+    The fixtures, their expected entries and the knowledge directory are copied
+    into `plan.snapshot`, which the caller removes when the run is over.
 
     Raises:
         UsageError: the agent is unknown, write-capable or has unusable
             frontmatter (a missing or invalid `model:` or `effort:` included); a
             candidate value is invalid or leaves the candidate identical to the
-            baseline; fixtures cannot be resolved; or the artifact path is
-            unavailable.
+            baseline; fixtures cannot be resolved or copied; or the artifact
+            path is unavailable.
     """
     agent_spec, profile = _load_agent(agent, eval_paths.agents_dir)
     _refuse_invalid_values(
@@ -85,12 +94,24 @@ def plan_run(
     )
     _refuse_identical_arms(baseline, candidate)
     run_id = make_run_id(now, agent, candidate.model, candidate.effort, rng)
+    try:
+        snapshot = take_snapshot(eval_paths, fixtures)
+    except OSError as error:
+        raise UsageError(
+            f"cannot copy the run's inputs (fixtures, expected entries, knowledge) "
+            f"to a temp directory: {error}"
+        ) from error
+    try:
+        artifact_path = artifact_store.reserve_artifact_path(runs_dir, run_id)
+    except BaseException:
+        snapshot.remove()
+        raise
     return RunPlan(
         agent=agent,
         system_prompt=agent_spec.system_prompt,
         arms=(baseline, candidate),
         profile=profile,
-        fixtures=tuple(fixtures),
+        snapshot=snapshot,
         metadata=RunMetadata(
             run_id=run_id,
             created=now,
@@ -98,7 +119,7 @@ def plan_run(
             agent=agent,
             knowledge_dir=_relative_to_repo(eval_paths.knowledge_dir),
         ),
-        artifact_path=artifact_store.reserve_artifact_path(runs_dir, run_id),
+        artifact_path=artifact_path,
     )
 
 

@@ -9,10 +9,8 @@ grading it happen elsewhere.
 from __future__ import annotations
 
 import os
-import shutil
 import signal
 import subprocess
-import sys
 import tempfile
 import time
 from collections.abc import Iterator, Mapping, Sequence
@@ -20,7 +18,9 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from . import interrupts, invocation
+from .fixtures import copy_fixture
 from .process_record import TrialProcessRecord
+from .temp_tree import remove_tree
 
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 600
 # Shell convention for "command not found or not executable".
@@ -31,8 +31,6 @@ KILL_COLLECT_TIMEOUT_SECONDS = 5
 # How often the wait on a process looks for an interrupt: the longest an operator
 # waits for Ctrl-C to be noticed.
 INTERRUPT_POLL_SECONDS = 0.1
-# Python 3.12 renamed rmtree's `onerror` to `onexc` and changed what it receives.
-RMTREE_HAS_ONEXC = sys.version_info >= (3, 12)
 
 
 @contextmanager
@@ -40,27 +38,10 @@ def staged_fixture(fixture: Path) -> Iterator[Path]:
     """Copy a file or directory fixture into a fresh temp dir and yield that dir."""
     staging_dir = Path(tempfile.mkdtemp(prefix=TEMP_DIR_PREFIX))
     try:
-        target = staging_dir / fixture.name
-        if fixture.is_dir():
-            shutil.copytree(fixture, target, symlinks=True)
-        else:
-            shutil.copy2(fixture, target)
+        copy_fixture(fixture, staging_dir / fixture.name)
         yield staging_dir
     finally:
-        _remove_staging_dir(staging_dir)
-
-
-def _remove_staging_dir(staging_dir: Path) -> None:
-    if RMTREE_HAS_ONEXC:
-        shutil.rmtree(staging_dir, onexc=_report_cleanup_failure)
-    else:
-        shutil.rmtree(staging_dir, onerror=_report_cleanup_failure)
-
-
-def _report_cleanup_failure(_function, path, error) -> None:
-    # `onerror` passes an exc_info tuple; `onexc` passes the exception itself.
-    exception = error[1] if isinstance(error, tuple) else error
-    print(f"warning: could not remove {path}: {exception}", file=sys.stderr)
+        remove_tree(staging_dir)
 
 
 def run_cli_process(
