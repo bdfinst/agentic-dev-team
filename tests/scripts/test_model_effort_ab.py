@@ -24,6 +24,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import Callable
@@ -55,6 +56,7 @@ from model_effort import (
     grading,
     interrupts,
     outcome,
+    path_scrub,
     paths,
     plan,
     runner,
@@ -483,6 +485,8 @@ if BEHAVIOR.get("stdout_hex"):
 time.sleep(BEHAVIOR.get("sleep", 0))
 sys.stdout.write(BEHAVIOR.get("stdout", ""))
 sys.stderr.write(BEHAVIOR.get("stderr", ""))
+if BEHAVIOR.get("stderr_cwd"):
+    sys.stderr.write("cannot read " + str(cwd) + "/form.html")
 sys.exit(BEHAVIOR.get("exit_code", 0))
 """
 
@@ -890,8 +894,11 @@ class TestExecution:
 
         record = runner.run_trial(fixture, _config(stub))
 
-        assert record == runner.RunRecord(
-            exit_code=3, stdout="out-line", stderr="boom: bad model", timed_out=False
+        assert (record.exit_code, record.stdout, record.stderr, record.timed_out) == (
+            3,
+            "out-line",
+            "boom: bad model",
+            False,
         )
 
     def test_successful_run_reports_zero_exit_and_not_timed_out(
@@ -1684,6 +1691,60 @@ class TestTrialOutcomes:
         result = _resolve(stdout)
 
         assert result.session_config == _expected_session_config(HAIKU_MODEL_ID)
+
+
+class TestScrubPaths:
+    def test_home_directory_becomes_a_tilde(self, tmp_path, monkeypatch):
+        home = tmp_path / "alice"
+        monkeypatch.setenv("HOME", str(home))
+
+        scrubbed = path_scrub.scrub_paths(f"cannot open {home}/bin/claude", None)
+
+        assert scrubbed == "cannot open ~/bin/claude"
+
+    def test_temp_directory_becomes_a_placeholder(self, monkeypatch):
+        monkeypatch.setenv("HOME", "/nowhere/home")
+        temp = tempfile.gettempdir()
+
+        scrubbed = path_scrub.scrub_paths(f"cannot write {temp}/x.json", None)
+
+        assert scrubbed == "cannot write <tmp>/x.json"
+
+    def test_staged_directory_becomes_a_placeholder_even_inside_the_temp_directory(
+        self,
+    ):
+        staged = Path(tempfile.mkdtemp(prefix=runner.TEMP_DIR_PREFIX))
+        try:
+            scrubbed = path_scrub.scrub_paths(f"cannot read {staged}/form.html", staged)
+        finally:
+            staged.rmdir()
+
+        assert scrubbed == "cannot read <staged>/form.html"
+
+    def test_the_resolved_spelling_of_a_directory_is_scrubbed_too(self, tmp_path):
+        link = tmp_path / "link"
+        target = tmp_path / "target"
+        target.mkdir()
+        link.symlink_to(target)
+
+        scrubbed = path_scrub.scrub_paths(f"in {target.resolve()}/x", link)
+
+        assert scrubbed == "in <staged>/x"
+
+    def test_home_inside_the_temp_directory_is_scrubbed_as_home(
+        self, tmp_path, monkeypatch
+    ):
+        home = tmp_path / "alice"
+        monkeypatch.setenv("HOME", str(home))
+
+        scrubbed = path_scrub.scrub_paths(f"{home}/bin and {tmp_path}/other", None)
+
+        assert scrubbed.startswith("~/bin and <tmp>")
+
+    def test_a_root_home_directory_leaves_the_text_alone(self, monkeypatch):
+        monkeypatch.setenv("HOME", "/")
+
+        assert path_scrub.scrub_paths("/usr/bin/claude", None) == "/usr/bin/claude"
 
 
 class TestMessageCaps:
@@ -2584,6 +2645,46 @@ class TestTwoArmRun:
         baseline = _arm_block(_written(world), BASELINE_LABEL)
         assert baseline["totals"]["timeout"] == 1
         assert baseline["fixtures"][0]["trials"][0]["outcome"] == "timeout"
+
+
+class TestErrorPathsAreScrubbed:
+    def test_claude_binary_under_the_home_directory_is_recorded_with_a_tilde(
+        self, world, tmp_path, monkeypatch
+    ):
+        fake_home = tmp_path / "home" / "alice"
+        monkeypatch.setenv("HOME", str(fake_home))
+        missing = fake_home / "bin" / "no-such-claude"
+
+        model_effort_ab.main(
+            [
+                *CLEAN_FORM_ARGS,
+                "--trials",
+                "1",
+                "--yes",
+                "--claude-bin",
+                str(missing),
+                "--runs-dir",
+                str(world.runs_dir),
+            ],
+            deps=world.deps,
+        )
+
+        error = _arm_block(_written(world), BASELINE_LABEL)["fixtures"][0]["trials"][0][
+            "error"
+        ]
+        assert "~/bin/no-such-claude" in error
+        assert str(fake_home) not in error
+
+    def test_staged_fixture_directory_is_recorded_as_a_placeholder(self, world):
+        stub = StubClaude(world.stub_dir, exit_code=1, stderr_cwd=True)
+
+        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "1")
+
+        error = _arm_block(_written(world), BASELINE_LABEL)["fixtures"][0]["trials"][0][
+            "error"
+        ]
+        assert "cannot read <staged>/form.html" in error
+        assert runner.TEMP_DIR_PREFIX not in error
 
 
 class TestPreRunRefusals:

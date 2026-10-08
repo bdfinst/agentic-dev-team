@@ -50,12 +50,16 @@ class TrialConfig:
 
 @dataclass(frozen=True)
 class RunRecord:
-    """Raw outcome of one CLI process. `exit_code` is None when it timed out."""
+    """Raw outcome of one CLI process. `exit_code` is None when it timed out.
+
+    `cwd` is the directory the process ran in, so text it printed can be scrubbed of it.
+    """
 
     exit_code: int | None
     stdout: str
     stderr: str
     timed_out: bool
+    cwd: Path | None = None
 
 
 def build_user_prompt(staged_name: str) -> str:
@@ -180,6 +184,7 @@ def run_cli_process(
             stdout="",
             stderr=str(error),
             timed_out=False,
+            cwd=cwd,
         )
     try:
         # Unblocking inside the try means a signal held back during the start
@@ -189,7 +194,9 @@ def run_cli_process(
     except subprocess.TimeoutExpired:
         _kill_process_group(process)
         stdout, stderr = _collect_after_kill(process)
-        return RunRecord(exit_code=None, stdout=stdout, stderr=stderr, timed_out=True)
+        return RunRecord(
+            exit_code=None, stdout=stdout, stderr=stderr, timed_out=True, cwd=cwd
+        )
     except BaseException:
         # The new session detaches the child from the terminal, so Ctrl-C no
         # longer reaches it; kill it here before propagating. A second signal is
@@ -202,7 +209,11 @@ def run_cli_process(
             signal.pthread_sigmask(signal.SIG_SETMASK, interrupted_mask)
         raise
     return RunRecord(
-        exit_code=process.returncode, stdout=stdout, stderr=stderr, timed_out=False
+        exit_code=process.returncode,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=False,
+        cwd=cwd,
     )
 
 

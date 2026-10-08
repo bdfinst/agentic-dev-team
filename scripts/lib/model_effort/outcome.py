@@ -12,6 +12,7 @@ from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from enum import StrEnum
 
+from .path_scrub import scrub_paths
 from .runner import RunRecord
 from .transcript import ParsedTranscript, extract_agent_json
 
@@ -62,7 +63,7 @@ def resolve_outcome(
         model_id=parsed.model_id,
         model_id_note=parsed.model_id_note,
         grader_messages=_truncate_messages(messages),
-        error=_truncate(error) if error is not None else None,
+        error=_truncate(scrub_paths(error, record.cwd)) if error is not None else None,
         session_config=parsed.session_config,
         cost_reported=parsed.cost_usd is not None,
     )
