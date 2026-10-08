@@ -12,12 +12,14 @@
     "claude-mythos-5":   { "input": 10.0, "output": 50.0 },
     "claude-sonnet-5":   { "input": 3.0, "output": 15.0 },
     "claude-sonnet-4-6": { "input": 3.0, "output": 15.0 },
+    "claude-sonnet-5-5": { "input": 2.0, "output": 10.0 },
+    "claude-haiku-5-5":  { "input": 0.10, "output": 0.50 },
     "claude-haiku-4-5":  { "input": 1.0, "output": 5.0 },
     "claude-haiku-4-5-20251001": { "input": 1.0, "output": 5.0 }
   },
   "aliases": {
     "opus": "claude-opus-5",
     "sonnet": "claude-sonnet-5",
-    "haiku": "claude-haiku-4-5"
+    "haiku": "claude-haiku-5-5"
   }
 }
