@@ -93,6 +93,9 @@ PINNED_OUTPUT_TOKENS = 100
 # cheap (166*1 + 200*5) / 1e6 = 0.001166.
 BASELINE_TWO_ARM_ESTIMATE = 0.004664 * 3
 CANDIDATE_TWO_ARM_ESTIMATE = 0.001166 * 3
+ARM_COUNT = 2
+# The `scout` world resolves two fixtures: clean-form and layered-svc.
+SCOUT_FIXTURE_COUNT = 2
 ENABLED = ("Read", "Grep")
 # Long enough that a slow interpreter start still reaches the stub before the kill.
 TIMEOUT_SECONDS = 3
@@ -997,7 +1000,29 @@ class TestParseStream:
         assert parsed.has_result is False
         assert parsed.result_text is None
         assert parsed.tool_names == ("Grep",)
+        assert parsed.cost_usd is None
+
+    def test_zero_cost_is_reported_not_unknown(self):
+        parsed = transcript.parse_stream(_stream(_result_event(total_cost_usd=0)))
+
         assert parsed.cost_usd == 0
+
+    @pytest.mark.parametrize(
+        "cost",
+        [float("nan"), float("inf"), float("-inf"), -0.01, "0.01", True, None],
+        ids=["nan", "inf", "-inf", "negative", "string", "bool", "null"],
+    )
+    def test_cost_that_is_not_a_finite_non_negative_number_is_unreported(self, cost):
+        parsed = transcript.parse_stream(_stream(_result_event(total_cost_usd=cost)))
+
+        assert parsed.has_result is True
+        assert parsed.cost_usd is None
+
+    def test_result_event_without_a_cost_field_is_unreported(self):
+        event = _result_event()
+        del event["total_cost_usd"]
+
+        assert transcript.parse_stream(_stream(event)).cost_usd is None
 
     def test_empty_stdout_has_no_result(self):
         assert transcript.parse_stream("").has_result is False
@@ -1444,6 +1469,23 @@ class TestTrialOutcomes:
 
         assert result.cost_usd == pytest.approx(TRIAL_COST)
 
+    def test_trial_with_a_reported_cost_is_marked_reported(self):
+        assert _resolve(_verdict_stream(PASS_VERDICT)).cost_reported is True
+
+    def test_trial_with_no_result_event_has_zero_cost_marked_unreported(self):
+        result = _resolve(_stream(_tool_use_event("Read")), exit_code=1)
+
+        assert (result.cost_usd, result.cost_reported) == (0.0, False)
+
+    def test_trial_with_a_non_finite_cost_has_zero_cost_marked_unreported(self):
+        stdout = _stream(
+            _result_event(json.dumps(PASS_VERDICT), total_cost_usd=float("nan"))
+        )
+
+        result = _resolve(stdout)
+
+        assert (result.cost_usd, result.cost_reported) == (0.0, False)
+
     def test_session_config_comes_from_the_transcript_init_event(self):
         stdout = _stream(_init_event(), _result_event(json.dumps(PASS_VERDICT)))
 
@@ -1495,6 +1537,7 @@ def _trial_result(
     model_id=None,
     note=None,
     session_config=None,
+    cost_reported=True,
 ) -> outcome.TrialResult:
     return outcome.TrialResult(
         outcome=outcome_value,
@@ -1504,6 +1547,7 @@ def _trial_result(
         grader_messages=(),
         error=None,
         session_config=session_config,
+        cost_reported=cost_reported,
     )
 
 
@@ -1539,11 +1583,28 @@ def _metadata(
     )
 
 
+# One planned trial per arm, so an arm's per-trial estimate is its whole estimate.
+ARM_ESTIMATE = 0.005
+
+
+def _run_estimate(trials_per_arm: int = 1) -> estimate.RunEstimate:
+    return estimate.RunEstimate(
+        by_arm=(
+            (BASELINE_LABEL, ARM_ESTIMATE * trials_per_arm),
+            (CANDIDATE_LABEL, ARM_ESTIMATE * trials_per_arm),
+        ),
+        trials_per_arm=trials_per_arm,
+    )
+
+
 def _built_arm(
-    results: list[outcome.TrialResult], expected_clean: bool = False
+    results: list[outcome.TrialResult],
+    expected_clean: bool = False,
+    trials_per_arm: int = 1,
 ) -> dict:
     run = _arm_run(CANDIDATE_LABEL, results, expected_clean)
-    return artifact.build_artifact(_metadata(), [run])["arms"][0]
+    built = artifact.build_artifact(_metadata(), [run], _run_estimate(trials_per_arm))
+    return built["arms"][0]
 
 
 class TestRunId:
@@ -1566,7 +1627,7 @@ class TestArmLookup:
 
 class TestArtifactStatus:
     def test_run_without_an_abort_reason_is_complete(self):
-        built = artifact.build_artifact(_metadata(), [])
+        built = artifact.build_artifact(_metadata(), [], _run_estimate())
 
         assert (built["status"], built["abort_reason"]) == ("complete", None)
 
@@ -1574,7 +1635,7 @@ class TestArtifactStatus:
         "reason", list(artifact.AbortReason), ids=lambda reason: reason.value
     )
     def test_run_with_an_abort_reason_is_incomplete_and_names_it(self, reason):
-        built = artifact.build_artifact(_metadata(reason), [])
+        built = artifact.build_artifact(_metadata(reason), [], _run_estimate())
 
         assert (built["status"], built["abort_reason"]) == ("incomplete", reason.value)
 
@@ -1602,7 +1663,32 @@ class TestArmTotals:
             "timeout": 0,
             "clean_fixture_failures": 0,
             "actual_cost_usd": pytest.approx(0.02),
+            "estimated_cost_charged_usd": 0.0,
         }
+
+    def test_trial_without_a_reported_cost_is_flagged_and_charged_the_arms_per_trial_estimate(
+        self,
+    ):
+        arm = _built_arm(
+            [
+                _trial_result(Outcome.PASS),
+                _trial_result(Outcome.TIMEOUT, cost=0.0, cost_reported=False),
+                _trial_result(Outcome.CLI_ERROR, cost=0.0, cost_reported=False),
+            ],
+            trials_per_arm=3,
+        )
+
+        trials = arm["fixtures"][0]["trials"]
+        assert [trial["cost_reported"] for trial in trials] == [True, False, False]
+        assert arm["totals"]["actual_cost_usd"] == pytest.approx(TRIAL_COST)
+        assert arm["totals"]["estimated_cost_charged_usd"] == pytest.approx(
+            2 * ARM_ESTIMATE
+        )
+
+    def test_arm_records_its_estimated_cost_from_the_run_estimate(self):
+        arm = _built_arm([_trial_result(Outcome.PASS)], trials_per_arm=4)
+
+        assert arm["estimated_cost_usd"] == pytest.approx(4 * ARM_ESTIMATE)
 
     def test_clean_fixture_failures_count_every_non_pass_on_clean_fixtures(self):
         arm = _built_arm(
@@ -1676,7 +1762,9 @@ class TestArtifactSessionConfig:
             [_trial_result(Outcome.PASS, session_config={"model": "cand"})],
         )
 
-        built = artifact.build_artifact(_metadata(), [candidate, baseline])
+        built = artifact.build_artifact(
+            _metadata(), [candidate, baseline], _run_estimate()
+        )
 
         assert built["session_config"] == {"model": "base"}
 
@@ -1902,9 +1990,13 @@ class TestArtifactStore:
 # --- The CLI, end to end through a stub binary -------------------------------
 
 
-def _verdict_call(verdict: dict, model_id: str, *tool_names: str) -> dict:
+def _verdict_call(
+    verdict: dict, model_id: str, *tool_names: str, cost: float = TRIAL_COST
+) -> dict:
     events = [_tool_use_event(*tool_names)] if tool_names else []
-    result = _result_event(json.dumps(verdict), model_usage={model_id: {}})
+    result = _result_event(
+        json.dumps(verdict), model_usage={model_id: {}}, total_cost_usd=cost
+    )
     return {"stdout": _stream(_init_event(model_id), *events, result)}
 
 
@@ -2054,6 +2146,7 @@ def _trial(outcome_name: str, error: str | None = None) -> dict:
     return {
         "outcome": outcome_name,
         "cost_usd": TRIAL_COST,
+        "cost_reported": True,
         "grader_messages": [],
         "error": error,
     }
@@ -2111,6 +2204,7 @@ class TestTwoArmRun:
                 "pass": 6,
                 "clean_fixture_failures": 0,
                 "actual_cost_usd": pytest.approx(0.06),
+                "estimated_cost_charged_usd": 0.0,
             },
         }
 
@@ -2161,6 +2255,7 @@ class TestTwoArmRun:
                 "pass": 4,
                 "clean_fixture_failures": 1,
                 "actual_cost_usd": pytest.approx(0.06),
+                "estimated_cost_charged_usd": 0.0,
             },
         }
 
@@ -2540,6 +2635,19 @@ class TestEstimateRun:
         assert self._estimate(tmp_path, [as_directory]).total_usd == pytest.approx(
             self._estimate(tmp_path, [as_file]).total_usd
         )
+
+    def test_per_trial_estimate_is_the_arm_estimate_over_its_planned_trials(
+        self, tmp_path
+    ):
+        fixtures = [
+            _file_fixture_of_size(tmp_path, "a.txt", 3000),
+            _file_fixture_of_size(tmp_path, "b.txt", 3000),
+        ]
+
+        result = self._estimate(tmp_path, fixtures, trials=3)
+
+        assert result.trials_per_arm == 2 * 3
+        assert result.per_trial_usd("baseline") == pytest.approx(0.06 / (2 * 3))
 
     def test_unpriced_model_is_refused_naming_the_model_and_its_arm(self, tmp_path):
         fixtures = [_file_fixture_of_size(tmp_path, "a.txt", 3000)]
@@ -3098,6 +3206,59 @@ class TestSpendLimitStop:
         assert len(stub.calls) == 2
         assert _written(world)["status"] == "complete"
 
+    @pytest.mark.parametrize(
+        "unreported", [CLI_FAILURE, {"sleep": 30}], ids=["cli_error", "timeout"]
+    )
+    def test_trials_with_no_reported_cost_are_charged_their_estimate_toward_max_cost(
+        self, world, unreported
+    ):
+        # The limit sits at the run's estimate, which the refusal check allows.
+        # The nine reported passes alone stay under it; the baseline's unreported
+        # trials charge their estimate and push the total over it before the end.
+        limit = 1.1 * (BASELINE_TWO_ARM_ESTIMATE + CANDIDATE_TWO_ARM_ESTIMATE)
+        reported_passes = 9
+        stub = StubClaude(
+            world.stub_dir,
+            **_verdict_call(
+                PASS_VERDICT, SONNET_MODEL_ID, cost=limit / (reported_passes + 0.5)
+            ),
+        )
+        # Calls alternate baseline, candidate: the baseline alternates pass, unreported.
+        stub.queue(*[{}, {}, unreported, {}] * 3)
+
+        code = _cli(
+            world,
+            stub,
+            "scout",
+            "--model",
+            "haiku",
+            "--trials",
+            "3",
+            "--max-cost",
+            str(limit),
+            "--trial-timeout",
+            str(TIMEOUT_SECONDS),
+        )
+
+        written = _written(world)
+        baseline = _arm_block(written, BASELINE_LABEL)
+        unreported_trials = [
+            trial
+            for fixture in baseline["fixtures"]
+            for trial in fixture["trials"]
+            if not trial["cost_reported"]
+        ]
+        per_trial_estimate = BASELINE_TWO_ARM_ESTIMATE / (SCOUT_FIXTURE_COUNT * 3)
+        actual = sum(arm["totals"]["actual_cost_usd"] for arm in written["arms"])
+        assert code == 1
+        assert written["abort_reason"] == "max-cost"
+        assert len(stub.calls) < ARM_COUNT * SCOUT_FIXTURE_COUNT * 3
+        assert unreported_trials
+        assert baseline["totals"]["estimated_cost_charged_usd"] == pytest.approx(
+            len(unreported_trials) * per_trial_estimate
+        )
+        assert actual <= limit
+
     def test_cost_passing_max_cost_on_the_last_planned_trial_leaves_the_run_complete(
         self, world, capsys
     ):
@@ -3414,6 +3575,25 @@ class TestProgressAndSummary:
             "  total: cost $0.1200, estimated $0.0175\n"
             f"artifact written: {world.artifact_path}\n"
         ) in err
+
+    def test_summary_marks_an_arms_cost_as_a_lower_bound_when_a_trial_reported_none(
+        self, world, capsys
+    ):
+        stub = _passing_stub(world)
+        stub.queue({}, {}, CLI_FAILURE)
+
+        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "3")
+
+        lines = capsys.readouterr().err.splitlines()
+        baseline = next(
+            line for line in lines if line.startswith("  baseline: timeout")
+        )
+        candidate = next(
+            line for line in lines if line.startswith("  candidate: timeout")
+        )
+        assert "(lower bound; $" in baseline
+        assert "charged as estimate for trials with no reported cost)" in baseline
+        assert "lower bound" not in candidate
 
     def test_incomplete_run_summary_counts_only_completed_trials(self, world, capsys):
         _cli(

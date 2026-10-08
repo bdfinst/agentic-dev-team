@@ -259,25 +259,27 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
         run = run_trials(
             plan,
             settings,
-            dict(run_estimate.by_arm),
+            run_estimate,
             run_trial=deps.run_trial,
             max_cost=args.max_cost,
             on_trial=_print_progress,
         )
-        return _finish_run(plan, run)
+        return _finish_run(plan, run, run_estimate)
 
 
 def _print_progress(progress: TrialProgress) -> None:
     print(report.render_progress(progress), file=sys.stderr)
 
 
-def _finish_run(plan: RunPlan, run: RunResult) -> int:
+def _finish_run(
+    plan: RunPlan, run: RunResult, run_estimate: estimate.RunEstimate
+) -> int:
     """Write the artifact for the trials that completed, report, and pick the exit code."""
     if run.started_trials == 0:
         print(report.render_no_trials_notice(), file=sys.stderr)
         return EXIT_FAILED
     metadata = dataclasses.replace(plan.metadata, abort_reason=run.abort_reason)
-    data = artifact.build_artifact(metadata, run.arm_runs)
+    data = artifact.build_artifact(metadata, run.arm_runs, run_estimate)
     if run.abort_reason is not None:
         print(report.render_stop_notice(run), file=sys.stderr)
     for line in report.render_summary(data):

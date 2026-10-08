@@ -21,6 +21,7 @@ import pricing
 
 from . import runner
 from .arm import Arm
+from .cost import total_cost_usd
 from .errors import UsageError
 from .fixtures import ResolvedFixture
 
@@ -40,16 +41,21 @@ PRICING_FILE_HINT = "plugins/dev-team/knowledge/model-pricing.json"
 
 @dataclass(frozen=True)
 class RunEstimate:
-    """Estimated dollars per arm label, in arm order."""
+    """Estimated dollars per arm label, in arm order, and the trials each arm plans."""
 
     by_arm: tuple[tuple[str, float], ...]
+    trials_per_arm: int
 
     @property
     def total_usd(self) -> float:
-        return sum(cost for _, cost in self.by_arm)
+        return total_cost_usd(cost for _, cost in self.by_arm)
 
     def for_arm(self, label: str) -> float:
         return dict(self.by_arm)[label]
+
+    def per_trial_usd(self, label: str) -> float:
+        """The arm's estimate averaged over its planned trials."""
+        return self.for_arm(label) / self.trials_per_arm
 
 
 def fixture_size_bytes(path: Path) -> int:
@@ -74,13 +80,14 @@ def estimate_run(
     rates = _rates_by_label(arms, pricing_table)
     input_tokens = sum(_input_tokens(system_prompt, fixture) for fixture in fixtures)
     return RunEstimate(
-        tuple(
+        by_arm=tuple(
             (
                 arm.label,
                 _arm_cost(rates[arm.label], input_tokens, len(fixtures), trials),
             )
             for arm in arms
-        )
+        ),
+        trials_per_arm=len(fixtures) * trials,
     )
 
 

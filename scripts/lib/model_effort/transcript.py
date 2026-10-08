@@ -10,6 +10,7 @@ types that carry none of that (`rate_limit_event`, ...) are skipped.
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 
@@ -28,7 +29,9 @@ FENCED_JSON_PATTERN = re.compile(r"```json\s*\n(.*?)\n\s*```", re.DOTALL)
 class ParsedTranscript:
     result_text: str | None
     is_error: bool
-    cost_usd: float
+    # `None` when the stream did not report a usable cost: no result event, or a
+    # cost that is missing, not a number, not finite or negative.
+    cost_usd: float | None
     model_id: str | None
     model_id_note: str | None
     tool_names: tuple[str, ...]
@@ -55,7 +58,7 @@ def parse_stream(stdout: str) -> ParsedTranscript:
         return ParsedTranscript(
             result_text=None,
             is_error=False,
-            cost_usd=0.0,
+            cost_usd=None,
             model_id=None,
             model_id_note="no result event in stream",
             tool_names=tuple(tool_names),
@@ -169,9 +172,11 @@ def _as_optional_str(value) -> str | None:
     return value if isinstance(value, str) else None
 
 
-def _as_cost(value) -> float:
+def _as_cost(value) -> float | None:
     is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
-    return float(value) if is_number else 0.0
+    if not is_number or not math.isfinite(value) or value < 0:
+        return None
+    return float(value)
 
 
 def _first_bare_object(text: str) -> dict | None:

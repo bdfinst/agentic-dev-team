@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .artifact import AbortReason
 from .config_echo import format_usd
+from .cost import total_cost_usd
 from .execution import RunResult, TrialProgress
 from .outcome import Outcome
 
@@ -74,13 +75,23 @@ def render_summary(data: dict) -> list[str]:
         )
         lines.append(
             f"  {arm['label']}: {counts}; "
-            f"{_render_cost(totals['actual_cost_usd'], arm['estimated_cost_usd'])}"
+            f"{_render_cost(totals['actual_cost_usd'], totals['estimated_cost_charged_usd'], arm['estimated_cost_usd'])}"
         )
-    actual = sum(arm["totals"]["actual_cost_usd"] for arm in arms)
-    estimated = sum(arm["estimated_cost_usd"] for arm in arms)
-    lines.append(f"  total: {_render_cost(actual, estimated)}")
+    actual = total_cost_usd(arm["totals"]["actual_cost_usd"] for arm in arms)
+    charged = total_cost_usd(
+        arm["totals"]["estimated_cost_charged_usd"] for arm in arms
+    )
+    estimated = total_cost_usd(arm["estimated_cost_usd"] for arm in arms)
+    lines.append(f"  total: {_render_cost(actual, charged, estimated)}")
     return lines
 
 
-def _render_cost(actual: float, estimated: float) -> str:
-    return f"cost {format_usd(actual)}, estimated {format_usd(estimated)}"
+def _render_cost(actual: float, charged: float, estimated: float) -> str:
+    """Show the actual cost; flag it as a lower bound when trials reported no cost."""
+    lower_bound = (
+        f" (lower bound; {format_usd(charged)} charged as estimate for trials "
+        "with no reported cost)"
+        if charged > 0
+        else ""
+    )
+    return f"cost {format_usd(actual)}{lower_bound}, estimated {format_usd(estimated)}"

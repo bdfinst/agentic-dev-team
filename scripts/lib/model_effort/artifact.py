@@ -7,7 +7,6 @@ contract defines.
 
 from __future__ import annotations
 
-import math
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -15,6 +14,8 @@ from datetime import datetime
 from enum import StrEnum
 
 from .arm import BASELINE_LABEL, Arm
+from .cost import total_cost_usd
+from .estimate import RunEstimate
 from .fixtures import FixtureKind
 from .outcome import Outcome, TrialResult
 
@@ -66,8 +67,6 @@ class ArmRun:
     arm: Arm
     trials_per_fixture: int
     fixtures: Sequence[FixtureTrials]
-    # The pre-run cost estimate; null when the run was built without one.
-    estimated_cost_usd: float | None = None
 
 
 def make_run_id(now: datetime, agent: str, model: str, effort: str, rng) -> str:
@@ -77,13 +76,15 @@ def make_run_id(now: datetime, agent: str, model: str, effort: str, rng) -> str:
     return f"{stamp}-{agent}-{model}-{effort}-{suffix}"
 
 
-def build_artifact(metadata: RunMetadata, arm_runs: Sequence[ArmRun]) -> dict:
-    """Build the artifact dict.
+def build_artifact(
+    metadata: RunMetadata, arm_runs: Sequence[ArmRun], run_estimate: RunEstimate
+) -> dict:
+    """Build the artifact dict, joining each arm's results with its pre-run estimate.
 
     The run-level `session_config` is the baseline arm's, because the baseline
     is the reference configuration; each arm also carries its own.
     """
-    arms = [_arm_dict(arm_run) for arm_run in arm_runs]
+    arms = [_arm_dict(arm_run, run_estimate) for arm_run in arm_runs]
     return {
         "run_id": metadata.run_id,
         "status": STATUS_INCOMPLETE if metadata.abort_reason else STATUS_COMPLETE,
@@ -106,7 +107,7 @@ def _baseline_session_config(arms: Sequence[dict]) -> dict | None:
     return None
 
 
-def _arm_dict(arm_run: ArmRun) -> dict:
+def _arm_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
     arm = arm_run.arm
     model_id, model_id_note = _resolve_model_id(arm_run)
     return {
@@ -118,10 +119,10 @@ def _arm_dict(arm_run: ArmRun) -> dict:
         "tools_enabled": list(arm.profile.enabled_tools),
         "tools_withheld": list(arm.profile.withheld_tools),
         "trials": arm_run.trials_per_fixture,
-        "estimated_cost_usd": arm_run.estimated_cost_usd,
+        "estimated_cost_usd": run_estimate.for_arm(arm.label),
         "session_config": _first_session_config(arm_run),
         "fixtures": [_fixture_dict(fixture) for fixture in arm_run.fixtures],
-        "totals": _totals(arm_run),
+        "totals": _totals(arm_run, run_estimate),
     }
 
 
@@ -138,6 +139,7 @@ def _trial_dict(result: TrialResult) -> dict:
     return {
         "outcome": result.outcome.value,
         "cost_usd": result.cost_usd,
+        "cost_reported": result.cost_reported,
         "grader_messages": list(result.grader_messages),
         "error": result.error,
     }
@@ -147,7 +149,7 @@ def _all_results(arm_run: ArmRun) -> list[TrialResult]:
     return [result for fixture in arm_run.fixtures for result in fixture.results]
 
 
-def _totals(arm_run: ArmRun) -> dict:
+def _totals(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
     results = _all_results(arm_run)
     counts = Counter(result.outcome for result in results)
     totals: dict = {outcome.value: counts[outcome] for outcome in Outcome}
@@ -158,7 +160,14 @@ def _totals(arm_run: ArmRun) -> dict:
         for result in fixture.results
         if result.outcome != Outcome.PASS
     )
-    totals["actual_cost_usd"] = math.fsum(result.cost_usd for result in results)
+    # Trials with no reported cost count as 0 in the actual total, so that total
+    # is a lower bound; the stop rule charged these estimates in their place.
+    totals["actual_cost_usd"] = total_cost_usd(result.cost_usd for result in results)
+    totals["estimated_cost_charged_usd"] = total_cost_usd(
+        run_estimate.per_trial_usd(arm_run.arm.label)
+        for result in results
+        if not result.cost_reported
+    )
     return totals
 
 

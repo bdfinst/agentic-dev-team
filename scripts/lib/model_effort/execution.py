@@ -8,7 +8,6 @@ Requires `scripts/` and `plugins/dev-team/hooks/lib/` on sys.path.
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from functools import partial
@@ -17,6 +16,8 @@ from pathlib import Path
 from . import runner, stop_rules, transcript
 from .arm import Arm
 from .artifact import AbortReason, ArmRun, FixtureTrials
+from .cost import total_cost_usd
+from .estimate import RunEstimate
 from .fixtures import ResolvedFixture
 from .grading import grade_trial
 from .outcome import MAX_MESSAGE_CHARS, Grader, Outcome, TrialResult, resolve_outcome
@@ -87,8 +88,9 @@ class _TrialSlot:
 class _Ledger:
     """Completed trials so far, in the shapes the stop rules and the artifact need."""
 
-    def __init__(self, plan: RunPlan) -> None:
+    def __init__(self, plan: RunPlan, run_estimate: RunEstimate) -> None:
         self._plan = plan
+        self._run_estimate = run_estimate
         self._results: dict[tuple[str, str], list[TrialResult]] = {}
         self._outcomes_by_arm: dict[str, list[Outcome]] = {
             arm.label: [] for arm in plan.arms
@@ -99,7 +101,13 @@ class _Ledger:
         key = (slot.arm.label, slot.fixture.stem)
         self._results.setdefault(key, []).append(result)
         self._outcomes_by_arm[slot.arm.label].append(result.outcome)
-        self._costs.append(result.cost_usd)
+        self._costs.append(self._cost_charged(slot, result))
+
+    def _cost_charged(self, slot: _TrialSlot, result: TrialResult) -> float:
+        """The reported cost, or the arm's per-trial estimate when the trial reported none."""
+        if result.cost_reported:
+            return result.cost_usd
+        return self._run_estimate.per_trial_usd(slot.arm.label)
 
     @property
     def outcomes_by_arm(self) -> Mapping[str, list[Outcome]]:
@@ -107,16 +115,13 @@ class _Ledger:
 
     @property
     def cumulative_cost(self) -> float:
-        return math.fsum(self._costs)
+        return total_cost_usd(self._costs)
 
-    def arm_runs(
-        self, trials_per_fixture: int, estimated_costs: Mapping[str, float]
-    ) -> list[ArmRun]:
+    def arm_runs(self, trials_per_fixture: int) -> list[ArmRun]:
         return [
             ArmRun(
                 arm=arm,
                 trials_per_fixture=trials_per_fixture,
-                estimated_cost_usd=estimated_costs.get(arm.label),
                 fixtures=[
                     FixtureTrials(
                         stem=fixture.stem,
@@ -135,7 +140,7 @@ class _Ledger:
 def run_trials(
     plan: RunPlan,
     settings: TrialSettings,
-    estimated_costs: Mapping[str, float] | None = None,
+    run_estimate: RunEstimate,
     *,
     run_trial: TrialRunner,
     max_cost: float | None = None,
@@ -143,10 +148,10 @@ def run_trials(
 ) -> RunResult:
     """Run trials in order until the plan is done, a stop rule fires or the operator interrupts.
 
-    `estimated_costs` maps arm label to its pre-run estimate, recorded on the arm.
+    `run_estimate` prices a trial that reports no cost, so the spend limit still sees it.
     `on_trial` is called after each completed trial, before the stop rules run.
     """
-    ledger = _Ledger(plan)
+    ledger = _Ledger(plan, run_estimate)
     slots = list(_trial_slots(plan, settings))
     started_trials = 0
     abort_reason: AbortReason | None = None
@@ -174,7 +179,7 @@ def run_trials(
         abort_reason = AbortReason.HARNESS_ERROR
         harness_error = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
     return RunResult(
-        arm_runs=ledger.arm_runs(settings.trials, estimated_costs or {}),
+        arm_runs=ledger.arm_runs(settings.trials),
         abort_reason=abort_reason,
         started_trials=started_trials,
         stopping_trial=stopping_trial,

@@ -42,6 +42,8 @@ class TrialResult:
     grader_messages: tuple[str, ...]
     error: str | None
     session_config: dict | None = None
+    # False when the stream reported no usable cost; `cost_usd` is then 0.0, not a measurement.
+    cost_reported: bool = True
 
 
 def resolve_outcome(
@@ -54,12 +56,13 @@ def resolve_outcome(
     outcome, error, messages = _decide(record, parsed, enabled_tools, grader)
     return TrialResult(
         outcome=outcome,
-        cost_usd=parsed.cost_usd,
+        cost_usd=parsed.cost_usd or 0.0,
         model_id=parsed.model_id,
         model_id_note=parsed.model_id_note,
         grader_messages=_truncate_messages(messages),
         error=_truncate(error) if error is not None else None,
         session_config=parsed.session_config,
+        cost_reported=parsed.cost_usd is not None,
     )
 
 
