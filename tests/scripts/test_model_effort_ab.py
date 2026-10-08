@@ -38,16 +38,11 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-for _path in (
-    REPO_ROOT / "scripts",
-    REPO_ROOT / "scripts" / "lib",
-    REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib",
-):
+for _path in (REPO_ROOT / "scripts", REPO_ROOT / "scripts" / "lib"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
 import model_effort_ab
-import pricing
 from model_effort import (
     agent_file,
     agent_spec,
@@ -469,7 +464,9 @@ class TestShippedAgentSmoke:
         loaded = agent_file.load_agent_file("data-flow-tracer", paths.AGENTS_DIR)
         model = agent_spec.build_agent_spec("data-flow-tracer", loaded).model
 
-        rate = pricing.rate(pricing.load_pricing(paths.PRICING_PATH), model)
+        rate = external.pricing().rate(
+            external.pricing().load_pricing(paths.PRICING_PATH), model
+        )
 
         assert rate is not None
         assert rate["input"] > 0 and rate["output"] > 0
@@ -942,6 +939,36 @@ class TestExternalScriptWrappers:
     )
     def test_model_is_valid_against_the_contract_enum(self, value, valid):
         assert external.model_is_valid(value, ["haiku", "sonnet", "opus"]) is valid
+
+
+class TestPackageImportsOnItsOwn:
+    def test_every_module_imports_with_only_the_package_directory_on_the_path(self):
+        modules = sorted(
+            f"model_effort.{path.stem}"
+            for path in (REPO_ROOT / "scripts" / "lib" / "model_effort").glob("*.py")
+            if path.stem != "__init__"
+        )
+        code = (
+            "import importlib, sys\n"
+            f"sys.path.insert(0, {str(REPO_ROOT / 'scripts' / 'lib')!r})\n"
+            f"for name in {modules!r}:\n"
+            "    importlib.import_module(name)\n"
+        )
+
+        completed = subprocess.run(
+            [sys.executable, "-I", "-c", code],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert completed.returncode == 0, completed.stderr
+
+    def test_the_reused_modules_load_by_path_and_are_cached(self):
+        assert external.minimal_yaml().parse_yaml("a: 1") == {"a": 1}
+        assert external.pricing().load_pricing(paths.PRICING_PATH)["models"]
+        assert callable(external.eval_grade().run_grading)
+        assert external.pricing() is external.pricing()
 
 
 class TestTrialEnvironment:
@@ -1634,7 +1661,7 @@ class TestGradeTrial:
         def raising_grader(**_kwargs):
             raise error("bad shape")
 
-        monkeypatch.setattr(grading, "run_grading", raising_grader)
+        monkeypatch.setattr(external.eval_grade(), "run_grading", raising_grader)
 
         passed, messages = grading.grade_trial(
             GRADED_AGENT, GRADED_STEM, {}, expected_dir=graded_expected_dir
@@ -1649,7 +1676,7 @@ class TestGradeTrial:
         def failing_grader(**_kwargs):
             raise OSError("disk gone")
 
-        monkeypatch.setattr(grading, "run_grading", failing_grader)
+        monkeypatch.setattr(external.eval_grade(), "run_grading", failing_grader)
 
         with pytest.raises(OSError, match="disk gone"):
             grading.grade_trial(
@@ -2995,7 +3022,7 @@ class TestDepsDefaults:
         assert model_effort_ab.Deps().rng is not model_effort_ab.Deps().rng
 
     def test_default_pricing_table_is_the_shipped_one(self):
-        assert model_effort_ab.Deps().pricing_table == pricing.load_pricing(
+        assert model_effort_ab.Deps().pricing_table == external.pricing().load_pricing(
             paths.PRICING_PATH
         )
 

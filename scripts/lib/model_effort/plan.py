@@ -2,8 +2,6 @@
 
 Planning takes plain values, not parsed command-line arguments, so it can be
 driven from tests and from other callers.
-
-Requires `plugins/dev-team/hooks/lib/` and `scripts/` on sys.path.
 """
 
 from __future__ import annotations

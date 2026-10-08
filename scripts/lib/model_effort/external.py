@@ -1,7 +1,10 @@
 """Load existing repo scripts by file path, so the harness reuses them without sys.path edits.
 
-Path loading avoids a name collision: `scripts/validate_agent_contract.py` is a
-shim that shadows the real module of the same name.
+Every script the harness reuses comes through here, so the package imports with
+only its own directory on `sys.path`. Path loading also avoids a name collision:
+`scripts/validate_agent_contract.py` is a shim that shadows the real module of
+the same name. `eval_grade` puts its own directory on `sys.path` when it loads,
+to find the grader registry beside it.
 
 The wrappers at the end are the only place that reaches those scripts' contract
 data and private helpers, so an upstream rename breaks one function here.
@@ -36,6 +39,21 @@ def agent_contract_validator() -> ModuleType:
 def isolated_dispatch() -> ModuleType:
     """`plugins/dev-team/skills/headless-run/scripts/isolated_dispatch.py`."""
     return _load_module(paths.ISOLATED_DISPATCH)
+
+
+def minimal_yaml() -> ModuleType:
+    """`plugins/dev-team/hooks/lib/minimal_yaml.py`."""
+    return _load_module(paths.MINIMAL_YAML)
+
+
+def pricing() -> ModuleType:
+    """`plugins/dev-team/hooks/lib/pricing.py`."""
+    return _load_module(paths.PRICING_MODULE)
+
+
+def eval_grade() -> ModuleType:
+    """`scripts/eval_grade.py`, the deterministic grader the CI agent-eval gate uses."""
+    return _load_module(paths.EVAL_GRADE)
 
 
 def should_scrub_env_var(name: str) -> bool:

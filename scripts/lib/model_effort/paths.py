@@ -19,3 +19,6 @@ AGENT_CONTRACT_VALIDATOR = (
 ISOLATED_DISPATCH = (
     PLUGIN_ROOT / "skills" / "headless-run" / "scripts" / "isolated_dispatch.py"
 )
+MINIMAL_YAML = PLUGIN_ROOT / "hooks" / "lib" / "minimal_yaml.py"
+PRICING_MODULE = PLUGIN_ROOT / "hooks" / "lib" / "pricing.py"
+EVAL_GRADE = REPO_ROOT / "scripts" / "eval_grade.py"

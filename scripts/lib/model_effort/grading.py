@@ -2,8 +2,6 @@
 
 Delegates to the repo's deterministic grader (`scripts/eval_grade.py`) so the
 harness and the CI agent-eval gate apply identical rules.
-
-Requires `scripts/` on sys.path (for `eval_grade`); the CLI and the tests set it up.
 """
 
 from __future__ import annotations
@@ -12,8 +10,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from eval_grade import run_grading
-
+from . import external
 from .paths import EXPECTED_DIR
 
 TEMP_DIR_PREFIX = "model-effort-grade-"
@@ -37,7 +34,7 @@ def grade_trial(
     with tempfile.TemporaryDirectory(prefix=TEMP_DIR_PREFIX) as grading_dir:
         shutil.copy2(expected_dir / f"{stem}.json", grading_dir)
         try:
-            results, _ = run_grading(
+            results, _ = external.eval_grade().run_grading(
                 expected_dir=Path(grading_dir),
                 actuals={stem: {"agents": {agent: parsed}}},
                 baseline=None,

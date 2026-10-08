@@ -7,8 +7,6 @@ of that rate) make it high, while the fixed per-turn context makes it low.
 
 Pure functions: the pricing table is a parameter and the only file access is
 measuring fixture sizes.
-
-Requires `plugins/dev-team/hooks/lib/` on sys.path (for `pricing`).
 """
 
 from __future__ import annotations
@@ -18,9 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pricing
-
-from . import invocation
+from . import external, invocation
 from .arm import Arm
 from .cost import total_cost_usd
 from .errors import UsageError
@@ -113,7 +109,9 @@ def estimate_run(
 
 
 def _rates_by_arm(arms: Sequence[Arm], pricing_table: dict) -> dict[str, dict]:
-    rates = {arm.label: pricing.rate(pricing_table, arm.model) for arm in arms}
+    rates = {
+        arm.label: external.pricing().rate(pricing_table, arm.model) for arm in arms
+    }
     unpriced = [arm for arm in arms if rates[arm.label] is None]
     if unpriced:
         named = ", ".join(f"{arm.model!r} ({arm.label} arm)" for arm in unpriced)

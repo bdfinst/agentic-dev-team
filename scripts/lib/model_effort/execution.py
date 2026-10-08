@@ -2,8 +2,6 @@
 
 Alternation means a broken candidate fails on its first trial instead of after
 the whole baseline arm has been paid for.
-
-Requires `scripts/` and `plugins/dev-team/hooks/lib/` on sys.path.
 """
 
 from __future__ import annotations

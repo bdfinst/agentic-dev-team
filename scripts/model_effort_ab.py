@@ -36,20 +36,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-# The only sys.path bootstrap: the package imports `eval_grade` (scripts/) and `minimal_yaml`.
-for _path in (
-    REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib",
-    REPO_ROOT / "scripts" / "lib",
-    REPO_ROOT / "scripts",
-):
-    if str(_path) not in sys.path:
-        sys.path.insert(0, str(_path))
+# The only sys.path bootstrap: it makes the `model_effort` package importable.
+_PACKAGE_PARENT = Path(__file__).resolve().parent / "lib"
+if str(_PACKAGE_PARENT) not in sys.path:
+    sys.path.insert(0, str(_PACKAGE_PARENT))
 
-import pricing
 from model_effort import (
     artifact,
     artifact_store,
+    external,
     interrupts,
     invocation,
     paths,
@@ -105,7 +100,7 @@ class Deps:
     expected_dir: Path = paths.EXPECTED_DIR
     fixtures_dir: Path = paths.FIXTURES_DIR
     pricing_table: dict = field(
-        default_factory=lambda: pricing.load_pricing(paths.PRICING_PATH)
+        default_factory=lambda: external.pricing().load_pricing(paths.PRICING_PATH)
     )
     stdin: TextIO = field(default_factory=lambda: sys.stdin)
     stdin_is_tty: Callable[[], bool] = _stdin_is_tty

@@ -1,7 +1,4 @@
-"""Load an agent file once: its parsed frontmatter and its body.
-
-Requires `plugins/dev-team/hooks/lib/` on sys.path (for `minimal_yaml`).
-"""
+"""Load an agent file once: its parsed frontmatter and its body."""
 
 from __future__ import annotations
 
@@ -9,7 +6,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from minimal_yaml import YamlError, parse_yaml
+from . import external
 
 FRONTMATTER_DELIMITER = "---"
 _FRONTMATTER_PATTERN = re.compile(
@@ -68,9 +65,10 @@ def load_agent_file(agent: str, agents_dir: Path) -> AgentFile:
             f"cannot read frontmatter of agent {agent!r} ({path}): no "
             f"`{FRONTMATTER_DELIMITER}` delimited block at the top of the file"
         )
+    yaml = external.minimal_yaml()
     try:
-        frontmatter = parse_yaml(match["block"])
-    except YamlError as error:
+        frontmatter = yaml.parse_yaml(match["block"])
+    except yaml.YamlError as error:
         raise AgentFrontmatterError(
             f"cannot read frontmatter of agent {agent!r} ({path}): {error}"
         ) from error
