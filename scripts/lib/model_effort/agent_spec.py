@@ -1,23 +1,10 @@
-"""Read an agent file's baseline model, effort and system prompt.
-
-Requires `plugins/dev-team/hooks/lib/` on sys.path (for `minimal_yaml`).
-"""
+"""An agent's baseline model, effort and system prompt, from its loaded file."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
-from minimal_yaml import (
-    FrontmatterError,
-    YamlError,
-    extract_frontmatter_block,
-    parse_yaml,
-)
-
-from .tools import AgentFrontmatterError
-
-FRONTMATTER_CLOSE = "\n---"
+from .agent_file import AgentFile, AgentFrontmatterError
 
 
 @dataclass(frozen=True)
@@ -27,31 +14,24 @@ class AgentSpec:
     system_prompt: str
 
 
-def load_agent_spec(agent: str, agents_dir: Path) -> AgentSpec:
-    """Return the agent's frontmatter `model:`/`effort:` and its body as the system prompt."""
-    agent_file = agents_dir / f"{agent}.md"
-    text = agent_file.read_text(encoding="utf-8")
-    try:
-        block = extract_frontmatter_block(text)
-        frontmatter = parse_yaml(block)
-    except (FrontmatterError, YamlError) as error:
-        raise AgentFrontmatterError(
-            f"cannot read frontmatter of agent {agent!r} ({agent_file}): {error}"
-        ) from error
-    fields = frontmatter if isinstance(frontmatter, dict) else {}
-    body_start = 3 + len(block) + len(FRONTMATTER_CLOSE)
+def build_agent_spec(agent: str, agent_file: AgentFile) -> AgentSpec:
+    """Return the frontmatter `model:`/`effort:` with the file body as the system prompt.
+
+    Raises:
+        AgentFrontmatterError: `model:` or `effort:` is missing or blank.
+    """
     return AgentSpec(
-        model=_required_text(fields, "model", agent, agent_file),
-        effort=_required_text(fields, "effort", agent, agent_file),
-        system_prompt=text[body_start:].lstrip("\n"),
+        model=_required_text(agent, agent_file, "model"),
+        effort=_required_text(agent, agent_file, "effort"),
+        system_prompt=agent_file.body,
     )
 
 
-def _required_text(fields: dict, key: str, agent: str, agent_file: Path) -> str:
-    value = fields.get(key)
+def _required_text(agent: str, agent_file: AgentFile, key: str) -> str:
+    value = agent_file.frontmatter.get(key)
     if not isinstance(value, str) or not value.strip():
         raise AgentFrontmatterError(
-            f"agent {agent!r} ({agent_file}) has no `{key}:` in its frontmatter, so "
-            "the baseline arm is undefined"
+            f"agent {agent!r} ({agent_file.path}) has no `{key}:` in its frontmatter, "
+            "so the baseline arm is undefined"
         )
     return value.strip()

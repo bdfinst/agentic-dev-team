@@ -1,9 +1,10 @@
 """Parse a `claude -p --output-format stream-json` transcript.
 
 Reads the raw stdout line by line and keeps only what trial grading needs: the
-final result text, error flag, cost, the resolved model ID, and the names of the
-tools the agent called. Unparseable lines and event types that carry none of
-that (`system`, `rate_limit_event`, ...) are skipped.
+final result text, error flag, cost, the resolved model ID, the names of the
+tools the agent called, the permission denial count, and a scrubbed copy of the
+`system`/`init` event (the session configuration). Unparseable lines and event
+types that carry none of that (`rate_limit_event`, ...) are skipped.
 """
 
 from __future__ import annotations
@@ -14,7 +15,11 @@ from dataclasses import dataclass
 
 EVENT_RESULT = "result"
 EVENT_ASSISTANT = "assistant"
+EVENT_SYSTEM = "system"
+SUBTYPE_INIT = "init"
 BLOCK_TOOL_USE = "tool_use"
+# Stands in for the init event's cwd, a per-trial temp path that names the user's temp dir.
+STAGED_CWD_PLACEHOLDER = "<staged>"
 
 FENCED_JSON_PATTERN = re.compile(r"```json\s*\n(.*?)\n\s*```", re.DOTALL)
 
@@ -28,18 +33,23 @@ class ParsedTranscript:
     model_id_note: str | None
     tool_names: tuple[str, ...]
     has_result: bool
+    permission_denials: int = 0
+    session_config: dict | None = None
 
 
 def parse_stream(stdout: str) -> ParsedTranscript:
     """Fold the stream into a `ParsedTranscript`; the last `result` event wins."""
     tool_names: list[str] = []
     result_event: dict | None = None
+    session_config: dict | None = None
     for event in _iter_events(stdout):
         event_type = event.get("type")
         if event_type == EVENT_RESULT:
             result_event = event
         elif event_type == EVENT_ASSISTANT:
             tool_names.extend(_tool_names(event))
+        elif _is_init_event(event) and session_config is None:
+            session_config = _scrub_init(event)
 
     if result_event is None:
         return ParsedTranscript(
@@ -50,6 +60,7 @@ def parse_stream(stdout: str) -> ParsedTranscript:
             model_id_note="no result event in stream",
             tool_names=tuple(tool_names),
             has_result=False,
+            session_config=session_config,
         )
     model_id, note = _resolve_model_id(result_event.get("modelUsage"))
     return ParsedTranscript(
@@ -60,6 +71,8 @@ def parse_stream(stdout: str) -> ParsedTranscript:
         model_id_note=note,
         tool_names=tuple(tool_names),
         has_result=True,
+        permission_denials=_count(result_event.get("permission_denials")),
+        session_config=session_config,
     )
 
 
@@ -84,6 +97,48 @@ def _iter_events(stdout: str):
             continue
         if isinstance(event, dict):
             yield event
+
+
+def _is_init_event(event: dict) -> bool:
+    return event.get("type") == EVENT_SYSTEM and event.get("subtype") == SUBTYPE_INIT
+
+
+def _scrub_init(init_event: dict) -> dict:
+    """Keep what the session loaded, without paths or identifiers.
+
+    Dropped: session and event IDs, the API key source, slash commands, agents,
+    plugin paths and sources, and the cwd, which is replaced by a placeholder.
+    """
+    return {
+        "model": _as_optional_str(init_event.get("model")),
+        "permissionMode": _as_optional_str(init_event.get("permissionMode")),
+        "tools": _string_items(init_event.get("tools")),
+        "mcp_servers": _names(init_event.get("mcp_servers")),
+        "plugins": _names(init_event.get("plugins")),
+        "cwd": STAGED_CWD_PLACEHOLDER,
+    }
+
+
+def _string_items(value) -> list[str]:
+    return (
+        [item for item in value if isinstance(item, str)]
+        if isinstance(value, list)
+        else []
+    )
+
+
+def _names(entries) -> list[str]:
+    """Names from a list of strings or of objects with a `name` field."""
+    if not isinstance(entries, list):
+        return []
+    names = [
+        entry.get("name") if isinstance(entry, dict) else entry for entry in entries
+    ]
+    return [name for name in names if isinstance(name, str)]
+
+
+def _count(value) -> int:
+    return len(value) if isinstance(value, list) else 0
 
 
 def _tool_names(assistant_event: dict) -> list[str]:
