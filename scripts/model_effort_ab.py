@@ -51,7 +51,13 @@ from model_effort import (
     runner,
 )
 from model_effort.errors import UsageError
-from model_effort.execution import RunResult, TrialProgress, TrialSettings, run_trials
+from model_effort.execution import (
+    RunResult,
+    TrialProgress,
+    TrialRunner,
+    TrialSettings,
+    run_trials,
+)
 from model_effort.plan import RunPlan, plan_run
 
 EXIT_OK = 0
@@ -96,6 +102,7 @@ class Deps:
     )
     stdin: TextIO = field(default_factory=lambda: sys.stdin)
     stdin_is_tty: Callable[[], bool] = _stdin_is_tty
+    run_trial: TrialRunner = runner.run_trial
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -249,6 +256,7 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
             plan,
             settings,
             dict(run_estimate.by_arm),
+            run_trial=deps.run_trial,
             max_cost=args.max_cost,
             on_trial=_print_progress,
         )

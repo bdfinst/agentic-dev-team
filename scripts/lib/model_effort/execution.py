@@ -22,6 +22,9 @@ from .grading import grade_trial
 from .outcome import Grader, Outcome, TrialResult, resolve_outcome
 from .plan import RunPlan
 
+# Runs one trial of a config against a fixture; `runner.run_trial` in production.
+TrialRunner = Callable[[Path, runner.TrialConfig, float], runner.RunRecord]
+
 
 @dataclass(frozen=True)
 class TrialSettings:
@@ -130,6 +133,7 @@ def run_trials(
     settings: TrialSettings,
     estimated_costs: Mapping[str, float] | None = None,
     *,
+    run_trial: TrialRunner,
     max_cost: float | None = None,
     on_trial: Callable[[TrialProgress], None] | None = None,
 ) -> RunResult:
@@ -143,7 +147,7 @@ def run_trials(
     stopping_trial: TrialProgress | None = None
     try:
         for slot in _trial_slots(plan, settings):
-            result = _run_trial(slot, plan, settings)
+            result = _run_trial(slot, plan, settings, run_trial)
             ledger.record(slot, result)
             progress = _progress(slot, plan, settings, result)
             if on_trial is not None:
@@ -185,12 +189,16 @@ def _progress(
     )
 
 
-def _run_trial(slot: _TrialSlot, plan: RunPlan, settings: TrialSettings) -> TrialResult:
+def _run_trial(
+    slot: _TrialSlot, plan: RunPlan, settings: TrialSettings, run_trial: TrialRunner
+) -> TrialResult:
     grader = partial(
         grade_trial, plan.agent, slot.fixture.stem, expected_dir=settings.expected_dir
     )
     config = _trial_config(slot.arm, plan, settings)
-    return _run_and_grade_trial(slot.fixture, config, settings.trial_timeout, grader)
+    return _run_and_grade_trial(
+        slot.fixture, config, settings.trial_timeout, grader, run_trial
+    )
 
 
 def _trial_config(
@@ -206,7 +214,8 @@ def _run_and_grade_trial(
     config: runner.TrialConfig,
     trial_timeout: float,
     grader: Grader,
+    run_trial: TrialRunner,
 ) -> TrialResult:
-    record = runner.run_trial(fixture.path, config, trial_timeout)
+    record = run_trial(fixture.path, config, trial_timeout)
     parsed = transcript.parse_stream(record.stdout)
     return resolve_outcome(record, parsed, config.arm.profile.enabled_tools, grader)

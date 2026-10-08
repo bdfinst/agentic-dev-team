@@ -2385,16 +2385,11 @@ class TestPreRunRefusals:
 
 
 class TestArtifactReservationAndWrite:
-    def test_run_that_ends_before_any_trial_completes_leaves_no_placeholder(
-        self, world, monkeypatch
-    ):
-        def interrupted(*_args, **_kwargs):
-            raise KeyboardInterrupt
+    def test_run_that_fails_before_any_trial_starts_leaves_no_placeholder(self, world):
+        stdin = RaisingStdin(RuntimeError("stdin closed"))
 
-        monkeypatch.setattr(model_effort_ab, "run_trials", interrupted)
-
-        with pytest.raises(KeyboardInterrupt):
-            _cli(world, StubClaude(world.stub_dir), "scout")
+        with pytest.raises(RuntimeError):
+            _gated_cli(world, _passing_stub(world), stdin)
 
         assert world.artifacts == []
 
@@ -2606,17 +2601,12 @@ class TestConfigurationEcho:
         assert "Tools: no tools enabled" in lines
         assert "Withheld tools: none" in lines
 
-    def test_echo_is_already_printed_when_the_first_trial_starts(
-        self, world, capsys, monkeypatch
-    ):
+    def test_echo_is_already_printed_when_the_first_trial_starts(self, world, capsys):
         stderr_when_trials_start = []
-        real_run_trials = model_effort_ab.run_trials
 
-        def spy(*args, **kwargs):
+        def snapshot_then_run(*args, **kwargs):
             stderr_when_trials_start.append(capsys.readouterr().err)
-            return real_run_trials(*args, **kwargs)
-
-        monkeypatch.setattr(model_effort_ab, "run_trials", spy)
+            return runner.run_trial(*args, **kwargs)
 
         _cli(
             world,
@@ -2626,6 +2616,7 @@ class TestConfigurationEcho:
             "clean-form",
             "--trials",
             "1",
+            deps=dataclasses.replace(world.deps, run_trial=snapshot_then_run),
         )
 
         assert (
@@ -3001,18 +2992,17 @@ CLI_FAILURE = {"exit_code": 1, "stdout": "", "stderr": "boom: auth failed"}
 CLEAN_FORM_ARGS = ("scout", "--model", "haiku", "--fixtures", "clean-form")
 
 
-def _interrupt_after(monkeypatch, completed_trials: int) -> None:
-    """Let the first `completed_trials` trials run for real, then press Ctrl-C."""
-    real_run_trial = runner.run_trial
+def _interrupting_deps(world: World, completed_trials: int) -> model_effort_ab.Deps:
+    """Let the first `completed_trials` trials run for real, then press Ctrl-C inside the next."""
     started = []
 
     def run_then_interrupt(*args, **kwargs):
         if len(started) == completed_trials:
             raise KeyboardInterrupt
         started.append(args)
-        return real_run_trial(*args, **kwargs)
+        return runner.run_trial(*args, **kwargs)
 
-    monkeypatch.setattr(runner, "run_trial", run_then_interrupt)
+    return dataclasses.replace(world.deps, run_trial=run_then_interrupt)
 
 
 def _outcomes(written: dict, label: str) -> list[str]:
@@ -3180,12 +3170,18 @@ class TestSystemicFailureStop:
 
 class TestInterrupt:
     def test_ctrl_c_after_three_trials_keeps_them_and_marks_the_artifact_interrupted(
-        self, world, monkeypatch
+        self, world
     ):
         stub = _passing_stub(world)
-        _interrupt_after(monkeypatch, 3)
 
-        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+        code = _cli(
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=_interrupting_deps(world, 3),
+        )
 
         written = _written(world)
         assert code == 1
@@ -3198,11 +3194,16 @@ class TestInterrupt:
         assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
 
     def test_interrupt_prints_no_traceback_and_names_the_artifact_and_the_dropped_trial(
-        self, world, capsys, monkeypatch
+        self, world, capsys
     ):
-        _interrupt_after(monkeypatch, 3)
-
-        _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "5")
+        _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=_interrupting_deps(world, 3),
+        )
 
         err = capsys.readouterr().err
         assert "Traceback" not in err
@@ -3212,10 +3213,15 @@ class TestInterrupt:
         ) in err
         assert f"artifact written: {world.artifact_path}" in err
 
-    def test_arm_with_no_completed_trial_lists_no_fixtures(self, world, monkeypatch):
-        _interrupt_after(monkeypatch, 1)
-
-        _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "5")
+    def test_arm_with_no_completed_trial_lists_no_fixtures(self, world):
+        _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=_interrupting_deps(world, 1),
+        )
 
         written = _written(world)
         assert _arm_block(written, CANDIDATE_LABEL)["fixtures"] == []
@@ -3223,12 +3229,18 @@ class TestInterrupt:
         assert _outcomes(written, BASELINE_LABEL) == ["pass"]
 
     def test_ctrl_c_before_any_trial_completes_writes_no_artifact_and_exits_1(
-        self, world, capsys, monkeypatch
+        self, world, capsys
     ):
         stub = _passing_stub(world)
-        _interrupt_after(monkeypatch, 0)
 
-        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+        code = _cli(
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=_interrupting_deps(world, 0),
+        )
 
         err = capsys.readouterr().err
         assert code == 1
@@ -3264,12 +3276,15 @@ class TestProgressAndSummary:
 
         assert len(_progress_lines(capsys)) == len(stub.calls) == 3
 
-    def test_progress_line_is_printed_before_the_next_trial_starts(
-        self, world, capsys, monkeypatch
-    ):
-        _interrupt_after(monkeypatch, 1)
-
-        _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "5")
+    def test_progress_line_is_printed_before_the_next_trial_starts(self, world, capsys):
+        _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=_interrupting_deps(world, 1),
+        )
 
         assert _progress_lines(capsys) == [
             "[baseline] fixture 1/1 clean-form trial 1/5: pass $0.0100"
