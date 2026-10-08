@@ -50,6 +50,7 @@ from model_effort import (
     interrupts,
     invocation,
     paths,
+    report,
     runner,
     session,
 )
@@ -208,43 +209,24 @@ def _split_csv(text: str | None) -> list[str] | None:
     return list(dict.fromkeys(part.strip() for part in text.split(",") if part.strip()))
 
 
-# While the run is under way the session holds the signals, so an interrupt
-# reaches `main` only before the run starts or after the session has finished
-# and reported what it saved.
-INTERRUPTED_BEFORE_RUN_MESSAGE = (
-    "error: interrupted before the first trial started: nothing was run or spent"
-)
-INTERRUPTED_AFTER_RUN_MESSAGE = (
-    "error: interrupted after the run ended: the messages above say what was saved"
-)
-
-
-@dataclass
-class _RunMarker:
-    started: bool = False
-
-    def mark_started(self) -> None:
-        self.started = True
-
-
 def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
     deps = deps or Deps()
     args = _build_parser().parse_args(argv)
-    marker = _RunMarker()
+    guard = interrupts.RunGuard()
     with interrupts.termination_as_interrupt():
         try:
-            return _run(args, deps, marker)
+            return _run(args, deps, guard)
         except KeyboardInterrupt:
-            message = (
-                INTERRUPTED_AFTER_RUN_MESSAGE
-                if marker.started
-                else INTERRUPTED_BEFORE_RUN_MESSAGE
+            # The guard holds the signals for the whole run, so an interrupt reaches
+            # here only before the run starts or after the session has reported.
+            print(
+                report.render_unhandled_interrupt(run_started=guard.started),
+                file=sys.stderr,
             )
-            print(message, file=sys.stderr)
             return EXIT_FAILED
 
 
-def _run(args: argparse.Namespace, deps: Deps, marker: _RunMarker) -> int:
+def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> int:
     if args.grader == RUBRIC_GRADER:
         return _report_usage_error(UsageError(RUBRIC_GRADER_REFUSAL))
     try:
@@ -271,7 +253,7 @@ def _run(args: argparse.Namespace, deps: Deps, marker: _RunMarker) -> int:
                 assume_yes=args.yes,
                 pricing_table=deps.pricing_table,
                 run_trial=deps.run_trial,
-                on_run_start=marker.mark_started,
+                guard=guard,
             )
         except UsageError as error:
             return _report_usage_error(error)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 
 from .arm_totals import ArmTotals
 from .cost import total_cost_usd
@@ -11,6 +12,14 @@ from .run_status import AbortReason
 from .run_types import RunResult, TrialProgress
 
 NO_ERROR_TEXT = "no error text was recorded"
+# An interrupt that reaches the CLI is outside the run's hold on the signals: before
+# the first trial started, or after the run ended and reported what it saved.
+INTERRUPTED_BEFORE_RUN_MESSAGE = (
+    "error: interrupted before any trial started: nothing was run or spent"
+)
+INTERRUPTED_AFTER_RUN_MESSAGE = (
+    "error: interrupted after the run ended: the messages above say what was saved"
+)
 
 
 def render_progress(progress: TrialProgress) -> str:
@@ -73,6 +82,21 @@ def render_no_trials_notice() -> str:
     return (
         "error: interrupted before any trial started, so no artifact was written: "
         "rerun to start over"
+    )
+
+
+def render_unhandled_interrupt(*, run_started: bool) -> str:
+    """The notice for an interrupt the run's hold on the signals did not absorb."""
+    return (
+        INTERRUPTED_AFTER_RUN_MESSAGE if run_started else INTERRUPTED_BEFORE_RUN_MESSAGE
+    )
+
+
+def render_interrupted_while_finishing(artifact_path: Path) -> str:
+    """The notice for a signal that arrived while a complete run was being saved."""
+    return (
+        "error: interrupted while finishing the run: the artifact was written "
+        f"to {artifact_path}"
     )
 
 

@@ -7,8 +7,12 @@ looks at them between steps: the runner while it waits on a trial's process, the
 trial loop before it starts the next trial, and the session once the artifact is
 saved. A signal that is acted on is consumed, so it is never delivered later.
 
-`termination_as_interrupt` covers the time before the run holds the signals: there
-SIGTERM and SIGHUP act like Ctrl-C and raise `KeyboardInterrupt`.
+`RunGuard` owns that protocol for a run: it blocks the signals, notes that the run
+started, and on the way out consumes what is pending, puts the mask back and
+absorbs a signal that lands as it does. `termination_as_interrupt` covers the time
+outside the guard: there SIGTERM and SIGHUP act like Ctrl-C and raise
+`KeyboardInterrupt`, which the caller reports as before or after the run by asking
+the guard whether it `started`.
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ from __future__ import annotations
 import signal
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 # SIGHUP is absent on Windows; the harness is POSIX-only for other reasons too.
 TERMINATION_SIGNALS = tuple(
@@ -71,6 +76,39 @@ def restore_reporting(previous: set[signal.Signals]) -> bool:
             arrived = True
         else:
             return arrived
+
+
+@dataclass
+class RunGuard:
+    """The hold on the interrupt signals for one run, and what it learned.
+
+    `started` turns true when the signals are held and stays true, so a caller that
+    later gets a `KeyboardInterrupt` can tell the run had begun. `arrived` is true
+    after `held` exits when a signal came that nothing acted on: one still pending
+    at the end, one delivered as the mask was restored, or a `KeyboardInterrupt`
+    raised by the body.
+    """
+
+    started: bool = False
+    arrived: bool = False
+
+    @contextmanager
+    def held(self) -> Iterator[None]:
+        """Hold the interrupt signals for the body; free them, and set `arrived`, on exit.
+
+        A `KeyboardInterrupt` that reaches this point, from the body or from the
+        restore, is absorbed: the signals are free again and the run is over. Any
+        other exception propagates after the signals are restored.
+        """
+        previous_mask = block()
+        self.started = True
+        try:
+            try:
+                yield
+            finally:
+                self.arrived = restore_reporting(previous_mask)
+        except KeyboardInterrupt:
+            self.arrived = True
 
 
 def _raise_interrupt(_signum, _frame) -> None:

@@ -5246,8 +5246,93 @@ class TestSignalWhileFinishing:
         assert code == 1
         assert (written["status"], written["abort_reason"]) == ("complete", None)
         assert "nothing was run or spent" not in err
-        assert model_effort_ab.INTERRUPTED_AFTER_RUN_MESSAGE in err
+        assert report.INTERRUPTED_AFTER_RUN_MESSAGE in err
         assert "Traceback" not in err
+
+
+@pytest.mark.usefixtures("harmless_termination_signals")
+class TestRunGuard:
+    def test_a_new_guard_has_neither_started_nor_seen_a_signal(self):
+        guard = interrupts.RunGuard()
+
+        assert (guard.started, guard.arrived) == (False, False)
+
+    def test_signals_are_held_inside_and_free_after_and_the_guard_remembers_it_started(
+        self,
+    ):
+        guard = interrupts.RunGuard()
+
+        with guard.held():
+            blocked_inside = _blocked_signals()
+            started_inside = guard.started
+
+        assert set(INTERRUPT_SIGNALS) <= blocked_inside
+        assert started_inside is True
+        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+        assert (guard.started, guard.arrived) == (True, False)
+
+    def test_a_signal_that_arrives_inside_is_reported_and_consumed(self):
+        guard = interrupts.RunGuard()
+
+        with guard.held():
+            os.kill(os.getpid(), signal.SIGTERM)
+
+        assert guard.arrived is True
+        held = interrupts.block()
+        try:
+            assert interrupts.take_pending() is False
+        finally:
+            interrupts.restore(held)
+
+    def test_a_keyboard_interrupt_from_the_body_is_absorbed_and_counted_as_arrived(
+        self,
+    ):
+        guard = interrupts.RunGuard()
+
+        with guard.held():
+            raise KeyboardInterrupt
+
+        assert guard.arrived is True
+        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+
+    def test_any_other_error_from_the_body_propagates_with_the_signals_free(self):
+        guard = interrupts.RunGuard()
+
+        with pytest.raises(RuntimeError, match="boom"), guard.held():
+            raise RuntimeError("boom")
+
+        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+
+
+class TestInterruptNotices:
+    def test_an_interrupt_before_the_run_says_nothing_was_run_or_spent(self):
+        notice = report.render_unhandled_interrupt(run_started=False)
+
+        assert notice == report.INTERRUPTED_BEFORE_RUN_MESSAGE
+        assert "before any trial started" in notice
+        assert "nothing was run or spent" in notice
+
+    def test_an_interrupt_after_the_run_points_at_the_messages_above(self):
+        notice = report.render_unhandled_interrupt(run_started=True)
+
+        assert notice == report.INTERRUPTED_AFTER_RUN_MESSAGE
+        assert "the messages above say what was saved" in notice
+
+    def test_every_notice_for_an_interrupt_before_the_run_uses_the_same_phrase(self):
+        assert (
+            "interrupted before any trial started" in report.render_no_trials_notice()
+        )
+        assert report.INTERRUPTED_BEFORE_RUN_MESSAGE.startswith(
+            "error: interrupted before any trial started"
+        )
+
+    def test_the_finishing_notice_names_the_written_artifact(self):
+        notice = report.render_interrupted_while_finishing(Path("/runs/x.json"))
+
+        assert notice == (
+            "error: interrupted while finishing the run: the artifact was written "
+            "to /runs/x.json"
+        )
 
 
 class TestInterruptBeforeTheRun:
@@ -5268,7 +5353,7 @@ class TestInterruptBeforeTheRun:
 
         err = capsys.readouterr().err
         assert code == 1
-        assert err.splitlines()[-1] == model_effort_ab.INTERRUPTED_BEFORE_RUN_MESSAGE
+        assert err.splitlines()[-1] == report.INTERRUPTED_BEFORE_RUN_MESSAGE
         assert "nothing was run or spent" in err
         assert "artifact" not in err
         assert_nothing_ran(stub, world)
@@ -5293,7 +5378,7 @@ class TestInterruptBeforeTheRun:
 
         err = capsys.readouterr().err
         assert code == 1
-        assert err.splitlines()[-1] == model_effort_ab.INTERRUPTED_BEFORE_RUN_MESSAGE
+        assert err.splitlines()[-1] == report.INTERRUPTED_BEFORE_RUN_MESSAGE
         assert_nothing_ran(stub, world)
 
 

@@ -52,15 +52,16 @@ def run_session(
     assume_yes: bool,
     pricing_table: dict,
     run_trial: TrialRunner,
-    on_run_start: Callable[[], None] = lambda: None,
+    guard: interrupts.RunGuard,
 ) -> int:
     """Run the plan from estimate to artifact and return the exit code.
 
-    The interrupt signals are held from just before the first trial until the
-    artifact is saved and the summary printed; `on_run_start` is called once
-    they are held. One that arrives while the finished run is being saved, or as
-    the signals are released, turns a clean exit into `EXIT_FAILED` after the
-    save. One that arrives after this returns is the caller's to report.
+    The interrupt signals are held through `guard` from just before the first
+    trial until the artifact is saved and the summary printed; `guard.started` is
+    true from then on. One that arrives while the finished run is being saved, or
+    as the signals are released, turns a clean exit into `EXIT_FAILED` after the
+    save. One that arrives before the signals are held, or after this returns, is
+    the caller's to report.
 
     Raises:
         UsageError: a model is unpriced, or the estimate is above `spend_limit`.
@@ -81,32 +82,20 @@ def run_session(
     def print_progress(progress: TrialProgress) -> None:
         print(report.render_progress(progress), file=console.stderr)
 
-    # Held from just before the first trial until the artifact is saved and the
-    # summary printed, so a signal cannot cost a paid result. See `interrupts`.
-    previous_mask = interrupts.block()
-    on_run_start()
     exit_code = EXIT_FAILED
-    try:
-        try:
-            run = run_trials(
-                plan,
-                settings,
-                run_estimate,
-                run_trial=run_trial,
-                spend_limit=spend_limit,
-                on_trial=print_progress,
-            )
-            exit_code = finish_run(plan, run, run_estimate, console)
-        finally:
-            interrupted_while_finishing = interrupts.restore_reporting(previous_mask)
-    except KeyboardInterrupt:
-        # The signals are free again, so one landing now is raised, not held. The
-        # run is over and saved: count it as arriving while finishing.
-        interrupted_while_finishing = True
-    if interrupted_while_finishing and exit_code == EXIT_OK:
+    with guard.held():
+        run = run_trials(
+            plan,
+            settings,
+            run_estimate,
+            run_trial=run_trial,
+            spend_limit=spend_limit,
+            on_trial=print_progress,
+        )
+        exit_code = finish_run(plan, run, run_estimate, console)
+    if guard.arrived and exit_code == EXIT_OK:
         print(
-            "error: interrupted while finishing the run: the artifact was written "
-            f"to {plan.artifact_path}",
+            report.render_interrupted_while_finishing(plan.artifact_path),
             file=console.stderr,
         )
         return EXIT_FAILED
