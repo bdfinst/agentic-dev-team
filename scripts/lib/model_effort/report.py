@@ -17,7 +17,9 @@ def render_progress(progress: TrialProgress) -> str:
     """One line per completed trial: arm, fixture, trial number, outcome and cost."""
     result = progress.result
     cost_text = (
-        format_usd(result.cost_usd) if result.cost_reported else "cost not reported"
+        format_usd(result.reported_cost_usd)
+        if result.cost_reported
+        else "cost not reported"
     )
     return (
         f"[{progress.arm_label}] fixture {progress.fixture_number}/{progress.fixture_count} "
@@ -82,12 +84,14 @@ def render_summary(arms: Sequence[ArmTotals]) -> list[str]:
             f"{outcome.value} {count}" for outcome, count in arm.outcome_counts.items()
         )
         cost_text = _render_cost(
-            arm.actual_cost_usd, arm.estimated_cost_charged_usd, arm.estimated_cost_usd
+            arm.actual_cost_usd,
+            arm.unreported_trials_estimate_usd,
+            arm.estimated_cost_usd,
         )
         lines.append(f"  {arm.label}: {counts}; {cost_text}")
     total = _render_cost(
         total_cost_usd(arm.actual_cost_usd for arm in arms),
-        total_cost_usd(arm.estimated_cost_charged_usd for arm in arms),
+        total_cost_usd(arm.unreported_trials_estimate_usd for arm in arms),
         total_cost_usd(arm.estimated_cost_usd for arm in arms),
     )
     lines.append(f"  total: {total}")

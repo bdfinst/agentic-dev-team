@@ -1937,14 +1937,14 @@ class TestTrialOutcomes:
     def test_cost_and_model_id_come_from_the_transcript(self):
         result = _resolve(_verdict_stream(PASS_VERDICT))
 
-        assert result.cost_usd == pytest.approx(TRIAL_COST)
+        assert result.reported_cost_usd == pytest.approx(TRIAL_COST)
         assert result.model_id == HAIKU_MODEL_ID
         assert result.model_id_note is None
 
     def test_cost_is_kept_for_a_failed_trial(self):
         result = _resolve(_verdict_stream(PASS_VERDICT, "WebFetch"))
 
-        assert result.cost_usd == pytest.approx(TRIAL_COST)
+        assert result.reported_cost_usd == pytest.approx(TRIAL_COST)
 
     def test_trial_with_a_reported_cost_is_marked_reported(self):
         assert _resolve(_verdict_stream(PASS_VERDICT)).cost_reported is True
@@ -1952,7 +1952,7 @@ class TestTrialOutcomes:
     def test_trial_with_no_result_event_has_zero_cost_marked_unreported(self):
         result = _resolve(_stream(_tool_use_event("Read")), exit_code=1)
 
-        assert (result.cost_usd, result.cost_reported) == (0.0, False)
+        assert (result.reported_cost_usd, result.cost_reported) == (0.0, False)
 
     def test_trial_with_a_non_finite_cost_has_zero_cost_marked_unreported(self):
         stdout = _stream(
@@ -1961,7 +1961,7 @@ class TestTrialOutcomes:
 
         result = _resolve(stdout)
 
-        assert (result.cost_usd, result.cost_reported) == (0.0, False)
+        assert (result.reported_cost_usd, result.cost_reported) == (0.0, False)
 
     def test_session_config_comes_from_the_transcript_init_event(self):
         stdout = _stream(_init_event(), _result_event(json.dumps(PASS_VERDICT)))
@@ -2153,7 +2153,7 @@ def _trial_result(
 ) -> outcome.TrialResult:
     return outcome.TrialResult(
         outcome=outcome_value,
-        cost_usd=cost,
+        reported_cost_usd=cost,
         model_id=model_id,
         model_id_note=note,
         grader_messages=(),
@@ -2265,7 +2265,7 @@ class TestArmTotals:
             "timeout": 0,
             "clean_fixture_failures": 0,
             "actual_cost_usd": pytest.approx(0.02),
-            "estimated_cost_charged_usd": 0.0,
+            "unreported_trials_estimate_usd": 0.0,
         }
 
     def test_trial_without_a_reported_cost_is_flagged_and_charged_the_arms_per_trial_estimate(
@@ -2283,7 +2283,7 @@ class TestArmTotals:
         trials = arm["fixtures"][0]["trials"]
         assert [trial["cost_reported"] for trial in trials] == [True, False, False]
         assert arm["totals"]["actual_cost_usd"] == pytest.approx(TRIAL_COST)
-        assert arm["totals"]["estimated_cost_charged_usd"] == pytest.approx(
+        assert arm["totals"]["unreported_trials_estimate_usd"] == pytest.approx(
             2 * ARM_ESTIMATE
         )
 
@@ -2941,7 +2941,7 @@ class TestTwoArmRun:
                 "pass": 6,
                 "clean_fixture_failures": 0,
                 "actual_cost_usd": pytest.approx(0.06),
-                "estimated_cost_charged_usd": 0.0,
+                "unreported_trials_estimate_usd": 0.0,
             },
         }
 
@@ -2992,7 +2992,7 @@ class TestTwoArmRun:
                 "pass": 4,
                 "clean_fixture_failures": 1,
                 "actual_cost_usd": pytest.approx(0.06),
-                "estimated_cost_charged_usd": 0.0,
+                "unreported_trials_estimate_usd": 0.0,
             },
         }
 
@@ -3590,7 +3590,8 @@ class TestChargedCost:
     def test_trial_with_no_reported_cost_is_charged_its_arms_per_trial_estimate(self):
         result = _trial_result(Outcome.CLI_ERROR, cost=0.0, cost_reported=False)
         run_estimate = estimate.RunEstimate(
-            by_arm=((BASELINE_LABEL, 0.06), (CANDIDATE_LABEL, 0.015)), total_trials_per_arm=3
+            by_arm=((BASELINE_LABEL, 0.06), (CANDIDATE_LABEL, 0.015)),
+            total_trials_per_arm=3,
         )
 
         assert run_estimate.charged_usd(CANDIDATE_LABEL, result) == pytest.approx(0.005)
@@ -3921,12 +3922,12 @@ INFRA_FAILURE, MAX_COST = AbortReason.INFRA_FAILURE, AbortReason.MAX_COST
 
 
 def _check(
-    baseline=(), candidate=(), cost_usd=0.0, max_cost_usd=None, trials_remaining=1
+    baseline=(), candidate=(), charged_usd=0.0, max_cost_usd=None, trials_remaining=1
 ):
     spend_limit = None if max_cost_usd is None else SpendLimit(max_cost_usd)
     return stop_rules.check_stop(
         {BASELINE_LABEL: list(baseline), CANDIDATE_LABEL: list(candidate)},
-        cost_usd,
+        charged_usd,
         spend_limit,
         trials_remaining=trials_remaining,
     )
@@ -3956,13 +3957,15 @@ class TestRunStatus:
 
 class TestStopRules:
     def test_cost_strictly_above_max_cost_stops_for_max_cost(self):
-        assert _check([PASS], [PASS], cost_usd=0.75, max_cost_usd=0.5) == MAX_COST
+        assert _check([PASS], [PASS], charged_usd=0.75, max_cost_usd=0.5) == MAX_COST
 
     def test_cost_equal_to_max_cost_does_not_stop(self):
-        assert _check([PASS], [PASS], cost_usd=0.5, max_cost_usd=0.5) is None
+        assert _check([PASS], [PASS], charged_usd=0.5, max_cost_usd=0.5) is None
 
     def test_any_cost_is_allowed_without_a_max_cost(self):
-        assert _check([PASS], [PASS], cost_usd=1_000_000.0, max_cost_usd=None) is None
+        assert (
+            _check([PASS], [PASS], charged_usd=1_000_000.0, max_cost_usd=None) is None
+        )
 
     def test_no_trials_yet_does_not_stop(self):
         assert _check() is None
@@ -4017,7 +4020,7 @@ class TestStopRules:
 
     def test_a_stop_condition_on_the_last_planned_trial_is_not_a_stop(self):
         assert (
-            _check([CLI_ERROR], cost_usd=2.0, max_cost_usd=1.0, trials_remaining=0)
+            _check([CLI_ERROR], charged_usd=2.0, max_cost_usd=1.0, trials_remaining=0)
             is None
         )
         assert _check([CLI_ERROR], trials_remaining=0) is None
@@ -4026,7 +4029,7 @@ class TestStopRules:
         assert _check([CLI_ERROR], trials_remaining=1) == INFRA_FAILURE
 
     def test_max_cost_wins_when_the_infra_rule_also_applies(self):
-        assert _check([CLI_ERROR], cost_usd=2.0, max_cost_usd=1.0) == MAX_COST
+        assert _check([CLI_ERROR], charged_usd=2.0, max_cost_usd=1.0) == MAX_COST
 
 
 # --- Stopping early and keeping partial results ------------------------------
@@ -4250,7 +4253,7 @@ class TestSpendLimitStop:
         ]
         per_trial_estimate = BASELINE_TWO_ARM_ESTIMATE / ARM_RUN_CALLS
         assert len(unreported_trials) >= 1
-        assert baseline["totals"]["estimated_cost_charged_usd"] == pytest.approx(
+        assert baseline["totals"]["unreported_trials_estimate_usd"] == pytest.approx(
             len(unreported_trials) * per_trial_estimate
         )
 

@@ -91,7 +91,7 @@ def _fixture_dict(fixture: FixtureTrials) -> dict:
 def _trial_dict(result: TrialResult) -> dict:
     return {
         "outcome": result.outcome.value,
-        "cost_usd": result.cost_usd,
+        "cost_usd": result.reported_cost_usd,
         "cost_reported": result.cost_reported,
         "grader_messages": list(result.grader_messages),
         "error": result.error,
@@ -115,8 +115,10 @@ def _build_totals_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
     )
     # Trials with no reported cost count as 0 in the actual total, so that total
     # is a lower bound; the stop rule charged these estimates in their place.
-    totals["actual_cost_usd"] = total_cost_usd(result.cost_usd for result in results)
-    totals["estimated_cost_charged_usd"] = total_cost_usd(
+    totals["actual_cost_usd"] = total_cost_usd(
+        result.reported_cost_usd for result in results
+    )
+    totals["unreported_trials_estimate_usd"] = total_cost_usd(
         run_estimate.charged_usd(arm_run.arm.label, result)
         for result in results
         if not result.cost_reported
@@ -151,7 +153,7 @@ class ArmTotals:
     label: str
     outcome_counts: Mapping[Outcome, int]
     actual_cost_usd: float
-    estimated_cost_charged_usd: float
+    unreported_trials_estimate_usd: float
     estimated_cost_usd: float
 
 
@@ -168,7 +170,9 @@ def read_arm_totals(data: dict) -> list[ArmTotals]:
                 outcome: arm["totals"][outcome.value] for outcome in Outcome
             },
             actual_cost_usd=arm["totals"]["actual_cost_usd"],
-            estimated_cost_charged_usd=arm["totals"]["estimated_cost_charged_usd"],
+            unreported_trials_estimate_usd=arm["totals"][
+                "unreported_trials_estimate_usd"
+            ],
             estimated_cost_usd=arm["estimated_cost_usd"],
         )
         for arm in data["arms"]

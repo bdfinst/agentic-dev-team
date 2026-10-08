@@ -66,11 +66,15 @@ class RunEstimate:
         return self.cost_usd_for_arm(label) / self.total_trials_per_arm
 
     def charged_usd(self, label: str, result: TrialResult) -> float:
-        """What a trial counts for toward the spend limit and the artifact's charged total.
+        """What a trial counts for toward the spend limit and the artifact's unreported-trials estimate.
 
         Its reported cost, or the arm's per-trial estimate when the stream reported none.
         """
-        return result.cost_usd if result.cost_reported else self.per_trial_usd(label)
+        return (
+            result.reported_cost_usd
+            if result.cost_reported
+            else self.per_trial_usd(label)
+        )
 
 
 def fixture_size_bytes(path: Path) -> int:

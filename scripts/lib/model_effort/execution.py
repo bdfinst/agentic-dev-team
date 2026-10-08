@@ -54,21 +54,21 @@ class _Ledger:
         self._outcomes_by_arm: dict[str, list[Outcome]] = {
             arm.label: [] for arm in plan.arms
         }
-        self._costs_usd: list[float] = []
+        self._charged_usd: list[float] = []
 
     def record(self, slot: _TrialSlot, result: TrialResult) -> None:
         key = (slot.arm.label, slot.fixture.stem)
         self._results_by_arm_and_fixture.setdefault(key, []).append(result)
         self._outcomes_by_arm[slot.arm.label].append(result.outcome)
-        self._costs_usd.append(self._run_estimate.charged_usd(slot.arm.label, result))
+        self._charged_usd.append(self._run_estimate.charged_usd(slot.arm.label, result))
 
     @property
     def outcomes_by_arm(self) -> Mapping[str, list[Outcome]]:
         return self._outcomes_by_arm
 
     @property
-    def cumulative_cost_usd(self) -> float:
-        return total_cost_usd(self._costs_usd)
+    def cumulative_charged_usd(self) -> float:
+        return total_cost_usd(self._charged_usd)
 
     def arm_runs(self, trials_per_fixture: int) -> list[ArmRun]:
         return [
@@ -132,7 +132,7 @@ def run_trials(
                 on_trial(progress)
             stop_reason = stop_rules.check_stop(
                 ledger.outcomes_by_arm,
-                ledger.cumulative_cost_usd,
+                ledger.cumulative_charged_usd,
                 spend_limit,
                 trials_remaining=len(slots) - index - 1,
             )

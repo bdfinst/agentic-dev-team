@@ -39,13 +39,13 @@ INFRA_OUTCOMES = frozenset({Outcome.CLI_ERROR, Outcome.TIMEOUT})
 @dataclass(frozen=True)
 class TrialResult:
     outcome: Outcome
-    cost_usd: float
+    reported_cost_usd: float
     model_id: str | None
     model_id_note: str | None
     grader_messages: tuple[str, ...]
     error: str | None
     session_config: dict | None = None
-    # False when the stream reported no usable cost; `cost_usd` is then 0.0, not a measurement.
+    # False when the stream reported no usable cost; `reported_cost_usd` is then 0.0, not a measurement.
     cost_reported: bool = True
 
 
@@ -59,7 +59,7 @@ def resolve_outcome(
     outcome, error, messages = _decide(record, parsed, enabled_tools, grader)
     return TrialResult(
         outcome=outcome,
-        cost_usd=parsed.cost_usd or 0.0,
+        reported_cost_usd=parsed.cost_usd or 0.0,
         model_id=parsed.model_id,
         model_id_note=parsed.model_id_note,
         grader_messages=_truncate_messages(messages),

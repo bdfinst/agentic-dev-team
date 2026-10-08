@@ -26,14 +26,17 @@ class SpendLimit:
         """True when the pre-run estimate is already above the limit."""
         return estimate_usd > self.max_cost_usd
 
-    def exceeded_by(self, actual_usd: float) -> bool:
-        """True when the cost so far is above the limit."""
-        return actual_usd > self.max_cost_usd
+    def exceeded_by(self, charged_usd: float) -> bool:
+        """True when the cost charged so far is above the limit.
+
+        Charged is each trial's reported cost, or its arm's per-trial estimate when it reported none.
+        """
+        return charged_usd > self.max_cost_usd
 
 
 def check_stop(
     outcomes_by_arm: Mapping[str, Sequence[Outcome]],
-    cumulative_cost_usd: float,
+    cumulative_charged_usd: float,
     spend_limit: SpendLimit | None,
     *,
     trials_remaining: int,
@@ -47,7 +50,7 @@ def check_stop(
     """
     if trials_remaining == 0:
         return None
-    if spend_limit is not None and spend_limit.exceeded_by(cumulative_cost_usd):
+    if spend_limit is not None and spend_limit.exceeded_by(cumulative_charged_usd):
         return AbortReason.MAX_COST
     if any(_is_systemic_failure(history) for history in outcomes_by_arm.values()):
         return AbortReason.INFRA_FAILURE

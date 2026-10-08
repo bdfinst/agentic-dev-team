@@ -451,7 +451,7 @@ trial writes no artifact and exits 1. The key fields:
 | `arms[].fixtures[].trials[].cost_reported` | `false` when `claude` reported no cost; `cost_usd` is then 0. |
 | `arms[].estimated_cost_usd` | The pre-run estimate for the arm. |
 | `arms[].totals.actual_cost_usd` | The reported cost. It is a lower bound when any `cost_reported` is `false`. |
-| `arms[].totals.estimated_cost_charged_usd` | The estimate charged for trials with no reported cost. |
+| `arms[].totals.unreported_trials_estimate_usd` | The sum of per-trial estimates charged for trials that reported no cost. The `--max-cost` check counts these in place of the cost. |
 
 ### Tools and write-capable agents
 
