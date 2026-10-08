@@ -6,18 +6,24 @@ touching the process's real streams.
 
 from __future__ import annotations
 
-import dataclasses
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
-from . import approval, artifact, artifact_store, config_echo, estimate, report
+from . import (
+    approval,
+    artifact,
+    artifact_store,
+    config_echo,
+    estimate,
+    interrupts,
+    report,
+)
 from .errors import UsageError
 from .execution import TrialRunner, run_trials
 from .formatting import format_usd
 from .plan import RunPlan
-from .run_status import AbortReason
 from .run_types import RunResult, TrialProgress, TrialSettings
 from .stop_rules import SpendLimit
 
@@ -48,6 +54,10 @@ def run_session(
 ) -> int:
     """Run the plan from estimate to artifact and return the exit code.
 
+    The interrupt signals are held from just before the first trial until the
+    artifact is saved and the summary printed. One that arrives while the finished
+    run is being saved turns a clean exit into `EXIT_FAILED` after the save.
+
     Raises:
         UsageError: a model is unpriced, or the estimate is above `spend_limit`.
     """
@@ -67,15 +77,29 @@ def run_session(
     def print_progress(progress: TrialProgress) -> None:
         print(report.render_progress(progress), file=console.stderr)
 
-    run = run_trials(
-        plan,
-        settings,
-        run_estimate,
-        run_trial=run_trial,
-        spend_limit=spend_limit,
-        on_trial=print_progress,
-    )
-    return finish_run(plan, run, run_estimate, console)
+    # Held from just before the first trial until the artifact is saved and the
+    # summary printed, so a signal cannot cost a paid result. See `interrupts`.
+    held = interrupts.block()
+    try:
+        run = run_trials(
+            plan,
+            settings,
+            run_estimate,
+            run_trial=run_trial,
+            spend_limit=spend_limit,
+            on_trial=print_progress,
+        )
+        exit_code = finish_run(plan, run, run_estimate, console)
+    finally:
+        interrupted_while_finishing = interrupts.restore_reporting(held)
+    if interrupted_while_finishing and exit_code == EXIT_OK:
+        print(
+            "error: interrupted while finishing the run: the artifact was written "
+            f"to {plan.artifact_path}",
+            file=console.stderr,
+        )
+        return EXIT_FAILED
+    return exit_code
 
 
 def estimate_and_echo(
@@ -120,14 +144,19 @@ def finish_run(
 ) -> int:
     """Write the artifact for a run that started a trial, report, and pick the exit code.
 
-    The artifact is saved before anything is printed, so a failing or interrupted
-    terminal cannot cost the paid results.
+    The caller holds the interrupt signals until this returns, so the artifact is
+    built, rendered and saved once, and describes the run as it ended. It is saved
+    before anything is printed, so a failing terminal cannot cost the paid results.
     """
     if run.started_trials == 0:
         print(report.render_no_trials_notice(), file=console.stderr)
         return EXIT_FAILED
-    run, data, text = _assemble_artifact(plan, run, run_estimate)
-    save_exit_code = save_artifact(plan.artifact_path, text, console)
+    data = artifact.build_artifact(
+        plan.metadata, run.arm_runs, run_estimate, run.abort_reason
+    )
+    save_exit_code = save_artifact(
+        plan.artifact_path, artifact_store.render_artifact(data), console
+    )
     if not run.is_complete:
         print(report.render_stop_notice(run), file=console.stderr)
     for line in report.render_summary(artifact.read_arm_totals(data)):
@@ -137,31 +166,8 @@ def finish_run(
     return save_exit_code if run.is_complete else EXIT_FAILED
 
 
-def _assemble_artifact(
-    plan: RunPlan, run: RunResult, run_estimate: estimate.RunEstimate
-) -> tuple[RunResult, dict, str]:
-    """Build and render the artifact; a Ctrl-C while doing so marks the run interrupted and builds again.
-
-    Returns the run the artifact describes, which differs from `run` after an interrupt.
-    """
-    try:
-        return (run, *_build_and_render(plan, run, run_estimate))
-    except KeyboardInterrupt:
-        interrupted = dataclasses.replace(run, abort_reason=AbortReason.INTERRUPT)
-        return (interrupted, *_build_and_render(plan, interrupted, run_estimate))
-
-
-def _build_and_render(
-    plan: RunPlan, run: RunResult, run_estimate: estimate.RunEstimate
-) -> tuple[dict, str]:
-    data = artifact.build_artifact(
-        plan.metadata, run.arm_runs, run_estimate, run.abort_reason
-    )
-    return data, artifact_store.render_artifact(data)
-
-
 def save_artifact(path: Path, text: str, console: Console) -> int:
-    """Write the artifact atomically; if the write fails or is interrupted, print the JSON.
+    """Write the artifact atomically; if the write fails, print the JSON.
 
     The trials are paid for, so their results must survive a failed write.
     """
@@ -175,8 +181,4 @@ def save_artifact(path: Path, text: str, console: Console) -> int:
             file=console.stderr,
         )
         return EXIT_FAILED
-    except BaseException:
-        # A second Ctrl-C or a termination signal mid-write.
-        console.stdout.write(text)
-        raise
     return EXIT_OK

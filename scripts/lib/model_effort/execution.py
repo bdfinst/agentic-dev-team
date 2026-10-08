@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from . import invocation, stop_rules, transcript
+from . import interrupts, invocation, stop_rules, transcript
 from .arm import Arm
 from .cost import total_cost_usd
 from .estimate import RunEstimate
@@ -107,6 +107,10 @@ def run_trials(
     `on_trial` is called after each completed trial, before the stop rules run.
     A stop on the last planned trial skips nothing, so the stop rules ignore it. An
     operator interrupt or an unexpected error keeps the completed trials.
+
+    The caller holds the interrupt signals (see `interrupts`), so a signal never
+    drops a trial that finished. One that arrived while a trial was being resolved,
+    graded or recorded is found before the next trial starts and ends the run.
     """
     executor = _TrialExecutor(plan, settings, run_trial)
     ledger = _Ledger(plan, run_estimate)
@@ -117,6 +121,9 @@ def run_trials(
     harness_error: str | None = None
     try:
         for index, slot in enumerate(slots):
+            if interrupts.take_pending():
+                abort_reason = AbortReason.INTERRUPT
+                break
             started_trials += 1
             result = executor.run(slot)
             ledger.record(slot, result)

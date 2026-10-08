@@ -14,11 +14,12 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import invocation
+from . import interrupts, invocation
 from .process_record import TrialProcessRecord
 
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 600
@@ -27,9 +28,9 @@ COMMAND_NOT_RUNNABLE_EXIT_CODE = 127
 TEMP_DIR_PREFIX = "model-effort-ab-"
 OUTPUT_ENCODING = "utf-8"
 KILL_COLLECT_TIMEOUT_SECONDS = 5
-# Held back while the process starts, so an interrupt cannot land before `Popen`
-# returns the pid the group kill needs.
-INTERRUPT_SIGNALS = frozenset({signal.SIGINT, signal.SIGTERM, signal.SIGHUP})
+# How often the wait on a process looks for an interrupt: the longest an operator
+# waits for Ctrl-C to be noticed.
+INTERRUPT_POLL_SECONDS = 0.1
 # Python 3.12 renamed rmtree's `onerror` to `onexc` and changed what it receives.
 RMTREE_HAS_ONEXC = sys.version_info >= (3, 12)
 
@@ -70,81 +71,96 @@ def run_cli_process(
 ) -> TrialProcessRecord:
     """Run `argv` in `cwd` in its own process group.
 
+    The interrupt signals are held back for the whole call (the run already holds
+    them; a caller that does not gets them held here), so no signal handler runs
+    while a process is started, waited on or killed. The wait comes up for air
+    every `INTERRUPT_POLL_SECONDS` to look for one.
+
     On timeout or interrupt the whole group is killed, so grandchildren the CLI
     spawned do not outlive the trial; a timeout sets `timed_out` and keeps the
-    partial output. A binary that cannot be started yields exit code 127 with
-    the OS error as stderr.
+    partial output, an interrupt consumes the signal and raises `KeyboardInterrupt`.
+    A binary that cannot be started yields exit code 127 with the OS error as stderr.
     """
-    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, INTERRUPT_SIGNALS)
+    held = interrupts.block()
     try:
-        process = subprocess.Popen(
-            argv,
-            cwd=cwd,
-            env=env,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding=OUTPUT_ENCODING,
-            errors="replace",
-            start_new_session=True,
-            # The child inherits the mask held during the start; undo it there.
-            # The harness is single-threaded and the hook only sets a signal mask.
-            preexec_fn=lambda: signal.pthread_sigmask(  # noqa: PLW1509
-                signal.SIG_SETMASK, previous_mask
-            ),
-        )
-    except Exception as error:
-        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
-        if not isinstance(error, OSError):
+        # The child must start with the interrupt signals free, whatever the parent holds.
+        child_mask = held - interrupts.INTERRUPT_SIGNALS
+        try:
+            process = subprocess.Popen(
+                argv,
+                cwd=cwd,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding=OUTPUT_ENCODING,
+                errors="replace",
+                start_new_session=True,
+                # The harness is single-threaded and the hook only sets a signal mask.
+                preexec_fn=lambda: signal.pthread_sigmask(  # noqa: PLW1509
+                    signal.SIG_SETMASK, child_mask
+                ),
+            )
+        except OSError as error:
+            return TrialProcessRecord(
+                exit_code=COMMAND_NOT_RUNNABLE_EXIT_CODE,
+                stdout="",
+                stderr=str(error),
+                timed_out=False,
+                cwd=cwd,
+            )
+        try:
+            return _wait_for_exit(process, cwd, trial_timeout_seconds)
+        except BaseException:
+            # The new session detaches the child from the terminal, so Ctrl-C no
+            # longer reaches it; kill it here before propagating.
+            _kill_group_and_collect(process)
             raise
+    finally:
+        interrupts.restore(held)
+
+
+def _wait_for_exit(
+    process: subprocess.Popen, cwd: Path, trial_timeout_seconds: float
+) -> TrialProcessRecord:
+    """Wait for the process to exit, in slices short enough to notice an interrupt."""
+    deadline = time.monotonic() + trial_timeout_seconds
+    while True:
+        if interrupts.take_pending():
+            raise KeyboardInterrupt
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            stdout, stderr = _kill_group_and_collect(process)
+            return TrialProcessRecord(
+                exit_code=None, stdout=stdout, stderr=stderr, timed_out=True, cwd=cwd
+            )
+        try:
+            stdout, stderr = process.communicate(
+                timeout=min(INTERRUPT_POLL_SECONDS, remaining)
+            )
+        except subprocess.TimeoutExpired:
+            continue
         return TrialProcessRecord(
-            exit_code=COMMAND_NOT_RUNNABLE_EXIT_CODE,
-            stdout="",
-            stderr=str(error),
+            exit_code=process.returncode,
+            stdout=stdout,
+            stderr=stderr,
             timed_out=False,
             cwd=cwd,
         )
-    try:
-        # Unblocking inside the try means a signal held back during the start
-        # raises here, where the handler below kills the new group.
-        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
-        stdout, stderr = process.communicate(timeout=trial_timeout_seconds)
-    except subprocess.TimeoutExpired:
-        _kill_process_group(process)
-        stdout, stderr = _collect_after_kill(process)
-        return TrialProcessRecord(
-            exit_code=None, stdout=stdout, stderr=stderr, timed_out=True, cwd=cwd
-        )
-    except BaseException:
-        # The new session detaches the child from the terminal, so Ctrl-C no
-        # longer reaches it; kill it here before propagating. A second signal is
-        # held back until the group is dead, so it cannot skip the kill.
-        interrupted_mask = signal.pthread_sigmask(signal.SIG_BLOCK, INTERRUPT_SIGNALS)
-        try:
-            _kill_process_group(process)
-            process.wait()
-        finally:
-            signal.pthread_sigmask(signal.SIG_SETMASK, interrupted_mask)
-        raise
-    return TrialProcessRecord(
-        exit_code=process.returncode,
-        stdout=stdout,
-        stderr=stderr,
-        timed_out=False,
-        cwd=cwd,
-    )
 
 
-def _collect_after_kill(process: subprocess.Popen) -> tuple[str, str]:
-    """Return the output captured before the kill.
+def _kill_group_and_collect(process: subprocess.Popen) -> tuple[str, str]:
+    """Kill the whole group, reap the process and return the output captured so far.
 
     A descendant that left the process group can still hold the pipes open;
     give up on the output after a bounded wait rather than hang the run.
     """
+    _kill_process_group(process)
     try:
         return process.communicate(timeout=KILL_COLLECT_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
+        process.wait()
         return "", ""
 
 

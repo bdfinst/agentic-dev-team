@@ -406,7 +406,7 @@ The estimate is a rough heuristic, and the real cost can be higher.
 | Code | Meaning |
 | --- | --- |
 | 0 | The run completed and the artifact was written. |
-| 1 | The run was declined, stopped early, or interrupted again while it finished, or the artifact could not be written. When the write fails or is cut short, the artifact JSON goes to stdout so the paid results survive. A run interrupted before its first trial writes no artifact and exits 1. |
+| 1 | The run was declined, stopped early, or a signal arrived while the finished run was being saved (the artifact is still written), or the artifact could not be written. When the write fails, the artifact JSON goes to stdout so the paid results survive. A run interrupted before its first trial writes no artifact and exits 1. |
 | 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, identical arms, a write-capable agent, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
 
 Messages go to stderr.
@@ -420,10 +420,21 @@ artifact records the reason in `abort_reason`:
 | --- | --- |
 | `max-cost` | The actual cost went above `--max-cost`. |
 | `infra-failure` | An arm's first trial failed in the infrastructure, or three consecutive trials did. |
-| `interrupt` | Ctrl-C or a termination signal. |
+| `interrupt` | Ctrl-C, SIGTERM or SIGHUP. |
 | `harness-error` | An unexpected error in the harness. |
 
 A stopped run cannot resume. A rerun starts over.
+
+Ctrl-C, SIGTERM and SIGHUP are held from the first trial until the artifact is
+saved, so none of them can drop a completed trial or a half-written artifact. A
+signal that arrives while a trial's `claude` process runs kills that process group
+and drops that trial. A signal that arrives while the harness grades, records or
+saves is acted on at the next safe point: the run starts no further trial and
+keeps every completed one. A signal that arrives after the last trial leaves the
+run `complete`; the harness saves it and then exits 1. A SIGHUP that the process
+ignores, as under `nohup`, does not stop the run. While a trial runs, the
+harness notices a signal within 0.1 s. A signal before the first trial starts
+stops the run with nothing run or spent.
 
 ### Artifact
 

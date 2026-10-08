@@ -110,15 +110,15 @@ class RunResult:
     """What a run produced. `abort_reason` is `None` when every planned trial ran.
 
     Arms list only completed trials, and omit a fixture the arm never completed
-    a trial for. An interrupted run drops the trial in flight, but still counts
-    it in `started_trials`.
+    a trial for. An interrupt that lands in a trial's process drops that trial, but
+    still counts it in `started_trials`; one found between trials drops nothing.
     """
 
     arm_runs: list[ArmRun]
     abort_reason: AbortReason | None
     started_trials: int
     # The trial whose completion ended the run; `None` after an interrupt, which
-    # lands between trials or mid-trial rather than on a completed one.
+    # is found between trials or in a trial's process, not on a completed trial.
     stopping_trial: TrialProgress | None
     # The error type and message that ended the run, for `harness-error` only.
     harness_error: str | None = None

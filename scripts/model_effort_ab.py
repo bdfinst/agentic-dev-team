@@ -6,12 +6,18 @@ against a fresh copy of a fixture, grades it against `evals/expected`, and
 writes one JSON artifact per run to the runs directory. Trials alternate
 baseline, candidate, baseline, ... so a broken candidate fails on its first trial.
 
+Ctrl-C, SIGTERM and SIGHUP are held from the first trial until the artifact is saved:
+one that arrives while a trial runs kills that trial and ends the run, keeping the
+completed trials; one that arrives later waits for the save. A SIGHUP the process
+ignores (`nohup`) never stops the run.
+
 Exit codes:
   0  the run completed and the artifact was written
   1  the run was declined, stopped early (spend limit, systemic failure, Ctrl-C or
      a termination signal, or an unexpected error; the artifact keeps the
-     completed trials), was interrupted again while finishing, or the artifact
-     could not be written (its JSON is printed to stdout so paid results survive)
+     completed trials), a signal arrived while the finished run was being saved
+     (the artifact is still written), or the artifact could not be written (its
+     JSON is printed to stdout so paid results survive)
   2  usage error or pre-run refusal
 Messages go to stderr.
 """
@@ -205,9 +211,10 @@ def _split_csv(text: str | None) -> list[str] | None:
     return list(dict.fromkeys(part.strip() for part in text.split(",") if part.strip()))
 
 
-INTERRUPTED_MESSAGE = (
-    "error: interrupted while finishing the run: the results are in the artifact "
-    "file or, if the write was cut short, on stdout"
+# Signals are held once the first trial can start, so an interrupt that reaches
+# `main` came earlier.
+INTERRUPTED_BEFORE_RUN_MESSAGE = (
+    "error: interrupted before the first trial started: nothing was run or spent"
 )
 
 
@@ -218,7 +225,7 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
         try:
             return _run(args, deps)
         except KeyboardInterrupt:
-            print(INTERRUPTED_MESSAGE, file=sys.stderr)
+            print(INTERRUPTED_BEFORE_RUN_MESSAGE, file=sys.stderr)
             return EXIT_FAILED
 
 

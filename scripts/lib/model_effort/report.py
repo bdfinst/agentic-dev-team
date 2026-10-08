@@ -46,9 +46,14 @@ def render_stop_notice(run: RunResult) -> str:
             "Fix that and rerun"
         )
     if reason is AbortReason.INTERRUPT:
+        in_flight = (
+            "the trial in flight was dropped"
+            if run.started_trials > run.completed_trials
+            else "no trial was in flight"
+        )
         return (
-            f"error: run stopped early ({reason.value}): the trial in flight was "
-            f"dropped; {run.completed_trials} completed trials were kept"
+            f"error: run stopped early ({reason.value}): {in_flight}; "
+            f"{run.completed_trials} completed trials were kept"
         )
     if reason is AbortReason.HARNESS_ERROR:
         return (
