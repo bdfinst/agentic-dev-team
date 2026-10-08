@@ -578,6 +578,7 @@ def test_pace_warns_only_for_unpriced_models_inside_the_window(tmp_path: Path) -
         "claude-opus-4-8",
         "claude-sonnet-5",
         "claude-haiku-4-5",
+        "claude-haiku-5-5",
         "claude-fable-5",
         "claude-mythos-5",
     ],
