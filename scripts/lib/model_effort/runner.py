@@ -19,14 +19,11 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import external, paths
-from .arm import Arm
+from . import invocation
 
-DEFAULT_CLAUDE_BIN = "claude"
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 600
 # Shell convention for "command not found or not executable".
 COMMAND_NOT_RUNNABLE_EXIT_CODE = 127
-PLUGIN_ROOT_PLACEHOLDER = "${CLAUDE_PLUGIN_ROOT}"
 TEMP_DIR_PREFIX = "model-effort-ab-"
 OUTPUT_ENCODING = "utf-8"
 KILL_COLLECT_TIMEOUT_SECONDS = 5
@@ -35,17 +32,6 @@ KILL_COLLECT_TIMEOUT_SECONDS = 5
 INTERRUPT_SIGNALS = frozenset({signal.SIGINT, signal.SIGTERM, signal.SIGHUP})
 # Python 3.12 renamed rmtree's `onerror` to `onexc` and changed what it receives.
 RMTREE_HAS_ONEXC = sys.version_info >= (3, 12)
-
-
-@dataclass(frozen=True)
-class TrialConfig:
-    """Everything that selects how the CLI runs, apart from the fixture."""
-
-    arm: Arm
-    system_prompt: str
-    claude_bin: str = DEFAULT_CLAUDE_BIN
-    plugin_root: Path = paths.PLUGIN_ROOT
-    knowledge_dir: Path = paths.KNOWLEDGE_DIR
 
 
 @dataclass(frozen=True)
@@ -60,62 +46,6 @@ class TrialProcessRecord:
     stderr: str
     timed_out: bool
     cwd: Path | None = None
-
-
-def build_user_prompt(staged_name: str) -> str:
-    return (
-        f"Review `{staged_name}` in the current working directory. "
-        "Respond with only the JSON object defined by your output contract, "
-        "with no other text."
-    )
-
-
-def build_argv(config: TrialConfig, user_prompt: str) -> list[str]:
-    """Return the full CLI argv.
-
-    `--restricted` confines the file tools to the cwd and `--add-dir`, and
-    excludes user-scope plugins, hooks and CLAUDE.md. Without it a `Read` of an
-    absolute path outside those directories succeeds.
-    """
-    system_prompt = config.system_prompt.replace(
-        PLUGIN_ROOT_PLACEHOLDER, str(config.plugin_root)
-    )
-    return [
-        config.claude_bin,
-        "-p",
-        user_prompt,
-        "--model",
-        config.arm.model,
-        "--effort",
-        config.arm.effort,
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        "--no-session-persistence",
-        "--disable-slash-commands",
-        "--strict-mcp-config",
-        "--tools",
-        ",".join(config.arm.profile.enabled_tools),
-        "--add-dir",
-        str(config.knowledge_dir),
-        "--restricted",
-        "--system-prompt",
-        system_prompt,
-    ]
-
-
-def build_trial_env(parent_env: Mapping[str, str]) -> dict[str, str]:
-    """Return `parent_env` without the parent Claude session's identity variables.
-
-    The scrub rules come from the headless-run skill's `isolated_dispatch`. HOME
-    is kept so authentication works; `--restricted` already excludes user-scope
-    config, hooks and CLAUDE.md.
-    """
-    return {
-        name: value
-        for name, value in parent_env.items()
-        if not external.should_scrub_env_var(name)
-    }
 
 
 @contextmanager
@@ -241,11 +171,11 @@ def _kill_process_group(process: subprocess.Popen) -> None:
 
 def run_trial(
     fixture: Path,
-    config: TrialConfig,
+    config: invocation.TrialConfig,
     trial_timeout_seconds: float = DEFAULT_TRIAL_TIMEOUT_SECONDS,
 ) -> TrialProcessRecord:
     """Run one trial of `config` against a fresh copy of `fixture`."""
-    argv = build_argv(config, build_user_prompt(fixture.name))
-    env = build_trial_env(os.environ)
+    argv = invocation.build_argv(config, invocation.build_user_prompt(fixture.name))
+    env = invocation.build_trial_env(os.environ)
     with staged_fixture(fixture) as staging_dir:
         return run_cli_process(argv, staging_dir, trial_timeout_seconds, env)

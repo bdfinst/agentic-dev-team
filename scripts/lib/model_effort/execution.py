@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from . import runner, stop_rules, transcript
+from . import invocation, runner, stop_rules, transcript
 from .arm import Arm
 from .artifact import ArmRun, FixtureTrials
 from .cost import total_cost_usd
@@ -26,7 +26,7 @@ from .run_status import AbortReason, RunStatus
 from .stop_rules import SpendLimit
 
 # Runs one trial of a config against a fixture; `runner.run_trial` in production.
-TrialRunner = Callable[[Path, runner.TrialConfig, float], runner.TrialProcessRecord]
+TrialRunner = Callable[[Path, invocation.TrialConfig, float], runner.TrialProcessRecord]
 
 
 @dataclass(frozen=True)
@@ -238,15 +238,15 @@ def _run_slot(
 
 def _trial_config(
     arm: Arm, plan: RunPlan, settings: TrialSettings
-) -> runner.TrialConfig:
-    return runner.TrialConfig(
+) -> invocation.TrialConfig:
+    return invocation.TrialConfig(
         arm=arm, system_prompt=plan.system_prompt, claude_bin=settings.claude_bin
     )
 
 
 def _run_and_grade_trial(
     fixture: ResolvedFixture,
-    config: runner.TrialConfig,
+    config: invocation.TrialConfig,
     trial_timeout_seconds: float,
     grader: Grader,
     run_trial: TrialRunner,

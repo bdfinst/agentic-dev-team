@@ -56,6 +56,7 @@ from model_effort import (
     external,
     grading,
     interrupts,
+    invocation,
     outcome,
     path_scrub,
     paths,
@@ -526,11 +527,11 @@ def _config(
     system_prompt: str = "You are a reviewer.",
     claude_bin: str | None = None,
     **config_fields,
-) -> runner.TrialConfig:
+) -> invocation.TrialConfig:
     profile = tools.ToolProfile(
         enabled_tools=tuple(enabled_tools), withheld_tools=(), refused_tools=()
     )
-    return runner.TrialConfig(
+    return invocation.TrialConfig(
         arm=Arm(label=CANDIDATE_LABEL, model=model, effort=effort, profile=profile),
         system_prompt=system_prompt,
         claude_bin=claude_bin if claude_bin is not None else str(stub.path),
@@ -840,7 +841,7 @@ class TestTrialArgv:
     def test_argv_starts_with_the_injected_binary(self):
         config = _config(claude_bin="/opt/bin/claude-x")
 
-        argv = runner.build_argv(config, "go")
+        argv = invocation.build_argv(config, "go")
 
         assert argv[:3] == ["/opt/bin/claude-x", "-p", "go"]
 
@@ -869,7 +870,7 @@ class TestTrialEnvironment:
             "ANTHROPIC_API_KEY": "key",
         }
 
-        env = runner.build_trial_env(parent)
+        env = invocation.build_trial_env(parent)
 
         assert env == {"HOME": "/home/me", "ANTHROPIC_API_KEY": "key"}
 

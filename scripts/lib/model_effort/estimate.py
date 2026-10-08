@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 
 import pricing
 
-from . import runner
+from . import invocation
 from .arm import Arm
 from .cost import total_cost_usd
 from .errors import UsageError
@@ -122,7 +122,7 @@ def _input_tokens(system_prompt: str, fixture: ResolvedFixture) -> float:
     chars = (
         len(system_prompt)
         + fixture_size_bytes(fixture.path)
-        + len(runner.build_user_prompt(fixture.path.name))
+        + len(invocation.build_user_prompt(fixture.path.name))
     )
     return chars / CHARS_PER_TOKEN * TOOL_TURN_MULTIPLIER
 

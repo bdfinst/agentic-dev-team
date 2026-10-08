@@ -40,7 +40,15 @@ for _path in (
         sys.path.insert(0, str(_path))
 
 import pricing
-from model_effort import artifact, artifact_store, interrupts, paths, runner, session
+from model_effort import (
+    artifact,
+    artifact_store,
+    interrupts,
+    invocation,
+    paths,
+    runner,
+    session,
+)
 from model_effort.errors import UsageError
 from model_effort.execution import TrialCount, TrialRunner, TrialSettings
 from model_effort.plan import RunPlan, plan_run
@@ -158,8 +166,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--claude-bin",
-        default=runner.DEFAULT_CLAUDE_BIN,
-        help=f"claude executable to run (default: {runner.DEFAULT_CLAUDE_BIN})",
+        default=invocation.DEFAULT_CLAUDE_BIN,
+        help=f"claude executable to run (default: {invocation.DEFAULT_CLAUDE_BIN})",
     )
     parser.add_argument(
         "--runs-dir",
