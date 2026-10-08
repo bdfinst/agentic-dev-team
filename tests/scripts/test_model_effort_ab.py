@@ -2388,6 +2388,17 @@ class TestValidateCandidate:
         assert "--model" in message
         assert "haiku" in message and "sonnet" in message
 
+    def test_unreadable_agent_contract_is_refused_naming_the_file(self, monkeypatch):
+        monkeypatch.setattr(
+            external.agent_contract_validator(), "load_contract", lambda: None
+        )
+
+        with pytest.raises(UsageError) as excinfo:
+            plan.validate_candidate("haiku", None)
+
+        assert "cannot read the agent contract" in str(excinfo.value)
+        assert "agent-contract.json" in str(excinfo.value)
+
     @pytest.mark.parametrize("effort", ["hgih", "ultracode", ""])
     def test_effort_outside_the_contract_is_refused_listing_valid_values(self, effort):
         with pytest.raises(UsageError) as excinfo:
@@ -2661,6 +2672,30 @@ def _fixture_block(stem: str, kind: str, clean: bool, trials: list[dict]) -> dic
     return {"stem": stem, "kind": kind, "expected_clean": clean, "trials": trials}
 
 
+def _deps_with_canned_trials(
+    world: World,
+) -> tuple[model_effort_ab.Deps, list[tuple]]:
+    """Deps whose trials run no process: each returns a passing record and is logged.
+
+    For tests of what the run does with trials (how many, with what arguments, what
+    it prints), not of the process itself; the call log holds each trial's positional
+    arguments (fixture path, config, timeout).
+    """
+    calls: list[tuple] = []
+    record = process_record.TrialProcessRecord(
+        exit_code=0,
+        stdout=_verdict_call(PASS_VERDICT, SONNET_MODEL_ID)["stdout"],
+        stderr="",
+        timed_out=False,
+    )
+
+    def canned_trial(*args, **kwargs):
+        calls.append(args)
+        return record
+
+    return dataclasses.replace(world.deps, run_trial=canned_trial), calls
+
+
 class TestReadGitHeadSha:
     @pytest.mark.parametrize(
         "error",
@@ -2884,6 +2919,29 @@ class TestTwoArmRun:
         assert len(stub.calls) == 2
         assert all("layered-svc/src/app.py" in c["files_before"] for c in stub.calls)
 
+    def test_a_fixture_named_twice_runs_once_per_arm(self, world):
+        deps, trial_calls = _deps_with_canned_trials(world)
+
+        code = _cli(
+            world,
+            StubClaude(world.stub_dir),
+            "scout",
+            "--model",
+            "haiku",
+            "--fixtures",
+            "clean-form,clean-form",
+            "--trials",
+            "1",
+            deps=deps,
+        )
+
+        written = _written(world)
+        assert code == 0
+        assert len(trial_calls) == ARM_COUNT
+        for label in (BASELINE_LABEL, CANDIDATE_LABEL):
+            stems = [f["stem"] for f in _arm_block(written, label)["fixtures"]]
+            assert stems == ["clean-form"]
+
     def test_enabled_tools_reach_the_cli_and_withheld_tools_only_the_artifact(
         self, world
     ):
@@ -2985,6 +3043,17 @@ class TestPreRunRefusals:
         assert "clean-form" in stderr and "layered-svc" in stderr
         assert_nothing_ran(stub, world)
 
+    def test_a_fixtures_list_with_no_stems_exits_2_and_runs_nothing(
+        self, world, capsys
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "scout", "--fixtures", ",")
+
+        assert code == 2
+        assert "named no stems" in capsys.readouterr().err
+        assert_nothing_ran(stub, world)
+
     def test_fixture_whose_expected_entry_names_another_agent_exits_2(
         self, world, capsys
     ):
@@ -3068,37 +3137,45 @@ def _add_agent(world: World, name: str) -> None:
 
 class TestTrialDefaults:
     @pytest.mark.parametrize(
-        ("agent", "trials"),
+        ("agent", "trials", "echo_label"),
         [
-            ("naming-review", 5),
-            ("security-review", 10),
-            ("correctness-review", 10),
-            ("security-reviewer", 5),
+            ("naming-review", 5, "default"),
+            ("security-review", 10, "high-stakes default"),
         ],
     )
     def test_each_arm_runs_the_default_trials_for_the_agent(
-        self, world, capsys, agent, trials
+        self, world, capsys, agent, trials, echo_label
     ):
         _add_agent(world, agent)
-        stub = _passing_stub(world)
+        deps, trial_calls = _deps_with_canned_trials(world)
 
-        code = _cli(world, stub, agent, "--model", "haiku")
+        code = _cli(
+            world, StubClaude(world.stub_dir), agent, "--model", "haiku", deps=deps
+        )
 
         assert code == 0
-        assert len(stub.calls) == ARM_COUNT * trials
-        assert (
-            f"Trials per arm per fixture: {trials} "
-            f"({'high-stakes default' if trials == 10 else 'default'})"
-        ) in _stderr_lines(capsys)
+        assert len(trial_calls) == ARM_COUNT * trials
+        assert f"Trials per arm per fixture: {trials} ({echo_label})" in _stderr_lines(
+            capsys
+        )
 
     def test_explicit_trials_override_the_high_stakes_default(self, world, capsys):
         _add_agent(world, "security-review")
-        stub = _passing_stub(world)
+        deps, trial_calls = _deps_with_canned_trials(world)
 
-        code = _cli(world, stub, "security-review", "--model", "haiku", "--trials", "3")
+        code = _cli(
+            world,
+            StubClaude(world.stub_dir),
+            "security-review",
+            "--model",
+            "haiku",
+            "--trials",
+            "3",
+            deps=deps,
+        )
 
         assert code == 0
-        assert len(stub.calls) == ARM_COUNT * 3
+        assert len(trial_calls) == ARM_COUNT * 3
         assert "Trials per arm per fixture: 3 (--trials)" in _stderr_lines(capsys)
 
     @pytest.mark.parametrize(
@@ -3424,6 +3501,24 @@ class TestConfigurationEcho:
             f"candidate {format_usd(CANDIDATE_TWO_ARM_ESTIMATE)}, "
             f"total {format_usd(TWO_ARM_ESTIMATE)}"
         ) in _stderr_lines(capsys)
+
+    def test_trial_timeout_flag_reaches_every_trial_and_the_echo(self, world, capsys):
+        deps, trial_calls = _deps_with_canned_trials(world)
+
+        code = _cli(
+            world,
+            StubClaude(world.stub_dir),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "1",
+            "--trial-timeout",
+            "7",
+            deps=deps,
+        )
+
+        assert code == 0
+        assert [timeout for _fixture, _config, timeout in trial_calls] == [7, 7]
+        assert "Trial timeout: 7 s" in _stderr_lines(capsys)
 
     def test_trials_line_says_default_when_the_flag_is_absent(self, world, capsys):
         stub = _passing_stub(world)
