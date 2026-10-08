@@ -192,7 +192,7 @@ def _split_csv(text: str | None) -> list[str] | None:
 
 
 def _save_artifact(path: Path, data: dict) -> int:
-    """Write the artifact atomically; on any write error print the JSON so paid results survive."""
+    """Write the artifact atomically; if the write fails or is interrupted, print the JSON so paid results survive."""
     text = artifact_store.render_artifact(data)
     try:
         artifact_store.write_artifact(path, text)
@@ -204,6 +204,10 @@ def _save_artifact(path: Path, data: dict) -> int:
             file=sys.stderr,
         )
         return EXIT_FAILED
+    except BaseException:
+        # A second Ctrl-C or a termination signal mid-write: the results are paid for.
+        sys.stdout.write(text)
+        raise
     print(f"artifact written: {path}", file=sys.stderr)
     return EXIT_OK
 
@@ -269,7 +273,7 @@ def _print_progress(progress: TrialProgress) -> None:
 
 def _finish_run(plan: RunPlan, run: RunResult) -> int:
     """Write the artifact for the trials that completed, report, and pick the exit code."""
-    if run.completed_trials == 0:
+    if run.started_trials == 0:
         print(report.render_no_trials_notice(), file=sys.stderr)
         return EXIT_FAILED
     metadata = dataclasses.replace(plan.metadata, abort_reason=run.abort_reason)

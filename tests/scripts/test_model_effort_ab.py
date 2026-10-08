@@ -1583,6 +1583,7 @@ class TestArtifactStatus:
             "max-cost",
             "infra-failure",
             "interrupt",
+            "harness-error",
         ]
 
 
@@ -1822,12 +1823,16 @@ def _failing_replace(*_args, **_kwargs):
     raise OSError("disk full")
 
 
-def _store_with_failing_replace(monkeypatch) -> None:
+def _interrupted_replace(*_args, **_kwargs):
+    raise KeyboardInterrupt
+
+
+def _store_with_failing_replace(monkeypatch, replace=_failing_replace) -> None:
     """Make the final move fail while leaving every other os call working."""
     monkeypatch.setattr(
         artifact_store,
         "os",
-        SimpleNamespace(replace=_failing_replace, fsync=os.fsync),
+        SimpleNamespace(replace=replace, fsync=os.fsync),
     )
 
 
@@ -2418,6 +2423,19 @@ class TestArtifactReservationAndWrite:
         assert "stdout" in captured.err
         assert world.artifacts == []
 
+    def test_second_ctrl_c_during_the_write_prints_the_artifact_to_stdout_then_propagates(
+        self, world, capsys, monkeypatch
+    ):
+        stub = _passing_stub(world)
+        _store_with_failing_replace(monkeypatch, _interrupted_replace)
+
+        with pytest.raises(KeyboardInterrupt):
+            _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "1")
+
+        printed = json.loads(capsys.readouterr().out)
+        assert printed["run_id"] == RUN_ID and printed["status"] == "complete"
+        assert world.artifacts == []
+
     def test_failed_final_write_keeps_a_placeholder_that_gained_content(
         self, world, monkeypatch
     ):
@@ -2992,17 +3010,24 @@ CLI_FAILURE = {"exit_code": 1, "stdout": "", "stderr": "boom: auth failed"}
 CLEAN_FORM_ARGS = ("scout", "--model", "haiku", "--fixtures", "clean-form")
 
 
-def _interrupting_deps(world: World, completed_trials: int) -> model_effort_ab.Deps:
-    """Let the first `completed_trials` trials run for real, then press Ctrl-C inside the next."""
+def _deps_raising_after(
+    world: World, completed_trials: int, error: BaseException
+) -> model_effort_ab.Deps:
+    """Let the first `completed_trials` trials run for real, then raise `error` inside the next."""
     started = []
 
-    def run_then_interrupt(*args, **kwargs):
+    def run_then_raise(*args, **kwargs):
         if len(started) == completed_trials:
-            raise KeyboardInterrupt
+            raise error
         started.append(args)
         return runner.run_trial(*args, **kwargs)
 
-    return dataclasses.replace(world.deps, run_trial=run_then_interrupt)
+    return dataclasses.replace(world.deps, run_trial=run_then_raise)
+
+
+def _interrupting_deps(world: World, completed_trials: int) -> model_effort_ab.Deps:
+    """Press Ctrl-C inside the trial after `completed_trials` real ones."""
+    return _deps_raising_after(world, completed_trials, KeyboardInterrupt())
 
 
 def _outcomes(written: dict, label: str) -> list[str]:
@@ -3072,6 +3097,27 @@ class TestSpendLimitStop:
         assert code == 0
         assert len(stub.calls) == 2
         assert _written(world)["status"] == "complete"
+
+    def test_cost_passing_max_cost_on_the_last_planned_trial_leaves_the_run_complete(
+        self, world, capsys
+    ):
+        stub = _passing_stub(world)
+
+        code = _cli(
+            world,
+            stub,
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "1",
+            "--max-cost",
+            str(1.5 * TRIAL_COST),
+        )
+
+        written = _written(world)
+        assert code == 0
+        assert len(stub.calls) == 2
+        assert (written["status"], written["abort_reason"]) == ("complete", None)
+        assert "run stopped early" not in capsys.readouterr().err
 
 
 class TestSystemicFailureStop:
@@ -3228,7 +3274,7 @@ class TestInterrupt:
         assert _arm_block(written, CANDIDATE_LABEL)["totals"]["pass"] == 0
         assert _outcomes(written, BASELINE_LABEL) == ["pass"]
 
-    def test_ctrl_c_before_any_trial_completes_writes_no_artifact_and_exits_1(
+    def test_ctrl_c_inside_the_first_trial_writes_an_interrupted_artifact_with_no_results(
         self, world, capsys
     ):
         stub = _passing_stub(world)
@@ -3242,14 +3288,77 @@ class TestInterrupt:
             deps=_interrupting_deps(world, 0),
         )
 
+        written = _written(world)
         err = capsys.readouterr().err
         assert code == 1
-        assert stub.calls == [] and world.artifacts == []
+        assert (written["status"], written["abort_reason"]) == (
+            "incomplete",
+            "interrupt",
+        )
+        assert [arm["fixtures"] for arm in written["arms"]] == [[], []]
         assert "Traceback" not in err
-        assert (
-            "error: interrupted before any trial completed, so no artifact was "
-            "written: rerun to start over"
-        ) in err
+        assert "0 completed trials were kept" in err
+        assert f"artifact written: {world.artifact_path}" in err
+
+
+class TestUnexpectedTrialError:
+    def test_error_in_a_trial_keeps_the_completed_trials_and_marks_the_artifact_harness_error(
+        self, world, capsys
+    ):
+        code = _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=_deps_raising_after(world, 3, RuntimeError("staging exploded")),
+        )
+
+        written = _written(world)
+        err = capsys.readouterr().err
+        assert code == 1
+        assert (written["status"], written["abort_reason"]) == (
+            "incomplete",
+            "harness-error",
+        )
+        assert _outcomes(written, BASELINE_LABEL) == ["pass", "pass"]
+        assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
+        assert "run stopped early (harness-error)" in err
+        assert "RuntimeError: staging exploded" in err
+        assert f"artifact written: {world.artifact_path}" in err
+
+    def test_error_text_in_the_stop_notice_is_cut_to_500_characters(
+        self, world, capsys
+    ):
+        _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=_deps_raising_after(world, 1, RuntimeError("m" * 2000)),
+        )
+
+        err = capsys.readouterr().err
+        assert "RuntimeError: " + "m" * 486 in err
+        assert "m" * 487 not in err
+
+    def test_error_in_the_first_trial_still_writes_an_artifact_with_no_results(
+        self, world
+    ):
+        code = _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=_deps_raising_after(world, 0, RuntimeError("no staging dir")),
+        )
+
+        written = _written(world)
+        assert code == 1
+        assert written["abort_reason"] == "harness-error"
+        assert [arm["fixtures"] for arm in written["arms"]] == [[], []]
 
 
 class TestProgressAndSummary:

@@ -19,7 +19,7 @@ from .arm import Arm
 from .artifact import AbortReason, ArmRun, FixtureTrials
 from .fixtures import ResolvedFixture
 from .grading import grade_trial
-from .outcome import Grader, Outcome, TrialResult, resolve_outcome
+from .outcome import MAX_MESSAGE_CHARS, Grader, Outcome, TrialResult, resolve_outcome
 from .plan import RunPlan
 
 # Runs one trial of a config against a fixture; `runner.run_trial` in production.
@@ -54,14 +54,18 @@ class RunResult:
     """What a run produced. `abort_reason` is `None` when every planned trial ran.
 
     Arms list only completed trials, and omit a fixture the arm never completed
-    a trial for. An interrupted run drops the trial in flight.
+    a trial for. An interrupted run drops the trial in flight, but still counts
+    it in `started_trials`.
     """
 
     arm_runs: list[ArmRun]
     abort_reason: AbortReason | None
+    started_trials: int
     # The trial whose completion ended the run; `None` after an interrupt, which
     # lands between trials or mid-trial rather than on a completed one.
     stopping_trial: TrialProgress | None
+    # The error type and message that ended the run, for `harness-error` only.
+    harness_error: str | None = None
 
     @property
     def completed_trials(self) -> int:
@@ -143,27 +147,38 @@ def run_trials(
     `on_trial` is called after each completed trial, before the stop rules run.
     """
     ledger = _Ledger(plan)
+    slots = list(_trial_slots(plan, settings))
+    started_trials = 0
     abort_reason: AbortReason | None = None
     stopping_trial: TrialProgress | None = None
+    harness_error: str | None = None
     try:
-        for slot in _trial_slots(plan, settings):
+        for index, slot in enumerate(slots):
+            started_trials += 1
             result = _run_trial(slot, plan, settings, run_trial)
             ledger.record(slot, result)
             progress = _progress(slot, plan, settings, result)
             if on_trial is not None:
                 on_trial(progress)
-            abort_reason = stop_rules.check_stop(
+            stop_reason = stop_rules.check_stop(
                 ledger.outcomes_by_arm, ledger.cumulative_cost, max_cost
             )
-            if abort_reason is not None:
+            # A stop on the last planned trial skips nothing, so the run is complete.
+            if stop_reason is not None and index < len(slots) - 1:
+                abort_reason = stop_reason
                 stopping_trial = progress
                 break
     except KeyboardInterrupt:
         abort_reason = AbortReason.INTERRUPT
+    except Exception as error:  # noqa: BLE001 - keep the paid trials whatever failed
+        abort_reason = AbortReason.HARNESS_ERROR
+        harness_error = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
     return RunResult(
         arm_runs=ledger.arm_runs(settings.trials, estimated_costs or {}),
         abort_reason=abort_reason,
+        started_trials=started_trials,
         stopping_trial=stopping_trial,
+        harness_error=harness_error,
     )
 
 

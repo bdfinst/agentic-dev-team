@@ -35,6 +35,7 @@ class AbortReason(StrEnum):
     MAX_COST = "max-cost"
     INFRA_FAILURE = "infra-failure"
     INTERRUPT = "interrupt"
+    HARNESS_ERROR = "harness-error"
 
 
 @dataclass(frozen=True)

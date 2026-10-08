@@ -45,12 +45,17 @@ def render_stop_notice(run: RunResult) -> str:
             f"error: run stopped early ({reason.value}): the trial in flight was "
             f"dropped; {run.completed_trials} completed trials were kept"
         )
+    if reason is AbortReason.HARNESS_ERROR:
+        return (
+            f"error: run stopped early ({reason.value}): {run.harness_error}. "
+            f"{run.completed_trials} completed trials were kept; fix that and rerun"
+        )
     raise ValueError(f"run was not aborted for a reportable reason: {reason!r}")
 
 
 def render_no_trials_notice() -> str:
     return (
-        "error: interrupted before any trial completed, so no artifact was written: "
+        "error: interrupted before any trial started, so no artifact was written: "
         "rerun to start over"
     )
 
