@@ -35,13 +35,18 @@ def check_stop(
     outcomes_by_arm: Mapping[str, Sequence[Outcome]],
     cumulative_cost_usd: float,
     spend_limit: SpendLimit | None,
+    *,
+    trials_remaining: int,
 ) -> AbortReason | None:
     """Return why the run must stop now, or `None` to start the next trial.
 
     `outcomes_by_arm` maps each arm label to that arm's outcomes in run order,
     across fixtures. Spend wins when both rules apply, because it is the one an
-    operator set on purpose.
+    operator set on purpose. With no trial left, a stop skips nothing, so the run
+    stays complete and this returns `None`.
     """
+    if trials_remaining == 0:
+        return None
     if spend_limit is not None and spend_limit.exceeded_by(cumulative_cost_usd):
         return AbortReason.MAX_COST
     if any(_is_systemic_failure(history) for history in outcomes_by_arm.values()):

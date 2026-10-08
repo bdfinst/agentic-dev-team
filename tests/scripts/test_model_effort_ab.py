@@ -3502,12 +3502,15 @@ CLI_ERROR, TIMEOUT = Outcome.CLI_ERROR, Outcome.TIMEOUT
 INFRA_FAILURE, MAX_COST = AbortReason.INFRA_FAILURE, AbortReason.MAX_COST
 
 
-def _check(baseline=(), candidate=(), cost_usd=0.0, max_cost_usd=None):
+def _check(
+    baseline=(), candidate=(), cost_usd=0.0, max_cost_usd=None, trials_remaining=1
+):
     spend_limit = None if max_cost_usd is None else SpendLimit(max_cost_usd)
     return stop_rules.check_stop(
         {BASELINE_LABEL: list(baseline), CANDIDATE_LABEL: list(candidate)},
         cost_usd,
         spend_limit,
+        trials_remaining=trials_remaining,
     )
 
 
@@ -3593,6 +3596,16 @@ class TestStopRules:
 
     def test_infra_failures_spread_over_two_arms_never_add_up(self):
         assert _check([PASS, CLI_ERROR, CLI_ERROR], [PASS, TIMEOUT, TIMEOUT]) is None
+
+    def test_a_stop_condition_on_the_last_planned_trial_is_not_a_stop(self):
+        assert (
+            _check([CLI_ERROR], cost_usd=2.0, max_cost_usd=1.0, trials_remaining=0)
+            is None
+        )
+        assert _check([CLI_ERROR], trials_remaining=0) is None
+
+    def test_a_stop_condition_with_a_trial_still_to_run_stops(self):
+        assert _check([CLI_ERROR], trials_remaining=1) == INFRA_FAILURE
 
     def test_max_cost_wins_when_the_infra_rule_also_applies(self):
         assert _check([CLI_ERROR], cost_usd=2.0, max_cost_usd=1.0) == MAX_COST

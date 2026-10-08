@@ -19,7 +19,7 @@ from .cost import total_cost_usd
 from .estimate import RunEstimate
 from .fixtures import ResolvedFixture
 from .grading import grade_trial
-from .outcome import MAX_MESSAGE_CHARS, Grader, Outcome, TrialResult, resolve_outcome
+from .outcome import MAX_MESSAGE_CHARS, Outcome, TrialResult, resolve_outcome
 from .plan import RunPlan
 from .run_status import AbortReason
 from .run_types import (
@@ -104,11 +104,12 @@ def run_trials(
 
     `run_estimate` prices a trial that reports no cost, so the spend limit still sees it.
     `on_trial` is called after each completed trial, before the stop rules run.
-    A stop that fires on the last planned trial skips nothing, so it does not end the
-    run early. An operator interrupt or an unexpected error keeps the completed trials.
+    A stop on the last planned trial skips nothing, so the stop rules ignore it. An
+    operator interrupt or an unexpected error keeps the completed trials.
     """
+    executor = _TrialExecutor(plan, settings, run_trial)
     ledger = _Ledger(plan, run_estimate)
-    slots = list(_trial_slots(plan, settings))
+    slots = list(executor.slots())
     started_trials = 0
     abort_reason: AbortReason | None = None
     stopping_trial: TrialProgress | None = None
@@ -116,15 +117,18 @@ def run_trials(
     try:
         for index, slot in enumerate(slots):
             started_trials += 1
-            result = _run_slot(slot, plan, settings, run_trial)
+            result = executor.run(slot)
             ledger.record(slot, result)
-            progress = _progress(slot, plan, settings, result)
+            progress = executor.progress(slot, result)
             if on_trial is not None:
                 on_trial(progress)
             stop_reason = stop_rules.check_stop(
-                ledger.outcomes_by_arm, ledger.cumulative_cost_usd, spend_limit
+                ledger.outcomes_by_arm,
+                ledger.cumulative_cost_usd,
+                spend_limit,
+                trials_remaining=len(slots) - index - 1,
             )
-            if stop_reason is not None and index < len(slots) - 1:
+            if stop_reason is not None:
                 abort_reason = stop_reason
                 stopping_trial = progress
                 break
@@ -142,55 +146,51 @@ def run_trials(
     )
 
 
-def _trial_slots(plan: RunPlan, settings: TrialSettings) -> Iterator[_TrialSlot]:
-    """Every planned trial in run order: arms alternate, round by round, fixture by fixture."""
-    for fixture_number, fixture in enumerate(plan.fixtures, start=1):
-        for trial_number in range(1, settings.trials_per_fixture.count + 1):
-            for arm in plan.arms:
-                yield _TrialSlot(arm, fixture, fixture_number, trial_number)
+@dataclass(frozen=True)
+class _TrialExecutor:
+    """Runs one planned trial at a time; carries the plan, settings and runner once."""
 
+    plan: RunPlan
+    settings: TrialSettings
+    run_trial: TrialRunner
 
-def _progress(
-    slot: _TrialSlot, plan: RunPlan, settings: TrialSettings, result: TrialResult
-) -> TrialProgress:
-    return TrialProgress(
-        arm_label=slot.arm.label,
-        fixture_number=slot.fixture_number,
-        fixture_count=len(plan.fixtures),
-        fixture_stem=slot.fixture.stem,
-        trial_number=slot.trial_number,
-        trial_count=settings.trials_per_fixture.count,
-        result=result,
-    )
+    def slots(self) -> Iterator[_TrialSlot]:
+        """Every planned trial in run order: arms alternate, round by round, fixture by fixture."""
+        for fixture_number, fixture in enumerate(self.plan.fixtures, start=1):
+            for trial_number in range(1, self.settings.trials_per_fixture.count + 1):
+                for arm in self.plan.arms:
+                    yield _TrialSlot(arm, fixture, fixture_number, trial_number)
 
+    def run(self, slot: _TrialSlot) -> TrialResult:
+        """Run the slot's trial against its fixture, parse the stream and resolve the outcome."""
+        config = invocation.TrialConfig(
+            arm=slot.arm,
+            system_prompt=self.plan.system_prompt,
+            claude_bin=self.settings.claude_bin,
+        )
+        record = self.run_trial(
+            slot.fixture.path, config, self.settings.trial_timeout_seconds
+        )
+        grader = partial(
+            grade_trial,
+            self.plan.agent,
+            slot.fixture.stem,
+            expected_dir=self.settings.expected_dir,
+        )
+        return resolve_outcome(
+            record,
+            transcript.parse_stream(record.stdout),
+            slot.arm.profile.enabled_tools,
+            grader,
+        )
 
-def _run_slot(
-    slot: _TrialSlot, plan: RunPlan, settings: TrialSettings, run_trial: TrialRunner
-) -> TrialResult:
-    grader = partial(
-        grade_trial, plan.agent, slot.fixture.stem, expected_dir=settings.expected_dir
-    )
-    config = _trial_config(slot.arm, plan, settings)
-    return _run_and_grade_trial(
-        slot.fixture, config, settings.trial_timeout_seconds, grader, run_trial
-    )
-
-
-def _trial_config(
-    arm: Arm, plan: RunPlan, settings: TrialSettings
-) -> invocation.TrialConfig:
-    return invocation.TrialConfig(
-        arm=arm, system_prompt=plan.system_prompt, claude_bin=settings.claude_bin
-    )
-
-
-def _run_and_grade_trial(
-    fixture: ResolvedFixture,
-    config: invocation.TrialConfig,
-    trial_timeout_seconds: float,
-    grader: Grader,
-    run_trial: TrialRunner,
-) -> TrialResult:
-    record = run_trial(fixture.path, config, trial_timeout_seconds)
-    parsed = transcript.parse_stream(record.stdout)
-    return resolve_outcome(record, parsed, config.arm.profile.enabled_tools, grader)
+    def progress(self, slot: _TrialSlot, result: TrialResult) -> TrialProgress:
+        return TrialProgress(
+            arm_label=slot.arm.label,
+            fixture_number=slot.fixture_number,
+            fixture_count=len(self.plan.fixtures),
+            fixture_stem=slot.fixture.stem,
+            trial_number=slot.trial_number,
+            trial_count=self.settings.trials_per_fixture.count,
+            result=result,
+        )
