@@ -725,6 +725,24 @@ class TestSignalsAroundSpawn:
         assert set(INTERRUPT_SIGNALS) <= blocked_during_spawn[0]
         assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
 
+    def test_the_cli_process_gets_no_stdin_and_its_own_session(
+        self, stub_dir, fixture_root, monkeypatch
+    ):
+        spawn_options = []
+        real_popen = subprocess.Popen
+
+        def record_options_then_spawn(*args, **kwargs):
+            spawn_options.append(kwargs)
+            return real_popen(*args, **kwargs)
+
+        monkeypatch.setattr(subprocess, "Popen", record_options_then_spawn)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        runner.run_trial(fixture, _config(StubClaude(stub_dir)))
+
+        assert spawn_options[0]["stdin"] == subprocess.DEVNULL
+        assert spawn_options[0]["start_new_session"] is True
+
     def test_signals_are_free_again_when_the_binary_cannot_start(self, fixture_root):
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
@@ -2815,6 +2833,10 @@ class TestReadGitHeadSha:
 
         assert model_effort_ab._read_git_head_sha() is None
 
+    @pytest.mark.skipif(
+        shutil.which("git") is None or not (paths.REPO_ROOT / ".git").exists(),
+        reason="needs git and a checkout with a .git entry",
+    )
     def test_the_real_repository_yields_a_full_commit_hash(self):
         sha = model_effort_ab._read_git_head_sha()
 
