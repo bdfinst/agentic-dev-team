@@ -4449,7 +4449,7 @@ class TestInterruptsAreHeldForTheRun:
     def test_signal_pending_before_the_first_trial_starts_no_trial(self, world):
         scout_plan = _scout_plan(world)
         settings = run_types.TrialSettings(
-            trial_count=run_types.TrialCount(1, "test"),
+            trials=run_types.TrialCount(1, "test"),
             trial_timeout_seconds=TIMEOUT_SECONDS,
             claude_bin="unused",
             expected_dir=world.expected_dir,

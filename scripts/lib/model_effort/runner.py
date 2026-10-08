@@ -81,10 +81,10 @@ def run_cli_process(
     partial output, an interrupt consumes the signal and raises `KeyboardInterrupt`.
     A binary that cannot be started yields exit code 127 with the OS error as stderr.
     """
-    held = interrupts.block()
+    previous_mask = interrupts.block()
     try:
         # The child must start with the interrupt signals free, whatever the parent holds.
-        child_mask = held - interrupts.INTERRUPT_SIGNALS
+        child_mask = previous_mask - interrupts.INTERRUPT_SIGNALS
         try:
             process = subprocess.Popen(
                 argv,
@@ -118,7 +118,7 @@ def run_cli_process(
             _kill_group_and_collect(process)
             raise
     finally:
-        interrupts.restore(held)
+        interrupts.restore(previous_mask)
 
 
 def _wait_for_exit(

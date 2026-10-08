@@ -18,7 +18,7 @@ def render_progress(progress: TrialProgress) -> str:
     result = progress.result
     return (
         f"[{progress.arm_label}] fixture {progress.fixture_number}/{progress.fixture_count} "
-        f"{progress.fixture_stem} trial {progress.trial_number}/{progress.trial_count}: "
+        f"{progress.fixture_stem} trial {progress.trial_number}/{progress.trials_per_fixture}: "
         f"{result.outcome.value} {format_usd(result.cost_usd)}"
     )
 

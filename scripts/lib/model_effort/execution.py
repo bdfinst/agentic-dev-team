@@ -146,7 +146,7 @@ def run_trials(
         abort_reason = AbortReason.HARNESS_ERROR
         harness_error = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
     return RunResult(
-        arm_runs=ledger.arm_runs(settings.trial_count.count),
+        arm_runs=ledger.arm_runs(settings.trials.count),
         abort_reason=abort_reason,
         started_trials=started_trials,
         stopping_trial=stopping_trial,
@@ -165,7 +165,7 @@ class _TrialExecutor:
     def slots(self) -> Iterator[_TrialSlot]:
         """Every planned trial in run order: arms alternate, round by round, fixture by fixture."""
         for fixture_number, fixture in enumerate(self.plan.fixtures, start=1):
-            for trial_number in range(1, self.settings.trial_count.count + 1):
+            for trial_number in range(1, self.settings.trials.count + 1):
                 for arm in self.plan.arms:
                     yield _TrialSlot(arm, fixture, fixture_number, trial_number)
 
@@ -199,6 +199,6 @@ class _TrialExecutor:
             fixture_count=len(self.plan.fixtures),
             fixture_stem=slot.fixture.stem,
             trial_number=slot.trial_number,
-            trial_count=self.settings.trial_count.count,
+            trials_per_fixture=self.settings.trials.count,
             result=result,
         )

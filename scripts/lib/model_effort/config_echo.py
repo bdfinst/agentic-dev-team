@@ -26,7 +26,7 @@ def render_config(
         f"Tools: {', '.join(profile.enabled_tools) or NO_TOOLS_TEXT}",
         f"Withheld tools: {', '.join(profile.withheld_tools) or NONE_TEXT}",
         f"Fixtures: {', '.join(fixture.stem for fixture in plan.fixtures)}",
-        f"Trials per arm per fixture: {settings.trial_count.count} ({settings.trial_count.reason})",
+        f"Trials per arm per fixture: {settings.trials.count} ({settings.trials.reason})",
         f"Trial timeout: {settings.trial_timeout_seconds:g} s",
         _render_estimate(run_estimate),
     ]

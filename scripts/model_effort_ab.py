@@ -8,7 +8,8 @@ baseline, candidate, baseline, ... so a broken candidate fails on its first tria
 
 Ctrl-C, SIGTERM and SIGHUP are held from the first trial until the artifact is saved:
 one that arrives while a trial runs kills that trial and ends the run, keeping the
-completed trials; one that arrives later waits for the save. A SIGHUP the process
+completed trials; one that arrives later starts no further trial and keeps every
+completed one; the artifact is saved before the run exits. A SIGHUP the process
 ignores (`nohup`) never stops the run.
 
 Exit codes:
@@ -237,7 +238,7 @@ def _run(args: argparse.Namespace, deps: Deps) -> int:
     except UsageError as error:
         return _report_usage_error(error)
     settings = TrialSettings(
-        trial_count=resolve_trials(args.trials, args.agent),
+        trials=resolve_trials(args.trials, args.agent),
         trial_timeout_seconds=args.trial_timeout_seconds,
         claude_bin=args.claude_bin,
         expected_dir=deps.expected_dir,

@@ -80,7 +80,7 @@ def run_session(
 
     # Held from just before the first trial until the artifact is saved and the
     # summary printed, so a signal cannot cost a paid result. See `interrupts`.
-    held = interrupts.block()
+    previous_mask = interrupts.block()
     exit_code = EXIT_FAILED
     try:
         try:
@@ -94,7 +94,7 @@ def run_session(
             )
             exit_code = finish_run(plan, run, run_estimate, console)
         finally:
-            interrupted_while_finishing = interrupts.restore_reporting(held)
+            interrupted_while_finishing = interrupts.restore_reporting(previous_mask)
     except KeyboardInterrupt:
         # The signals are free again, so one landing now is raised, not held. The
         # run is over and saved: count it as arriving while finishing.
@@ -127,7 +127,7 @@ def estimate_and_echo(
         plan.arms,
         plan.system_prompt,
         plan.fixtures,
-        settings.trial_count.count,
+        settings.trials.count,
         pricing_table,
     )
     for line in config_echo.render_config(plan, settings, run_estimate):
