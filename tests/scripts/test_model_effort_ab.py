@@ -108,20 +108,42 @@ TEST_PRICING = {
 # Pinned so CLI estimates do not move when the shipped calibration is retuned.
 PINNED_TURN_MULTIPLIER = 2
 PINNED_OUTPUT_TOKENS = 100
-# The `scout` world run over both fixtures with 3 trials per arm. Per trial, the
-# two fixtures send (15+13+145 + 15+3+141) chars / 4 * 2 = 166 input tokens and
-# write 2 * 100 output tokens: pricey (166*4 + 200*20) / 1e6 = 0.004664,
-# cheap (166*1 + 200*5) / 1e6 = 0.001166.
-BASELINE_TWO_ARM_ESTIMATE = 0.004664 * 3
-CANDIDATE_TWO_ARM_ESTIMATE = 0.001166 * 3
-TWO_ARM_ESTIMATE = BASELINE_TWO_ARM_ESTIMATE + CANDIDATE_TWO_ARM_ESTIMATE
-# A `--max-cost` under the estimate, so the startup refusal applies.
-MAX_COST_BELOW_ESTIMATE = TWO_ARM_ESTIMATE / 2
 ARM_COUNT = 2
 TERMINATION_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
 # The `scout` world resolves two fixtures: clean-form and layered-svc.
 SCOUT_FIXTURE_COUNT = 2
 SCOUT_TRIALS = 3
+
+
+def _trial_input_chars(system_prompt_chars: int, fixture_chars: int, name: str) -> int:
+    """Characters one trial sends: system prompt, fixture contents and the user prompt naming it."""
+    return system_prompt_chars + fixture_chars + len(invocation.build_user_prompt(name))
+
+
+def _arm_estimate_usd(input_chars: int, output_tokens: int, rate: dict) -> float:
+    """What the estimator charges one arm for `SCOUT_TRIALS` rounds of the trial described."""
+    input_tokens = input_chars / estimate.CHARS_PER_TOKEN * PINNED_TURN_MULTIPLIER
+    per_round_usd = (
+        input_tokens * rate["input"] + output_tokens * rate["output"]
+    ) / estimate.TOKENS_PER_RATE_UNIT
+    return per_round_usd * SCOUT_TRIALS
+
+
+# The `scout` world run over both fixtures with SCOUT_TRIALS trials per arm. A round
+# is one trial on each fixture. The agent file's body keeps its trailing newline.
+SCOUT_ROUND_INPUT_CHARS = _trial_input_chars(
+    len("You are scout.\n"), len("<form></form>"), "clean-form.html"
+) + _trial_input_chars(len("You are scout.\n"), len("app"), "layered-svc")
+SCOUT_ROUND_OUTPUT_TOKENS = SCOUT_FIXTURE_COUNT * PINNED_OUTPUT_TOKENS
+BASELINE_TWO_ARM_ESTIMATE = _arm_estimate_usd(
+    SCOUT_ROUND_INPUT_CHARS, SCOUT_ROUND_OUTPUT_TOKENS, PRICEY_RATE
+)
+CANDIDATE_TWO_ARM_ESTIMATE = _arm_estimate_usd(
+    SCOUT_ROUND_INPUT_CHARS, SCOUT_ROUND_OUTPUT_TOKENS, CHEAP_RATE
+)
+TWO_ARM_ESTIMATE = BASELINE_TWO_ARM_ESTIMATE + CANDIDATE_TWO_ARM_ESTIMATE
+# A `--max-cost` under the estimate, so the startup refusal applies.
+MAX_COST_BELOW_ESTIMATE = TWO_ARM_ESTIMATE / 2
 # Calls and cost of one arm, and of both, when every planned trial runs.
 ARM_RUN_CALLS = SCOUT_FIXTURE_COUNT * SCOUT_TRIALS
 FULL_RUN_CALLS = ARM_COUNT * ARM_RUN_CALLS
@@ -3389,13 +3411,18 @@ class TestEstimateRun:
     def _estimate(
         self, tmp_path, fixtures, arms=None, trials=3, pricing_table=TEST_PRICING
     ):
-        # Each trial sends 865 system + 3000 fixture + 135 prompt chars = 1000 tokens,
-        # doubled by the pinned turn multiplier.
+        # Each trial sends 4000 chars (system prompt padded to fill what the 3000-char
+        # fixture and the user prompt leave) = 1000 tokens, doubled by the pinned
+        # turn multiplier.
         arms = arms or [
             _priced_arm("baseline", "sonnet"),
             _priced_arm("candidate", "haiku"),
         ]
-        return estimate.estimate_run(arms, "s" * 865, fixtures, trials, pricing_table)
+        prompt_chars = len(invocation.build_user_prompt(fixtures[0].path.name))
+        system_prompt = "s" * (4000 - 3000 - prompt_chars)
+        return estimate.estimate_run(
+            arms, system_prompt, fixtures, trials, pricing_table
+        )
 
     def test_each_arm_costs_input_plus_output_priced_times_fixtures_times_trials(
         self, tmp_path
