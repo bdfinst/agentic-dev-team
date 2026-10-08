@@ -2575,6 +2575,23 @@ class TestResolveFixtures:
         assert str(expected_dir / "broken.json") in str(excinfo.value)
 
 
+class TestContractEnums:
+    def test_models_and_efforts_come_from_the_agent_contract(self):
+        enums = external.contract_enums()
+
+        assert enums is not None
+        models, efforts = enums
+        assert {"haiku", "sonnet"} <= set(models)
+        assert {"low", "high"} <= set(efforts)
+
+    def test_unreadable_contract_yields_none(self, monkeypatch):
+        monkeypatch.setattr(
+            external.agent_contract_validator(), "load_contract", lambda: None
+        )
+
+        assert external.contract_enums() is None
+
+
 class TestValidateCandidate:
     @pytest.mark.parametrize(
         ("model", "effort"),
@@ -3502,6 +3519,31 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
         self._assert_refused(
             world, stub, capsys, code, "pass a different --model or --effort"
         )
+
+    @pytest.mark.parametrize(
+        ("model", "effort", "named_key", "bad_value"),
+        [
+            ("../evil", "high", "model", "../evil"),
+            ("sonnet", "hgih", "effort", "hgih"),
+        ],
+        ids=["model", "effort"],
+    )
+    def test_malformed_frontmatter_value_is_refused_naming_the_key_and_value(
+        self, world, capsys, model, effort, named_key, bad_value
+    ):
+        _write_agent(world.deps.agents_dir, "odd", "Read", model=model, effort=effort)
+        _write_expected(world.expected_dir, "odd-case", "odd", "pass")
+        _make_file_fixture(world.deps.fixtures_dir, "odd-case.txt")
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "odd", "--model", "haiku", "--effort", "low")
+
+        err = capsys.readouterr().err
+        assert code == 2
+        assert f"frontmatter `{named_key}:`" in err
+        assert repr(bad_value) in err
+        assert "Estimate" not in err
+        assert_nothing_ran(stub, world)
 
     def test_a_partial_override_that_changes_one_value_is_accepted(self, world):
         stub = _passing_stub(world)

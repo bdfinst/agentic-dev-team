@@ -55,15 +55,25 @@ def plan_run(
     """Return the plan, with the artifact path reserved; the reservation is the last step.
 
     The candidate arm takes `candidate_model`/`candidate_effort`, each defaulting
-    to the baseline (frontmatter) value. `rng` needs `getrandbits`.
+    to the baseline (frontmatter) value. The baseline's frontmatter values and any
+    explicit candidate values are checked against the agent contract before the
+    run ID, which names the artifact file, is built from them. `rng` needs
+    `getrandbits`.
 
     Raises:
         UsageError: the agent is unknown, write-capable or has unusable
-            frontmatter; a candidate value is invalid or leaves the candidate
-            identical to the baseline; fixtures cannot be
-            resolved; or the artifact path is unavailable.
+            frontmatter (a missing or invalid `model:` or `effort:` included); a
+            candidate value is invalid or leaves the candidate identical to the
+            baseline; fixtures cannot be resolved; or the artifact path is
+            unavailable.
     """
     agent_spec, profile = _load_agent(agent, agents_dir)
+    _refuse_invalid_values(
+        agent_spec.model,
+        agent_spec.effort,
+        model_label=f"agent {agent!r} frontmatter `model:`",
+        effort_label=f"agent {agent!r} frontmatter `effort:`",
+    )
     validate_candidate(candidate_model, candidate_effort)
     fixtures = resolve_fixtures(agent, fixture_stems, expected_dir, fixtures_dir)
     baseline = Arm(BASELINE_LABEL, agent_spec.model, agent_spec.effort)
@@ -103,30 +113,42 @@ def _refuse_identical_arms(baseline: Arm, candidate: Arm) -> None:
 def validate_candidate(model: str | None, effort: str | None) -> None:
     """Check explicit candidate values against the agent contract's enums.
 
-    This also keeps path characters out of the run ID, which names the artifact file.
-
     Raises:
         UsageError: a value is not in the contract, or the contract is unreadable.
     """
     if model is None and effort is None:
         return
-    validator = external.agent_contract_validator()
-    contract = validator.load_contract()
-    if contract is None:
+    _refuse_invalid_values(
+        model,
+        effort,
+        model_label="candidate --model",
+        effort_label="candidate --effort",
+    )
+
+
+def _refuse_invalid_values(
+    model: str | None, effort: str | None, *, model_label: str, effort_label: str
+) -> None:
+    """Refuse a model or effort outside the agent contract; `None` is skipped.
+
+    Raises:
+        UsageError: a value is not in the contract, or the contract is unreadable.
+    """
+    enums = external.contract_enums()
+    if enums is None:
         raise UsageError(
             "cannot read the agent contract (plugins/marketplace-dev/knowledge/"
-            "agent-contract.json) to validate --model and --effort: restore the file"
+            "agent-contract.json) to validate model and effort values: restore the file"
         )
-    models = contract["fields"]["model"]["enum"]
-    efforts = contract["fields"]["effort"]["enum"]
+    models, efforts = enums
     if model is not None and not external.model_is_valid(model, models):
         raise UsageError(
-            f"candidate --model {model!r} is not valid: use one of "
+            f"{model_label} {model!r} is not valid: use one of "
             f"{', '.join(models)}, or a full model ID such as claude-opus-4-8"
         )
     if effort is not None and effort not in efforts:
         raise UsageError(
-            f"candidate --effort {effort!r} is not valid: use one of {', '.join(efforts)}"
+            f"{effort_label} {effort!r} is not valid: use one of {', '.join(efforts)}"
         )
 
 

@@ -3,8 +3,8 @@
 Path loading avoids a name collision: `scripts/validate_agent_contract.py` is a
 shim that shadows the real module of the same name.
 
-The two wrappers at the end are the only place that reaches those scripts' private
-helpers, so an upstream rename breaks one function here.
+The wrappers at the end are the only place that reaches those scripts' contract
+data and private helpers, so an upstream rename breaks one function here.
 """
 
 from __future__ import annotations
@@ -41,6 +41,15 @@ def isolated_dispatch() -> ModuleType:
 def should_scrub_env_var(name: str) -> bool:
     """True when `isolated_dispatch` removes the environment variable `name` from a child."""
     return isolated_dispatch()._should_scrub(name)
+
+
+def contract_enums() -> tuple[Sequence[str], Sequence[str]] | None:
+    """The agent contract's allowed `model` and `effort` values, or None when it cannot be read."""
+    contract = agent_contract_validator().load_contract()
+    if contract is None:
+        return None
+    fields = contract["fields"]
+    return fields["model"]["enum"], fields["effort"]["enum"]
 
 
 def model_is_valid(value: str, enum: Sequence[str]) -> bool:

@@ -407,7 +407,7 @@ The estimate is a rough heuristic, and the real cost can be higher.
 | --- | --- |
 | 0 | The run completed and the artifact was written. |
 | 1 | The run was declined, stopped early, or a signal arrived while the finished run was being saved (the artifact is still written), or the artifact could not be written. When the write fails, the artifact JSON goes to stdout so the paid results survive. A run interrupted before its first trial writes no artifact and exits 1. |
-| 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, identical arms, a write-capable agent, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
+| 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, an invalid `model:` or `effort:` in the agent's frontmatter, identical arms, a write-capable agent, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
 
 Messages go to stderr.
 
