@@ -163,7 +163,7 @@ def finish_run(
         print(report.render_no_trials_notice(), file=console.stderr)
         return EXIT_FAILED
     data = artifact.build_artifact(
-        plan.metadata, run.arm_runs, run_estimate, run.abort_reason
+        plan.metadata, run.arm_runs, run_estimate, plan.profile, run.abort_reason
     )
     save_exit_code = save_artifact(
         plan.artifact_path, artifact_store.render_artifact(data), console

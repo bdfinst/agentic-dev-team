@@ -15,6 +15,7 @@ from .estimate import RunEstimate
 from .outcome import TrialResult
 from .run_status import AbortReason, RunStatus
 from .run_types import ArmRun, FixtureTrials, RunMetadata
+from .tools import ToolProfile
 
 FIDELITY = "read-only-profile"
 GRADER = "expected-findings"
@@ -26,16 +27,19 @@ def build_artifact(
     metadata: RunMetadata,
     arm_runs: Sequence[ArmRun],
     run_estimate: RunEstimate,
+    profile: ToolProfile,
     abort_reason: AbortReason | None,
 ) -> dict:
     """Build the artifact dict, joining each arm's results with its pre-run estimate.
 
     The status follows from `abort_reason`: incomplete exactly when it is set.
 
+    Both arms record the plan's one tool profile.
+
     The run-level `session_config` is the baseline arm's, because the baseline
     is the reference configuration; each arm also carries its own.
     """
-    arms = [_arm_dict(arm_run, run_estimate) for arm_run in arm_runs]
+    arms = [_arm_dict(arm_run, run_estimate, profile) for arm_run in arm_runs]
     return {
         "run_id": metadata.run_id,
         "status": RunStatus.of(abort_reason).value,
@@ -58,7 +62,7 @@ def _baseline_session_config(arms: Sequence[dict]) -> dict | None:
     return None
 
 
-def _arm_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
+def _arm_dict(arm_run: ArmRun, run_estimate: RunEstimate, profile: ToolProfile) -> dict:
     arm = arm_run.arm
     totals = compute_arm_totals(arm_run, run_estimate)
     model_id, model_id_note = _resolve_model_id(arm_run)
@@ -68,8 +72,8 @@ def _arm_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
         "model_id": model_id,
         "model_id_note": model_id_note,
         "effort": arm.effort,
-        "tools_enabled": list(arm.profile.enabled_tools),
-        "tools_withheld": list(arm.profile.withheld_tools),
+        "tools_enabled": list(profile.enabled_tools),
+        "tools_withheld": list(profile.withheld_tools),
         "trials_per_fixture": arm_run.trials_per_fixture,
         "estimated_cost_usd": totals.estimated_cost_usd,
         "session_config": _first_session_config(arm_run),

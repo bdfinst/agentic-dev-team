@@ -32,6 +32,7 @@ class RunPlan:
     agent: str
     system_prompt: str
     arms: tuple[Arm, ...]
+    profile: ToolProfile
     fixtures: tuple[ResolvedFixture, ...]
     metadata: RunMetadata
     artifact_path: Path
@@ -65,12 +66,11 @@ def plan_run(
     agent_spec, profile = _load_agent(agent, agents_dir)
     validate_candidate(candidate_model, candidate_effort)
     fixtures = resolve_fixtures(agent, fixture_stems, expected_dir, fixtures_dir)
-    baseline = Arm(BASELINE_LABEL, agent_spec.model, agent_spec.effort, profile)
+    baseline = Arm(BASELINE_LABEL, agent_spec.model, agent_spec.effort)
     candidate = Arm(
         CANDIDATE_LABEL,
         candidate_model or baseline.model,
         candidate_effort or baseline.effort,
-        profile,
     )
     _refuse_identical_arms(baseline, candidate)
     run_id = make_run_id(now, agent, candidate.model, candidate.effort, rng)
@@ -78,6 +78,7 @@ def plan_run(
         agent=agent,
         system_prompt=agent_spec.system_prompt,
         arms=(baseline, candidate),
+        profile=profile,
         fixtures=tuple(fixtures),
         metadata=RunMetadata(
             run_id=run_id,

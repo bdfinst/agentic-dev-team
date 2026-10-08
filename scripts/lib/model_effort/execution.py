@@ -174,6 +174,7 @@ class _TrialExecutor:
         config = invocation.TrialConfig(
             arm=slot.arm,
             system_prompt=self.plan.system_prompt,
+            profile=self.plan.profile,
             claude_bin=self.settings.claude_bin,
         )
         record = self.run_trial(
@@ -188,7 +189,7 @@ class _TrialExecutor:
         return resolve_outcome(
             record,
             transcript.parse_stream(record.stdout),
-            slot.arm.profile.enabled_tools,
+            self.plan.profile.enabled_tools,
             grader,
         )
 

@@ -591,8 +591,9 @@ def _config(
         enabled_tools=tuple(enabled_tools), withheld_tools=(), refused_tools=()
     )
     return invocation.TrialConfig(
-        arm=Arm(label=CANDIDATE_LABEL, model=model, effort=effort, profile=profile),
+        arm=Arm(label=CANDIDATE_LABEL, model=model, effort=effort),
         system_prompt=system_prompt,
+        profile=profile,
         claude_bin=claude_bin if claude_bin is not None else str(stub.path),
         **config_fields,
     )
@@ -2165,10 +2166,12 @@ def _trial_result(
 
 
 def _arm(label: str = CANDIDATE_LABEL) -> Arm:
-    profile = tools.ToolProfile(
-        enabled_tools=("Read",), withheld_tools=(), refused_tools=()
-    )
-    return Arm(label=label, model="haiku", effort="high", profile=profile)
+    return Arm(label=label, model="haiku", effort="high")
+
+
+READ_ONLY_PROFILE = tools.ToolProfile(
+    enabled_tools=("Read",), withheld_tools=(), refused_tools=()
+)
 
 
 def _arm_run(
@@ -2216,7 +2219,11 @@ def _built_arm(
 ) -> dict:
     run = _arm_run(CANDIDATE_LABEL, results, expected_clean)
     built = artifact.build_artifact(
-        _metadata(), [run], _run_estimate(total_trials_per_arm), None
+        _metadata(),
+        [run],
+        _run_estimate(total_trials_per_arm),
+        READ_ONLY_PROFILE,
+        None,
     )
     return built["arms"][0]
 
@@ -2230,7 +2237,9 @@ class TestRunId:
 
 class TestArtifactStatus:
     def test_run_without_an_abort_reason_is_complete(self):
-        built = artifact.build_artifact(_metadata(), [], _run_estimate(), None)
+        built = artifact.build_artifact(
+            _metadata(), [], _run_estimate(), READ_ONLY_PROFILE, None
+        )
 
         assert (built["status"], built["abort_reason"]) == ("complete", None)
 
@@ -2238,7 +2247,9 @@ class TestArtifactStatus:
         "reason", list(AbortReason), ids=lambda reason: reason.value
     )
     def test_run_with_an_abort_reason_is_incomplete_and_names_it(self, reason):
-        built = artifact.build_artifact(_metadata(), [], _run_estimate(), reason)
+        built = artifact.build_artifact(
+            _metadata(), [], _run_estimate(), READ_ONLY_PROFILE, reason
+        )
 
         assert (built["status"], built["abort_reason"]) == ("incomplete", reason.value)
 
@@ -2249,6 +2260,27 @@ class TestArtifactStatus:
             "interrupt",
             "harness-error",
         ]
+
+
+class TestArtifactTools:
+    def test_both_arms_record_the_plans_one_tool_profile(self):
+        profile = tools.ToolProfile(
+            enabled_tools=("Read", "Grep"),
+            withheld_tools=("WebFetch",),
+            refused_tools=(),
+        )
+        runs = [
+            _arm_run(BASELINE_LABEL, [_trial_result(Outcome.PASS)]),
+            _arm_run(CANDIDATE_LABEL, [_trial_result(Outcome.PASS)]),
+        ]
+
+        built = artifact.build_artifact(
+            _metadata(), runs, _run_estimate(), profile, None
+        )
+
+        assert [
+            (arm["tools_enabled"], arm["tools_withheld"]) for arm in built["arms"]
+        ] == [(["Read", "Grep"], ["WebFetch"])] * 2
 
 
 class TestComputeArmTotals:
@@ -2295,7 +2327,9 @@ class TestComputeArmTotals:
         )
         totals = arm_totals.compute_arm_totals(run, _run_estimate())
 
-        built = artifact.build_artifact(_metadata(), [run], _run_estimate(), None)
+        built = artifact.build_artifact(
+            _metadata(), [run], _run_estimate(), READ_ONLY_PROFILE, None
+        )
 
         assert built["arms"][0]["totals"] == {
             **{
@@ -2429,7 +2463,11 @@ class TestArtifactSessionConfig:
         )
 
         built = artifact.build_artifact(
-            _metadata(), [candidate, baseline], _run_estimate(), None
+            _metadata(),
+            [candidate, baseline],
+            _run_estimate(),
+            READ_ONLY_PROFILE,
+            None,
         )
 
         assert built["session_config"] == {"model": "base"}
@@ -3538,10 +3576,7 @@ def _file_fixture_of_size(
 
 
 def _priced_arm(label: str, model: str) -> Arm:
-    profile = tools.ToolProfile(
-        enabled_tools=("Read",), withheld_tools=(), refused_tools=()
-    )
-    return Arm(label=label, model=model, effort="high", profile=profile)
+    return Arm(label=label, model=model, effort="high")
 
 
 class TestFixtureSize:

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from . import external, paths
 from .arm import Arm
+from .tools import ToolProfile
 
 DEFAULT_CLAUDE_BIN = "claude"
 PLUGIN_ROOT_PLACEHOLDER = "${CLAUDE_PLUGIN_ROOT}"
@@ -23,6 +24,7 @@ class TrialConfig:
 
     arm: Arm
     system_prompt: str
+    profile: ToolProfile
     claude_bin: str = DEFAULT_CLAUDE_BIN
     plugin_root: Path = paths.PLUGIN_ROOT
     knowledge_dir: Path = paths.KNOWLEDGE_DIR
@@ -61,7 +63,7 @@ def build_argv(config: TrialConfig, user_prompt: str) -> list[str]:
         "--disable-slash-commands",
         "--strict-mcp-config",
         "--tools",
-        ",".join(config.arm.profile.enabled_tools),
+        ",".join(config.profile.enabled_tools),
         "--add-dir",
         str(config.knowledge_dir),
         "--restricted",

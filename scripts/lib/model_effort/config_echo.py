@@ -14,8 +14,7 @@ NONE_TEXT = "none"
 def render_config(
     plan: RunPlan, settings: TrialSettings, run_estimate: RunEstimate
 ) -> list[str]:
-    # Both arms share one tool profile (plan_run builds them from the same agent).
-    profile = plan.arms[0].profile
+    profile = plan.profile
     arm_lines = [
         f"  {arm.label}: model {arm.model}, effort {arm.effort}" for arm in plan.arms
     ]
