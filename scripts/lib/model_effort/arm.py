@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass
 
 from .tools import ToolProfile
@@ -19,11 +18,3 @@ class Arm:
     model: str
     effort: str
     profile: ToolProfile
-
-
-def arm_by_label(arms: Iterable[Arm], label: str) -> Arm:
-    """Return the arm with `label`; raises LookupError if there is none."""
-    for arm in arms:
-        if arm.label == label:
-            return arm
-    raise LookupError(f"no arm labelled {label!r}")

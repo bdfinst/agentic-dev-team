@@ -3,7 +3,6 @@
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS_DIR = REPO_ROOT / "scripts"
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 AGENTS_DIR = PLUGIN_ROOT / "agents"
 # The only extra directory an agent may read. It must never contain answer files.

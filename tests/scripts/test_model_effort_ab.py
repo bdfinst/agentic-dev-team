@@ -70,7 +70,6 @@ from model_effort.arm import (
     BASELINE_LABEL,
     CANDIDATE_LABEL,
     Arm,
-    arm_by_label,
 )
 from model_effort.errors import UsageError
 from model_effort.formatting import format_usd
@@ -1864,17 +1863,6 @@ class TestRunId:
         run_id = artifact.make_run_id(NOW, "scout", "haiku", "high", FixedRng())
 
         assert run_id == RUN_ID
-
-
-class TestArmLookup:
-    def test_arm_is_found_by_label_regardless_of_position(self):
-        arms = [_arm(CANDIDATE_LABEL), _arm(BASELINE_LABEL)]
-
-        assert arm_by_label(arms, BASELINE_LABEL) is arms[1]
-
-    def test_unknown_label_raises(self):
-        with pytest.raises(LookupError):
-            arm_by_label([_arm(CANDIDATE_LABEL)], BASELINE_LABEL)
 
 
 class TestArtifactStatus:
