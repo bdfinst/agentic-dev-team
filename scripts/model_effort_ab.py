@@ -8,9 +8,10 @@ baseline, candidate, baseline, ... so a broken candidate fails on its first tria
 
 Exit codes:
   0  the run completed and the artifact was written
-  1  the run was declined, stopped early (spend limit, systemic failure or Ctrl-C;
-     the artifact keeps the completed trials) or incomplete, or the artifact could
-     not be written (its JSON is printed to stdout so paid results survive)
+  1  the run was declined, stopped early (spend limit, systemic failure, Ctrl-C or
+     a termination signal, or an unexpected error; the artifact keeps the
+     completed trials), or the artifact could not be written (its JSON is
+     printed to stdout so paid results survive)
   2  usage error or pre-run refusal
 Messages go to stderr.
 """
@@ -18,7 +19,6 @@ Messages go to stderr.
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import math
 import random
 import subprocess
@@ -40,30 +40,12 @@ for _path in (
         sys.path.insert(0, str(_path))
 
 import pricing
-from model_effort import (
-    approval,
-    artifact,
-    artifact_store,
-    config_echo,
-    estimate,
-    interrupts,
-    paths,
-    report,
-    runner,
-)
+from model_effort import artifact_store, interrupts, paths, runner, session
 from model_effort.errors import UsageError
-from model_effort.execution import (
-    RunResult,
-    TrialProgress,
-    TrialRunner,
-    TrialSettings,
-    run_trials,
-)
+from model_effort.execution import TrialCount, TrialRunner, TrialSettings
 from model_effort.plan import RunPlan, plan_run
-
-EXIT_OK = 0
-EXIT_FAILED = 1
-EXIT_USAGE = 2
+from model_effort.session import EXIT_USAGE
+from model_effort.stop_rules import SpendLimit
 
 DEFAULT_TRIALS = 5
 TRIALS_DEFAULT_REASON = "default"
@@ -143,8 +125,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-cost",
         type=_positive_float,
+        dest="max_cost_usd",
         help="dollars; refuse to run when the estimate is above this, and stop the "
-        "run once the actual cost is (no default)",
+        "run once the actual cost is above this (no default)",
     )
     parser.add_argument(
         "--yes",
@@ -192,25 +175,10 @@ def _split_csv(text: str | None) -> list[str] | None:
     return list(dict.fromkeys(part.strip() for part in text.split(",") if part.strip()))
 
 
-def _save_artifact(path: Path, data: dict) -> int:
-    """Write the artifact atomically; if the write fails or is interrupted, print the JSON so paid results survive."""
-    text = artifact_store.render_artifact(data)
-    try:
-        artifact_store.write_artifact(path, text)
-    except OSError as error:
-        sys.stdout.write(text)
-        print(
-            f"error: cannot write artifact {path}: {error}. The trials ran; the artifact "
-            f"JSON is on stdout. Save it to a new file in {path.parent}.",
-            file=sys.stderr,
-        )
-        return EXIT_FAILED
-    except BaseException:
-        # A second Ctrl-C or a termination signal mid-write: the results are paid for.
-        sys.stdout.write(text)
-        raise
-    print(f"artifact written: {path}", file=sys.stderr)
-    return EXIT_OK
+def _resolve_trials(flag_value: int | None) -> TrialCount:
+    if flag_value is None:
+        return TrialCount(DEFAULT_TRIALS, TRIALS_DEFAULT_REASON)
+    return TrialCount(flag_value, TRIALS_FLAG_REASON)
 
 
 def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
@@ -222,112 +190,53 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
 
 def _run(args: argparse.Namespace, deps: Deps) -> int:
     try:
-        plan = plan_run(
-            args.agent,
-            candidate_model=args.model,
-            candidate_effort=args.effort,
-            fixture_stems=_split_csv(args.fixtures),
-            runs_dir=args.runs_dir,
-            now=deps.clock(),
-            rng=deps.rng,
-            git_sha=deps.read_git_sha(),
-            agents_dir=deps.agents_dir,
-            expected_dir=deps.expected_dir,
-            fixtures_dir=deps.fixtures_dir,
-        )
+        plan = _plan_from(args, deps)
     except UsageError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return EXIT_USAGE
-    trials = _resolve_trials(args.trials)
+        return _report_usage_error(error)
     settings = TrialSettings(
-        trials=trials.count,
+        trials=_resolve_trials(args.trials),
         trial_timeout=args.trial_timeout,
         claude_bin=args.claude_bin,
         expected_dir=deps.expected_dir,
     )
+    console = session.Console(deps.stdin, deps.stdin_is_tty, sys.stdout, sys.stderr)
+    spend_limit = (
+        SpendLimit(args.max_cost_usd) if args.max_cost_usd is not None else None
+    )
     with artifact_store.release_if_unwritten(plan.artifact_path):
         try:
-            run_estimate = _estimate_and_echo(
-                plan, settings, trials, args.max_cost, deps
+            return session.run_session(
+                plan,
+                settings,
+                spend_limit,
+                console,
+                assume_yes=args.yes,
+                pricing_table=deps.pricing_table,
+                run_trial=deps.run_trial,
             )
         except UsageError as error:
-            print(f"error: {error}", file=sys.stderr)
-            return EXIT_USAGE
-        refusal = approval.request_approval(
-            yes=args.yes,
-            stdin=deps.stdin,
-            stdin_is_tty=deps.stdin_is_tty,
-            stderr=sys.stderr,
-        )
-        if refusal is not None:
-            print(f"error: {refusal}", file=sys.stderr)
-            return EXIT_FAILED
-        run = run_trials(
-            plan,
-            settings,
-            run_estimate,
-            run_trial=deps.run_trial,
-            max_cost=args.max_cost,
-            on_trial=_print_progress,
-        )
-        return _finish_run(plan, run, run_estimate)
+            return _report_usage_error(error)
 
 
-def _print_progress(progress: TrialProgress) -> None:
-    print(report.render_progress(progress), file=sys.stderr)
-
-
-def _finish_run(
-    plan: RunPlan, run: RunResult, run_estimate: estimate.RunEstimate
-) -> int:
-    """Write the artifact for the trials that completed, report, and pick the exit code."""
-    if run.started_trials == 0:
-        print(report.render_no_trials_notice(), file=sys.stderr)
-        return EXIT_FAILED
-    metadata = dataclasses.replace(plan.metadata, abort_reason=run.abort_reason)
-    data = artifact.build_artifact(metadata, run.arm_runs, run_estimate)
-    if run.abort_reason is not None:
-        print(report.render_stop_notice(run), file=sys.stderr)
-    for line in report.render_summary(data):
-        print(line, file=sys.stderr)
-    saved = _save_artifact(plan.artifact_path, data)
-    return EXIT_FAILED if run.abort_reason is not None else saved
-
-
-def _resolve_trials(flag_value: int | None) -> config_echo.TrialCount:
-    if flag_value is None:
-        return config_echo.TrialCount(DEFAULT_TRIALS, TRIALS_DEFAULT_REASON)
-    return config_echo.TrialCount(flag_value, TRIALS_FLAG_REASON)
-
-
-def _estimate_and_echo(
-    plan: RunPlan,
-    settings: TrialSettings,
-    trials: config_echo.TrialCount,
-    max_cost: float | None,
-    deps: Deps,
-) -> estimate.RunEstimate:
-    """Price the run, print the configuration and estimate, then enforce `--max-cost`.
-
-    The echo comes before the limit check so a refused run still shows the figures.
-
-    Raises:
-        UsageError: a model is unpriced, or the estimate is above `max_cost`.
-    """
-    run_estimate = estimate.estimate_run(
-        plan.arms, plan.system_prompt, plan.fixtures, trials.count, deps.pricing_table
+def _plan_from(args: argparse.Namespace, deps: Deps) -> RunPlan:
+    return plan_run(
+        args.agent,
+        candidate_model=args.model,
+        candidate_effort=args.effort,
+        fixture_stems=_split_csv(args.fixtures),
+        runs_dir=args.runs_dir,
+        now=deps.clock(),
+        rng=deps.rng,
+        git_sha=deps.read_git_sha(),
+        agents_dir=deps.agents_dir,
+        expected_dir=deps.expected_dir,
+        fixtures_dir=deps.fixtures_dir,
     )
-    for line in config_echo.render_config(
-        plan, trials, settings.trial_timeout, run_estimate
-    ):
-        print(line, file=sys.stderr)
-    if max_cost is not None and run_estimate.total_usd > max_cost:
-        raise UsageError(
-            f"estimated total {config_echo.format_usd(run_estimate.total_usd)} is above "
-            f"--max-cost {config_echo.format_usd(max_cost)}: raise --max-cost, "
-            "or lower --trials or --fixtures"
-        )
-    return run_estimate
+
+
+def _report_usage_error(error: UsageError) -> int:
+    print(f"error: {error}", file=sys.stderr)
+    return EXIT_USAGE
 
 
 if __name__ == "__main__":

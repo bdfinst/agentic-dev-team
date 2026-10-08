@@ -29,7 +29,8 @@ from .fixtures import ResolvedFixture
 CHARS_PER_TOKEN = 4
 # A trial with tools re-sends its growing context on every turn. The recorded
 # read-only probe (tests/scripts/fixtures/model_effort_ab/pass-readonly.jsonl)
-# took 3 turns (one tool call, then the answer), so input is counted 3 times.
+# took 3 model turns (two Read tool calls, then the answer), so input is
+# counted 3 times.
 TOOL_TURN_MULTIPLIER = 3
 # Output tokens one trial is assumed to write, thinking included. The probe wrote
 # 230 for a trivial one-line answer; a findings JSON from a review agent runs
@@ -48,7 +49,7 @@ class RunEstimate:
 
     @property
     def total_usd(self) -> float:
-        return total_cost_usd(cost for _, cost in self.by_arm)
+        return total_cost_usd(cost_usd for _, cost_usd in self.by_arm)
 
     def for_arm(self, label: str) -> float:
         return dict(self.by_arm)[label]
@@ -118,7 +119,7 @@ def _arm_cost(
 ) -> float:
     """`input_tokens` is summed over fixtures; the output allowance is per fixture."""
     output_tokens = OUTPUT_TOKENS_PER_TRIAL * fixture_count
-    dollars = (
+    trial_cost_usd = (
         input_tokens * rate["input"] + output_tokens * rate["output"]
     ) / TOKENS_PER_RATE_UNIT
-    return dollars * trials
+    return trial_cost_usd * trials

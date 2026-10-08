@@ -8,21 +8,19 @@ contract defines.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
 
 from .arm import BASELINE_LABEL, Arm
 from .cost import total_cost_usd
 from .estimate import RunEstimate
 from .fixtures import FixtureKind
 from .outcome import Outcome, TrialResult
+from .run_status import AbortReason, RunStatus
 
 FIDELITY = "read-only-profile"
 GRADER = "expected-findings"
-STATUS_COMPLETE = "complete"
-STATUS_INCOMPLETE = "incomplete"
 
 RUN_ID_TIME_FORMAT = "%Y%m%dT%H%M%SZ"
 CREATED_TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
@@ -30,28 +28,15 @@ RUN_ID_RANDOM_BITS = 16
 RUN_ID_RANDOM_HEX_DIGITS = RUN_ID_RANDOM_BITS // 4
 
 
-class AbortReason(StrEnum):
-    """Why a run ended before every planned trial ran."""
-
-    MAX_COST = "max-cost"
-    INFRA_FAILURE = "infra-failure"
-    INTERRUPT = "interrupt"
-    HARNESS_ERROR = "harness-error"
-
-
 @dataclass(frozen=True)
 class RunMetadata:
-    """Run-level fields. `created` must be a timezone-aware UTC datetime.
-
-    The artifact status is derived: `incomplete` exactly when `abort_reason` is set.
-    """
+    """Run-level fields. `created` must be a timezone-aware UTC datetime."""
 
     run_id: str
     created: datetime
     git_sha: str | None
     agent: str
     knowledge_dir: str
-    abort_reason: AbortReason | None = None
 
 
 @dataclass(frozen=True)
@@ -77,9 +62,14 @@ def make_run_id(now: datetime, agent: str, model: str, effort: str, rng) -> str:
 
 
 def build_artifact(
-    metadata: RunMetadata, arm_runs: Sequence[ArmRun], run_estimate: RunEstimate
+    metadata: RunMetadata,
+    arm_runs: Sequence[ArmRun],
+    run_estimate: RunEstimate,
+    abort_reason: AbortReason | None,
 ) -> dict:
     """Build the artifact dict, joining each arm's results with its pre-run estimate.
+
+    The status follows from `abort_reason`: incomplete exactly when it is set.
 
     The run-level `session_config` is the baseline arm's, because the baseline
     is the reference configuration; each arm also carries its own.
@@ -87,8 +77,8 @@ def build_artifact(
     arms = [_arm_dict(arm_run, run_estimate) for arm_run in arm_runs]
     return {
         "run_id": metadata.run_id,
-        "status": STATUS_INCOMPLETE if metadata.abort_reason else STATUS_COMPLETE,
-        "abort_reason": metadata.abort_reason.value if metadata.abort_reason else None,
+        "status": RunStatus.of(abort_reason).value,
+        "abort_reason": abort_reason.value if abort_reason else None,
         "created": metadata.created.strftime(CREATED_TIME_FORMAT),
         "git_sha": metadata.git_sha,
         "agent": metadata.agent,
@@ -189,3 +179,34 @@ def _resolve_model_id(arm_run: ArmRun) -> tuple[str | None, str | None]:
         return None, f"trials reported several model IDs: {', '.join(reported)}"
     notes = [r.model_id_note for r in results if r.model_id_note]
     return None, notes[0] if notes else "no trial reported a model ID"
+
+
+@dataclass(frozen=True)
+class ArmTotals:
+    """One arm's totals as the artifact records them."""
+
+    label: str
+    outcome_counts: Mapping[Outcome, int]
+    actual_cost_usd: float
+    estimated_cost_charged_usd: float
+    estimated_cost_usd: float
+
+
+def arm_totals(data: dict) -> list[ArmTotals]:
+    """Read each arm's totals back out of an artifact dict.
+
+    Consumers such as the console summary start from the dict, so what they show
+    cannot disagree with what was written.
+    """
+    return [
+        ArmTotals(
+            label=arm["label"],
+            outcome_counts={
+                outcome: arm["totals"][outcome.value] for outcome in Outcome
+            },
+            actual_cost_usd=arm["totals"]["actual_cost_usd"],
+            estimated_cost_charged_usd=arm["totals"]["estimated_cost_charged_usd"],
+            estimated_cost_usd=arm["estimated_cost_usd"],
+        )
+        for arm in data["arms"]
+    ]

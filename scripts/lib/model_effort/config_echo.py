@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from .estimate import RunEstimate
+from .execution import TrialSettings
 from .formatting import format_usd
 from .plan import RunPlan
 
@@ -12,19 +11,8 @@ NO_TOOLS_TEXT = "no tools enabled"
 NONE_TEXT = "none"
 
 
-@dataclass(frozen=True)
-class TrialCount:
-    """Trials per arm per fixture, and why that number was chosen."""
-
-    count: int
-    reason: str
-
-
 def render_config(
-    plan: RunPlan,
-    trials: TrialCount,
-    trial_timeout: float,
-    estimate: RunEstimate,
+    plan: RunPlan, settings: TrialSettings, run_estimate: RunEstimate
 ) -> list[str]:
     # Both arms share one tool profile (plan_run builds them from the same agent).
     profile = plan.arms[0].profile
@@ -38,17 +26,17 @@ def render_config(
         f"Tools: {', '.join(profile.enabled_tools) or NO_TOOLS_TEXT}",
         f"Withheld tools: {', '.join(profile.withheld_tools) or NONE_TEXT}",
         f"Fixtures: {', '.join(fixture.stem for fixture in plan.fixtures)}",
-        f"Trials per arm per fixture: {trials.count} ({trials.reason})",
-        f"Trial timeout: {trial_timeout:g} s",
-        _render_estimate(estimate),
+        f"Trials per arm per fixture: {settings.trials.count} ({settings.trials.reason})",
+        f"Trial timeout: {settings.trial_timeout:g} s",
+        _render_estimate(run_estimate),
     ]
 
 
-def _render_estimate(estimate: RunEstimate) -> str:
+def _render_estimate(run_estimate: RunEstimate) -> str:
     per_arm = ", ".join(
-        f"{label} {format_usd(cost)}" for label, cost in estimate.by_arm
+        f"{label} {format_usd(cost_usd)}" for label, cost_usd in run_estimate.by_arm
     )
     return (
         "Estimate (rough; real cost may be higher): "
-        f"{per_arm}, total {format_usd(estimate.total_usd)}"
+        f"{per_arm}, total {format_usd(run_estimate.total_usd)}"
     )

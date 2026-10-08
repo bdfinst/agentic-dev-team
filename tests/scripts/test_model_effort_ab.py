@@ -51,11 +51,13 @@ from model_effort import (
     artifact,
     artifact_store,
     estimate,
+    execution,
     grading,
     outcome,
     paths,
     plan,
     runner,
+    session,
     stop_rules,
     tools,
     transcript,
@@ -70,6 +72,8 @@ from model_effort.arm import (
 from model_effort.errors import UsageError
 from model_effort.formatting import format_usd
 from model_effort.outcome import Outcome
+from model_effort.run_status import AbortReason, RunStatus
+from model_effort.stop_rules import SpendLimit
 
 TRANSCRIPT_FIXTURES = Path(__file__).parent / "fixtures" / "model_effort_ab"
 HAIKU_MODEL_ID = "claude-haiku-5-5"
@@ -1656,16 +1660,13 @@ def _arm_run(
     return artifact.ArmRun(arm=_arm(label), trials_per_fixture=1, fixtures=[fixture])
 
 
-def _metadata(
-    abort_reason: artifact.AbortReason | None = None,
-) -> artifact.RunMetadata:
+def _metadata() -> artifact.RunMetadata:
     return artifact.RunMetadata(
         run_id=RUN_ID,
         created=NOW,
         git_sha=None,
         agent="scout",
         knowledge_dir="knowledge",
-        abort_reason=abort_reason,
     )
 
 
@@ -1689,7 +1690,9 @@ def _built_arm(
     trials_per_arm: int = 1,
 ) -> dict:
     run = _arm_run(CANDIDATE_LABEL, results, expected_clean)
-    built = artifact.build_artifact(_metadata(), [run], _run_estimate(trials_per_arm))
+    built = artifact.build_artifact(
+        _metadata(), [run], _run_estimate(trials_per_arm), None
+    )
     return built["arms"][0]
 
 
@@ -1713,20 +1716,20 @@ class TestArmLookup:
 
 class TestArtifactStatus:
     def test_run_without_an_abort_reason_is_complete(self):
-        built = artifact.build_artifact(_metadata(), [], _run_estimate())
+        built = artifact.build_artifact(_metadata(), [], _run_estimate(), None)
 
         assert (built["status"], built["abort_reason"]) == ("complete", None)
 
     @pytest.mark.parametrize(
-        "reason", list(artifact.AbortReason), ids=lambda reason: reason.value
+        "reason", list(AbortReason), ids=lambda reason: reason.value
     )
     def test_run_with_an_abort_reason_is_incomplete_and_names_it(self, reason):
-        built = artifact.build_artifact(_metadata(reason), [], _run_estimate())
+        built = artifact.build_artifact(_metadata(), [], _run_estimate(), reason)
 
         assert (built["status"], built["abort_reason"]) == ("incomplete", reason.value)
 
     def test_abort_reasons_use_the_contract_strings(self):
-        assert [reason.value for reason in artifact.AbortReason] == [
+        assert [reason.value for reason in AbortReason] == [
             "max-cost",
             "infra-failure",
             "interrupt",
@@ -1849,7 +1852,7 @@ class TestArtifactSessionConfig:
         )
 
         built = artifact.build_artifact(
-            _metadata(), [candidate, baseline], _run_estimate()
+            _metadata(), [candidate, baseline], _run_estimate(), None
         )
 
         assert built["session_config"] == {"model": "base"}
@@ -3095,29 +3098,49 @@ class TestApprovalGate:
 
 PASS, GRADED_FAIL = Outcome.PASS, Outcome.GRADED_FAIL
 CLI_ERROR, TIMEOUT = Outcome.CLI_ERROR, Outcome.TIMEOUT
-INFRA_FAILURE, MAX_COST = (
-    artifact.AbortReason.INFRA_FAILURE,
-    artifact.AbortReason.MAX_COST,
-)
+INFRA_FAILURE, MAX_COST = AbortReason.INFRA_FAILURE, AbortReason.MAX_COST
 
 
-def _check(baseline=(), candidate=(), cost=0.0, max_cost=None):
+def _check(baseline=(), candidate=(), cost_usd=0.0, max_cost_usd=None):
+    spend_limit = None if max_cost_usd is None else SpendLimit(max_cost_usd)
     return stop_rules.check_stop(
         {BASELINE_LABEL: list(baseline), CANDIDATE_LABEL: list(candidate)},
-        cost,
-        max_cost,
+        cost_usd,
+        spend_limit,
     )
+
+
+class TestSpendLimit:
+    def test_estimate_above_the_limit_is_refused_and_one_equal_to_it_is_not(self):
+        limit = SpendLimit(0.5)
+
+        assert limit.refuses(0.75) is True
+        assert limit.refuses(0.5) is False
+
+    def test_cost_above_the_limit_exceeds_it_and_one_equal_to_it_does_not(self):
+        limit = SpendLimit(0.5)
+
+        assert limit.exceeded_by(0.75) is True
+        assert limit.exceeded_by(0.5) is False
+
+
+class TestRunStatus:
+    def test_a_run_is_complete_exactly_when_nothing_ended_it_early(self):
+        assert RunStatus.of(None) is RunStatus.COMPLETE
+        assert all(
+            RunStatus.of(reason) is RunStatus.INCOMPLETE for reason in AbortReason
+        )
 
 
 class TestStopRules:
     def test_cost_strictly_above_max_cost_stops_for_max_cost(self):
-        assert _check([PASS], [PASS], cost=0.75, max_cost=0.5) == MAX_COST
+        assert _check([PASS], [PASS], cost_usd=0.75, max_cost_usd=0.5) == MAX_COST
 
     def test_cost_equal_to_max_cost_does_not_stop(self):
-        assert _check([PASS], [PASS], cost=0.5, max_cost=0.5) is None
+        assert _check([PASS], [PASS], cost_usd=0.5, max_cost_usd=0.5) is None
 
     def test_any_cost_is_allowed_without_a_max_cost(self):
-        assert _check([PASS], [PASS], cost=1_000_000.0, max_cost=None) is None
+        assert _check([PASS], [PASS], cost_usd=1_000_000.0, max_cost_usd=None) is None
 
     def test_no_trials_yet_does_not_stop(self):
         assert _check() is None
@@ -3171,7 +3194,7 @@ class TestStopRules:
         assert _check([PASS, CLI_ERROR, CLI_ERROR], [PASS, TIMEOUT, TIMEOUT]) is None
 
     def test_max_cost_wins_when_the_infra_rule_also_applies(self):
-        assert _check([CLI_ERROR], cost=2.0, max_cost=1.0) == MAX_COST
+        assert _check([CLI_ERROR], cost_usd=2.0, max_cost_usd=1.0) == MAX_COST
 
 
 # --- Stopping early and keeping partial results ------------------------------
@@ -3734,6 +3757,39 @@ class TestUnexpectedTrialError:
         assert code == 1
         assert written["abort_reason"] == "harness-error"
         assert [arm["fixtures"] for arm in written["arms"]] == [[], []]
+
+
+class TestFinishRun:
+    def test_run_cut_short_before_any_trial_started_writes_no_artifact_and_says_so(
+        self, world
+    ):
+        scout_plan = plan.plan_run(
+            "scout",
+            candidate_model=None,
+            candidate_effort=None,
+            fixture_stems=None,
+            runs_dir=world.runs_dir,
+            now=NOW,
+            rng=FixedRng(),
+            git_sha=None,
+            agents_dir=world.deps.agents_dir,
+            expected_dir=world.deps.expected_dir,
+            fixtures_dir=world.deps.fixtures_dir,
+        )
+        stderr = io.StringIO()
+        console = session.Console(io.StringIO(), lambda: False, io.StringIO(), stderr)
+        run = execution.RunResult(
+            arm_runs=[],
+            abort_reason=AbortReason.INTERRUPT,
+            started_trials=0,
+            stopping_trial=None,
+        )
+
+        code = session.finish_run(scout_plan, run, _run_estimate(), console)
+
+        assert code == 1
+        assert scout_plan.artifact_path.read_text(encoding="utf-8") == ""
+        assert "interrupted before any trial started" in stderr.getvalue()
 
 
 class TestProgressAndSummary:

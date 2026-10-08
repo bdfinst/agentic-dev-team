@@ -13,19 +13,19 @@ DECLINED_MESSAGE = (
 )
 
 
-def request_approval(
+def refusal_unless_approved(
     *,
-    yes: bool,
+    assume_yes: bool,
     stdin: TextIO,
     stdin_is_tty: Callable[[], bool],
     stderr: TextIO,
 ) -> str | None:
     """Return `None` when the run may start, else the message that explains the refusal.
 
-    Reads one line from `stdin` only when `yes` is unset and stdin is a TTY. The
-    only text written is the prompt (and a line break after an interrupted one).
+    Reads one line from `stdin` only when `assume_yes` is unset and stdin is a TTY.
+    The only text written is the prompt, plus a line break after an interrupt or EOF.
     """
-    if yes:
+    if assume_yes:
         return None
     if not stdin_is_tty():
         return NO_TTY_MESSAGE

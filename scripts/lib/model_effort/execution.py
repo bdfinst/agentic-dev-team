@@ -15,23 +15,33 @@ from pathlib import Path
 
 from . import runner, stop_rules, transcript
 from .arm import Arm
-from .artifact import AbortReason, ArmRun, FixtureTrials
+from .artifact import ArmRun, FixtureTrials
 from .cost import total_cost_usd
 from .estimate import RunEstimate
 from .fixtures import ResolvedFixture
 from .grading import grade_trial
 from .outcome import MAX_MESSAGE_CHARS, Grader, Outcome, TrialResult, resolve_outcome
 from .plan import RunPlan
+from .run_status import AbortReason, RunStatus
+from .stop_rules import SpendLimit
 
 # Runs one trial of a config against a fixture; `runner.run_trial` in production.
 TrialRunner = Callable[[Path, runner.TrialConfig, float], runner.RunRecord]
 
 
 @dataclass(frozen=True)
+class TrialCount:
+    """Trials per arm per fixture, and why that number was chosen."""
+
+    count: int
+    reason: str
+
+
+@dataclass(frozen=True)
 class TrialSettings:
     """How each trial runs, apart from what the plan fixes."""
 
-    trials: int
+    trials: TrialCount
     trial_timeout: float
     claude_bin: str
     expected_dir: Path
@@ -41,10 +51,10 @@ class TrialSettings:
 class TrialProgress:
     """One completed trial and where it sits in the run. Numbers are 1-based."""
 
-    arm: str
+    arm_label: str
     fixture_number: int
     fixture_count: int
-    stem: str
+    fixture_stem: str
     trial_number: int
     trial_count: int
     result: TrialResult
@@ -67,6 +77,14 @@ class RunResult:
     stopping_trial: TrialProgress | None
     # The error type and message that ended the run, for `harness-error` only.
     harness_error: str | None = None
+
+    @property
+    def status(self) -> RunStatus:
+        return RunStatus.of(self.abort_reason)
+
+    @property
+    def is_complete(self) -> bool:
+        return self.status is RunStatus.COMPLETE
 
     @property
     def completed_trials(self) -> int:
@@ -95,15 +113,15 @@ class _Ledger:
         self._outcomes_by_arm: dict[str, list[Outcome]] = {
             arm.label: [] for arm in plan.arms
         }
-        self._costs: list[float] = []
+        self._costs_usd: list[float] = []
 
     def record(self, slot: _TrialSlot, result: TrialResult) -> None:
         key = (slot.arm.label, slot.fixture.stem)
         self._results.setdefault(key, []).append(result)
         self._outcomes_by_arm[slot.arm.label].append(result.outcome)
-        self._costs.append(self._cost_charged(slot, result))
+        self._costs_usd.append(self._cost_charged_usd(slot, result))
 
-    def _cost_charged(self, slot: _TrialSlot, result: TrialResult) -> float:
+    def _cost_charged_usd(self, slot: _TrialSlot, result: TrialResult) -> float:
         """The reported cost, or the arm's per-trial estimate when the trial reported none."""
         if result.cost_reported:
             return result.cost_usd
@@ -114,8 +132,8 @@ class _Ledger:
         return self._outcomes_by_arm
 
     @property
-    def cumulative_cost(self) -> float:
-        return total_cost_usd(self._costs)
+    def cumulative_cost_usd(self) -> float:
+        return total_cost_usd(self._costs_usd)
 
     def arm_runs(self, trials_per_fixture: int) -> list[ArmRun]:
         return [
@@ -143,13 +161,15 @@ def run_trials(
     run_estimate: RunEstimate,
     *,
     run_trial: TrialRunner,
-    max_cost: float | None = None,
+    spend_limit: SpendLimit | None = None,
     on_trial: Callable[[TrialProgress], None] | None = None,
 ) -> RunResult:
-    """Run trials in order until the plan is done, a stop rule fires or the operator interrupts.
+    """Run trials in order until the plan is done, a stop rule fires or the run is cut short.
 
     `run_estimate` prices a trial that reports no cost, so the spend limit still sees it.
     `on_trial` is called after each completed trial, before the stop rules run.
+    A stop that fires on the last planned trial skips nothing, so it does not end the
+    run early. An operator interrupt or an unexpected error keeps the completed trials.
     """
     ledger = _Ledger(plan, run_estimate)
     slots = list(_trial_slots(plan, settings))
@@ -160,15 +180,14 @@ def run_trials(
     try:
         for index, slot in enumerate(slots):
             started_trials += 1
-            result = _run_trial(slot, plan, settings, run_trial)
+            result = _run_slot(slot, plan, settings, run_trial)
             ledger.record(slot, result)
             progress = _progress(slot, plan, settings, result)
             if on_trial is not None:
                 on_trial(progress)
             stop_reason = stop_rules.check_stop(
-                ledger.outcomes_by_arm, ledger.cumulative_cost, max_cost
+                ledger.outcomes_by_arm, ledger.cumulative_cost_usd, spend_limit
             )
-            # A stop on the last planned trial skips nothing, so the run is complete.
             if stop_reason is not None and index < len(slots) - 1:
                 abort_reason = stop_reason
                 stopping_trial = progress
@@ -179,7 +198,7 @@ def run_trials(
         abort_reason = AbortReason.HARNESS_ERROR
         harness_error = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
     return RunResult(
-        arm_runs=ledger.arm_runs(settings.trials),
+        arm_runs=ledger.arm_runs(settings.trials.count),
         abort_reason=abort_reason,
         started_trials=started_trials,
         stopping_trial=stopping_trial,
@@ -190,7 +209,7 @@ def run_trials(
 def _trial_slots(plan: RunPlan, settings: TrialSettings) -> Iterator[_TrialSlot]:
     """Every planned trial in run order: arms alternate, round by round, fixture by fixture."""
     for fixture_number, fixture in enumerate(plan.fixtures, start=1):
-        for trial_number in range(1, settings.trials + 1):
+        for trial_number in range(1, settings.trials.count + 1):
             for arm in plan.arms:
                 yield _TrialSlot(arm, fixture, fixture_number, trial_number)
 
@@ -199,17 +218,17 @@ def _progress(
     slot: _TrialSlot, plan: RunPlan, settings: TrialSettings, result: TrialResult
 ) -> TrialProgress:
     return TrialProgress(
-        arm=slot.arm.label,
+        arm_label=slot.arm.label,
         fixture_number=slot.fixture_number,
         fixture_count=len(plan.fixtures),
-        stem=slot.fixture.stem,
+        fixture_stem=slot.fixture.stem,
         trial_number=slot.trial_number,
-        trial_count=settings.trials,
+        trial_count=settings.trials.count,
         result=result,
     )
 
 
-def _run_trial(
+def _run_slot(
     slot: _TrialSlot, plan: RunPlan, settings: TrialSettings, run_trial: TrialRunner
 ) -> TrialResult:
     grader = partial(

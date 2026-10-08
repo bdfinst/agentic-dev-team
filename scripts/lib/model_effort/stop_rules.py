@@ -7,18 +7,34 @@ An operator interrupt is not decided here; it arrives as an exception.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
-from .artifact import AbortReason
 from .outcome import INFRA_OUTCOMES, Outcome
+from .run_status import AbortReason
 
 # Consecutive infrastructure outcomes in one arm that mark the failure as systemic.
 CONSECUTIVE_INFRA_FAILURE_LIMIT = 3
 
 
+@dataclass(frozen=True)
+class SpendLimit:
+    """The operator's `--max-cost`. Both checks are strict: spending exactly the limit is allowed."""
+
+    max_cost_usd: float
+
+    def refuses(self, estimate_usd: float) -> bool:
+        """True when the pre-run estimate is already above the limit."""
+        return estimate_usd > self.max_cost_usd
+
+    def exceeded_by(self, actual_usd: float) -> bool:
+        """True when the cost so far is above the limit."""
+        return actual_usd > self.max_cost_usd
+
+
 def check_stop(
     outcomes_by_arm: Mapping[str, Sequence[Outcome]],
-    cumulative_cost: float,
-    max_cost: float | None,
+    cumulative_cost_usd: float,
+    spend_limit: SpendLimit | None,
 ) -> AbortReason | None:
     """Return why the run must stop now, or `None` to start the next trial.
 
@@ -26,7 +42,7 @@ def check_stop(
     across fixtures. Spend wins when both rules apply, because it is the one an
     operator set on purpose.
     """
-    if max_cost is not None and cumulative_cost > max_cost:
+    if spend_limit is not None and spend_limit.exceeded_by(cumulative_cost_usd):
         return AbortReason.MAX_COST
     if any(_is_systemic_failure(history) for history in outcomes_by_arm.values()):
         return AbortReason.INFRA_FAILURE
