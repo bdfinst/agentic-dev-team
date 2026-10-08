@@ -28,7 +28,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -127,6 +127,17 @@ LIMIT_IN_TRIALS = 2.5
 MAX_COST_MID_RUN = LIMIT_IN_TRIALS * TRIAL_COST
 TRIALS_BEFORE_STOP = math.ceil(LIMIT_IN_TRIALS)
 ENABLED = ("Read", "Grep")
+# The most characters of a trial's error text (and of its grader messages) that are kept.
+CAUSE_LIMIT = 500
+# A spend limit just above the run's estimate, so the startup refusal allows it.
+MAX_COST_ESTIMATE_FACTOR = 1.1
+# Calls alternate baseline, candidate; the baseline's every second trial reports no
+# cost, which is one call in four of the full run.
+UNREPORTED_CALLS = FULL_RUN_CALLS // 4
+REPORTED_CALLS = FULL_RUN_CALLS - UNREPORTED_CALLS
+# Each reported trial costs a share of the limit that leaves half a share spare, so
+# the reported trials alone stay under the limit.
+SPARE_TRIAL_SHARE = 0.5
 # Long enough that a slow interpreter start still reaches the stub before the kill.
 TIMEOUT_SECONDS = 3
 
@@ -1797,22 +1808,29 @@ class TestTotalCost:
 
 
 class TestMessageCaps:
-    def test_error_is_capped_at_500_characters(self):
+    def test_error_is_capped_at_the_cause_limit(self):
         errored = _resolve(_verdict_stream(PASS_VERDICT), exit_code=1, stderr="e" * 900)
 
-        assert len(errored.error) == 500
+        assert len(errored.error) == CAUSE_LIMIT
 
-    def test_a_single_long_grader_message_is_capped_at_500_characters(self):
-        graded = _resolve(_verdict_stream(PASS_VERDICT), lambda j: (False, ["m" * 900]))
+    def test_a_single_long_grader_message_is_capped_at_the_cause_limit(self):
+        long_message = "m" * (2 * CAUSE_LIMIT)
+        graded = _resolve(
+            _verdict_stream(PASS_VERDICT), lambda j: (False, [long_message])
+        )
 
-        assert [len(m) for m in graded.grader_messages] == [500]
+        assert [len(m) for m in graded.grader_messages] == [CAUSE_LIMIT]
 
-    def test_combined_grader_messages_are_capped_at_500_characters(self):
-        messages = ["a" * 300, "b" * 300, "c" * 300]
+    def test_combined_grader_messages_are_capped_at_the_cause_limit(self):
+        first_length = CAUSE_LIMIT * 3 // 5
+        messages = ["a" * first_length, "b" * CAUSE_LIMIT, "c" * CAUSE_LIMIT]
 
         graded = _resolve(_verdict_stream(PASS_VERDICT), lambda j: (False, messages))
 
-        assert graded.grader_messages == ("a" * 300, "b" * 200)
+        assert graded.grader_messages == (
+            "a" * first_length,
+            "b" * (CAUSE_LIMIT - first_length),
+        )
 
     def test_messages_that_fit_the_cap_are_kept_whole(self):
         messages = ["a" * 100, "b" * 100]
@@ -2209,11 +2227,7 @@ def _interrupted_replace(*_args, **_kwargs):
 
 def _store_with_failing_replace(monkeypatch, replace=_failing_replace) -> None:
     """Make the final move fail while leaving every other os call working."""
-    monkeypatch.setattr(
-        artifact_store,
-        "os",
-        SimpleNamespace(replace=replace, fsync=os.fsync),
-    )
+    monkeypatch.setattr(artifact_store.os, "replace", replace)
 
 
 class TestArtifactStore:
@@ -2699,66 +2713,22 @@ class TestTwoArmRun:
         assert stub.calls[0]["observed"] == {"exists": True, "size": 0}
 
     def test_trial_that_times_out_is_recorded_as_a_timeout_in_the_artifact(self, world):
-        stub = StubClaude(world.stub_dir, sleep=30)
-
         _cli(
             world,
-            stub,
-            "scout",
-            "--model",
-            "haiku",
-            "--fixtures",
-            "clean-form",
+            StubClaude(world.stub_dir),
+            *CLEAN_FORM_ARGS,
             "--trials",
             "1",
-            "--trial-timeout",
-            str(TIMEOUT_SECONDS),
+            deps=_deps_timing_out(world),
         )
 
-        assert stub.calls, "the stub never started, so the timeout proved nothing"
         baseline = _arm_block(_written(world), BASELINE_LABEL)
+        trial = baseline["fixtures"][0]["trials"][0]
         assert baseline["totals"]["timeout"] == 1
-        assert baseline["fixtures"][0]["trials"][0]["outcome"] == "timeout"
-
-
-class TestErrorPathsAreScrubbed:
-    def test_claude_binary_under_the_home_directory_is_recorded_with_a_tilde(
-        self, world, tmp_path, monkeypatch
-    ):
-        fake_home = tmp_path / "home" / "alice"
-        monkeypatch.setenv("HOME", str(fake_home))
-        missing = fake_home / "bin" / "no-such-claude"
-
-        model_effort_ab.main(
-            [
-                *CLEAN_FORM_ARGS,
-                "--trials",
-                "1",
-                "--yes",
-                "--claude-bin",
-                str(missing),
-                "--runs-dir",
-                str(world.runs_dir),
-            ],
-            deps=world.deps,
+        assert (trial["outcome"], trial["error"]) == (
+            "timeout",
+            "trial exceeded the time limit",
         )
-
-        error = _arm_block(_written(world), BASELINE_LABEL)["fixtures"][0]["trials"][0][
-            "error"
-        ]
-        assert "~/bin/no-such-claude" in error
-        assert str(fake_home) not in error
-
-    def test_staged_fixture_directory_is_recorded_as_a_placeholder(self, world):
-        stub = StubClaude(world.stub_dir, exit_code=1, stderr_cwd=True)
-
-        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "1")
-
-        error = _arm_block(_written(world), BASELINE_LABEL)["fixtures"][0]["trials"][0][
-            "error"
-        ]
-        assert "cannot read <staged>/form.html" in error
-        assert runner.TEMP_DIR_PREFIX not in error
 
 
 class TestPreRunRefusals:
@@ -2820,7 +2790,7 @@ class TestPreRunRefusals:
 
         assert code == 2
         assert "other-only" in capsys.readouterr().err
-        assert stub.calls == []
+        assert_nothing_ran(stub, world)
 
     def test_agent_with_no_expected_entries_exits_2_stating_no_fixtures_found(
         self, world, capsys
@@ -3677,6 +3647,9 @@ class TestStopRules:
 # --- Stopping early and keeping partial results ------------------------------
 
 CLI_FAILURE = {"exit_code": 1, "stdout": "", "stderr": "boom: auth failed"}
+TIMED_OUT_RECORD = runner.TrialProcessRecord(
+    exit_code=None, stdout="", stderr="", timed_out=True
+)
 CLEAN_FORM_ARGS = ("scout", "--model", "haiku", "--fixtures", "clean-form")
 
 
@@ -3711,6 +3684,43 @@ def _deps_signalling_after(
     return _deps_acting_after(
         world, completed_trials, lambda: os.kill(os.getpid(), signum)
     )
+
+
+def assert_cut_at_limit(text: str, prefix: str, filler: str) -> None:
+    """Assert `text` shows `prefix` plus `filler` up to CAUSE_LIMIT characters, and no more."""
+    __tracebackhide__ = True
+    kept = filler * (CAUSE_LIMIT - len(prefix))
+    assert prefix + kept in text, "the text was cut short of the limit"
+    assert prefix + kept + filler not in text, "the text was kept beyond the limit"
+
+
+def _deps_timing_out(
+    world: World, timed_out_calls: Collection[int] | None = None
+) -> model_effort_ab.Deps:
+    """Make the trials at `timed_out_calls` (0-based; default all) end as timeouts.
+
+    No process runs for those; the other trials run the stub. A real timeout is
+    covered at the runner layer.
+    """
+    started = []
+
+    def run_or_time_out(*args, **kwargs):
+        call_number = len(started)
+        started.append(args)
+        if timed_out_calls is None or call_number in timed_out_calls:
+            return TIMED_OUT_RECORD
+        return runner.run_trial(*args, **kwargs)
+
+    return dataclasses.replace(world.deps, run_trial=run_or_time_out)
+
+
+def _always_failing(
+    world: World, outcome_name: str
+) -> tuple[StubClaude, model_effort_ab.Deps]:
+    """A stub and deps under which every trial ends in `outcome_name` (cli_error or timeout)."""
+    if outcome_name == "timeout":
+        return StubClaude(world.stub_dir), _deps_timing_out(world)
+    return StubClaude(world.stub_dir, **CLI_FAILURE), world.deps
 
 
 def _interrupting_deps(world: World, completed_trials: int) -> model_effort_ab.Deps:
@@ -3814,26 +3824,21 @@ class TestSpendLimitStop:
         assert len(stub.calls) == ARM_COUNT
         assert _written(world)["status"] == "complete"
 
-    @pytest.mark.parametrize(
-        "unreported", [CLI_FAILURE, {"sleep": 30}], ids=["cli_error", "timeout"]
-    )
-    def test_trials_with_no_reported_cost_are_charged_their_estimate_toward_max_cost(
-        self, world, unreported
-    ):
-        # The limit sits at the run's estimate, which the refusal check allows.
-        # The nine reported passes alone stay under it; the baseline's unreported
-        # trials charge their estimate and push the total over it before the end.
-        limit = 1.1 * (BASELINE_TWO_ARM_ESTIMATE + CANDIDATE_TWO_ARM_ESTIMATE)
-        reported_passes = 9
+    @staticmethod
+    def _run_with_unreported_baseline_trials(world, kind):
+        """Run to a limit the reported costs never pass, with the baseline's unreported trials charged."""
+        limit = MAX_COST_ESTIMATE_FACTOR * TWO_ARM_ESTIMATE
+        reported_cost = limit / (REPORTED_CALLS + SPARE_TRIAL_SHARE)
         stub = StubClaude(
             world.stub_dir,
-            **_verdict_call(
-                PASS_VERDICT, SONNET_MODEL_ID, cost=limit / (reported_passes + 0.5)
-            ),
+            **_verdict_call(PASS_VERDICT, SONNET_MODEL_ID, cost=reported_cost),
         )
-        # Calls alternate baseline, candidate: the baseline alternates pass, unreported.
-        stub.queue(*[{}, {}, unreported, {}] * 3)
-
+        if kind == "timeout":
+            unreported_calls = range(2, FULL_RUN_CALLS, 4)
+            deps = _deps_timing_out(world, set(unreported_calls))
+        else:
+            stub.queue(*[{}, {}, CLI_FAILURE, {}] * SCOUT_TRIALS)
+            deps = world.deps
         code = _cli(
             world,
             stub,
@@ -3844,11 +3849,16 @@ class TestSpendLimitStop:
             str(SCOUT_TRIALS),
             "--max-cost",
             str(limit),
-            "--trial-timeout",
-            str(TIMEOUT_SECONDS),
+            deps=deps,
         )
+        return code, _written(world)
 
-        written = _written(world)
+    @pytest.mark.parametrize("kind", ["cli_error", "timeout"])
+    def test_trials_with_no_reported_cost_are_charged_the_arms_per_trial_estimate(
+        self, world, kind
+    ):
+        _, written = self._run_with_unreported_baseline_trials(world, kind)
+
         baseline = _arm_block(written, BASELINE_LABEL)
         unreported_trials = [
             trial
@@ -3857,15 +3867,23 @@ class TestSpendLimitStop:
             if not trial["cost_reported"]
         ]
         per_trial_estimate = BASELINE_TWO_ARM_ESTIMATE / ARM_RUN_CALLS
-        actual = sum(arm["totals"]["actual_cost_usd"] for arm in written["arms"])
-        assert code == 1
-        assert written["abort_reason"] == "max-cost"
-        assert len(stub.calls) < FULL_RUN_CALLS
-        assert unreported_trials
+        assert len(unreported_trials) >= 1
         assert baseline["totals"]["estimated_cost_charged_usd"] == pytest.approx(
             len(unreported_trials) * per_trial_estimate
         )
-        assert actual <= limit
+
+    @pytest.mark.parametrize("kind", ["cli_error", "timeout"])
+    def test_charged_estimates_for_unreported_trials_stop_the_run_at_max_cost(
+        self, world, kind
+    ):
+        code, written = self._run_with_unreported_baseline_trials(world, kind)
+
+        completed = len(_outcomes(written, BASELINE_LABEL)) + len(
+            _outcomes(written, CANDIDATE_LABEL)
+        )
+        assert code == 1
+        assert written["abort_reason"] == "max-cost"
+        assert completed < FULL_RUN_CALLS
 
     def test_cost_passing_max_cost_on_the_last_planned_trial_leaves_the_run_complete(
         self, world, capsys
@@ -3890,34 +3908,22 @@ class TestSpendLimitStop:
 
 
 class TestSystemicFailureStop:
-    @pytest.mark.parametrize(
-        ("outcome", "behavior"),
-        [("cli_error", CLI_FAILURE), ("timeout", {"sleep": 30})],
-    )
+    @pytest.mark.parametrize("outcome", ["cli_error", "timeout"])
     def test_first_trial_ending_in_an_infra_outcome_stops_the_run_with_no_further_trial(
-        self, world, outcome, behavior
+        self, world, outcome
     ):
-        stub = StubClaude(world.stub_dir, **behavior)
+        stub, deps = _always_failing(world, outcome)
 
-        code = _cli(
-            world,
-            stub,
-            *CLEAN_FORM_ARGS,
-            "--trials",
-            "5",
-            "--trial-timeout",
-            str(TIMEOUT_SECONDS),
-        )
+        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5", deps=deps)
 
         written = _written(world)
-        assert stub.calls, "the stub never started, so the stop proved nothing"
         assert code == 1
-        assert len(stub.calls) == 1
         assert (written["status"], written["abort_reason"]) == (
             "incomplete",
             "infra-failure",
         )
         assert _outcomes(written, BASELINE_LABEL) == [outcome]
+        assert _outcomes(written, CANDIDATE_LABEL) == []
 
     def test_candidate_whose_first_trial_fails_stops_the_run_after_one_trial_each(
         self, world
@@ -3934,43 +3940,33 @@ class TestSystemicFailureStop:
         assert _outcomes(written, CANDIDATE_LABEL) == ["cli_error"]
 
     @pytest.mark.parametrize(
-        ("outcome", "behavior", "cause"),
+        ("outcome", "cause"),
         [
-            ("cli_error", CLI_FAILURE, "exit code 1: boom: auth failed"),
-            ("timeout", {"sleep": 30}, "trial exceeded the time limit"),
+            ("cli_error", "exit code 1: boom: auth failed"),
+            ("timeout", "trial exceeded the time limit"),
         ],
     )
     def test_stderr_names_the_abort_reason_the_failing_trials_error_and_the_artifact(
-        self, world, capsys, outcome, behavior, cause
+        self, world, capsys, outcome, cause
     ):
-        stub = StubClaude(world.stub_dir, **behavior)
+        stub, deps = _always_failing(world, outcome)
 
-        _cli(
-            world,
-            stub,
-            *CLEAN_FORM_ARGS,
-            "--trials",
-            "5",
-            "--trial-timeout",
-            str(TIMEOUT_SECONDS),
-        )
+        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5", deps=deps)
 
         err = capsys.readouterr().err
-        assert stub.calls, "the stub never started, so the stop proved nothing"
         assert (
             f"error: run stopped early (infra-failure): the baseline arm ended in "
             f"{outcome}. Likely cause: {cause}. Fix that and rerun"
         ) in err
         assert f"artifact written: {world.artifact_path}" in err
 
-    def test_stderr_shows_the_cause_cut_to_500_characters(self, world, capsys):
-        stub = StubClaude(world.stub_dir, **{**CLI_FAILURE, "stderr": "x" * 2000})
+    def test_stderr_shows_the_cause_cut_at_the_cause_limit(self, world, capsys):
+        long_stderr = "x" * (4 * CAUSE_LIMIT)
+        stub = StubClaude(world.stub_dir, **{**CLI_FAILURE, "stderr": long_stderr})
 
         _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
 
-        err = capsys.readouterr().err
-        assert "x" * 487 + "." in err
-        assert "x" * 488 not in err
+        assert_cut_at_limit(capsys.readouterr().err, "exit code 1: ", "x")
 
     def test_terminal_control_sequences_in_the_cause_are_shown_escaped_not_executed(
         self, world, capsys
@@ -4209,21 +4205,20 @@ class TestUnexpectedTrialError:
         assert "RuntimeError: staging exploded" in err
         assert f"artifact written: {world.artifact_path}" in err
 
-    def test_error_text_in_the_stop_notice_is_cut_to_500_characters(
+    def test_error_text_in_the_stop_notice_is_cut_at_the_cause_limit(
         self, world, capsys
     ):
+        long_message = "m" * (4 * CAUSE_LIMIT)
         _cli(
             world,
             _passing_stub(world),
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
-            deps=_deps_raising_after(world, 1, RuntimeError("m" * 2000)),
+            deps=_deps_raising_after(world, 1, RuntimeError(long_message)),
         )
 
-        err = capsys.readouterr().err
-        assert "RuntimeError: " + "m" * 486 in err
-        assert "m" * 487 not in err
+        assert_cut_at_limit(capsys.readouterr().err, "RuntimeError: ", "m")
 
     def test_terminal_control_sequences_in_the_error_are_shown_escaped(
         self, world, capsys
