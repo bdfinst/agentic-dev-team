@@ -1773,6 +1773,32 @@ class TestTrialOutcomes:
 
         assert result.outcome == Outcome.TIMEOUT
 
+    def test_timeout_error_is_the_time_limit_notice_when_no_stderr_was_left(self):
+        result = _resolve("", exit_code=None, timed_out=True, stderr="  \n")
+
+        assert result.error == "trial exceeded the time limit"
+
+    def test_timeout_error_carries_the_partial_stderr_the_killed_process_left(self):
+        result = _resolve(
+            "", exit_code=None, timed_out=True, stderr="  rate limited, retrying\n"
+        )
+
+        assert result.error == "trial exceeded the time limit: rate limited, retrying"
+
+    def test_timeout_error_stderr_has_the_staged_directory_scrubbed_and_is_capped(self):
+        staged = Path(tempfile.gettempdir()) / f"{runner.TEMP_DIR_PREFIX}abc123"
+        result = _resolve(
+            "",
+            exit_code=None,
+            timed_out=True,
+            stderr=f"stuck reading {staged}/form.html " + "x" * (4 * CAUSE_LIMIT),
+            cwd=staged,
+        )
+
+        assert "<staged>/form.html" in result.error
+        assert str(staged) not in result.error
+        assert len(result.error) == CAUSE_LIMIT
+
     def test_recorded_successful_run_resolves_to_pass_with_a_passing_grader(self):
         result = _resolve(_fixture_text("pass-readonly.jsonl"))
 
@@ -3868,9 +3894,11 @@ def assert_cut_at_limit(text: str, prefix: str, filler: str) -> None:
 
 
 def _deps_timing_out(
-    world: World, timed_out_calls: Collection[int] | None = None
+    world: World, timed_out_calls: Collection[int] | None = None, stderr: str = ""
 ) -> model_effort_ab.Deps:
     """Make the trials at `timed_out_calls` (0-based; default all) end as timeouts.
+
+    The killed process left `stderr` behind.
 
     No process runs for those; the other trials run the stub. A real timeout is
     covered at the runner layer.
@@ -3881,7 +3909,7 @@ def _deps_timing_out(
         call_number = len(started)
         started.append(args)
         if timed_out_calls is None or call_number in timed_out_calls:
-            return TIMED_OUT_RECORD
+            return dataclasses.replace(TIMED_OUT_RECORD, stderr=stderr)
         return runner.run_trial(*args, **kwargs)
 
     return dataclasses.replace(world.deps, run_trial=run_or_time_out)
@@ -4132,6 +4160,25 @@ class TestSystemicFailureStop:
             f"{outcome}. Likely cause: {cause}. Fix that and rerun"
         ) in err
         assert f"artifact written: {world.artifact_path}" in err
+
+    def test_stderr_names_what_the_killed_process_printed_as_the_cause_of_a_timeout(
+        self, world, capsys
+    ):
+        deps = _deps_timing_out(world, stderr="auth token expired")
+
+        _cli(
+            world,
+            StubClaude(world.stub_dir),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            deps=deps,
+        )
+
+        assert (
+            "Likely cause: trial exceeded the time limit: auth token expired. "
+            "Fix that and rerun"
+        ) in capsys.readouterr().err
 
     def test_stderr_shows_the_cause_cut_at_the_cause_limit(self, world, capsys):
         long_stderr = "x" * (4 * CAUSE_LIMIT)

@@ -76,7 +76,7 @@ def _decide(
     grader: Grader,
 ) -> tuple[Outcome, str | None, list[str]]:
     if record.timed_out:
-        return Outcome.TIMEOUT, "trial exceeded the time limit", []
+        return Outcome.TIMEOUT, _timeout_error(record), []
     cli_error = _cli_error(record, parsed)
     if cli_error is not None:
         return Outcome.CLI_ERROR, cli_error, []
@@ -98,6 +98,13 @@ def _grade(agent_json: dict, grader: Grader) -> tuple[Outcome, str | None, list[
     if not passed:
         return Outcome.GRADED_FAIL, None, messages
     return Outcome.PASS, None, []
+
+
+def _timeout_error(record: TrialProcessRecord) -> str:
+    """The time-limit notice, with whatever the killed process had written to stderr."""
+    notice = "trial exceeded the time limit"
+    detail = record.stderr.strip()
+    return f"{notice}: {detail}" if detail else notice
 
 
 def _cli_error(record: TrialProcessRecord, parsed: ParsedTranscript) -> str | None:
