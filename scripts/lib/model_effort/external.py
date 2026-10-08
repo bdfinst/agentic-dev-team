@@ -2,11 +2,15 @@
 
 Path loading avoids a name collision: `scripts/validate_agent_contract.py` is a
 shim that shadows the real module of the same name.
+
+The two wrappers at the end are the only place that reaches those scripts' private
+helpers, so an upstream rename breaks one function here.
 """
 
 from __future__ import annotations
 
 import importlib.util
+from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
 from types import ModuleType
@@ -32,3 +36,13 @@ def agent_contract_validator() -> ModuleType:
 def isolated_dispatch() -> ModuleType:
     """`plugins/dev-team/skills/headless-run/scripts/isolated_dispatch.py`."""
     return _load_module(paths.ISOLATED_DISPATCH)
+
+
+def should_scrub_env_var(name: str) -> bool:
+    """True when `isolated_dispatch` removes the environment variable `name` from a child."""
+    return isolated_dispatch()._should_scrub(name)
+
+
+def model_is_valid(value: str, enum: Sequence[str]) -> bool:
+    """True when `value` is in the agent contract's model `enum` or is a full model ID."""
+    return agent_contract_validator()._model_is_valid(value, enum)

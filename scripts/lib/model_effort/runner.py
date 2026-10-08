@@ -111,8 +111,11 @@ def build_trial_env(parent_env: Mapping[str, str]) -> dict[str, str]:
     is kept so authentication works; `--restricted` already excludes user-scope
     config, hooks and CLAUDE.md.
     """
-    should_scrub = external.isolated_dispatch()._should_scrub
-    return {name: value for name, value in parent_env.items() if not should_scrub(name)}
+    return {
+        name: value
+        for name, value in parent_env.items()
+        if not external.should_scrub_env_var(name)
+    }
 
 
 @contextmanager

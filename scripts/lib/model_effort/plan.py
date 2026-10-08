@@ -117,7 +117,7 @@ def validate_candidate(model: str | None, effort: str | None) -> None:
         )
     models = contract["fields"]["model"]["enum"]
     efforts = contract["fields"]["effort"]["enum"]
-    if model is not None and not validator._model_is_valid(model, models):
+    if model is not None and not external.model_is_valid(model, models):
         raise UsageError(
             f"candidate --model {model!r} is not valid: use one of "
             f"{', '.join(models)}, or a full model ID such as claude-opus-4-8"

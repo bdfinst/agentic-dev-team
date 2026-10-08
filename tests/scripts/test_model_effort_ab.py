@@ -53,6 +53,7 @@ from model_effort import (
     artifact_store,
     estimate,
     execution,
+    external,
     grading,
     interrupts,
     outcome,
@@ -842,6 +843,21 @@ class TestTrialArgv:
         argv = runner.build_argv(config, "go")
 
         assert argv[:3] == ["/opt/bin/claude-x", "-p", "go"]
+
+
+class TestExternalScriptWrappers:
+    """These fail when an upstream script renames the private helper the wrapper reaches."""
+
+    def test_session_identity_variable_is_scrubbed_and_home_is_kept(self):
+        assert external.should_scrub_env_var("CLAUDE_CODE_SESSION_ID") is True
+        assert external.should_scrub_env_var("HOME") is False
+
+    @pytest.mark.parametrize(
+        ("value", "valid"),
+        [("haiku", True), ("claude-opus-4-8", True), ("gpt-4", False), ("", False)],
+    )
+    def test_model_is_valid_against_the_contract_enum(self, value, valid):
+        assert external.model_is_valid(value, ["haiku", "sonnet", "opus"]) is valid
 
 
 class TestTrialEnvironment:
