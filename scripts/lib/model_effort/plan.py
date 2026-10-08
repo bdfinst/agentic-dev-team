@@ -57,7 +57,8 @@ def plan_run(
 
     Raises:
         UsageError: the agent is unknown, write-capable or has unusable
-            frontmatter; a candidate value is invalid; fixtures cannot be
+            frontmatter; a candidate value is invalid or leaves the candidate
+            identical to the baseline; fixtures cannot be
             resolved; or the artifact path is unavailable.
     """
     agent_spec, profile = _load_agent(agent, agents_dir)
@@ -70,6 +71,7 @@ def plan_run(
         candidate_effort or baseline.effort,
         profile,
     )
+    _refuse_identical_arms(baseline, candidate)
     run_id = artifact.make_run_id(now, agent, candidate.model, candidate.effort, rng)
     return RunPlan(
         agent=agent,
@@ -85,6 +87,15 @@ def plan_run(
         ),
         artifact_path=artifact_store.reserve_artifact_path(runs_dir, run_id),
     )
+
+
+def _refuse_identical_arms(baseline: Arm, candidate: Arm) -> None:
+    if (candidate.model, candidate.effort) == (baseline.model, baseline.effort):
+        raise UsageError(
+            f"the candidate arm (model {candidate.model}, effort {candidate.effort}) "
+            "is identical to the agent's frontmatter, so there is nothing to compare: "
+            "pass a different --model or --effort"
+        )
 
 
 def validate_candidate(model: str | None, effort: str | None) -> None:

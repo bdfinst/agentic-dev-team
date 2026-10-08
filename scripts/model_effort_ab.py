@@ -40,7 +40,7 @@ for _path in (
         sys.path.insert(0, str(_path))
 
 import pricing
-from model_effort import artifact_store, interrupts, paths, runner, session
+from model_effort import artifact, artifact_store, interrupts, paths, runner, session
 from model_effort.errors import UsageError
 from model_effort.execution import TrialCount, TrialRunner, TrialSettings
 from model_effort.plan import RunPlan, plan_run
@@ -48,8 +48,19 @@ from model_effort.session import EXIT_USAGE
 from model_effort.stop_rules import SpendLimit
 
 DEFAULT_TRIALS = 5
+HIGH_STAKES_TRIALS = 10
+# Exact agent names: `security-reviewer` is not in the set.
+HIGH_STAKES_AGENTS = frozenset(
+    {"security-review", "correctness-review", "architect", "security-engineer"}
+)
 TRIALS_DEFAULT_REASON = "default"
+TRIALS_HIGH_STAKES_REASON = "high-stakes default"
 TRIALS_FLAG_REASON = "--trials"
+RUBRIC_GRADER = "rubric"
+RUBRIC_GRADER_REFUSAL = (
+    "--grader rubric is not implemented yet; rubric grading is planned: "
+    f"omit --grader to use {artifact.GRADER}"
+)
 
 
 def _read_git_head_sha() -> str | None:
@@ -99,7 +110,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        help="candidate model alias (default: the agent's frontmatter `model:`)",
+        help="candidate model alias (default: the agent's frontmatter `model:`; "
+        "the candidate must differ from the frontmatter in --model or --effort)",
     )
     parser.add_argument(
         "--effort",
@@ -113,7 +125,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--trials",
         type=_positive_int,
-        help=f"trials per arm per fixture (default: {DEFAULT_TRIALS})",
+        help=f"trials per arm per fixture (default: {HIGH_STAKES_TRIALS} for "
+        f"{', '.join(sorted(HIGH_STAKES_AGENTS))}; otherwise {DEFAULT_TRIALS})",
+    )
+    parser.add_argument(
+        "--grader",
+        choices=(artifact.GRADER, RUBRIC_GRADER),
+        default=artifact.GRADER,
+        help=f"how trials are graded (default: {artifact.GRADER}, the deterministic "
+        f"grader over evals/expected; {RUBRIC_GRADER} is not implemented yet)",
     )
     parser.add_argument(
         "--trial-timeout",
@@ -155,7 +175,9 @@ def _positive_int(text: str) -> int:
     except ValueError:
         value = 0
     if value < 1:
-        raise argparse.ArgumentTypeError(f"{text!r} is not a positive integer")
+        raise argparse.ArgumentTypeError(
+            f"{text!r} is not a positive integer: pass a whole number of 1 or more"
+        )
     return value
 
 
@@ -175,10 +197,13 @@ def _split_csv(text: str | None) -> list[str] | None:
     return list(dict.fromkeys(part.strip() for part in text.split(",") if part.strip()))
 
 
-def _resolve_trials(flag_value: int | None) -> TrialCount:
-    if flag_value is None:
-        return TrialCount(DEFAULT_TRIALS, TRIALS_DEFAULT_REASON)
-    return TrialCount(flag_value, TRIALS_FLAG_REASON)
+def resolve_trials(flag_value: int | None, agent: str) -> TrialCount:
+    """Return `--trials` if given, else the high-stakes or the general default."""
+    if flag_value is not None:
+        return TrialCount(flag_value, TRIALS_FLAG_REASON)
+    if agent in HIGH_STAKES_AGENTS:
+        return TrialCount(HIGH_STAKES_TRIALS, TRIALS_HIGH_STAKES_REASON)
+    return TrialCount(DEFAULT_TRIALS, TRIALS_DEFAULT_REASON)
 
 
 def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
@@ -189,12 +214,14 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
 
 
 def _run(args: argparse.Namespace, deps: Deps) -> int:
+    if args.grader == RUBRIC_GRADER:
+        return _report_usage_error(UsageError(RUBRIC_GRADER_REFUSAL))
     try:
         plan = _plan_from(args, deps)
     except UsageError as error:
         return _report_usage_error(error)
     settings = TrialSettings(
-        trials=_resolve_trials(args.trials),
+        trials=resolve_trials(args.trials, args.agent),
         trial_timeout=args.trial_timeout,
         claude_bin=args.claude_bin,
         expected_dir=deps.expected_dir,

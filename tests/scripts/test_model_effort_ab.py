@@ -2405,7 +2405,17 @@ class TestTwoArmRun:
     def test_fixtures_flag_restricts_the_run_to_the_named_stems(self, world):
         stub = _passing_stub(world)
 
-        code = _cli(world, stub, "scout", "--fixtures", "layered-svc", "--trials", "1")
+        code = _cli(
+            world,
+            stub,
+            "scout",
+            "--model",
+            "haiku",
+            "--fixtures",
+            "layered-svc",
+            "--trials",
+            "1",
+        )
 
         assert code == 0
         assert len(stub.calls) == 2
@@ -2416,7 +2426,17 @@ class TestTwoArmRun:
     ):
         stub = _passing_stub(world)
 
-        _cli(world, stub, "scout", "--fixtures", "clean-form", "--trials", "1")
+        _cli(
+            world,
+            stub,
+            "scout",
+            "--model",
+            "haiku",
+            "--fixtures",
+            "clean-form",
+            "--trials",
+            "1",
+        )
 
         for call in stub.calls:
             assert _flag_value(call["argv"], "--tools") == "Read,Grep"
@@ -2448,6 +2468,8 @@ class TestTwoArmRun:
             world,
             stub,
             "scout",
+            "--model",
+            "haiku",
             "--fixtures",
             "clean-form",
             "--trials",
@@ -2547,20 +2569,11 @@ class TestPreRunRefusals:
         stub = StubClaude(world.stub_dir)
         world.runs_dir.rmdir()
 
-        code = _cli(world, stub, "scout")
+        code = _cli(world, stub, "scout", "--model", "haiku")
 
         assert code == 2
         assert "runs directory" in capsys.readouterr().err
         assert stub.calls == []
-
-    def test_zero_trials_is_a_usage_error_and_runs_nothing(self, world):
-        stub = StubClaude(world.stub_dir)
-
-        with pytest.raises(SystemExit) as excinfo:
-            _cli(world, stub, "scout", "--trials", "0")
-
-        assert excinfo.value.code == 2
-        assert_nothing_ran(stub, world)
 
     def test_malformed_expected_json_exits_2_naming_the_file(self, world, capsys):
         stub = StubClaude(world.stub_dir)
@@ -2593,6 +2606,154 @@ class TestPreRunRefusals:
         assert code == 2
         assert "--model" in capsys.readouterr().err
         assert_nothing_ran(stub, world)
+
+
+def _add_agent(world: World, name: str) -> None:
+    """Add a read-only agent with one fixture, so a run over it has one fixture."""
+    _write_agent(world.deps.agents_dir, name, "Read", model="sonnet", effort="high")
+    _write_expected(world.expected_dir, f"{name}-case", name, "pass")
+    _make_file_fixture(world.deps.fixtures_dir, f"{name}-case.txt")
+
+
+class TestTrialDefaults:
+    @pytest.mark.parametrize(
+        ("agent", "trials"),
+        [
+            ("naming-review", 5),
+            ("security-review", 10),
+            ("correctness-review", 10),
+            ("security-reviewer", 5),
+        ],
+    )
+    def test_each_arm_runs_the_default_trials_for_the_agent(
+        self, world, capsys, agent, trials
+    ):
+        _add_agent(world, agent)
+        stub = _passing_stub(world)
+
+        code = _cli(world, stub, agent, "--model", "haiku")
+
+        assert code == 0
+        assert len(stub.calls) == ARM_COUNT * trials
+        assert (
+            f"Trials per arm per fixture: {trials} "
+            f"({'high-stakes default' if trials == 10 else 'default'})"
+        ) in _stderr_lines(capsys)
+
+    def test_explicit_trials_override_the_high_stakes_default(self, world, capsys):
+        _add_agent(world, "security-review")
+        stub = _passing_stub(world)
+
+        code = _cli(world, stub, "security-review", "--model", "haiku", "--trials", "3")
+
+        assert code == 0
+        assert len(stub.calls) == ARM_COUNT * 3
+        assert "Trials per arm per fixture: 3 (--trials)" in _stderr_lines(capsys)
+
+    @pytest.mark.parametrize(
+        "agent",
+        ["security-review", "correctness-review", "architect", "security-engineer"],
+    )
+    def test_resolver_gives_every_high_stakes_agent_ten_trials(self, agent):
+        assert model_effort_ab.resolve_trials(None, agent) == execution.TrialCount(
+            10, "high-stakes default"
+        )
+
+    def test_resolver_gives_other_agents_five_trials(self):
+        assert model_effort_ab.resolve_trials(None, "security-reviewer") == (
+            execution.TrialCount(5, "default")
+        )
+
+    def test_resolver_prefers_the_flag_over_the_high_stakes_default(self):
+        assert model_effort_ab.resolve_trials(2, "architect") == execution.TrialCount(
+            2, "--trials"
+        )
+
+
+class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
+    def _assert_refused(self, world, stub, capsys, code, fix_hint):
+        err = capsys.readouterr().err
+        assert code == 2
+        assert fix_hint in err
+        assert "Estimate" not in err
+        assert_nothing_ran(stub, world)
+
+    @pytest.mark.parametrize("trials", ["0", "-1", "abc", "2.5"])
+    def test_non_positive_or_non_integer_trials_name_the_fix(
+        self, world, capsys, trials
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        with pytest.raises(SystemExit) as excinfo:
+            _cli(world, stub, "scout", "--model", "haiku", "--trials", trials)
+
+        self._assert_refused(
+            world, stub, capsys, excinfo.value.code, "a whole number of 1 or more"
+        )
+
+    def test_rubric_grader_is_refused_as_not_implemented(self, world, capsys):
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "scout", "--model", "haiku", "--grader", "rubric")
+
+        self._assert_refused(
+            world, stub, capsys, code, "not implemented yet; rubric grading is planned"
+        )
+
+    def test_unknown_grader_is_refused_listing_the_valid_ones(self, world, capsys):
+        stub = StubClaude(world.stub_dir)
+
+        with pytest.raises(SystemExit) as excinfo:
+            _cli(world, stub, "scout", "--model", "haiku", "--grader", "vibes")
+
+        self._assert_refused(
+            world, stub, capsys, excinfo.value.code, "expected-findings"
+        )
+
+    def test_the_default_grader_is_accepted(self, world):
+        stub = _passing_stub(world)
+
+        code = _cli(
+            world,
+            stub,
+            "scout",
+            "--model",
+            "haiku",
+            "--grader",
+            "expected-findings",
+            "--trials",
+            "1",
+        )
+
+        assert code == 0
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            [],
+            ["--model", "sonnet", "--effort", "high"],
+            ["--model", "sonnet"],
+            ["--effort", "high"],
+        ],
+        ids=["no-overrides", "both-equal", "model-only-equal", "effort-only-equal"],
+    )
+    def test_candidate_equal_to_frontmatter_names_the_fix(
+        self, world, capsys, overrides
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "scout", *overrides)
+
+        self._assert_refused(
+            world, stub, capsys, code, "pass a different --model or --effort"
+        )
+
+    def test_a_partial_override_that_changes_one_value_is_accepted(self, world):
+        stub = _passing_stub(world)
+
+        code = _cli(world, stub, "scout", "--effort", "low", "--trials", "1")
+
+        assert code == 0
 
 
 class TestArtifactReservationAndWrite:
@@ -2822,7 +2983,7 @@ class TestConfigurationEcho:
     def test_trials_line_says_default_when_the_flag_is_absent(self, world, capsys):
         stub = _passing_stub(world)
 
-        _cli(world, stub, "scout", "--fixtures", "clean-form")
+        _cli(world, stub, "scout", "--model", "haiku", "--fixtures", "clean-form")
 
         assert "Trials per arm per fixture: 5 (default)" in _stderr_lines(capsys)
 
@@ -2834,7 +2995,7 @@ class TestConfigurationEcho:
         _make_file_fixture(world.deps.fixtures_dir, "bare-fixture.txt")
         stub = _passing_stub(world)
 
-        _cli(world, stub, "bare", "--trials", "1")
+        _cli(world, stub, "bare", "--model", "haiku", "--trials", "1")
 
         lines = _stderr_lines(capsys)
         assert "Tools: no tools enabled" in lines
@@ -2851,6 +3012,8 @@ class TestConfigurationEcho:
             world,
             _passing_stub(world),
             "scout",
+            "--model",
+            "haiku",
             "--fixtures",
             "clean-form",
             "--trials",
@@ -2966,6 +3129,8 @@ def _gated_cli(world: World, stub: StubClaude, stdin, *, is_tty: bool = True) ->
         world,
         stub,
         "scout",
+        "--model",
+        "haiku",
         "--trials",
         "1",
         yes=False,
@@ -2989,6 +3154,8 @@ class TestApprovalGate:
             world,
             stub,
             "scout",
+            "--model",
+            "haiku",
             "--trials",
             "1",
             deps=_gated_deps(world, stdin),
@@ -3005,6 +3172,8 @@ class TestApprovalGate:
             world,
             stub,
             "scout",
+            "--model",
+            "haiku",
             "--trials",
             "1",
             deps=_gated_deps(world, io.StringIO(""), is_tty=False),
@@ -3765,7 +3934,7 @@ class TestFinishRun:
     ):
         scout_plan = plan.plan_run(
             "scout",
-            candidate_model=None,
+            candidate_model="haiku",
             candidate_effort=None,
             fixture_stems=None,
             runs_dir=world.runs_dir,
