@@ -39,7 +39,7 @@ claude -p "<prompt>" --model haiku --effort low --output-format stream-json --ve
 Applied to every file here:
 
 - Home paths: the user's home directory becomes `/Users/USER`.
-- Temp dir: the per-run cwd (`/var/folders/.../meab-XXXXXX`, with and without the `/private` prefix) becomes `/private/var/folders/XX/T/meab-XXXXXX`.
+- Temp dir: the per-run cwd (`/var/folders/.../meab-XXXXXX`, with and without the `/private` prefix) becomes `/private/var/folders/XX/T/meab-XXXXXX`. The recordings used the prefix `meab-`, not the harness's `model-effort-ab-` (`TEMP_DIR_PREFIX` in `scripts/lib/model_effort/runner.py`).
 - Session IDs and UUIDs: replaced by `00000000-0000-0000-0000-<n>`, numbered in order of first appearance. Tool-use IDs (`toolu_...`) are kept.
 - Thinking signatures: replaced by `SCRUBBED`.
 - API IDs: `request_id` and message `id` values (`req_...`, `msg_...`) become `req_<12 digits>` and `msg_<12 digits>`, numbered per file.
