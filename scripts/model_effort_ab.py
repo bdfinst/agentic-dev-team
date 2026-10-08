@@ -8,8 +8,9 @@ baseline, candidate, baseline, ... so a broken candidate fails on its first tria
 
 Exit codes:
   0  the run completed and the artifact was written
-  1  the run was declined, aborted or incomplete, or the artifact could not be
-     written (its JSON is printed to stdout so paid results survive)
+  1  the run was declined, stopped early (spend limit, systemic failure or Ctrl-C;
+     the artifact keeps the completed trials) or incomplete, or the artifact could
+     not be written (its JSON is printed to stdout so paid results survive)
   2  usage error or pre-run refusal
 Messages go to stderr.
 """
@@ -17,6 +18,7 @@ Messages go to stderr.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import math
 import random
 import subprocess
@@ -45,10 +47,11 @@ from model_effort import (
     config_echo,
     estimate,
     paths,
+    report,
     runner,
 )
 from model_effort.errors import UsageError
-from model_effort.execution import TrialSettings, run_trials
+from model_effort.execution import RunResult, TrialProgress, TrialSettings, run_trials
 from model_effort.plan import RunPlan, plan_run
 
 EXIT_OK = 0
@@ -132,8 +135,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-cost",
         type=_positive_float,
-        help="refuse to run when the estimated total cost in dollars is above this "
-        "(no default)",
+        help="dollars; refuse to run when the estimate is above this, and stop the "
+        "run once the actual cost is (no default)",
     )
     parser.add_argument(
         "--yes",
@@ -242,9 +245,33 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
         if refusal is not None:
             print(f"error: {refusal}", file=sys.stderr)
             return EXIT_FAILED
-        arm_runs = run_trials(plan, settings, dict(run_estimate.by_arm))
-        data = artifact.build_artifact(plan.metadata, arm_runs)
-        return _save_artifact(plan.artifact_path, data)
+        run = run_trials(
+            plan,
+            settings,
+            dict(run_estimate.by_arm),
+            max_cost=args.max_cost,
+            on_trial=_print_progress,
+        )
+        return _finish_run(plan, run)
+
+
+def _print_progress(progress: TrialProgress) -> None:
+    print(report.render_progress(progress), file=sys.stderr)
+
+
+def _finish_run(plan: RunPlan, run: RunResult) -> int:
+    """Write the artifact for the trials that completed, report, and pick the exit code."""
+    if run.completed_trials == 0:
+        print(report.render_no_trials_notice(), file=sys.stderr)
+        return EXIT_FAILED
+    metadata = dataclasses.replace(plan.metadata, abort_reason=run.abort_reason)
+    data = artifact.build_artifact(metadata, run.arm_runs)
+    if run.abort_reason is not None:
+        print(report.render_stop_notice(run), file=sys.stderr)
+    for line in report.render_summary(data):
+        print(line, file=sys.stderr)
+    saved = _save_artifact(plan.artifact_path, data)
+    return EXIT_FAILED if run.abort_reason is not None else saved
 
 
 def _resolve_trials(flag_value: int | None) -> config_echo.TrialCount:

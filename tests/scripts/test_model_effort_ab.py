@@ -53,6 +53,7 @@ from model_effort import (
     paths,
     plan,
     runner,
+    stop_rules,
     tools,
     transcript,
 )
@@ -2233,7 +2234,7 @@ class TestTwoArmRun:
     def test_trial_that_times_out_is_recorded_as_a_timeout_in_the_artifact(self, world):
         stub = StubClaude(world.stub_dir, sleep=30)
 
-        code = _cli(
+        _cli(
             world,
             stub,
             "scout",
@@ -2245,10 +2246,9 @@ class TestTwoArmRun:
             "1",
         )
 
-        assert code == 0
-        for arm in _written(world)["arms"]:
-            assert arm["totals"]["timeout"] == 1
-            assert arm["fixtures"][0]["trials"][0]["outcome"] == "timeout"
+        baseline = _arm_block(_written(world), BASELINE_LABEL)
+        assert baseline["totals"]["timeout"] == 1
+        assert baseline["fixtures"][0]["trials"][0]["outcome"] == "timeout"
 
 
 class TestPreRunRefusals:
@@ -2717,7 +2717,7 @@ class TestSpendRefusals:
             "--trials",
             "3",
             "--max-cost",
-            "0.02",
+            "0.2",
         )
 
         assert code == 0
@@ -2910,3 +2910,397 @@ class TestApprovalGate:
         assert code == 2
         assert "Proceed?" not in capsys.readouterr().err
         assert stub.calls == [] and world.artifacts == []
+
+
+# --- Stop rules --------------------------------------------------------------
+
+PASS, GRADED_FAIL = Outcome.PASS, Outcome.GRADED_FAIL
+CLI_ERROR, TIMEOUT = Outcome.CLI_ERROR, Outcome.TIMEOUT
+INFRA_FAILURE, MAX_COST = (
+    artifact.AbortReason.INFRA_FAILURE,
+    artifact.AbortReason.MAX_COST,
+)
+
+
+def _check(baseline=(), candidate=(), cost=0.0, max_cost=None):
+    return stop_rules.check_stop(
+        {BASELINE_LABEL: list(baseline), CANDIDATE_LABEL: list(candidate)},
+        cost,
+        max_cost,
+    )
+
+
+class TestStopRules:
+    def test_cost_strictly_above_max_cost_stops_for_max_cost(self):
+        assert _check([PASS], [PASS], cost=0.75, max_cost=0.5) == MAX_COST
+
+    def test_cost_equal_to_max_cost_does_not_stop(self):
+        assert _check([PASS], [PASS], cost=0.5, max_cost=0.5) is None
+
+    def test_any_cost_is_allowed_without_a_max_cost(self):
+        assert _check([PASS], [PASS], cost=1_000_000.0, max_cost=None) is None
+
+    def test_no_trials_yet_does_not_stop(self):
+        assert _check() is None
+
+    @pytest.mark.parametrize("outcome", [CLI_ERROR, TIMEOUT])
+    def test_first_trial_of_the_baseline_arm_ending_in_an_infra_outcome_stops(
+        self, outcome
+    ):
+        assert _check([outcome]) == INFRA_FAILURE
+
+    @pytest.mark.parametrize("outcome", [CLI_ERROR, TIMEOUT])
+    def test_first_trial_of_the_candidate_arm_ending_in_an_infra_outcome_stops(
+        self, outcome
+    ):
+        assert _check([PASS], [outcome]) == INFRA_FAILURE
+
+    def test_a_non_infra_failure_on_the_first_trial_does_not_stop(self):
+        assert _check([GRADED_FAIL], [Outcome.TOOL_VIOLATION]) is None
+
+    def test_single_later_cli_error_does_not_stop(self):
+        assert _check([PASS, CLI_ERROR], [PASS, PASS]) is None
+
+    def test_three_consecutive_infra_outcomes_in_one_arm_stop(self):
+        assert _check([PASS, CLI_ERROR, TIMEOUT, CLI_ERROR]) == INFRA_FAILURE
+
+    def test_two_consecutive_infra_outcomes_do_not_stop(self):
+        assert _check([PASS, CLI_ERROR, TIMEOUT]) is None
+
+    def test_a_pass_between_infra_outcomes_resets_the_count(self):
+        history = [PASS, CLI_ERROR, CLI_ERROR, PASS, CLI_ERROR, CLI_ERROR]
+
+        assert _check(history) is None
+
+    def test_a_graded_failure_between_infra_outcomes_resets_the_count(self):
+        history = [PASS, CLI_ERROR, CLI_ERROR, GRADED_FAIL, CLI_ERROR]
+
+        assert _check(history) is None
+
+    def test_infra_failures_alternating_across_arms_stop_only_when_one_arm_has_three(
+        self,
+    ):
+        # Run order: B fail, C pass, B fail, C pass, B fail. B's own third fails.
+        assert _check([PASS, CLI_ERROR], [PASS, PASS]) is None
+        assert _check([PASS, CLI_ERROR, CLI_ERROR], [PASS, PASS]) is None
+        assert (
+            _check([PASS, CLI_ERROR, CLI_ERROR, CLI_ERROR], [PASS, PASS])
+            == INFRA_FAILURE
+        )
+
+    def test_infra_failures_spread_over_two_arms_never_add_up(self):
+        assert _check([PASS, CLI_ERROR, CLI_ERROR], [PASS, TIMEOUT, TIMEOUT]) is None
+
+    def test_max_cost_wins_when_the_infra_rule_also_applies(self):
+        assert _check([CLI_ERROR], cost=2.0, max_cost=1.0) == MAX_COST
+
+
+# --- Stopping early and keeping partial results ------------------------------
+
+CLI_FAILURE = {"exit_code": 1, "stdout": "", "stderr": "boom: auth failed"}
+CLEAN_FORM_ARGS = ("scout", "--model", "haiku", "--fixtures", "clean-form")
+
+
+def _interrupt_after(monkeypatch, completed_trials: int) -> None:
+    """Let the first `completed_trials` trials run for real, then press Ctrl-C."""
+    real_run_trial = runner.run_trial
+    started = []
+
+    def run_then_interrupt(*args, **kwargs):
+        if len(started) == completed_trials:
+            raise KeyboardInterrupt
+        started.append(args)
+        return real_run_trial(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "run_trial", run_then_interrupt)
+
+
+def _outcomes(written: dict, label: str) -> list[str]:
+    return [
+        trial["outcome"]
+        for fixture in _arm_block(written, label)["fixtures"]
+        for trial in fixture["trials"]
+    ]
+
+
+def _progress_lines(capsys) -> list[str]:
+    return [
+        line
+        for line in _stderr_lines(capsys)
+        if line.startswith(("[baseline]", "[candidate]"))
+    ]
+
+
+class TestSpendLimitStop:
+    def test_run_stops_after_the_trial_that_passes_max_cost_and_starts_no_more(
+        self, world
+    ):
+        stub = _passing_stub(world)
+
+        code = _cli(
+            world, stub, *CLEAN_FORM_ARGS, "--trials", "5", "--max-cost", "0.025"
+        )
+
+        written = _written(world)
+        assert code == 1
+        assert len(stub.calls) == 3
+        assert (written["status"], written["abort_reason"]) == (
+            "incomplete",
+            "max-cost",
+        )
+        assert _outcomes(written, BASELINE_LABEL) == ["pass", "pass"]
+        assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
+
+    def test_incomplete_totals_count_only_the_completed_trials(self, world):
+        stub = _passing_stub(world)
+
+        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5", "--max-cost", "0.025")
+
+        written = _written(world)
+        assert _arm_block(written, BASELINE_LABEL)["totals"]["pass"] == 2
+        assert _arm_block(written, BASELINE_LABEL)["totals"][
+            "actual_cost_usd"
+        ] == pytest.approx(0.02)
+        assert _arm_block(written, CANDIDATE_LABEL)["totals"]["pass"] == 1
+
+    def test_stderr_names_the_abort_reason_and_the_artifact_path(self, world, capsys):
+        stub = _passing_stub(world)
+
+        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5", "--max-cost", "0.025")
+
+        err = capsys.readouterr().err
+        assert "run stopped early (max-cost)" in err
+        assert f"artifact written: {world.artifact_path}" in err
+
+    def test_actual_cost_equal_to_max_cost_lets_the_run_finish(self, world):
+        stub = _passing_stub(world)
+
+        code = _cli(
+            world, stub, *CLEAN_FORM_ARGS, "--trials", "1", "--max-cost", "0.02"
+        )
+
+        assert code == 0
+        assert len(stub.calls) == 2
+        assert _written(world)["status"] == "complete"
+
+
+class TestSystemicFailureStop:
+    @pytest.mark.parametrize(
+        ("outcome", "behavior"),
+        [("cli_error", CLI_FAILURE), ("timeout", {"sleep": 30})],
+    )
+    def test_first_trial_ending_in_an_infra_outcome_stops_the_run_with_no_further_trial(
+        self, world, outcome, behavior
+    ):
+        stub = StubClaude(world.stub_dir, **behavior)
+
+        code = _cli(
+            world, stub, *CLEAN_FORM_ARGS, "--trials", "5", "--trial-timeout", "1"
+        )
+
+        written = _written(world)
+        assert code == 1
+        assert len(stub.calls) == 1
+        assert (written["status"], written["abort_reason"]) == (
+            "incomplete",
+            "infra-failure",
+        )
+        assert _outcomes(written, BASELINE_LABEL) == [outcome]
+
+    def test_candidate_whose_first_trial_fails_stops_the_run_after_one_trial_each(
+        self, world
+    ):
+        stub = _passing_stub(world)
+        stub.queue({}, CLI_FAILURE)
+
+        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+
+        written = _written(world)
+        assert code == 1
+        assert len(stub.calls) == 2
+        assert _outcomes(written, BASELINE_LABEL) == ["pass"]
+        assert _outcomes(written, CANDIDATE_LABEL) == ["cli_error"]
+
+    def test_stderr_names_the_abort_reason_the_failing_trials_error_and_the_artifact(
+        self, world, capsys
+    ):
+        stub = StubClaude(world.stub_dir, **CLI_FAILURE)
+
+        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+
+        err = capsys.readouterr().err
+        assert (
+            "error: run stopped early (infra-failure): the baseline arm ended in "
+            "cli_error. Likely cause: exit code 1: boom: auth failed. Fix that and rerun"
+        ) in err
+        assert f"artifact written: {world.artifact_path}" in err
+
+    def test_stderr_shows_the_cause_cut_to_500_characters(self, world, capsys):
+        stub = StubClaude(world.stub_dir, **{**CLI_FAILURE, "stderr": "x" * 2000})
+
+        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+
+        err = capsys.readouterr().err
+        assert "x" * 487 + "." in err
+        assert "x" * 488 not in err
+
+    def test_three_consecutive_failures_in_the_baseline_arm_stop_the_run_on_the_third(
+        self, world
+    ):
+        stub = _passing_stub(world)
+        # Calls alternate baseline, candidate: the baseline fails on its trials 2, 3 and 4.
+        stub.queue({}, {}, CLI_FAILURE, {}, CLI_FAILURE, {}, CLI_FAILURE)
+
+        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+
+        written = _written(world)
+        assert code == 1
+        assert len(stub.calls) == 7
+        assert written["abort_reason"] == "infra-failure"
+        assert _outcomes(written, BASELINE_LABEL) == [
+            "pass",
+            "cli_error",
+            "cli_error",
+            "cli_error",
+        ]
+        assert _outcomes(written, CANDIDATE_LABEL) == ["pass", "pass", "pass"]
+
+    def test_single_later_cli_error_does_not_stop_the_run(self, world):
+        stub = _passing_stub(world)
+        stub.queue({}, {}, CLI_FAILURE)
+
+        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "3")
+
+        written = _written(world)
+        assert code == 0
+        assert len(stub.calls) == 6
+        assert written["status"] == "complete"
+        assert _outcomes(written, BASELINE_LABEL) == ["pass", "cli_error", "pass"]
+
+
+class TestInterrupt:
+    def test_ctrl_c_after_three_trials_keeps_them_and_marks_the_artifact_interrupted(
+        self, world, monkeypatch
+    ):
+        stub = _passing_stub(world)
+        _interrupt_after(monkeypatch, 3)
+
+        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+
+        written = _written(world)
+        assert code == 1
+        assert len(stub.calls) == 3
+        assert (written["status"], written["abort_reason"]) == (
+            "incomplete",
+            "interrupt",
+        )
+        assert _outcomes(written, BASELINE_LABEL) == ["pass", "pass"]
+        assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
+
+    def test_interrupt_prints_no_traceback_and_names_the_artifact_and_the_dropped_trial(
+        self, world, capsys, monkeypatch
+    ):
+        _interrupt_after(monkeypatch, 3)
+
+        _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "5")
+
+        err = capsys.readouterr().err
+        assert "Traceback" not in err
+        assert (
+            "error: run stopped early (interrupt): the trial in flight was dropped; "
+            "3 completed trials were kept"
+        ) in err
+        assert f"artifact written: {world.artifact_path}" in err
+
+    def test_arm_with_no_completed_trial_lists_no_fixtures(self, world, monkeypatch):
+        _interrupt_after(monkeypatch, 1)
+
+        _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "5")
+
+        written = _written(world)
+        assert _arm_block(written, CANDIDATE_LABEL)["fixtures"] == []
+        assert _arm_block(written, CANDIDATE_LABEL)["totals"]["pass"] == 0
+        assert _outcomes(written, BASELINE_LABEL) == ["pass"]
+
+    def test_ctrl_c_before_any_trial_completes_writes_no_artifact_and_exits_1(
+        self, world, capsys, monkeypatch
+    ):
+        stub = _passing_stub(world)
+        _interrupt_after(monkeypatch, 0)
+
+        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+
+        err = capsys.readouterr().err
+        assert code == 1
+        assert stub.calls == [] and world.artifacts == []
+        assert "Traceback" not in err
+        assert (
+            "error: interrupted before any trial completed, so no artifact was "
+            "written: rerun to start over"
+        ) in err
+
+
+class TestProgressAndSummary:
+    def test_one_progress_line_per_completed_trial_in_run_order(self, world, capsys):
+        _cli(world, _passing_stub(world), "scout", "--model", "haiku", "--trials", "2")
+
+        assert _progress_lines(capsys) == [
+            "[baseline] fixture 1/2 clean-form trial 1/2: pass $0.0100",
+            "[candidate] fixture 1/2 clean-form trial 1/2: pass $0.0100",
+            "[baseline] fixture 1/2 clean-form trial 2/2: pass $0.0100",
+            "[candidate] fixture 1/2 clean-form trial 2/2: pass $0.0100",
+            "[baseline] fixture 2/2 layered-svc trial 1/2: graded_fail $0.0100",
+            "[candidate] fixture 2/2 layered-svc trial 1/2: graded_fail $0.0100",
+            "[baseline] fixture 2/2 layered-svc trial 2/2: graded_fail $0.0100",
+            "[candidate] fixture 2/2 layered-svc trial 2/2: graded_fail $0.0100",
+        ]
+
+    def test_progress_lines_stop_with_the_run_and_match_the_trials_that_completed(
+        self, world, capsys
+    ):
+        stub = _passing_stub(world)
+
+        _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5", "--max-cost", "0.025")
+
+        assert len(_progress_lines(capsys)) == len(stub.calls) == 3
+
+    def test_progress_line_is_printed_before_the_next_trial_starts(
+        self, world, capsys, monkeypatch
+    ):
+        _interrupt_after(monkeypatch, 1)
+
+        _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "5")
+
+        assert _progress_lines(capsys) == [
+            "[baseline] fixture 1/1 clean-form trial 1/5: pass $0.0100"
+        ]
+
+    def test_summary_shows_per_arm_outcome_totals_and_actual_against_estimated_cost(
+        self, world, capsys
+    ):
+        _cli(world, _passing_stub(world), "scout", "--model", "haiku", "--trials", "3")
+
+        err = capsys.readouterr().err
+        assert (
+            "Summary:\n"
+            "  baseline: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, "
+            "graded_fail 3, pass 3; cost $0.0600, estimated $0.0140\n"
+            "  candidate: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, "
+            "graded_fail 3, pass 3; cost $0.0600, estimated $0.0035\n"
+            "  total: cost $0.1200, estimated $0.0175\n"
+            f"artifact written: {world.artifact_path}\n"
+        ) in err
+
+    def test_incomplete_run_summary_counts_only_completed_trials(self, world, capsys):
+        _cli(
+            world,
+            _passing_stub(world),
+            *CLEAN_FORM_ARGS,
+            "--trials",
+            "5",
+            "--max-cost",
+            "0.025",
+        )
+
+        err = capsys.readouterr().err
+        assert "  total: cost $0.0300, estimated " in err
