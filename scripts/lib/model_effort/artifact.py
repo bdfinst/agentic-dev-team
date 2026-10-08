@@ -154,7 +154,7 @@ def _build_totals_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
     # is a lower bound; the stop rule charged these estimates in their place.
     totals["actual_cost_usd"] = total_cost_usd(result.cost_usd for result in results)
     totals["estimated_cost_charged_usd"] = total_cost_usd(
-        run_estimate.per_trial_usd(arm_run.arm.label)
+        run_estimate.charged_usd(arm_run.arm.label, result)
         for result in results
         if not result.cost_reported
     )

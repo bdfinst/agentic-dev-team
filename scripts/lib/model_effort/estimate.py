@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pricing
 
@@ -24,6 +25,9 @@ from .arm import Arm
 from .cost import total_cost_usd
 from .errors import UsageError
 from .fixtures import ResolvedFixture
+
+if TYPE_CHECKING:
+    from .outcome import TrialResult
 
 # A common rule of thumb for English prose and source code.
 CHARS_PER_TOKEN = 4
@@ -57,6 +61,13 @@ class RunEstimate:
     def per_trial_usd(self, label: str) -> float:
         """The arm's estimate averaged over its planned trials."""
         return self.cost_usd_for_arm(label) / self.trials_per_arm
+
+    def charged_usd(self, label: str, result: TrialResult) -> float:
+        """What a trial counts for toward the spend limit and the artifact's charged total.
+
+        Its reported cost, or the arm's per-trial estimate when the stream reported none.
+        """
+        return result.cost_usd if result.cost_reported else self.per_trial_usd(label)
 
 
 def fixture_size_bytes(path: Path) -> int:

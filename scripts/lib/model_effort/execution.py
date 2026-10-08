@@ -119,13 +119,7 @@ class _Ledger:
         key = (slot.arm.label, slot.fixture.stem)
         self._results_by_arm_and_fixture.setdefault(key, []).append(result)
         self._outcomes_by_arm[slot.arm.label].append(result.outcome)
-        self._costs_usd.append(self._cost_charged_usd(slot, result))
-
-    def _cost_charged_usd(self, slot: _TrialSlot, result: TrialResult) -> float:
-        """The reported cost, or the arm's per-trial estimate when the trial reported none."""
-        if result.cost_reported:
-            return result.cost_usd
-        return self._run_estimate.per_trial_usd(slot.arm.label)
+        self._costs_usd.append(self._run_estimate.charged_usd(slot.arm.label, result))
 
     @property
     def outcomes_by_arm(self) -> Mapping[str, list[Outcome]]:

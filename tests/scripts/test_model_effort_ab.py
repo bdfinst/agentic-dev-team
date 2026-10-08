@@ -3158,6 +3158,21 @@ class TestEstimateRun:
         assert "'sonnet' (baseline arm), 'haiku' (candidate arm)" in str(excinfo.value)
 
 
+class TestChargedCost:
+    def test_trial_with_a_reported_cost_is_charged_that_cost(self):
+        result = _trial_result(Outcome.PASS, cost=0.0123)
+
+        assert _run_estimate().charged_usd(BASELINE_LABEL, result) == 0.0123
+
+    def test_trial_with_no_reported_cost_is_charged_its_arms_per_trial_estimate(self):
+        result = _trial_result(Outcome.CLI_ERROR, cost=0.0, cost_reported=False)
+        run_estimate = estimate.RunEstimate(
+            by_arm=((BASELINE_LABEL, 0.06), (CANDIDATE_LABEL, 0.015)), trials_per_arm=3
+        )
+
+        assert run_estimate.charged_usd(CANDIDATE_LABEL, result) == pytest.approx(0.005)
+
+
 def _stderr_lines(capsys) -> list[str]:
     return capsys.readouterr().err.splitlines()
 
