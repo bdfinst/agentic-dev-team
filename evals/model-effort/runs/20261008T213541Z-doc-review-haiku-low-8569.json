@@ -83,7 +83,7 @@
         "parse_failure": 0,
         "graded_fail": 0,
         "pass": 1,
-        "clean_fixture_failures": 0,
+        "clean_fixture_false_positives": 0,
         "actual_cost_usd": 0.0039448,
         "unreported_trials_estimate_usd": 0.0
       }
@@ -146,7 +146,7 @@
         "parse_failure": 0,
         "graded_fail": 0,
         "pass": 1,
-        "clean_fixture_failures": 0,
+        "clean_fixture_false_positives": 0,
         "actual_cost_usd": 0.00133444,
         "unreported_trials_estimate_usd": 0.0
       }

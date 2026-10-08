@@ -2263,7 +2263,7 @@ class TestArmTotals:
             "tool_violation": 0,
             "cli_error": 0,
             "timeout": 0,
-            "clean_fixture_failures": 0,
+            "clean_fixture_false_positives": 0,
             "actual_cost_usd": pytest.approx(0.02),
             "unreported_trials_estimate_usd": 0.0,
         }
@@ -2292,22 +2292,28 @@ class TestArmTotals:
 
         assert arm["estimated_cost_usd"] == pytest.approx(4 * ARM_ESTIMATE)
 
-    def test_clean_fixture_failures_count_every_non_pass_on_clean_fixtures(self):
+    def test_clean_fixture_false_positives_count_only_graded_fails_on_clean_fixtures(
+        self,
+    ):
         arm = _built_arm(
             [
                 _trial_result(Outcome.PASS),
                 _trial_result(Outcome.GRADED_FAIL),
+                _trial_result(Outcome.GRADED_FAIL),
                 _trial_result(Outcome.CLI_ERROR),
+                _trial_result(Outcome.TIMEOUT),
+                _trial_result(Outcome.PARSE_FAILURE),
+                _trial_result(Outcome.TOOL_VIOLATION),
             ],
             expected_clean=True,
         )
 
-        assert arm["totals"]["clean_fixture_failures"] == 2
+        assert arm["totals"]["clean_fixture_false_positives"] == 2
 
-    def test_non_clean_fixtures_never_count_as_clean_fixture_failures(self):
+    def test_non_clean_fixtures_never_count_as_clean_fixture_false_positives(self):
         arm = _built_arm([_trial_result(Outcome.GRADED_FAIL)], expected_clean=False)
 
-        assert arm["totals"]["clean_fixture_failures"] == 0
+        assert arm["totals"]["clean_fixture_false_positives"] == 0
 
     def test_model_id_is_reported_when_every_reporting_trial_agrees(self):
         arm = _built_arm(
@@ -2939,7 +2945,7 @@ class TestTwoArmRun:
                 "parse_failure": 0,
                 "graded_fail": 0,
                 "pass": 6,
-                "clean_fixture_failures": 0,
+                "clean_fixture_false_positives": 0,
                 "actual_cost_usd": pytest.approx(0.06),
                 "unreported_trials_estimate_usd": 0.0,
             },
@@ -2990,7 +2996,7 @@ class TestTwoArmRun:
                 "parse_failure": 1,
                 "graded_fail": 0,
                 "pass": 4,
-                "clean_fixture_failures": 1,
+                "clean_fixture_false_positives": 0,
                 "actual_cost_usd": pytest.approx(0.06),
                 "unreported_trials_estimate_usd": 0.0,
             },

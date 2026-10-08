@@ -106,12 +106,14 @@ def _build_totals_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
     results = _all_results(arm_run)
     counts = Counter(result.outcome for result in results)
     totals: dict = {outcome.value: counts[outcome] for outcome in Outcome}
-    totals["clean_fixture_failures"] = sum(
+    # A false positive is the grader finding the agent's answer wrong on a fixture
+    # that expects no problems. A timeout or CLI error says nothing about the answer.
+    totals["clean_fixture_false_positives"] = sum(
         1
         for fixture in arm_run.fixture_trials
         if fixture.expected_clean
         for result in fixture.results
-        if result.outcome != Outcome.PASS
+        if result.outcome == Outcome.GRADED_FAIL
     )
     # Trials with no reported cost count as 0 in the actual total, so that total
     # is a lower bound; the stop rule charged these estimates in their place.
