@@ -1,4 +1,8 @@
-"""Why a run ended early, and whether it counts as complete."""
+"""Why a run ended early, and whether it counts as complete.
+
+"Stop" is the operator-facing word for an abort: stop rules, stop notices and
+"Stop reasons" in the docs all name an `AbortReason`, the field the artifact records.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""The raw outcome of one `claude` process, shared by the runner that makes it and the outcome that reads it."""
+"""The raw result of one `claude` process, shared by the runner that makes it and `outcome` that reads it."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class TrialProcessRecord:
-    """Raw outcome of one CLI process. `exit_code` is None when it timed out.
+    """Raw result of one CLI process. `exit_code` is None when it timed out.
 
     `cwd` is the directory the process ran in, so text it printed can be scrubbed of it.
     """
