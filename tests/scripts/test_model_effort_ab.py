@@ -1440,6 +1440,11 @@ class TestSessionConfig:
 TRUNCATED_OUTER_OBJECT = '{"status":"fail","issues":[{"severity":"error","message":"x"}'
 
 
+# The slowest scan of the pathological text measured about 5 s before the closing
+# fence stopped matching newlines, and about 0.03 s after.
+FENCE_SCAN_BUDGET_SECONDS = 1.5
+
+
 class TestExtractAgentJson:
     def test_bare_object_is_parsed(self):
         assert transcript.extract_agent_json('{"status": "pass"}') == {"status": "pass"}
@@ -1471,6 +1476,24 @@ class TestExtractAgentJson:
         text = '{"issues": [{"severity": "error"}], "status": "fail"}'
 
         assert transcript.extract_agent_json(text)["issues"] == [{"severity": "error"}]
+
+    def test_unclosed_fence_followed_by_many_blank_lines_is_scanned_in_bounded_time(
+        self,
+    ):
+        text = "```json\n" + "\n" * 2000
+
+        started = time.monotonic()
+        result = transcript.extract_agent_json(text)
+
+        assert result is None
+        assert time.monotonic() - started < FENCE_SCAN_BUDGET_SECONDS
+
+    def test_fenced_block_closed_after_blank_lines_and_an_indented_fence_is_parsed(
+        self,
+    ):
+        text = '```json\n{"status": "pass"}\n\n\n  ```'
+
+        assert transcript.extract_agent_json(text) == {"status": "pass"}
 
     def test_invalid_fenced_block_falls_back_to_a_bare_object(self):
         text = '```json\n{broken\n```\n{"status": "pass"}'

@@ -22,7 +22,9 @@ EVENT_SYSTEM = "system"
 SUBTYPE_INIT = "init"
 BLOCK_TOOL_USE = "tool_use"
 
-FENCED_JSON_PATTERN = re.compile(r"```json\s*\n(.*?)\n\s*```", re.DOTALL)
+# The closing fence may be indented but must open its own line: matching newlines
+# before it as well makes a long run of blank lines take quadratic time to scan.
+FENCED_JSON_PATTERN = re.compile(r"```json\s*\n(.*?)\n[ \t\r]*```", re.DOTALL)
 
 
 @dataclass(frozen=True)
