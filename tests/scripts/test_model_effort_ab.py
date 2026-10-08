@@ -1689,15 +1689,15 @@ class TestIsExpectedClean:
     def test_expected_status_pass_is_clean(self):
         entry = {"agents": {"a": {"expectedStatus": "pass"}}}
 
-        assert grading.is_expected_clean(entry, "a") is True
+        assert fixture_resolution.is_expected_clean(entry, "a") is True
 
     def test_expected_status_fail_is_not_clean(self):
         entry = {"agents": {"a": {"expectedStatus": "fail"}}}
 
-        assert grading.is_expected_clean(entry, "a") is False
+        assert fixture_resolution.is_expected_clean(entry, "a") is False
 
     def test_agent_missing_from_entry_is_not_clean(self):
-        assert grading.is_expected_clean({"agents": {}}, "a") is False
+        assert fixture_resolution.is_expected_clean({"agents": {}}, "a") is False
 
 
 class TestShippedExpectedEntrySmoke:

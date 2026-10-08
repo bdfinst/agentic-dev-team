@@ -16,7 +16,6 @@ from eval_grade import run_grading
 
 from .paths import EXPECTED_DIR
 
-EXPECTED_STATUS_CLEAN = "pass"
 TEMP_DIR_PREFIX = "model-effort-grade-"
 # What the grader raises on agent JSON of an unexpected shape. Any other error is a
 # harness fault and propagates, so it is not recorded as the agent's answer failing.
@@ -50,9 +49,3 @@ def grade_trial(
         return False, [f"expected entry for {agent!r} not found in {stem}.json"]
     messages = [message for _, _, fails in results for message in fails]
     return all(passed for _, passed, _ in results), messages
-
-
-def is_expected_clean(expected_entry: dict, agent: str) -> bool:
-    """True when the expected entry says `agent` should report no problems."""
-    expectation = expected_entry.get("agents", {}).get(agent, {})
-    return expectation.get("expectedStatus") == EXPECTED_STATUS_CLEAN

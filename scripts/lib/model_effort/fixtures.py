@@ -3,8 +3,6 @@
 A fixture is runnable when an `evals/expected` entry names the agent and a
 fixture file or directory with the same stem exists. Everything here takes
 directories as arguments and does no printing.
-
-Requires `scripts/` on sys.path (through `grading`).
 """
 
 from __future__ import annotations
@@ -15,7 +13,8 @@ from enum import StrEnum
 from pathlib import Path
 
 from .errors import UsageError
-from .grading import is_expected_clean
+
+EXPECTED_STATUS_CLEAN = "pass"
 
 
 class FixtureKind(StrEnum):
@@ -29,6 +28,12 @@ class ResolvedFixture:
     path: Path
     kind: FixtureKind
     expected_clean: bool
+
+
+def is_expected_clean(expected_entry: dict, agent: str) -> bool:
+    """True when the expected entry says `agent` should report no problems."""
+    expectation = expected_entry.get("agents", {}).get(agent, {})
+    return expectation.get("expectedStatus") == EXPECTED_STATUS_CLEAN
 
 
 def describe_fixture(path: Path) -> tuple[str, FixtureKind]:
