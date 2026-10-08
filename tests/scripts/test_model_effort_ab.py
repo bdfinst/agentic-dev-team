@@ -45,6 +45,7 @@ from model_effort import (
     agent_spec,
     artifact,
     artifact_store,
+    estimate,
     grading,
     outcome,
     paths,
@@ -72,6 +73,23 @@ SCOUT_TOOLS = "Read, Grep, mcp__x__y, Bash(graphify *)"
 PASS_VERDICT = {"status": "pass", "issues": [], "summary": "Nothing to report."}
 FAIL_VERDICT = {"status": "fail", "issues": [], "summary": "Layer violation."}
 TRIAL_COST = 0.01
+# Dollars per million tokens. Aliases mirror the agent files' `sonnet` and the
+# candidate `haiku`; `opus` is deliberately absent so it is unpriced.
+PRICEY_RATE = {"input": 4.0, "output": 20.0}
+CHEAP_RATE = {"input": 1.0, "output": 5.0}
+TEST_PRICING = {
+    "models": {"test-pricey": PRICEY_RATE, "test-cheap": CHEAP_RATE},
+    "aliases": {"sonnet": "test-pricey", "haiku": "test-cheap"},
+}
+# Pinned so CLI estimates do not move when the shipped calibration is retuned.
+PINNED_TURN_MULTIPLIER = 2
+PINNED_OUTPUT_TOKENS = 100
+# The `scout` world run over both fixtures with 3 trials per arm. Per trial, the
+# two fixtures send (15+13+145 + 15+3+141) chars / 4 * 2 = 166 input tokens and
+# write 2 * 100 output tokens: pricey (166*4 + 200*20) / 1e6 = 0.004664,
+# cheap (166*1 + 200*5) / 1e6 = 0.001166.
+BASELINE_TWO_ARM_ESTIMATE = 0.004664 * 3
+CANDIDATE_TWO_ARM_ESTIMATE = 0.001166 * 3
 ENABLED = ("Read", "Grep")
 # Long enough that a slow interpreter start still reaches the stub before the kill.
 TIMEOUT_SECONDS = 3
@@ -1916,7 +1934,9 @@ class World:
 
 
 @pytest.fixture
-def world(tmp_path: Path) -> World:
+def world(tmp_path: Path, monkeypatch) -> World:
+    monkeypatch.setattr(estimate, "TOOL_TURN_MULTIPLIER", PINNED_TURN_MULTIPLIER)
+    monkeypatch.setattr(estimate, "OUTPUT_TOKENS_PER_TRIAL", PINNED_OUTPUT_TOKENS)
     agents, expected, fixtures = (
         tmp_path / name for name in ("agents", "expected", "fixtures")
     )
@@ -1950,6 +1970,7 @@ def world(tmp_path: Path) -> World:
         agents_dir=agents,
         expected_dir=expected,
         fixtures_dir=fixtures,
+        pricing_table=TEST_PRICING,
     )
     return World(tmp_path, deps)
 
@@ -2059,7 +2080,7 @@ class TestTwoArmRun:
             "tools_enabled": ["Read", "Grep"],
             "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
             "trials": 3,
-            "estimated_cost_usd": None,
+            "estimated_cost_usd": pytest.approx(BASELINE_TWO_ARM_ESTIMATE),
             "session_config": _expected_session_config(SONNET_MODEL_ID),
             "fixtures": [
                 _fixture_block("clean-form", "file", True, [_trial("pass")] * 3),
@@ -2089,7 +2110,7 @@ class TestTwoArmRun:
             "tools_enabled": ["Read", "Grep"],
             "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
             "trials": 3,
-            "estimated_cost_usd": None,
+            "estimated_cost_usd": pytest.approx(CANDIDATE_TWO_ARM_ESTIMATE),
             "session_config": _expected_session_config(HAIKU_MODEL_ID),
             "fixtures": [
                 _fixture_block(
@@ -2415,3 +2436,291 @@ class TestArtifactReservationAndWrite:
             "created during the run"
         )
         assert world.artifacts == [world.artifact_path]
+
+
+def _file_fixture_of_size(
+    root: Path, name: str, size: int
+) -> fixture_resolution.ResolvedFixture:
+    path = root / name
+    path.write_bytes(b"x" * size)
+    return fixture_resolution.ResolvedFixture(
+        stem=path.stem,
+        path=path,
+        kind=fixture_resolution.FixtureKind.FILE,
+        expected_clean=False,
+    )
+
+
+def _priced_arm(label: str, model: str) -> Arm:
+    profile = tools.ToolProfile(
+        enabled_tools=("Read",), withheld_tools=(), refused_tools=()
+    )
+    return Arm(label=label, model=model, effort="high", profile=profile)
+
+
+class TestFixtureSize:
+    def test_file_size_is_its_byte_count(self, tmp_path):
+        fixture = _make_file_fixture(tmp_path, "form.html", "<form></form>")
+
+        assert estimate.fixture_size_bytes(fixture) == 13
+
+    def test_directory_size_sums_every_file_in_nested_directories(self, tmp_path):
+        fixture = _make_directory_fixture(tmp_path)
+
+        assert estimate.fixture_size_bytes(fixture) == 6 + 12 + 13
+
+
+class TestEstimateRun:
+    @pytest.fixture(autouse=True)
+    def pinned_constants(self, monkeypatch):
+        monkeypatch.setattr(estimate, "TOOL_TURN_MULTIPLIER", PINNED_TURN_MULTIPLIER)
+        monkeypatch.setattr(estimate, "OUTPUT_TOKENS_PER_TRIAL", PINNED_OUTPUT_TOKENS)
+
+    def _estimate(
+        self, tmp_path, fixtures, arms=None, trials=3, pricing_table=TEST_PRICING
+    ):
+        # Each trial sends 865 system + 3000 fixture + 135 prompt chars = 1000 tokens,
+        # doubled by the pinned turn multiplier.
+        arms = arms or [
+            _priced_arm("baseline", "sonnet"),
+            _priced_arm("candidate", "haiku"),
+        ]
+        return estimate.estimate_run(arms, "s" * 865, fixtures, trials, pricing_table)
+
+    def test_each_arm_costs_input_plus_output_priced_times_fixtures_times_trials(
+        self, tmp_path
+    ):
+        fixtures = [
+            _file_fixture_of_size(tmp_path, "a.txt", 3000),
+            _file_fixture_of_size(tmp_path, "b.txt", 3000),
+        ]
+
+        result = self._estimate(tmp_path, fixtures)
+
+        # Per trial across both fixtures: 4000 input tokens, 200 output tokens.
+        # pricey: (4000*4 + 200*20) / 1e6 = 0.02, x3 trials. cheap: (4000*1 + 200*5) / 1e6 = 0.005, x3.
+        assert result.for_arm("baseline") == pytest.approx(0.06)
+        assert result.for_arm("candidate") == pytest.approx(0.015)
+        assert result.total_usd == pytest.approx(0.075)
+
+    def test_directory_fixture_counts_the_summed_size_of_its_files(self, tmp_path):
+        directory = tmp_path / "d" / "service"
+        (directory / "src").mkdir(parents=True)
+        (directory / "a.txt").write_bytes(b"x" * 1000)
+        (directory / "src" / "b.txt").write_bytes(b"x" * 2000)
+        as_directory = fixture_resolution.ResolvedFixture(
+            "service", directory, fixture_resolution.FixtureKind.DIRECTORY, False
+        )
+        (tmp_path / "f").mkdir()
+        as_file = _file_fixture_of_size(tmp_path / "f", "service", 3000)
+
+        assert self._estimate(tmp_path, [as_directory]).total_usd == pytest.approx(
+            self._estimate(tmp_path, [as_file]).total_usd
+        )
+
+    def test_unpriced_model_is_refused_naming_the_model_and_its_arm(self, tmp_path):
+        fixtures = [_file_fixture_of_size(tmp_path, "a.txt", 3000)]
+        arms = [_priced_arm("baseline", "sonnet"), _priced_arm("candidate", "opus")]
+
+        with pytest.raises(UsageError) as excinfo:
+            self._estimate(tmp_path, fixtures, arms)
+
+        message = str(excinfo.value)
+        assert "'opus' (candidate arm)" in message
+        assert "sonnet" not in message
+        assert "model-pricing.json" in message
+
+    def test_empty_pricing_table_refuses_every_model(self, tmp_path):
+        fixtures = [_file_fixture_of_size(tmp_path, "a.txt", 3000)]
+
+        with pytest.raises(UsageError) as excinfo:
+            self._estimate(tmp_path, fixtures, pricing_table={})
+
+        assert "'sonnet' (baseline arm), 'haiku' (candidate arm)" in str(excinfo.value)
+
+
+def _stderr_lines(capsys) -> list[str]:
+    return capsys.readouterr().err.splitlines()
+
+
+class TestConfigurationEcho:
+    def test_stderr_shows_agent_arms_tools_fixtures_trials_timeout_and_estimate(
+        self, world, capsys
+    ):
+        stub = _passing_stub(world)
+
+        _cli(world, stub, "scout", "--model", "haiku", "--trials", "3")
+
+        assert _stderr_lines(capsys)[:9] == [
+            "Agent: scout",
+            "Arms:",
+            "  baseline: model sonnet, effort high",
+            "  candidate: model haiku, effort high",
+            "Tools: Read, Grep",
+            "Withheld tools: mcp__x__y, Bash(graphify *)",
+            "Fixtures: clean-form, layered-svc",
+            "Trials per arm per fixture: 3 (--trials)",
+            "Trial timeout: 600 s",
+        ]
+
+    def test_estimate_line_labels_the_figure_rough_and_lists_each_arm_and_the_total(
+        self, world, capsys
+    ):
+        stub = _passing_stub(world)
+
+        _cli(world, stub, "scout", "--model", "haiku", "--trials", "3")
+
+        assert (
+            "Estimate (rough; real cost may be higher): "
+            "baseline $0.0140, candidate $0.0035, total $0.0175"
+        ) in _stderr_lines(capsys)
+
+    def test_trials_line_says_default_when_the_flag_is_absent(self, world, capsys):
+        stub = _passing_stub(world)
+
+        _cli(world, stub, "scout", "--fixtures", "clean-form")
+
+        assert "Trials per arm per fixture: 5 (default)" in _stderr_lines(capsys)
+
+    def test_agent_without_tools_prints_no_tools_enabled_and_withheld_none(
+        self, world, capsys
+    ):
+        _write_agent(world.deps.agents_dir, "bare", None, model="sonnet", effort="high")
+        _write_expected(world.expected_dir, "bare-fixture", "bare", "pass")
+        _make_file_fixture(world.deps.fixtures_dir, "bare-fixture.txt")
+        stub = _passing_stub(world)
+
+        _cli(world, stub, "bare", "--trials", "1")
+
+        lines = _stderr_lines(capsys)
+        assert "Tools: no tools enabled" in lines
+        assert "Withheld tools: none" in lines
+
+    def test_echo_is_already_printed_when_the_first_trial_starts(
+        self, world, capsys, monkeypatch
+    ):
+        stderr_when_trials_start = []
+        real_run_trials = model_effort_ab.run_trials
+
+        def spy(*args, **kwargs):
+            stderr_when_trials_start.append(capsys.readouterr().err)
+            return real_run_trials(*args, **kwargs)
+
+        monkeypatch.setattr(model_effort_ab, "run_trials", spy)
+
+        _cli(
+            world,
+            _passing_stub(world),
+            "scout",
+            "--fixtures",
+            "clean-form",
+            "--trials",
+            "1",
+        )
+
+        assert (
+            "Estimate (rough; real cost may be higher)" in stderr_when_trials_start[0]
+        )
+
+
+class TestArtifactEstimate:
+    def test_artifact_records_each_arms_estimated_cost(self, world):
+        stub = _passing_stub(world)
+
+        _cli(world, stub, "scout", "--model", "haiku", "--trials", "3")
+
+        written = _written(world)
+        assert _arm_block(written, BASELINE_LABEL)[
+            "estimated_cost_usd"
+        ] == pytest.approx(0.013992)
+        assert _arm_block(written, CANDIDATE_LABEL)[
+            "estimated_cost_usd"
+        ] == pytest.approx(0.003498)
+
+
+class TestSpendRefusals:
+    def test_unpriced_candidate_exits_2_naming_it_with_no_trial_and_no_placeholder(
+        self, world, capsys
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "scout", "--model", "opus")
+
+        stderr = capsys.readouterr().err
+        assert code == 2
+        assert "'opus' (candidate arm)" in stderr
+        assert "sonnet" not in stderr
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_estimate_above_max_cost_exits_2_naming_both_figures_with_no_trial_and_no_placeholder(
+        self, world, capsys
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(
+            world,
+            stub,
+            "scout",
+            "--model",
+            "haiku",
+            "--trials",
+            "3",
+            "--max-cost",
+            "0.01",
+        )
+
+        stderr = capsys.readouterr().err
+        assert code == 2
+        assert "$0.0175" in stderr and "$0.0100" in stderr
+        assert stub.calls == [] and world.artifacts == []
+
+    def test_refused_run_still_printed_the_configuration_and_estimate(
+        self, world, capsys
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        _cli(
+            world,
+            stub,
+            "scout",
+            "--model",
+            "haiku",
+            "--trials",
+            "3",
+            "--max-cost",
+            "0.01",
+        )
+
+        lines = _stderr_lines(capsys)
+        assert "Agent: scout" in lines
+        assert any(line.startswith("Estimate (rough") for line in lines)
+
+    def test_estimate_below_max_cost_runs(self, world):
+        stub = _passing_stub(world)
+
+        code = _cli(
+            world,
+            stub,
+            "scout",
+            "--model",
+            "haiku",
+            "--trials",
+            "3",
+            "--max-cost",
+            "0.02",
+        )
+
+        assert code == 0
+        assert len(stub.calls) == 12
+
+    @pytest.mark.parametrize("value", ["0", "-1", "nan", "inf", "cheap"])
+    def test_max_cost_that_is_not_a_positive_number_is_a_usage_error(
+        self, world, value
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        with pytest.raises(SystemExit) as excinfo:
+            _cli(world, stub, "scout", "--max-cost", value)
+
+        assert excinfo.value.code == 2
+        assert stub.calls == [] and world.artifacts == []

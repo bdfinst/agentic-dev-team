@@ -65,7 +65,7 @@ class ArmRun:
     arm: Arm
     trials_per_fixture: int
     fixtures: Sequence[FixtureTrials]
-    # Filled from the pre-run cost estimate; null until that estimate exists.
+    # The pre-run cost estimate; null when the run was built without one.
     estimated_cost_usd: float | None = None
 
 

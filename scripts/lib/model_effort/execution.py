@@ -8,6 +8,7 @@ Requires `scripts/` and `plugins/dev-team/hooks/lib/` on sys.path.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -31,8 +32,16 @@ class TrialSettings:
     expected_dir: Path
 
 
-def run_trials(plan: RunPlan, settings: TrialSettings) -> list[ArmRun]:
-    """Run every trial in the plan and return one `ArmRun` per planned arm."""
+def run_trials(
+    plan: RunPlan,
+    settings: TrialSettings,
+    estimated_costs: Mapping[str, float] | None = None,
+) -> list[ArmRun]:
+    """Run every trial in the plan and return one `ArmRun` per planned arm.
+
+    `estimated_costs` maps arm label to its pre-run estimate, recorded on the arm.
+    """
+    estimated_costs = estimated_costs or {}
     results_by_fixture = {
         fixture.stem: _run_fixture(fixture, plan, settings) for fixture in plan.fixtures
     }
@@ -40,6 +49,7 @@ def run_trials(plan: RunPlan, settings: TrialSettings) -> list[ArmRun]:
         ArmRun(
             arm=arm,
             trials_per_fixture=settings.trials,
+            estimated_cost_usd=estimated_costs.get(arm.label),
             fixtures=[
                 FixtureTrials(
                     stem=fixture.stem,

@@ -17,6 +17,7 @@ Messages go to stderr.
 from __future__ import annotations
 
 import argparse
+import math
 import random
 import subprocess
 import sys
@@ -35,16 +36,19 @@ for _path in (
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from model_effort import artifact, artifact_store, paths, runner
+import pricing
+from model_effort import artifact, artifact_store, config_echo, estimate, paths, runner
 from model_effort.errors import UsageError
 from model_effort.execution import TrialSettings, run_trials
-from model_effort.plan import plan_run
+from model_effort.plan import RunPlan, plan_run
 
 EXIT_OK = 0
 EXIT_FAILED = 1
 EXIT_USAGE = 2
 
 DEFAULT_TRIALS = 5
+TRIALS_DEFAULT_REASON = "default"
+TRIALS_FLAG_REASON = "--trials"
 
 
 def _read_git_head_sha() -> str | None:
@@ -71,6 +75,9 @@ class Deps:
     agents_dir: Path = paths.AGENTS_DIR
     expected_dir: Path = paths.EXPECTED_DIR
     fixtures_dir: Path = paths.FIXTURES_DIR
+    pricing_table: dict = field(
+        default_factory=lambda: pricing.load_pricing(paths.PRICING_PATH)
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -98,7 +105,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--trials",
         type=_positive_int,
-        default=DEFAULT_TRIALS,
         help=f"trials per arm per fixture (default: {DEFAULT_TRIALS})",
     )
     parser.add_argument(
@@ -107,6 +113,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=runner.DEFAULT_TRIAL_TIMEOUT_SECONDS,
         help="seconds before a trial is killed and recorded as timeout "
         f"(default: {runner.DEFAULT_TRIAL_TIMEOUT_SECONDS})",
+    )
+    parser.add_argument(
+        "--max-cost",
+        type=_positive_float,
+        help="refuse to run when the estimated total cost in dollars is above this "
+        "(no default)",
     )
     parser.add_argument(
         "--claude-bin",
@@ -130,6 +142,16 @@ def _positive_int(text: str) -> int:
         value = 0
     if value < 1:
         raise argparse.ArgumentTypeError(f"{text!r} is not a positive integer")
+    return value
+
+
+def _positive_float(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        value = 0.0
+    if not 0 < value < math.inf:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a positive number")
     return value
 
 
@@ -176,16 +198,60 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
     except UsageError as error:
         print(f"error: {error}", file=sys.stderr)
         return EXIT_USAGE
+    trials = _resolve_trials(args.trials)
     settings = TrialSettings(
-        trials=args.trials,
+        trials=trials.count,
         trial_timeout=args.trial_timeout,
         claude_bin=args.claude_bin,
         expected_dir=deps.expected_dir,
     )
     with artifact_store.release_if_unwritten(plan.artifact_path):
-        arm_runs = run_trials(plan, settings)
+        try:
+            run_estimate = _estimate_and_echo(
+                plan, settings, trials, args.max_cost, deps
+            )
+        except UsageError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return EXIT_USAGE
+        arm_runs = run_trials(plan, settings, dict(run_estimate.by_arm))
         data = artifact.build_artifact(plan.metadata, arm_runs)
         return _save_artifact(plan.artifact_path, data)
+
+
+def _resolve_trials(flag_value: int | None) -> config_echo.TrialCount:
+    if flag_value is None:
+        return config_echo.TrialCount(DEFAULT_TRIALS, TRIALS_DEFAULT_REASON)
+    return config_echo.TrialCount(flag_value, TRIALS_FLAG_REASON)
+
+
+def _estimate_and_echo(
+    plan: RunPlan,
+    settings: TrialSettings,
+    trials: config_echo.TrialCount,
+    max_cost: float | None,
+    deps: Deps,
+) -> estimate.RunEstimate:
+    """Price the run, print the configuration and estimate, then enforce `--max-cost`.
+
+    The echo comes before the limit check so a refused run still shows the figures.
+
+    Raises:
+        UsageError: a model is unpriced, or the estimate is above `max_cost`.
+    """
+    run_estimate = estimate.estimate_run(
+        plan.arms, plan.system_prompt, plan.fixtures, trials.count, deps.pricing_table
+    )
+    for line in config_echo.render_config(
+        plan, trials, settings.trial_timeout, run_estimate
+    ):
+        print(line, file=sys.stderr)
+    if max_cost is not None and run_estimate.total_usd > max_cost:
+        raise UsageError(
+            f"estimated total {config_echo.format_usd(run_estimate.total_usd)} is above "
+            f"--max-cost {config_echo.format_usd(max_cost)}: raise --max-cost, "
+            "or lower --trials or --fixtures"
+        )
+    return run_estimate
 
 
 if __name__ == "__main__":
