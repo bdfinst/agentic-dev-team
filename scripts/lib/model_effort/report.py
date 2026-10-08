@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from .artifact import ArmTotals
+from .arm_totals import ArmTotals
 from .cost import total_cost_usd
 from .formatting import escape_unprintable, format_usd
 from .run_status import AbortReason

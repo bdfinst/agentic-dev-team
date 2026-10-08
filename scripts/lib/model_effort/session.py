@@ -13,6 +13,7 @@ from typing import TextIO
 
 from . import (
     approval,
+    arm_totals,
     artifact,
     artifact_store,
     config_echo,
@@ -169,7 +170,13 @@ def finish_run(
     )
     if not run.is_complete:
         print(report.render_stop_notice(run), file=console.stderr)
-    for line in report.render_summary(artifact.read_arm_totals(data)):
+    summary = report.render_summary(
+        [
+            arm_totals.compute_arm_totals(arm_run, run_estimate)
+            for arm_run in run.arm_runs
+        ]
+    )
+    for line in summary:
         print(line, file=console.stderr)
     if save_exit_code == EXIT_OK:
         print(f"artifact written: {plan.artifact_path}", file=console.stderr)

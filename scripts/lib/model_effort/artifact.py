@@ -7,14 +7,12 @@ contract defines.
 
 from __future__ import annotations
 
-from collections import Counter
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Sequence
 
 from .arm import BASELINE_LABEL
-from .cost import total_cost_usd
+from .arm_totals import ArmTotals, compute_arm_totals
 from .estimate import RunEstimate
-from .outcome import Outcome, TrialResult
+from .outcome import TrialResult
 from .run_status import AbortReason, RunStatus
 from .run_types import ArmRun, FixtureTrials, RunMetadata
 
@@ -62,6 +60,7 @@ def _baseline_session_config(arms: Sequence[dict]) -> dict | None:
 
 def _arm_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
     arm = arm_run.arm
+    totals = compute_arm_totals(arm_run, run_estimate)
     model_id, model_id_note = _resolve_model_id(arm_run)
     return {
         "label": arm.label,
@@ -72,10 +71,10 @@ def _arm_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
         "tools_enabled": list(arm.profile.enabled_tools),
         "tools_withheld": list(arm.profile.withheld_tools),
         "trials_per_fixture": arm_run.trials_per_fixture,
-        "estimated_cost_usd": run_estimate.cost_usd_for_arm(arm.label),
+        "estimated_cost_usd": totals.estimated_cost_usd,
         "session_config": _first_session_config(arm_run),
         "fixtures": [_fixture_dict(fixture) for fixture in arm_run.fixture_trials],
-        "totals": _build_totals_dict(arm_run, run_estimate),
+        "totals": _totals_dict(totals),
     }
 
 
@@ -98,39 +97,18 @@ def _trial_dict(result: TrialResult) -> dict:
     }
 
 
-def _all_results(arm_run: ArmRun) -> list[TrialResult]:
-    return [result for fixture in arm_run.fixture_trials for result in fixture.results]
-
-
-def _build_totals_dict(arm_run: ArmRun, run_estimate: RunEstimate) -> dict:
-    results = _all_results(arm_run)
-    counts = Counter(result.outcome for result in results)
-    totals: dict = {outcome.value: counts[outcome] for outcome in Outcome}
-    # A false positive is the grader finding the agent's answer wrong on a fixture
-    # that expects no problems. A timeout or CLI error says nothing about the answer.
-    totals["clean_fixture_false_positives"] = sum(
-        1
-        for fixture in arm_run.fixture_trials
-        if fixture.expected_clean
-        for result in fixture.results
-        if result.outcome == Outcome.GRADED_FAIL
-    )
-    # Trials with no reported cost count as 0 in the actual total, so that total
-    # is a lower bound; the stop rule charged these estimates in their place.
-    totals["actual_cost_usd"] = total_cost_usd(
-        result.reported_cost_usd for result in results
-    )
-    totals["unreported_trials_estimate_usd"] = total_cost_usd(
-        run_estimate.charged_usd(arm_run.arm.label, result)
-        for result in results
-        if not result.cost_reported
-    )
-    return totals
+def _totals_dict(totals: ArmTotals) -> dict:
+    return {
+        **{outcome.value: count for outcome, count in totals.outcome_counts.items()},
+        "clean_fixture_false_positives": totals.clean_fixture_false_positives,
+        "actual_cost_usd": totals.actual_cost_usd,
+        "unreported_trials_estimate_usd": totals.unreported_trials_estimate_usd,
+    }
 
 
 def _first_session_config(arm_run: ArmRun) -> dict | None:
     """The arm's session config from its first trial whose stream had an init event."""
-    for result in _all_results(arm_run):
+    for result in arm_run.results:
         if result.session_config is not None:
             return result.session_config
     return None
@@ -138,7 +116,7 @@ def _first_session_config(arm_run: ArmRun) -> dict | None:
 
 def _resolve_model_id(arm_run: ArmRun) -> tuple[str | None, str | None]:
     """One model ID if every trial that reported one agrees; otherwise None and a note."""
-    results = _all_results(arm_run)
+    results = arm_run.results
     reported = sorted({r.model_id for r in results if r.model_id is not None})
     if len(reported) == 1:
         return reported[0], None
@@ -146,36 +124,3 @@ def _resolve_model_id(arm_run: ArmRun) -> tuple[str | None, str | None]:
         return None, f"trials reported several model IDs: {', '.join(reported)}"
     notes = [r.model_id_note for r in results if r.model_id_note]
     return None, notes[0] if notes else "no trial reported a model ID"
-
-
-@dataclass(frozen=True)
-class ArmTotals:
-    """One arm's totals as the artifact records them."""
-
-    label: str
-    outcome_counts: Mapping[Outcome, int]
-    actual_cost_usd: float
-    unreported_trials_estimate_usd: float
-    estimated_cost_usd: float
-
-
-def read_arm_totals(data: dict) -> list[ArmTotals]:
-    """Read each arm's totals back out of an artifact dict.
-
-    Consumers such as the console summary start from the dict, so what they show
-    cannot disagree with what was written.
-    """
-    return [
-        ArmTotals(
-            label=arm["label"],
-            outcome_counts={
-                outcome: arm["totals"][outcome.value] for outcome in Outcome
-            },
-            actual_cost_usd=arm["totals"]["actual_cost_usd"],
-            unreported_trials_estimate_usd=arm["totals"][
-                "unreported_trials_estimate_usd"
-            ],
-            estimated_cost_usd=arm["estimated_cost_usd"],
-        )
-        for arm in data["arms"]
-    ]

@@ -91,6 +91,11 @@ class ArmRun:
     trials_per_fixture: int
     fixture_trials: Sequence[FixtureTrials]
 
+    @property
+    def results(self) -> list[TrialResult]:
+        """Every completed trial of the arm, fixture by fixture."""
+        return [result for fixture in self.fixture_trials for result in fixture.results]
+
 
 @dataclass(frozen=True)
 class TrialProgress:

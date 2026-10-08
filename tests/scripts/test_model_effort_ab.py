@@ -51,6 +51,7 @@ import pricing
 from model_effort import (
     agent_file,
     agent_spec,
+    arm_totals,
     artifact,
     artifact_store,
     estimate,
@@ -2248,6 +2249,63 @@ class TestArtifactStatus:
             "interrupt",
             "harness-error",
         ]
+
+
+class TestComputeArmTotals:
+    def _totals(self, results, expected_clean=False, total_trials_per_arm=3):
+        run = _arm_run(CANDIDATE_LABEL, results, expected_clean)
+        return arm_totals.compute_arm_totals(run, _run_estimate(total_trials_per_arm))
+
+    def test_totals_carry_every_figure_the_artifact_and_summary_show(self):
+        totals = self._totals(
+            [
+                _trial_result(Outcome.PASS),
+                _trial_result(Outcome.GRADED_FAIL),
+                _trial_result(Outcome.TIMEOUT, cost=0.0, cost_reported=False),
+            ],
+            expected_clean=True,
+        )
+
+        assert totals == arm_totals.ArmTotals(
+            label=CANDIDATE_LABEL,
+            outcome_counts={
+                Outcome.TIMEOUT: 1,
+                Outcome.CLI_ERROR: 0,
+                Outcome.TOOL_VIOLATION: 0,
+                Outcome.PARSE_FAILURE: 0,
+                Outcome.GRADED_FAIL: 1,
+                Outcome.PASS: 1,
+            },
+            clean_fixture_false_positives=1,
+            actual_cost_usd=pytest.approx(TRIAL_COST * 2),
+            unreported_trials_estimate_usd=pytest.approx(ARM_ESTIMATE),
+            estimated_cost_usd=pytest.approx(3 * ARM_ESTIMATE),
+        )
+
+    def test_outcome_counts_follow_the_outcome_precedence_order(self):
+        totals = self._totals([_trial_result(Outcome.PASS)])
+
+        assert list(totals.outcome_counts) == list(Outcome)
+
+    def test_artifact_serializes_the_same_totals_the_summary_is_given(self):
+        run = _arm_run(
+            CANDIDATE_LABEL,
+            [_trial_result(Outcome.GRADED_FAIL), _trial_result(Outcome.PASS)],
+            expected_clean=True,
+        )
+        totals = arm_totals.compute_arm_totals(run, _run_estimate())
+
+        built = artifact.build_artifact(_metadata(), [run], _run_estimate(), None)
+
+        assert built["arms"][0]["totals"] == {
+            **{
+                outcome.value: count for outcome, count in totals.outcome_counts.items()
+            },
+            "clean_fixture_false_positives": totals.clean_fixture_false_positives,
+            "actual_cost_usd": totals.actual_cost_usd,
+            "unreported_trials_estimate_usd": totals.unreported_trials_estimate_usd,
+        }
+        assert built["arms"][0]["estimated_cost_usd"] == totals.estimated_cost_usd
 
 
 class TestArmTotals:
