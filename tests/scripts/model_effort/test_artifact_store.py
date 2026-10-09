@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import stat
+
 import pytest
 from _model_effort_support import RUN_ID, _store_with_failing_replace
 from model_effort import artifact_store
@@ -40,6 +43,32 @@ class TestArtifactStore:
 
         assert path.read_text(encoding="utf-8") == '{"a": 1}\n'
         assert [p.name for p in tmp_path.iterdir()] == [path.name]
+
+    def test_write_keeps_the_mode_of_the_placeholder(self, tmp_path):
+        path = artifact_store.reserve_artifact_path(tmp_path, RUN_ID)
+        path.chmod(0o640)
+
+        artifact_store.write_artifact(path, "{}\n")
+
+        assert stat.S_IMODE(path.stat().st_mode) == 0o640
+
+    @pytest.mark.skipif(
+        os.geteuid() == 0, reason="root can create files in a read-only directory"
+    )
+    def test_reserving_in_a_read_only_directory_is_refused_naming_the_path(
+        self, tmp_path
+    ):
+        runs_dir = tmp_path / "runs"
+        runs_dir.mkdir()
+        runs_dir.chmod(0o500)
+        try:
+            with pytest.raises(UsageError, match="cannot reserve artifact") as excinfo:
+                artifact_store.reserve_artifact_path(runs_dir, RUN_ID)
+        finally:
+            runs_dir.chmod(0o700)
+
+        assert str(runs_dir / f"{RUN_ID}.json") in str(excinfo.value)
+        assert list(runs_dir.iterdir()) == []
 
     def test_failed_write_leaves_the_destination_untouched_and_no_temp_file(
         self, tmp_path, monkeypatch

@@ -193,6 +193,21 @@ class TestSnapshotIsRemoved:
         assert code == 2
         assert self._left_over() == []
 
+    @pytest.mark.skipif(
+        os.geteuid() == 0, reason="root can create files in a read-only directory"
+    )
+    def test_after_the_runs_directory_refuses_the_placeholder(self, world, capsys):
+        world.runs_dir.chmod(0o500)
+        try:
+            code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS)
+        finally:
+            world.runs_dir.chmod(0o700)
+
+        assert code == 2
+        assert "cannot reserve artifact" in capsys.readouterr().err
+        assert self._left_over() == []
+        assert world.artifacts == []
+
     @pytest.mark.parametrize(
         "error", [KeyboardInterrupt(), RuntimeError("boom")], ids=["interrupt", "error"]
     )
