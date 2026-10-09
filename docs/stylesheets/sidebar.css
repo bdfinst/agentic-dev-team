@@ -1,0 +1,18 @@
+/* Sidebar section headers: uppercase, muted, smaller, no hover effect */
+.md-nav--primary .md-nav__item--section > .md-nav__link,
+.md-nav--secondary .md-nav__item--section > .md-nav__link {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--md-default-fg-color--light);
+    cursor: default;
+    pointer-events: none;
+    padding-top: 1rem;
+}
+
+/* Remove the hover highlight on section headers */
+.md-nav--primary .md-nav__item--section > .md-nav__link:hover,
+.md-nav--secondary .md-nav__item--section > .md-nav__link:hover {
+    color: var(--md-default-fg-color--light);
+}
