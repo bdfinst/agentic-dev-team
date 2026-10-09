@@ -22,9 +22,11 @@ EVENT_SYSTEM = "system"
 SUBTYPE_INIT = "init"
 BLOCK_TOOL_USE = "tool_use"
 
-# The closing fence may be indented but must open its own line: matching newlines
-# before it as well makes a long run of blank lines take quadratic time to scan.
-FENCED_JSON_PATTERN = re.compile(r"```json\s*\n(.*?)\n[ \t\r]*```", re.DOTALL)
+# Neither fence may match newlines beside the line break it needs: the opening
+# fence ends at the first line break and the closing fence is indented but opens
+# its own line. Otherwise a long run of blank lines after an unclosed fence takes
+# quadratic time to scan. The body is stripped by the caller.
+FENCED_JSON_PATTERN = re.compile(r"```json[ \t\r]*\n(.*?)\n[ \t\r]*```", re.DOTALL)
 
 
 @dataclass(frozen=True)

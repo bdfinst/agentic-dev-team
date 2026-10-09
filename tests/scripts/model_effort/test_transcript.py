@@ -233,9 +233,10 @@ class TestSessionConfig:
         assert parsed.session_config == _expected_session_config(HAIKU_MODEL_ID)
 
 
-# The slowest scan of the pathological text measured about 5 s before the closing
-# fence stopped matching newlines, and about 0.03 s after.
+# The unclosed-fence text below took about 3 s while either fence could match the
+# newlines around it, and well under 0.1 s once neither does.
 FENCE_SCAN_BUDGET_SECONDS = 1.5
+BLANK_LINES_AFTER_FENCE = 20_000
 
 
 class TestExtractAgentJson:
@@ -270,16 +271,24 @@ class TestExtractAgentJson:
 
         assert transcript.extract_agent_json(text)["issues"] == [{"severity": "error"}]
 
+    @pytest.mark.parametrize(
+        "opening", ["```json\n", "```json"], ids=["newline", "bare"]
+    )
     def test_unclosed_fence_followed_by_many_blank_lines_is_scanned_in_bounded_time(
-        self,
+        self, opening
     ):
-        text = "```json\n" + "\n" * 2000
+        text = opening + "\n" * BLANK_LINES_AFTER_FENCE
 
         started = time.monotonic()
         result = transcript.extract_agent_json(text)
 
         assert result is None
         assert time.monotonic() - started < FENCE_SCAN_BUDGET_SECONDS
+
+    def test_fence_opened_with_trailing_spaces_and_a_carriage_return_is_parsed(self):
+        text = '```json \t\r\n{"status": "pass"}\n```'
+
+        assert transcript.extract_agent_json(text) == {"status": "pass"}
 
     def test_fenced_block_closed_after_blank_lines_and_an_indented_fence_is_parsed(
         self,
