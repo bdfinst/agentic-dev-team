@@ -1,5 +1,7 @@
 # Spike: Economizing the Review Panel
 
+> Dated snapshot: tiers in this document reflect the time of the spike. Current tiers live in agent frontmatter.
+
 **Status:** analysis — no behavior changed by this document.
 **Question:** which reviews are critical on every change, which can become
 optional, and which agent work can move into deterministic scripts or
