@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
+
 import pytest
 from _model_effort_support import NOW, FixedRng, World, _eval_paths
 from model_effort import external, paths, plan, snapshot
@@ -53,7 +55,9 @@ class TestValidateCandidate:
 
 
 class TestPlanSnapshot:
-    def _plan(self, world: World, eval_paths: paths.EvalPaths) -> plan.RunPlan:
+    def _plan(
+        self, world: World, eval_paths: paths.EvalPaths
+    ) -> AbstractContextManager[plan.RunPlan]:
         return plan.plan_run(
             "scout",
             candidate_model="haiku",
@@ -75,9 +79,7 @@ class TestPlanSnapshot:
             fixtures_dir=world.deps.eval_paths.fixtures_dir,
         )
 
-        planned = self._plan(world, shipped_knowledge)
-
-        with planned.snapshot:
+        with self._plan(world, shipped_knowledge) as planned:
             assert planned.metadata.knowledge_dir == "plugins/dev-team/knowledge"
 
     def test_inputs_that_cannot_be_copied_are_refused_and_leave_nothing_behind(
@@ -88,8 +90,11 @@ class TestPlanSnapshot:
 
         monkeypatch.setattr(snapshot.shutil, "copytree", failing_copy)
 
-        with pytest.raises(UsageError, match="cannot copy the run's inputs.*disk full"):
-            self._plan(world, world.deps.eval_paths)
+        with (
+            pytest.raises(UsageError, match="cannot copy the run's inputs.*disk full"),
+            self._plan(world, world.deps.eval_paths),
+        ):
+            pass
 
         assert list(private_tmp.iterdir()) == []
         assert world.artifacts == []
@@ -102,7 +107,7 @@ class TestPlanLoadsTheScriptsTrialsUse:
     def _reload_scripts(self, private_tmp):
         external._load_module.cache_clear()
 
-    def _plan(self, world: World) -> plan.RunPlan:
+    def _plan(self, world: World) -> AbstractContextManager[plan.RunPlan]:
         return plan.plan_run(
             "scout",
             candidate_model="haiku",
@@ -130,15 +135,14 @@ class TestPlanLoadsTheScriptsTrialsUse:
         )
         monkeypatch.setattr(paths, "EVAL_GRADE", grader)
         monkeypatch.setattr(paths, "ISOLATED_DISPATCH", dispatch)
-        planned = self._plan(world)
-        grader.write_text(
-            "raise RuntimeError('edited after approval')", encoding="utf-8"
-        )
-        dispatch.write_text(
-            "raise RuntimeError('edited after approval')", encoding="utf-8"
-        )
+        with self._plan(world):
+            grader.write_text(
+                "raise RuntimeError('edited after approval')", encoding="utf-8"
+            )
+            dispatch.write_text(
+                "raise RuntimeError('edited after approval')", encoding="utf-8"
+            )
 
-        with planned.snapshot:
             rows = external.grade_against_expected(tmp_path, "stem", "agent", {})
             assert rows == [("planned", True, [])]
             assert external.should_scrub_env_var("PLANNED") is True
@@ -148,8 +152,11 @@ class TestPlanLoadsTheScriptsTrialsUse:
     ):
         monkeypatch.setattr(paths, "EVAL_GRADE", tmp_path / "missing.py")
 
-        with pytest.raises(UsageError, match="cannot load a script the trials rely on"):
-            self._plan(world)
+        with (
+            pytest.raises(UsageError, match="cannot load a script the trials rely on"),
+            self._plan(world),
+        ):
+            pass
 
         assert list(private_tmp.iterdir()) == []
         assert world.artifacts == []
@@ -162,8 +169,11 @@ class TestPlanLoadsTheScriptsTrialsUse:
 
         monkeypatch.setattr(external.eval_grade(), "run_grading", renamed)
 
-        with pytest.raises(UsageError, match="run_grading no longer accepts"):
-            self._plan(world)
+        with (
+            pytest.raises(UsageError, match="run_grading no longer accepts"),
+            self._plan(world),
+        ):
+            pass
 
         assert list(private_tmp.iterdir()) == []
         assert world.artifacts == []

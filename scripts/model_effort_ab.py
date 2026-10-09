@@ -33,6 +33,7 @@ import random
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -45,7 +46,6 @@ if str(_PACKAGE_PARENT) not in sys.path:
 
 from model_effort import (
     artifact,
-    artifact_store,
     external,
     interrupts,
     invocation,
@@ -230,20 +230,18 @@ def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> in
     if args.grader == RUBRIC_GRADER:
         return _report_usage_error(UsageError(RUBRIC_GRADER_REFUSAL))
     try:
-        plan = _plan_from(args, deps)
-    except UsageError as error:
-        return _report_usage_error(error)
-    with plan.snapshot, artifact_store.release_if_unwritten(plan.artifact_path):
-        settings = TrialSettings(
-            trials=resolve_trials(args.trials, args.agent),
-            trial_timeout_seconds=args.trial_timeout_seconds,
-            claude_bin=args.claude_bin,
-        )
-        console = session.Console(deps.stdin, deps.stdin_is_tty, sys.stdout, sys.stderr)
-        spend_limit = (
-            SpendLimit(args.max_cost_usd) if args.max_cost_usd is not None else None
-        )
-        try:
+        with _plan_from(args, deps) as plan:
+            settings = TrialSettings(
+                trials=resolve_trials(args.trials, args.agent),
+                trial_timeout_seconds=args.trial_timeout_seconds,
+                claude_bin=args.claude_bin,
+            )
+            console = session.Console(
+                deps.stdin, deps.stdin_is_tty, sys.stdout, sys.stderr
+            )
+            spend_limit = (
+                SpendLimit(args.max_cost_usd) if args.max_cost_usd is not None else None
+            )
             return session.run_session(
                 plan,
                 settings,
@@ -254,11 +252,11 @@ def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> in
                 run_trial=deps.run_trial,
                 guard=guard,
             )
-        except UsageError as error:
-            return _report_usage_error(error)
+    except UsageError as error:
+        return _report_usage_error(error)
 
 
-def _plan_from(args: argparse.Namespace, deps: Deps) -> RunPlan:
+def _plan_from(args: argparse.Namespace, deps: Deps) -> AbstractContextManager[RunPlan]:
     return plan_run(
         args.agent,
         candidate_model=args.model,

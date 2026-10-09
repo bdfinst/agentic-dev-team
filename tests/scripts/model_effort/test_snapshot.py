@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import shutil
+import signal
 from pathlib import Path
 
 import pytest
@@ -28,8 +30,10 @@ from _model_effort_support import (
     _written,
 )
 from model_effort import (
+    artifact_store,
     execution,
     paths,
+    plan,
     process_record,
     run_types,
     snapshot,
@@ -199,6 +203,79 @@ class TestSnapshotIsRemoved:
 
         assert code == 1
         assert self._left_over() == []
+
+
+@pytest.mark.usefixtures("harmless_termination_signals")
+class TestRunResourcesSurviveSignals:
+    """A signal while the plan's snapshot and placeholder are made or removed leaves nothing behind."""
+
+    @pytest.fixture(autouse=True)
+    def _private_tmp(self, private_tmp) -> Path:
+        self.private_tmp = private_tmp
+        return private_tmp
+
+    def _left_over(self) -> list[str]:
+        return sorted(path.name for path in self.private_tmp.iterdir())
+
+    def test_interrupt_while_the_inputs_are_copied_leaves_nothing(
+        self, world, monkeypatch
+    ):
+        def interrupted_copy(*_args, **_kwargs):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(snapshot.shutil, "copytree", interrupted_copy)
+
+        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS)
+
+        assert code == 1
+        assert self._left_over() == []
+        assert world.artifacts == []
+
+    @pytest.mark.parametrize(
+        ("owner", "name"),
+        [
+            pytest.param(plan, "take_snapshot", id="after-the-copy"),
+            pytest.param(
+                artifact_store, "reserve_artifact_path", id="after-the-reservation"
+            ),
+            pytest.param(plan, "RunPlan", id="after-the-plan-is-built"),
+        ],
+    )
+    def test_signal_right_after_a_resource_is_made_leaves_nothing(
+        self, world, monkeypatch, owner, name
+    ):
+        make = getattr(owner, name)
+
+        def make_then_signal(*args, **kwargs):
+            made = make(*args, **kwargs)
+            os.kill(os.getpid(), signal.SIGTERM)
+            return made
+
+        # Wraps the step: a signal can be sent into the window after it only by hand.
+        monkeypatch.setattr(owner, name, make_then_signal)
+
+        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS)
+
+        assert code == 1
+        assert self._left_over() == []
+        assert world.artifacts == []
+
+    def test_signal_while_the_snapshot_is_removed_does_not_leave_a_partial_tree(
+        self, world, monkeypatch
+    ):
+        remove = snapshot.remove_tree
+
+        def signal_then_remove(directory):
+            os.kill(os.getpid(), signal.SIGTERM)
+            remove(directory)
+
+        monkeypatch.setattr(snapshot, "remove_tree", signal_then_remove)
+
+        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
+
+        assert code == 1
+        assert self._left_over() == []
+        assert _written(world)["status"] == "complete"
 
 
 class TestSnapshotPathsAreScrubbed:

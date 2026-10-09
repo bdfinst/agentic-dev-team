@@ -57,6 +57,20 @@ def pending() -> bool:
     return bool(signal.sigpending() & _live_signals())
 
 
+@contextmanager
+def held_signals() -> Iterator[None]:
+    """Hold the interrupt signals for the body, so a step that must finish is not cut short.
+
+    On exit the mask is put back and a signal that arrived meanwhile is delivered
+    then, as `KeyboardInterrupt`, after the body has finished.
+    """
+    previous = block()
+    try:
+        yield
+    finally:
+        restore(previous)
+
+
 def take_pending() -> bool:
     """Consume the interrupt signals that arrived while held; say whether there were any."""
     pending = signal.sigpending() & _live_signals()

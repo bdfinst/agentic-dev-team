@@ -128,7 +128,7 @@ def harmless_termination_signals():
 @pytest.fixture
 def scout_plan(world: World) -> Iterator[plan.RunPlan]:
     """The planned `scout` run; its snapshot is removed when the test ends."""
-    planned = plan.plan_run(
+    with plan.plan_run(
         "scout",
         candidate_model="haiku",
         candidate_effort=None,
@@ -138,8 +138,7 @@ def scout_plan(world: World) -> Iterator[plan.RunPlan]:
         rng=FixedRng(),
         git_sha=None,
         eval_paths=world.deps.eval_paths,
-    )
-    with planned.snapshot:
+    ) as planned:
         yield planned
 
 

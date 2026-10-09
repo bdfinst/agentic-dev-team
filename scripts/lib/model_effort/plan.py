@@ -6,11 +6,13 @@ driven from tests and from other callers.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import artifact_store, external, paths
+from . import artifact_store, external, interrupts, paths
 from .agent_file import AgentFrontmatterError, UnknownAgentError, load_agent_file
 from .agent_spec import AgentSpec, build_agent_spec
 from .arm import BASELINE_LABEL, CANDIDATE_LABEL, Arm
@@ -44,6 +46,7 @@ class RunPlan:
         return self.snapshot.fixtures
 
 
+@contextmanager
 def plan_run(
     agent: str,
     *,
@@ -55,8 +58,8 @@ def plan_run(
     rng,
     git_sha: str | None,
     eval_paths: EvalPaths,
-) -> RunPlan:
-    """Return the plan, with the artifact path reserved; the reservation is the last step.
+) -> Iterator[RunPlan]:
+    """Yield the plan, with the artifact path reserved; the reservation is the last step.
 
     The candidate arm takes `candidate_model`/`candidate_effort`, each defaulting
     to the baseline (frontmatter) value. The baseline's frontmatter values and any
@@ -69,7 +72,10 @@ def plan_run(
     ones in place at approval are the ones every trial uses.
 
     The fixtures, their expected entries and the knowledge directory are copied
-    into `plan.snapshot`, which the caller removes when the run is over.
+    into `plan.snapshot`. Leaving the `with` removes the snapshot and an artifact
+    placeholder still empty. The interrupt signals are held while the plan's
+    resources are made and while they are released, so a signal never leaves a
+    partial copy or a stray placeholder behind: it is delivered once that step is done.
 
     Raises:
         UsageError: a script the trials rely on cannot be loaded or no longer fits;
@@ -99,33 +105,38 @@ def plan_run(
     )
     _refuse_identical_arms(baseline, candidate)
     run_id = make_run_id(now, agent, candidate.model, candidate.effort, rng)
+    owned = ExitStack()
     try:
-        snapshot = take_snapshot(eval_paths, fixtures)
-    except OSError as error:
-        raise UsageError(
-            f"cannot copy the run's inputs (fixtures, expected entries, knowledge) "
-            f"to a temp directory: {error}"
-        ) from error
-    try:
-        artifact_path = artifact_store.reserve_artifact_path(runs_dir, run_id)
-    except BaseException:
-        snapshot.remove()
-        raise
-    return RunPlan(
-        agent=agent,
-        system_prompt=agent_spec.system_prompt,
-        arms=(baseline, candidate),
-        profile=profile,
-        snapshot=snapshot,
-        metadata=RunMetadata(
-            run_id=run_id,
-            created=now,
-            git_sha=git_sha,
-            agent=agent,
-            knowledge_dir=_relative_to_repo(eval_paths.knowledge_dir),
-        ),
-        artifact_path=artifact_path,
-    )
+        with interrupts.held_signals():
+            try:
+                snapshot = take_snapshot(eval_paths, fixtures)
+            except OSError as error:
+                raise UsageError(
+                    f"cannot copy the run's inputs (fixtures, expected entries, knowledge) "
+                    f"to a temp directory: {error}"
+                ) from error
+            owned.callback(snapshot.remove)
+            artifact_path = artifact_store.reserve_artifact_path(runs_dir, run_id)
+            owned.enter_context(artifact_store.release_if_unwritten(artifact_path))
+            planned = RunPlan(
+                agent=agent,
+                system_prompt=agent_spec.system_prompt,
+                arms=(baseline, candidate),
+                profile=profile,
+                snapshot=snapshot,
+                metadata=RunMetadata(
+                    run_id=run_id,
+                    created=now,
+                    git_sha=git_sha,
+                    agent=agent,
+                    knowledge_dir=_relative_to_repo(eval_paths.knowledge_dir),
+                ),
+                artifact_path=artifact_path,
+            )
+        yield planned
+    finally:
+        with interrupts.held_signals():
+            owned.close()
 
 
 def _load_external_scripts() -> None:

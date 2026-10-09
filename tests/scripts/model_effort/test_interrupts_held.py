@@ -292,6 +292,19 @@ class TestInterruptsAreHeldForTheRun:
 
         assert (run.abort_reason, run.started_trials) == (AbortReason.INTERRUPT, 0)
 
+    def test_held_signals_finish_the_body_and_deliver_the_signal_after_it(self):
+        finished = []
+        previous_handler = signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
+        try:
+            with pytest.raises(KeyboardInterrupt), interrupts.held_signals():
+                os.kill(os.getpid(), signal.SIGTERM)
+                finished.append("body")
+        finally:
+            signal.signal(signal.SIGTERM, previous_handler)
+
+        assert finished == ["body"]
+        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+
     def test_a_pending_signal_is_consumed_so_it_is_not_delivered_later(self):
         held = interrupts.block()
         try:
