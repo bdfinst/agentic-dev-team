@@ -52,6 +52,11 @@ def restore(previous: set[signal.Signals]) -> None:
     signal.pthread_sigmask(signal.SIG_SETMASK, previous)
 
 
+def pending() -> bool:
+    """True when an interrupt signal is waiting; leave it pending for the run to act on."""
+    return bool(signal.sigpending() & _live_signals())
+
+
 def take_pending() -> bool:
     """Consume the interrupt signals that arrived while held; say whether there were any."""
     pending = signal.sigpending() & _live_signals()

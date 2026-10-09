@@ -110,7 +110,8 @@ def _wait_for_exit(
     A trial times out only when the process itself is still running at the
     deadline. If the process exited but a descendant keeps its pipes open, the
     output gets `KILL_COLLECT_TIMEOUT_SECONDS` to end, then the group is killed;
-    the process's own exit code is kept either way.
+    the process's own exit code is kept either way. A signal that arrives during
+    that wait ends it early and stays pending: the finished trial is kept.
     """
     deadline = time.monotonic() + trial_timeout_seconds
     output = _read_output(process, deadline, stop_at_exit=True)
@@ -142,10 +143,18 @@ def _read_output(
     Returns None at the deadline, or, with `stop_at_exit`, as soon as the process
     has exited with its pipes still open. Reading continues while the process
     runs, so a child blocked on a full pipe is not deadlocked.
+
+    A signal that arrives while the process runs is consumed and raises
+    `KeyboardInterrupt`. Without `stop_at_exit` the process has already exited
+    and its result is complete, so a pending signal only ends the wait (None) and
+    stays pending for the run to act on, instead of dropping the finished trial.
     """
     while True:
-        if interrupts.take_pending():
-            raise KeyboardInterrupt
+        if stop_at_exit:
+            if interrupts.take_pending():
+                raise KeyboardInterrupt
+        elif interrupts.pending():
+            return None
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return None

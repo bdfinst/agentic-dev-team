@@ -172,6 +172,45 @@ class TestInterruptsAreHeldForTheRun:
         with pytest.raises(ProcessLookupError):
             os.kill(stub.calls[2]["pid"], 0)
 
+    @ALL_INTERRUPT_SIGNALS
+    def test_signal_while_a_descendant_holds_the_pipes_after_the_exit_keeps_the_finished_trial(
+        self, world, signum
+    ):
+        stub = _passing_stub(world, holder_sleep=30)
+
+        def signal_once_the_first_process_exited() -> None:
+            deadline = time.monotonic() + 20
+            first_pid = None
+            while time.monotonic() < deadline:
+                try:
+                    calls = stub.calls
+                except ValueError:  # the stub was mid-write
+                    calls = []
+                first_pid = calls[0]["pid"] if calls else None
+                if first_pid is not None:
+                    try:
+                        os.kill(first_pid, 0)  # raises once the trial reaped it
+                    except ProcessLookupError:
+                        break
+                time.sleep(0.02)
+            signal.pthread_kill(threading.main_thread().ident, signum)
+
+        threading.Thread(
+            target=signal_once_the_first_process_exited, daemon=True
+        ).start()
+        started = time.monotonic()
+        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+
+        written = _written(world)
+        assert code == 1
+        assert time.monotonic() - started < runner.KILL_COLLECT_TIMEOUT_SECONDS * 3
+        assert len(stub.calls) == 1
+        assert (written["status"], written["abort_reason"]) == (
+            "incomplete",
+            "interrupt",
+        )
+        assert _outcomes(written, BASELINE_LABEL) == ["pass"]
+
     def test_signal_while_the_timeout_is_handled_still_kills_the_group(
         self, stub_dir, fixture_root, monkeypatch
     ):
