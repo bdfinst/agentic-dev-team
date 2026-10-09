@@ -224,7 +224,9 @@ def check_keep_row(name: str, row: dict[str, str]) -> list[str]:
             name,
             f"'{REASON_NOT_SELECTED}' requires Fixtures of at least {MIN_FIXTURES}",
         )
-    if evidence == REASON_NONE and has_minimum_fixtures(row):
+    if evidence == REASON_NONE and (
+        not row["Fixtures"].isdigit() or has_minimum_fixtures(row)
+    ):
         return violations_for(
             name, f"a blank reason requires Fixtures below {MIN_FIXTURES}"
         )
@@ -866,8 +868,9 @@ def test_not_selected_reason_requires_the_minimum_fixtures():
     assert any(expected in e for e in errors_for(row))
 
 
-def test_blank_reason_is_rejected_at_the_minimum_fixtures():
-    row = make_row(evidence=REASON_NONE, fixtures=FIXTURES_AT_MINIMUM)
+@pytest.mark.parametrize("fixtures", [FIXTURES_AT_MINIMUM, "TBD", ""])
+def test_blank_reason_is_rejected_unless_fixtures_are_below_minimum(fixtures):
+    row = make_row(evidence=REASON_NONE, fixtures=fixtures)
     assert any(
         f"blank reason requires Fixtures below {MIN_FIXTURES}" in e
         for e in errors_for(row)

@@ -8,7 +8,7 @@ Per-agent record of the Haiku 5.5 re-evaluation (issues #2250, #2251). Agent fro
 - Alias resolved: claude-haiku-5-5
 - Alias check: `claude -p --model haiku` reports `modelUsage` key `claude-haiku-5-5`.
 - Effort variable: yes
-- Effort check: `claude -p --effort <level>` accepted at `low` and `high`, and effort changes outcome and cost: in the `concurrency-review` run (see Notes) `medium` cost $0.132 and passed 48 trials, `high` cost $0.168 and passed 46.
+- Effort check: `claude -p --effort <level>` accepted at `low` and `high`, and effort changes cost: in the `concurrency-review` run (see Notes) `medium` cost $0.132 and `high` cost $0.168 for the same 49 trials per arm.
 - Pricing: `plugins/dev-team/knowledge/model-pricing.json` now prices `claude-haiku-5-5` ($0.10 / $0.50 per 1M tokens; the `claude-api` skill pricing table lists Claude Haiku 5.5 at those rates) and the `haiku` alias points to `claude-haiku-5-5`.
 - Evidence limit: evidence cells are self-reported text. The test checks format only; the run ID is not verified against an artifact.
 
@@ -16,7 +16,7 @@ correctness-review recall gap is known and unfixed; its results are excluded fro
 
 ## Method
 
-A/B per candidate, run outside `/agent-eval`: each fixture in `evals/expected` that names the agent and is a single file, 3 trials per arm (5 for the five agents re-run with tools; see Notes). Baseline arm = current frontmatter, candidate arm = proposed model/effort, same session. Each run is `claude -p --model <m> --effort <e>` with the agent definition as the system prompt and the fixture file inline, with no tools for the tool-less rows and with tools for the five re-run agents (`scripts/model_effort_ab.py`); output is graded by `scripts/eval_grade.py`. Evidence is therefore not directly comparable to `evals/baseline.json`, which `/agent-eval` produces.
+A/B per candidate, run outside `/agent-eval`: each fixture in `evals/expected` that names the agent and is a single file (directory fixtures count in `Fixtures` but are not run), 3 trials per arm (5 for the five agents re-run with tools; see Notes). Baseline arm = current frontmatter, candidate arm = proposed model/effort, same session. Each run is `claude -p --model <m> --effort <e>` with the agent definition as the system prompt and the fixture file inline, with no tools for the tool-less rows and with tools for the five re-run agents (`scripts/model_effort_ab.py`); output is graded by `scripts/eval_grade.py`. Evidence is therefore not directly comparable to `evals/baseline.json`, which `/agent-eval` produces.
 
 A downgrade rule is relative to the current tier: the proposed tier must have recall equal to or better than the current tier, no increase in clean-fixture false positives, and 100% parse. `delta:0` in an evidence cell means the proposed tier lost no recall relative to the current tier, not that every trial passed.
 
@@ -24,7 +24,7 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 
 ## Notes
 
-- Every tool-bearing downgrade (`concurrency-review`, `js-fp-review`, `naming-review`, `test-smell-review`, `token-efficiency-review`) was re-run with the tool-enabled harness (`scripts/model_effort_ab.py`) at 5 trials per fixture; their results replace the earlier tool-less evidence. A downgrade needs recall equal to or better than the current tier, no clean-fixture false-positive increase, and 100% parse. The re-runs used the already-applied (proposed) tier as the artifact's `baseline` arm, so artifact arm labels are reversed relative to this table's Baseline and Final columns.
+- Every tool-bearing downgrade candidate that a tool-less run had passed (`concurrency-review`, `js-fp-review`, `naming-review`, `test-smell-review`, `token-efficiency-review`) was re-run with the tool-enabled harness (`scripts/model_effort_ab.py`) at 5 trials per fixture; their results replace the earlier tool-less evidence. A downgrade needs recall equal to or better than the current tier, no clean-fixture false-positive increase, and 100% parse. The re-runs used the already-applied (proposed) tier as the artifact's `baseline` arm, so artifact arm labels are reversed relative to this table's Baseline and Final columns.
 - `concurrency-review` (haiku/high to haiku/medium), run `20261009T120538Z-concurrency-review-haiku-high-4c89`: medium passed 48, failed 1, FP 1, cost 0.132; high passed 46, failed 3, FP 0, cost 0.168. The clean-fixture false positive rose, so reason `failed eval`; stays haiku/high keep. The run stopped at the cost cap with 98 of 100 trials (49 of 50 per arm).
 - `js-fp-review` (haiku/medium to haiku/low), run `20261009T122901Z-js-fp-review-haiku-medium-9363`: low passed 31, failed 14, FP 0, cost 0.126; medium passed 29, failed 16, FP 0, cost 0.146. No recall lost, so the downgrade holds. Both arms fail about one third of trials, so the fixtures or the grader are worth a look.
 - `naming-review` (sonnet/high to haiku/high), run `20261009T124756Z-naming-review-sonnet-high-5e84`: haiku passed 10, FP 10, cost 0.249; sonnet passed 17, FP 10, cost 2.572. Recall fell, so reason `failed eval`; stays sonnet/high keep.
