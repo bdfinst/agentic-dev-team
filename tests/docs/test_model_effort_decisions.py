@@ -52,6 +52,8 @@ EVIDENCE_RE = re.compile(
     r"trials:\d+; delta:0; "
     r"cost:(?P<baseline_cost>\d+(?:\.\d+)?)->(?P<candidate_cost>\d+(?:\.\d+)?)$"
 )
+CONCRETE_MODEL_ID_RE = re.compile(r"^claude-[a-z0-9-]+$")
+EFFORT_VARIABLE_VALUES = {"yes", "no"}
 HEADER_FIELD_RE = re.compile(
     r"^- (Candidates evaluated|Alias resolved|Effort variable): (.+)$", re.MULTILINE
 )
@@ -86,6 +88,7 @@ def check_log(text: str, frontmatter_for_source) -> list[str]:
     headers, rows, errors = parse_log(text)
     if RECALL_GAP_SENTENCE not in text:
         errors.append("recall-gap sentence missing from header")
+    errors += check_header_fields(headers)
     sources = [r["Source"] for r in rows]
     for dup in sorted({s for s in sources if sources.count(s) > 1}):
         errors.append(f"{dup}: listed more than once")
@@ -100,6 +103,17 @@ def check_log(text: str, frontmatter_for_source) -> list[str]:
             f"Candidates evaluated is '{headers.get('Candidates evaluated')}', "
             f"rows show {evaluated}"
         )
+    return errors
+
+
+def check_header_fields(headers: dict[str, str]) -> list[str]:
+    errors = []
+    alias = headers.get("Alias resolved", "")
+    if not CONCRETE_MODEL_ID_RE.match(alias) or alias in MODEL_ALIASES:
+        errors.append(f"Alias resolved must be a concrete model ID, got '{alias}'")
+    effort_variable = headers.get("Effort variable", "")
+    if effort_variable not in EFFORT_VARIABLE_VALUES:
+        errors.append(f"Effort variable must be yes or no, got '{effort_variable}'")
     return errors
 
 
@@ -243,11 +257,15 @@ def frontmatter_fake(source):
     return FRONTMATTER_BY_SOURCE.get(source)
 
 
-def make_log(rows, candidates=None, include_recall_gap=True):
+def make_log(
+    rows, candidates=None, include_recall_gap=True,
+    alias="claude-haiku-5-5", effort_variable="yes",
+):
     evaluated = candidates if candidates is not None else str(
         sum(1 for r in rows if r[6] != "keep" or r[8] in EVALUATED_KEEP_REASONS)
     )
     head = f"- Candidates evaluated: {evaluated}\n"
+    head += f"- Alias resolved: {alias}\n- Effort variable: {effort_variable}\n"
     head += (RECALL_GAP_SENTENCE + "\n") if include_recall_gap else ""
     table = "| " + " | ".join(COLUMNS) + " |\n|" + "---|" * len(COLUMNS) + "\n"
     return head + table + "".join("| " + " | ".join(r) + " |\n" for r in rows)
@@ -394,6 +412,34 @@ def test_unknown_effort_is_rejected():
 
 def test_haiku_row_needs_valid_effort():
     assert any("effort outside" in e for e in errors_for(make_row(final_effort="")))
+
+
+@pytest.mark.parametrize("alias", [
+    "haiku", "claude-haiku", "claude-haiku-5-5 (resolved via headless run)", "Claude-Haiku-5-5", "",
+])
+def test_alias_resolved_must_be_a_concrete_model_id(alias):
+    errors = check_log(make_log([make_row()], alias=alias), frontmatter_fake)
+    assert any("Alias resolved must be a concrete model ID" in e for e in errors)
+
+
+@pytest.mark.parametrize("value", ["maybe", "yes (low and high)", "Yes", ""])
+def test_effort_variable_must_be_yes_or_no(value):
+    errors = check_log(make_log([make_row()], effort_variable=value), frontmatter_fake)
+    assert any("Effort variable must be yes or no" in e for e in errors)
+
+
+@pytest.mark.parametrize("value", ["yes", "no"])
+def test_effort_variable_accepts_yes_and_no(value):
+    assert check_log(make_log([make_row()], effort_variable=value), frontmatter_fake) == []
+
+
+def test_missing_header_fields_are_reported():
+    text = make_log([make_row()]).replace("- Alias resolved: claude-haiku-5-5\n", "").replace(
+        "- Effort variable: yes\n", ""
+    )
+    errors = check_log(text, frontmatter_fake)
+    assert any("Alias resolved must be a concrete model ID" in e for e in errors)
+    assert any("Effort variable must be yes or no" in e for e in errors)
 
 
 def test_recall_gap_sentence_is_required():

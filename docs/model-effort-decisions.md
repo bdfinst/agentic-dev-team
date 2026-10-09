@@ -5,8 +5,10 @@ Per-agent record of the Haiku 5.5 re-evaluation (issues #2250, #2251). Agent fro
 ## Feasibility findings (2026-10-08)
 
 - Candidates evaluated: 7
-- Alias resolved: claude-haiku-5-5 (`claude -p --model haiku` reports `modelUsage` key `claude-haiku-5-5`).
-- Effort variable: yes (`claude -p --effort <level>` accepted at `low` and `high`).
+- Alias resolved: claude-haiku-5-5
+- Alias check: `claude -p --model haiku` reports `modelUsage` key `claude-haiku-5-5`.
+- Effort variable: yes
+- Effort check: `claude -p --effort <level>` accepted at `low` and `high`.
 - Pricing: `plugins/dev-team/knowledge/model-pricing.json` now prices `claude-haiku-5-5` ($0.10 / $0.50 per 1M tokens) and the `haiku` alias points to `claude-haiku-5-5`.
 - Evidence limit: evidence cells are self-reported text. The test checks format only; the run ID is not verified against an artifact.
 
