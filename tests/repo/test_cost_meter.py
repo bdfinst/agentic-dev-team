@@ -657,6 +657,13 @@ def test_the_opus_alias_points_at_the_current_default_opus() -> None:
     assert pricing["aliases"]["opus"] == "claude-opus-5"
 
 
+def test_the_haiku_alias_points_at_the_current_default_haiku() -> None:
+    """The alias is what a bare `haiku` in a transcript resolves to; leaving it
+    on a superseded snapshot silently prices new spend at the old model."""
+    pricing = _pricing()
+    assert pricing["aliases"]["haiku"] == "claude-haiku-5-5"
+
+
 def test_regression_and_pace_tolerate_pre_existing_log_lines_with_no_unpriced_key(
     tmp_path: Path,
 ) -> None:
