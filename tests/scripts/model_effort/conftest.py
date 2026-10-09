@@ -116,6 +116,24 @@ def world(tmp_path: Path, monkeypatch) -> World:
     return World(tmp_path, deps)
 
 
+@pytest.fixture(autouse=True)
+def _default_interrupt_dispositions() -> Iterator[None]:
+    """Give every test the signal dispositions an interactive terminal gives pytest.
+
+    The harness leaves a signal alone that the process was started ignoring
+    (`interrupts._live_signals`), so a test that expects Ctrl-C to be held needs
+    SIGINT to be live. A shell runs a background job with SIGINT ignored, and
+    `scripts/ci-local.sh` runs this suite as one, so every xdist worker inherits
+    SIG_IGN. The tests that cover the ignored case set it themselves.
+    """
+    defaults = {signal.SIGINT: signal.default_int_handler}
+    defaults.update({signum: signal.SIG_DFL for signum in TERMINATION_SIGNALS})
+    originals = {signum: signal.signal(signum, h) for signum, h in defaults.items()}
+    yield
+    for signum, handler in originals.items():
+        signal.signal(signum, handler)
+
+
 @pytest.fixture
 def harmless_termination_signals():
     """Swap in a no-op SIGTERM/SIGHUP handler so a signal a test sends cannot end pytest."""
