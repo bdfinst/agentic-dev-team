@@ -35,6 +35,8 @@ DECISIONS = {"keep", "downgrade", "upgrade"}
 MIN_FIXTURES = 3
 SAVING_TOLERANCE = 0.001
 HEADER_AND_SEPARATOR_LINES = 2
+AGENT_INFO_AGENT_COLUMN = "Agent"
+AGENT_INFO_MODEL_COLUMN = "Model"
 MODEL_ALIASES = {"claude-haiku", "claude-sonnet", "claude-opus"}
 # Keep-row reasons that mean the agent was evaluated and not changed.
 EVALUATED_KEEP_REASONS = {"failed eval", "weak evidence: tools withheld"}
@@ -197,6 +199,42 @@ def check_tier_change(name: str, row: dict[str, str]) -> list[str]:
     return []
 
 
+def agent_info_model_pairs(text: str) -> list[tuple[str, str]]:
+    """(agent, model) per row of the table whose header has Agent and Model columns."""
+    pairs, columns = [], None
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            columns = None
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if columns is None:
+            if AGENT_INFO_AGENT_COLUMN in cells and AGENT_INFO_MODEL_COLUMN in cells:
+                columns = (cells.index(AGENT_INFO_AGENT_COLUMN), cells.index(AGENT_INFO_MODEL_COLUMN))
+            continue
+        if set("".join(cells)) <= {"-", ":", " "}:
+            continue
+        agent_index, model_index = columns
+        pairs.append((cells[agent_index].strip("`"), cells[model_index]))
+    return pairs
+
+
+def agent_info_mismatches(pairs, declared_model_for) -> list[str]:
+    """One error per pair whose table model differs from the declared one."""
+    errors = []
+    for agent, table_model in pairs:
+        declared = declared_model_for(agent)
+        if declared is None:
+            errors.append(f"{agent}: no agent file")
+        elif declared != table_model:
+            errors.append(f"{agent}: table says {table_model}, frontmatter says {declared}")
+    return errors
+
+
+def repo_declared_model(agent: str):
+    source = AGENTS_DIR / f"{agent}.md"
+    return frontmatter_field(frontmatter_block(source), "model") if source.is_file() else None
+
+
 def load_repo_frontmatter(source: str):
     path = REPO_ROOT / source
     return frontmatter_block(path) if path.is_file() else None
@@ -223,17 +261,9 @@ def test_log_covers_every_agent_and_named_skill():
 
 
 def test_agent_info_model_column_matches_frontmatter():
-    mismatches = []
-    for line in AGENT_INFO_PATH.read_text(encoding="utf-8").splitlines():
-        cells = [c.strip() for c in line.strip("|").split("|")]
-        if len(cells) < 3 or not re.fullmatch(r"`[a-z0-9-]+`", cells[0]):
-            continue
-        source = AGENTS_DIR / f"{cells[0].strip('`')}.md"
-        if source.is_file() and cells[2] in MODEL_RANK:
-            declared = frontmatter_field(frontmatter_block(source), "model")
-            if declared != cells[2]:
-                mismatches.append(f"{cells[0]}: table says {cells[2]}, frontmatter says {declared}")
-    assert mismatches == []
+    pairs = agent_info_model_pairs(AGENT_INFO_PATH.read_text(encoding="utf-8"))
+    assert pairs, "no agent rows found under a Model column"
+    assert agent_info_mismatches(pairs, repo_declared_model) == []
 
 
 # --- synthetic fixtures ------------------------------------------------------
@@ -440,6 +470,37 @@ def test_missing_header_fields_are_reported():
     errors = check_log(text, frontmatter_fake)
     assert any("Alias resolved must be a concrete model ID" in e for e in errors)
     assert any("Effort variable must be yes or no" in e for e in errors)
+
+
+AGENT_INFO_TABLE = """\
+| Agent | File | Purpose |
+| --- | --- | --- |
+| `team` | t.md | not a model table |
+
+| Agent | File | Model | What It Checks |
+| --- | --- | --- | --- |
+| `a` | a.md | sonnet | x |
+| `b` | b.md | haiku | y |
+"""
+
+
+def test_agent_info_pairs_come_from_the_model_column_only():
+    assert agent_info_model_pairs(AGENT_INFO_TABLE) == [("a", "sonnet"), ("b", "haiku")]
+
+
+def test_agent_info_table_without_a_model_column_yields_no_pairs():
+    assert agent_info_model_pairs("| Agent | File |\n| --- | --- |\n| `a` | a.md |\n") == []
+
+
+def test_agent_info_model_mismatch_is_reported():
+    declared = {"a": "sonnet", "b": "sonnet"}.get
+    assert agent_info_mismatches(agent_info_model_pairs(AGENT_INFO_TABLE), declared) == [
+        "b: table says haiku, frontmatter says sonnet"
+    ]
+
+
+def test_agent_info_row_without_an_agent_file_is_reported():
+    assert agent_info_mismatches([("ghost", "haiku")], {}.get) == ["ghost: no agent file"]
 
 
 def test_recall_gap_sentence_is_required():
