@@ -615,6 +615,25 @@ class TestTrialDefaults:
         )
 
 
+class TestToolViolationFollowsThePlansToolProfile:
+    def test_a_tool_the_default_profile_allows_but_the_agent_does_not_is_a_violation(
+        self, world
+    ):
+        stub = StubClaude(
+            world.stub_dir,
+            **_verdict_call(PASS_VERDICT, SONNET_MODEL_ID, "Glob"),
+        )
+
+        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "1")
+
+        written = _written(world)
+        trial = _arm_block(written, BASELINE_LABEL)["fixtures"][0]["trials"][0]
+        assert code == 0
+        assert _arm_block(written, BASELINE_LABEL)["tools_enabled"] == ["Read", "Grep"]
+        assert trial["outcome"] == "tool_violation"
+        assert trial["error"] == "tools outside the enabled set: Glob"
+
+
 class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
     def _assert_refused(self, world, stub, capsys, code, fix_hint):
         err = capsys.readouterr().err
@@ -634,6 +653,39 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
 
         self._assert_refused(
             world, stub, capsys, excinfo.value.code, "a whole number of 1 or more"
+        )
+
+    @pytest.mark.parametrize(
+        "write_agent",
+        [
+            pytest.param(
+                lambda agents_dir: _write_agent(
+                    agents_dir, "odd", "Read", model="sonnet"
+                ),
+                id="no-effort",
+            ),
+            pytest.param(
+                lambda agents_dir: (agents_dir / "odd.md").write_text(
+                    "No frontmatter here.\n", encoding="utf-8"
+                ),
+                id="no-frontmatter",
+            ),
+        ],
+    )
+    def test_an_agent_file_without_usable_frontmatter_is_refused_naming_the_fix(
+        self, world, capsys, write_agent
+    ):
+        write_agent(world.deps.eval_paths.agents_dir)
+        stub = StubClaude(world.stub_dir)
+
+        code = _cli(world, stub, "odd", "--model", "haiku", "--effort", "low")
+
+        self._assert_refused(
+            world,
+            stub,
+            capsys,
+            code,
+            "Fix the agent file's frontmatter; the baseline arm needs `model:` and `effort:`.",
         )
 
     def test_rubric_grader_is_refused_as_not_implemented(self, world, capsys):

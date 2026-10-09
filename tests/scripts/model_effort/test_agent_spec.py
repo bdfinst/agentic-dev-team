@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from _model_effort_support import _write_agent
 from model_effort import agent_file, agent_spec, external, paths, tools
@@ -31,6 +33,49 @@ class TestAgentSpec:
             agent_spec.build_agent_spec("scout", loaded)
 
         assert "model" in str(excinfo.value)
+
+
+MISSING = object()
+
+
+def _agent_file(**frontmatter) -> agent_file.AgentFile:
+    return agent_file.AgentFile(
+        path=Path("scout.md"), frontmatter=frontmatter, body="Body.\n"
+    )
+
+
+VALID_FRONTMATTER = {"model": "sonnet", "effort": "high"}
+UNUSABLE_VALUES = (
+    pytest.param(MISSING, id="missing"),
+    pytest.param("", id="empty"),
+    pytest.param("   ", id="blank"),
+    pytest.param(None, id="null"),
+    pytest.param(3, id="number"),
+    pytest.param(["sonnet"], id="list"),
+    pytest.param(True, id="boolean"),
+)
+
+
+class TestRequiredText:
+    @pytest.mark.parametrize("key", ["model", "effort"])
+    @pytest.mark.parametrize("value", UNUSABLE_VALUES)
+    def test_a_missing_or_non_text_value_raises_naming_the_key(self, key, value):
+        frontmatter = {**VALID_FRONTMATTER}
+        if value is MISSING:
+            del frontmatter[key]
+        else:
+            frontmatter[key] = value
+
+        with pytest.raises(agent_file.AgentFrontmatterError, match=f"`{key}:`"):
+            agent_spec.build_agent_spec("scout", _agent_file(**frontmatter))
+
+    @pytest.mark.parametrize("key", ["model", "effort"])
+    def test_a_padded_value_is_stripped(self, key):
+        built = agent_spec.build_agent_spec(
+            "scout", _agent_file(**{**VALID_FRONTMATTER, key: "  padded \t"})
+        )
+
+        assert getattr(built, key) == "padded"
 
 
 class TestShippedAgentSmoke:
