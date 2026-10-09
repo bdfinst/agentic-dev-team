@@ -65,16 +65,21 @@ def plan_run(
     `getrandbits`. `eval_paths` names the directories the agent file, expected
     entries, fixtures and knowledge are read from.
 
+    The grader and the environment scrub the trials use are loaded here, so the
+    ones in place at approval are the ones every trial uses.
+
     The fixtures, their expected entries and the knowledge directory are copied
     into `plan.snapshot`, which the caller removes when the run is over.
 
     Raises:
-        UsageError: the agent is unknown, write-capable or has unusable
+        UsageError: a script the trials rely on cannot be loaded or no longer fits;
+            the agent is unknown, write-capable or has unusable
             frontmatter (a missing or invalid `model:` or `effort:` included); a
             candidate value is invalid or leaves the candidate identical to the
             baseline; fixtures cannot be resolved or copied; or the artifact
             path is unavailable.
     """
+    _load_external_scripts()
     agent_spec, profile = _load_agent(agent, eval_paths.agents_dir)
     _refuse_invalid_values(
         agent_spec.model,
@@ -121,6 +126,16 @@ def plan_run(
         ),
         artifact_path=artifact_path,
     )
+
+
+def _load_external_scripts() -> None:
+    try:
+        external.load_for_run()
+    except (ImportError, OSError, SyntaxError) as error:
+        raise UsageError(
+            f"cannot load a script the trials rely on: {error}. "
+            "Restore it, or update the harness to match it"
+        ) from error
 
 
 def _refuse_identical_arms(baseline: Arm, candidate: Arm) -> None:

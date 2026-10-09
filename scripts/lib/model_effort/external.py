@@ -67,6 +67,30 @@ def eval_grade() -> ModuleType:
     return _load_module(paths.EVAL_GRADE)
 
 
+def load_for_run() -> None:
+    """Load, and check the interface of, each script a trial reaches only after approval.
+
+    Call it while the run is planned. The scripts a trial uses are then the ones
+    in place when the operator approved: a later edit changes nothing, and a
+    script that no longer fits fails before any trial is paid for.
+
+    Raises:
+        ExternalContractError: a script has a different interface.
+        ImportError, OSError, SyntaxError: a script cannot be read or loaded.
+    """
+    _checked_run_grading()
+    _checked_should_scrub()
+
+
+def _checked_should_scrub():
+    should_scrub = getattr(isolated_dispatch(), "_should_scrub", None)
+    if not callable(should_scrub):
+        raise ExternalContractError(
+            "skills/headless-run/scripts/isolated_dispatch.py no longer defines _should_scrub"
+        )
+    return should_scrub
+
+
 def _checked_run_grading():
     run_grading = getattr(eval_grade(), "run_grading", None)
     if run_grading is None:
@@ -123,7 +147,7 @@ def _grading_rows(returned) -> list[tuple[str, bool, list[str]]]:
 
 def should_scrub_env_var(name: str) -> bool:
     """True when `isolated_dispatch` removes the environment variable `name` from a child."""
-    return isolated_dispatch()._should_scrub(name)
+    return _checked_should_scrub()(name)
 
 
 def contract_enums() -> tuple[Sequence[str], Sequence[str]] | None:

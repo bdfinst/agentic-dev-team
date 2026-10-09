@@ -93,3 +93,77 @@ class TestPlanSnapshot:
 
         assert list(private_tmp.iterdir()) == []
         assert world.artifacts == []
+
+
+class TestPlanLoadsTheScriptsTrialsUse:
+    """The grader and the env scrub load at plan time, before the operator approves."""
+
+    @pytest.fixture(autouse=True)
+    def _reload_scripts(self, private_tmp):
+        external._load_module.cache_clear()
+
+    def _plan(self, world: World) -> plan.RunPlan:
+        return plan.plan_run(
+            "scout",
+            candidate_model="haiku",
+            candidate_effort=None,
+            fixture_stems=["clean-form"],
+            runs_dir=world.runs_dir,
+            now=NOW,
+            rng=FixedRng(),
+            git_sha=None,
+            eval_paths=world.deps.eval_paths,
+        )
+
+    def test_a_script_edited_after_planning_changes_nothing(
+        self, world, tmp_path, monkeypatch
+    ):
+        grader, dispatch = tmp_path / "grader.py", tmp_path / "dispatch.py"
+        grader.write_text(
+            "def run_grading(expected_dir, actuals, baseline, only=None):\n"
+            "    return [('planned', True, [])], None\n",
+            encoding="utf-8",
+        )
+        dispatch.write_text(
+            "def _should_scrub(name):\n    return name == 'PLANNED'\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(paths, "EVAL_GRADE", grader)
+        monkeypatch.setattr(paths, "ISOLATED_DISPATCH", dispatch)
+        planned = self._plan(world)
+        grader.write_text(
+            "raise RuntimeError('edited after approval')", encoding="utf-8"
+        )
+        dispatch.write_text(
+            "raise RuntimeError('edited after approval')", encoding="utf-8"
+        )
+
+        with planned.snapshot:
+            rows = external.grade_against_expected(tmp_path, "stem", "agent", {})
+            assert rows == [("planned", True, [])]
+            assert external.should_scrub_env_var("PLANNED") is True
+
+    def test_a_script_that_cannot_be_loaded_is_refused_before_anything_is_copied(
+        self, world, tmp_path, monkeypatch, private_tmp
+    ):
+        monkeypatch.setattr(paths, "EVAL_GRADE", tmp_path / "missing.py")
+
+        with pytest.raises(UsageError, match="cannot load a script the trials rely on"):
+            self._plan(world)
+
+        assert list(private_tmp.iterdir()) == []
+        assert world.artifacts == []
+
+    def test_a_grader_that_no_longer_fits_the_call_is_refused_before_anything_is_copied(
+        self, world, monkeypatch, private_tmp
+    ):
+        def renamed(expected_directory, actuals, baseline, only=None):
+            raise AssertionError("never called")
+
+        monkeypatch.setattr(external.eval_grade(), "run_grading", renamed)
+
+        with pytest.raises(UsageError, match="run_grading no longer accepts"):
+            self._plan(world)
+
+        assert list(private_tmp.iterdir()) == []
+        assert world.artifacts == []
