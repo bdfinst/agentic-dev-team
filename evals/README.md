@@ -393,7 +393,8 @@ process reads knowledge from it (`--add-dir`), and grading reads the expected
 entry from it. Editing a fixture, an expected entry or a knowledge file after the
 run is planned does not change the trials that follow. The `claude` process gets
 only the `knowledge` copy, never the expected entries. The harness removes the
-copy when the run ends, however it ends. The agent file is read once, at planning.
+copy when the run ends, however it ends. The agent file is read once, at planning, and so are the grader and the
+environment-scrub scripts the trials use.
 The artifact's `knowledge_dir` names the source directory. Error text in the
 artifact shows the copy as `<snapshot>`.
 
@@ -421,7 +422,7 @@ lower: in the one real run, the estimate was 4.6 to 13.6 times the reported cost
 | --- | --- |
 | 0 | The run completed and the artifact was written. |
 | 1 | The run was declined, stopped early, or a signal arrived while the finished run was being saved (the artifact is still written), or the artifact could not be written. When the write fails, the artifact JSON goes to stdout so the paid results survive. A run interrupted before its first trial writes no artifact and exits 1. |
-| 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, an invalid `model:` or `effort:` in the agent's frontmatter, identical arms, a write-capable agent, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
+| 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, an agent file that cannot be read or has no valid frontmatter (no `---` block at the top, invalid YAML, or a block that is not a key: value mapping), a missing, blank or invalid `model:` or `effort:` in the agent's frontmatter, identical arms, a write-capable agent, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
 
 Messages go to stderr.
 
@@ -460,7 +461,7 @@ trial writes no artifact and exits 1. The key fields:
 | --- | --- |
 | `status` | `complete`, or `incomplete` when `abort_reason` is set. |
 | `abort_reason` | A stop reason from the table above, or `null`. |
-| `arms[].trials_per_fixture` | The `--trials` value: trials the arm ran on each fixture. |
+| `arms[].trials_per_fixture` | Trials planned per fixture (the `--trials` value). To count the trials that ran, count `fixtures[].trials`. |
 | `arms[].fixtures[].trials[].outcome` | The trial result, such as `pass`, `timeout` or `cli_error`. |
 | `arms[].fixtures[].trials[].cost_reported` | `false` when `claude` reported no cost; `cost_usd` is then 0. |
 | `arms[].estimated_cost_usd` | The pre-run estimate for the arm. |
