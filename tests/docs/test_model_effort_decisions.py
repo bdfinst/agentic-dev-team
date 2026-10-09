@@ -35,9 +35,10 @@ DECISIONS = {"keep", "downgrade", "upgrade"}
 MIN_FIXTURES = 3
 SAVING_TOLERANCE = 0.001
 HEADER_AND_SEPARATOR_LINES = 2
+ERROR_EXCERPT_WIDTH = 60
 AGENT_INFO_AGENT_COLUMN = "Agent"
 AGENT_INFO_MODEL_COLUMN = "Model"
-MODEL_ALIASES = {"claude-haiku", "claude-sonnet", "claude-opus"}
+UNVERSIONED_MODEL_IDS = {"claude-haiku", "claude-sonnet", "claude-opus"}
 # Keep-row reasons that mean the agent was evaluated and not changed.
 EVALUATED_KEEP_REASONS = {"failed eval", "weak evidence: tools withheld"}
 KEEP_REASONS = {
@@ -61,7 +62,7 @@ HEADER_FIELD_RE = re.compile(
 )
 
 
-def violation(name: str, message: str) -> list[str]:
+def violations_for(name: str, message: str) -> list[str]:
     return [f"{name}: {message}"]
 
 
@@ -79,7 +80,7 @@ def parse_log(text: str) -> tuple[dict[str, str], list[dict[str, str]], list[str
     for line in lines[HEADER_AND_SEPARATOR_LINES:]:
         values = [c.strip() for c in line.strip("|").split("|")]
         if len(values) != len(cells):
-            errors.append(f"row has {len(values)} cells, expected {len(cells)}: {line[:60]}")
+            errors.append(f"row has {len(values)} cells, expected {len(cells)}: {line[:ERROR_EXCERPT_WIDTH]}")
             continue
         rows.append(dict(zip(cells, values)))
     return headers, rows, errors
@@ -113,7 +114,7 @@ def is_evaluated(row: dict[str, str]) -> bool:
 def check_header_fields(headers: dict[str, str]) -> list[str]:
     errors = []
     alias = headers.get("Alias resolved", "")
-    if not CONCRETE_MODEL_ID_RE.match(alias) or alias in MODEL_ALIASES:
+    if not CONCRETE_MODEL_ID_RE.match(alias) or alias in UNVERSIONED_MODEL_IDS:
         errors.append(f"Alias resolved must be a concrete model ID, got '{alias}'")
     effort_variable = headers.get("Effort variable", "")
     if effort_variable not in EFFORT_VARIABLE_VALUES:
@@ -125,24 +126,24 @@ def check_row(row: dict[str, str], frontmatter_for_source) -> list[str]:
     name = row["Agent"]
     frontmatter = frontmatter_for_source(row["Source"])
     if frontmatter is None:
-        return violation(name, f"no frontmatter source at {row['Source']}")
+        return violations_for(name, f"no frontmatter source at {row['Source']}")
     final_model, final_effort = row["Final model"], row["Final effort"]
     if row["Decision"] not in DECISIONS:
-        return violation(name, f"decision '{row['Decision']}' not in {sorted(DECISIONS)}")
+        return violations_for(name, f"decision '{row['Decision']}' not in {sorted(DECISIONS)}")
     if final_effort not in EFFORT_RANK or row["Baseline effort"] not in EFFORT_RANK:
-        return violation(name, "effort outside the allowed set")
+        return violations_for(name, "effort outside the allowed set")
     is_skill = final_model == NOT_APPLICABLE
     if is_skill and row["Baseline model"] != NOT_APPLICABLE:
-        return violation(name, "Baseline model must be n/a when Final model is n/a")
+        return violations_for(name, "Baseline model must be n/a when Final model is n/a")
     if not is_skill and (
         final_model not in MODEL_RANK or row["Baseline model"] not in MODEL_RANK
     ):
-        return violation(name, "model outside the allowed set")
+        return violations_for(name, "model outside the allowed set")
     problems = []
     if frontmatter_field(frontmatter, "model") != ("" if is_skill else final_model):
-        problems += violation(name, "Final model differs from frontmatter")
+        problems += violations_for(name, "Final model differs from frontmatter")
     if frontmatter_field(frontmatter, "effort") != final_effort:
-        problems += violation(name, "Final effort differs from frontmatter")
+        problems += violations_for(name, "Final effort differs from frontmatter")
     is_unchanged = (row["Baseline model"], row["Baseline effort"]) == (final_model, final_effort)
     if is_unchanged:
         problems += check_keep_row(name, row)
@@ -154,17 +155,17 @@ def check_row(row: dict[str, str], frontmatter_for_source) -> list[str]:
 def check_keep_row(name: str, row: dict[str, str]) -> list[str]:
     evidence = row["Evidence"]
     if row["Decision"] != "keep":
-        return violation(name, "decision contradicts the baseline-to-final movement")
+        return violations_for(name, "decision contradicts the baseline-to-final movement")
     if row["Eval cost saving (USD)"]:
-        return violation(name, "keep row must not report a cost saving")
+        return violations_for(name, "keep row must not report a cost saving")
     if evidence == "no fixture" and row["Fixtures"] != "0":
-        return violation(name, "'no fixture' requires Fixtures of 0")
+        return violations_for(name, "'no fixture' requires Fixtures of 0")
     if evidence == "insufficient fixtures" and not (
         row["Fixtures"].isdigit() and int(row["Fixtures"]) < MIN_FIXTURES
     ):
-        return violation(name, f"'insufficient fixtures' requires Fixtures below {MIN_FIXTURES}")
+        return violations_for(name, f"'insufficient fixtures' requires Fixtures below {MIN_FIXTURES}")
     if evidence not in KEEP_REASONS:
-        return violation(name, "keep-row evidence must be one of the known reasons")
+        return violations_for(name, "keep-row evidence must be one of the known reasons")
     return []
 
 
@@ -184,28 +185,28 @@ def check_tier_change(name: str, row: dict[str, str]) -> list[str]:
     """Direction, then evidence format, tie to the row, and cost."""
     direction = tier_direction(row)
     if row["Decision"] != direction:
-        return violation(name, f"decision '{row['Decision']}' contradicts a {direction} movement")
+        return violations_for(name, f"decision '{row['Decision']}' contradicts the {direction} movement")
     match = EVIDENCE_RE.match(row["Evidence"])
     if not match:
-        return violation(name, "evidence missing or malformed")
-    if match["model"] in MODEL_ALIASES:
-        return violation(name, "evidence names an alias, not a concrete model ID")
+        return violations_for(name, "evidence missing or malformed")
+    if match["model"] in UNVERSIONED_MODEL_IDS:
+        return violations_for(name, "evidence names a model family, not a concrete model ID")
     if match["effort"] != row["Final effort"]:
-        return violation(name, "evidence effort differs from Final effort")
+        return violations_for(name, "evidence effort differs from Final effort")
     if row["Final model"] != NOT_APPLICABLE and not match["model"].startswith(
         f"claude-{row['Final model']}-"
     ):
-        return violation(name, "evidence model differs from Final model")
+        return violations_for(name, "evidence model differs from Final model")
     if int(match["fixtures"]) < MIN_FIXTURES or match["fixtures"] != row["Fixtures"]:
-        return violation(name, f"evidence fixtures must equal Fixtures and be >= {MIN_FIXTURES}")
+        return violations_for(name, f"evidence fixtures must equal Fixtures and be >= {MIN_FIXTURES}")
     if direction == "upgrade":
         return []
     baseline, candidate = float(match["baseline_cost"]), float(match["candidate_cost"])
     if not candidate < baseline:
-        return violation(name, "candidate cost is not lower than baseline")
+        return violations_for(name, "candidate cost is not lower than baseline")
     saving = row["Eval cost saving (USD)"]
     if not saving or abs(float(saving) - (baseline - candidate)) > SAVING_TOLERANCE:
-        return violation(name, "saving differs from baseline minus candidate cost")
+        return violations_for(name, "saving differs from baseline minus candidate cost")
     return []
 
 
@@ -293,7 +294,7 @@ ROW_FIELDS = [
 ]
 
 
-def frontmatter_fake(source):
+def fake_frontmatter_for_source(source):
     return FRONTMATTER_BY_SOURCE.get(source)
 
 
@@ -319,7 +320,7 @@ def make_row(**overrides):
     return dict(zip(COLUMNS, (row[field] for field in ROW_FIELDS)))
 
 
-def make_downgrade_row(**overrides):
+def make_tier_change_row(**overrides):
     defaults = {
         "baseline_model": "sonnet", "baseline_effort": "high",
         "decision": "downgrade", "evidence": GOOD_EVIDENCE, "saving": "0.380",
@@ -328,7 +329,7 @@ def make_downgrade_row(**overrides):
 
 
 def errors_for(row):
-    return check_log(make_log([row]), frontmatter_fake)
+    return check_log(make_log([row]), fake_frontmatter_for_source)
 
 
 def test_valid_log_passes():
@@ -338,15 +339,15 @@ def test_valid_log_passes():
         make_row(),
         make_row(agent="s", source="s.md", baseline_model="n/a", final_model="n/a"),
     ]
-    assert check_log(make_log(rows), frontmatter_fake) == []
+    assert check_log(make_log(rows), fake_frontmatter_for_source) == []
 
 
 def test_valid_downgrade_passes():
-    assert errors_for(make_downgrade_row()) == []
+    assert errors_for(make_tier_change_row()) == []
 
 
 def test_final_model_drift_from_frontmatter_fails():
-    row = make_downgrade_row(final_model="sonnet", evidence=GOOD_EVIDENCE.replace("haiku", "sonnet"))
+    row = make_tier_change_row(final_model="sonnet", evidence=GOOD_EVIDENCE.replace("haiku", "sonnet"))
     assert any("Final model differs" in e for e in errors_for(row))
 
 
@@ -356,7 +357,7 @@ def test_skill_row_effort_drift_fails():
 
 
 def test_keep_decision_with_moved_tier_fails():
-    assert any("contradicts" in e for e in errors_for(make_downgrade_row(decision="keep")))
+    assert any("contradicts the downgrade movement" in e for e in errors_for(make_tier_change_row(decision="keep")))
 
 
 @pytest.mark.parametrize("evidence", [
@@ -364,53 +365,53 @@ def test_keep_decision_with_moved_tier_fails():
     GOOD_EVIDENCE.replace("model:claude-haiku-5-5", "model:haiku"),
 ])
 def test_malformed_downgrade_evidence_fails(evidence):
-    assert any("missing or malformed" in e for e in errors_for(make_downgrade_row(evidence=evidence)))
+    assert any("missing or malformed" in e for e in errors_for(make_tier_change_row(evidence=evidence)))
 
 
 def test_alias_in_evidence_is_rejected():
     evidence = GOOD_EVIDENCE.replace("claude-haiku-5-5", "claude-haiku")
-    assert any("alias" in e for e in errors_for(make_downgrade_row(evidence=evidence)))
+    assert any("names a model family, not a concrete model ID" in e for e in errors_for(make_tier_change_row(evidence=evidence)))
 
 
 def test_evidence_effort_must_match_final_effort():
     evidence = GOOD_EVIDENCE.replace("effort:medium", "effort:high")
-    assert any("evidence effort" in e for e in errors_for(make_downgrade_row(evidence=evidence)))
+    assert any("evidence effort" in e for e in errors_for(make_tier_change_row(evidence=evidence)))
 
 
 def test_evidence_model_must_match_final_model():
     evidence = GOOD_EVIDENCE.replace("claude-haiku-5-5", "claude-sonnet-5-5")
-    assert any("evidence model" in e for e in errors_for(make_downgrade_row(evidence=evidence)))
+    assert any("evidence model" in e for e in errors_for(make_tier_change_row(evidence=evidence)))
 
 
 def test_evidence_fixtures_must_equal_fixtures_column():
-    assert any("fixtures" in e for e in errors_for(make_downgrade_row(fixtures="4")))
+    assert any("evidence fixtures must equal Fixtures" in e for e in errors_for(make_tier_change_row(fixtures="4")))
 
 
 def test_evidence_fixtures_below_minimum_fails():
     thin = GOOD_EVIDENCE.replace("fixtures:3", "fixtures:1")
-    assert any("fixtures" in e for e in errors_for(make_downgrade_row(evidence=thin, fixtures="1")))
+    assert any(f"and be >= {MIN_FIXTURES}" in e for e in errors_for(make_tier_change_row(evidence=thin, fixtures="1")))
 
 
 def test_candidate_not_cheaper_fails():
     evidence = GOOD_EVIDENCE.replace("cost:0.40->0.02", "cost:0.40->0.40")
-    assert any("not lower" in e for e in errors_for(make_downgrade_row(evidence=evidence, saving="0")))
+    assert any("not lower" in e for e in errors_for(make_tier_change_row(evidence=evidence, saving="0")))
 
 
 def test_saving_must_equal_cost_difference():
-    assert any("saving differs" in e for e in errors_for(make_downgrade_row(saving="9.9")))
+    assert any("saving differs" in e for e in errors_for(make_tier_change_row(saving="9.9")))
 
 
 def test_decision_must_match_movement_direction():
-    row = make_downgrade_row(baseline_model="haiku", baseline_effort="low")
-    assert any("contradicts a upgrade movement" in e for e in errors_for(row))
+    row = make_tier_change_row(baseline_model="haiku", baseline_effort="low")
+    assert any("decision 'downgrade' contradicts the upgrade movement" in e for e in errors_for(row))
 
 
 def test_mixed_movement_is_rejected():
-    assert any("mixed" in e for e in errors_for(make_downgrade_row(baseline_model="haiku", baseline_effort="high", final_model="sonnet")))
+    assert any("contradicts the mixed movement" in e for e in errors_for(make_tier_change_row(baseline_model="haiku", baseline_effort="high", final_model="sonnet")))
 
 
 def test_upgrade_with_evidence_passes_without_lower_cost():
-    row = make_downgrade_row(
+    row = make_tier_change_row(
         baseline_model="haiku", baseline_effort="low", decision="upgrade",
         evidence=GOOD_EVIDENCE.replace("cost:0.40->0.02", "cost:0.02->0.40"), saving="",
     )
@@ -418,12 +419,12 @@ def test_upgrade_with_evidence_passes_without_lower_cost():
 
 
 def test_upgrade_without_evidence_fails():
-    row = make_downgrade_row(baseline_model="haiku", baseline_effort="low", decision="upgrade", evidence="")
+    row = make_tier_change_row(baseline_model="haiku", baseline_effort="low", decision="upgrade", evidence="")
     assert any("missing or malformed" in e for e in errors_for(row))
 
 
 def test_duplicate_source_is_rejected():
-    assert any("more than once" in e for e in check_log(make_log([make_row(), make_row()]), frontmatter_fake))
+    assert any("more than once" in e for e in check_log(make_log([make_row(), make_row()]), fake_frontmatter_for_source))
 
 
 def test_row_for_missing_source_is_rejected():
@@ -432,50 +433,47 @@ def test_row_for_missing_source_is_rejected():
 
 def test_table_missing_column_is_rejected():
     text = "| Agent | Source |\n|---|---|\n| a | a.md |\n"
-    assert any("missing column" in e for e in check_log(text, frontmatter_fake))
+    assert any("missing column" in e for e in check_log(text, fake_frontmatter_for_source))
 
 
 def test_short_row_is_a_named_parse_error():
     text = make_log([make_row()]) + "| b | b.md | haiku |\n"
-    assert any("cells, expected" in e for e in check_log(text, frontmatter_fake))
+    assert any("cells, expected" in e for e in check_log(text, fake_frontmatter_for_source))
 
 
 def test_unknown_decision_is_rejected():
-    assert any("decision" in e for e in errors_for(make_row(decision="maybe")))
+    assert any("decision 'maybe' not in" in e for e in errors_for(make_row(decision="maybe")))
 
 
-def test_unknown_effort_is_rejected():
-    assert any("effort outside" in e for e in errors_for(make_row(final_effort="ultra")))
-
-
-def test_haiku_row_needs_valid_effort():
-    assert any("effort outside" in e for e in errors_for(make_row(final_effort="")))
+@pytest.mark.parametrize("final_effort", ["ultra", ""])
+def test_effort_outside_allowed_set_is_rejected(final_effort):
+    assert any("effort outside the allowed set" in e for e in errors_for(make_row(final_effort=final_effort)))
 
 
 @pytest.mark.parametrize("alias", [
     "haiku", "claude-haiku", "claude-haiku-5-5 (resolved via headless run)", "Claude-Haiku-5-5", "",
 ])
 def test_alias_resolved_must_be_a_concrete_model_id(alias):
-    errors = check_log(make_log([make_row()], alias=alias), frontmatter_fake)
+    errors = check_log(make_log([make_row()], alias=alias), fake_frontmatter_for_source)
     assert any("Alias resolved must be a concrete model ID" in e for e in errors)
 
 
 @pytest.mark.parametrize("value", ["maybe", "yes (low and high)", "Yes", ""])
 def test_effort_variable_must_be_yes_or_no(value):
-    errors = check_log(make_log([make_row()], effort_variable=value), frontmatter_fake)
+    errors = check_log(make_log([make_row()], effort_variable=value), fake_frontmatter_for_source)
     assert any("Effort variable must be yes or no" in e for e in errors)
 
 
 @pytest.mark.parametrize("value", ["yes", "no"])
 def test_effort_variable_accepts_yes_and_no(value):
-    assert check_log(make_log([make_row()], effort_variable=value), frontmatter_fake) == []
+    assert check_log(make_log([make_row()], effort_variable=value), fake_frontmatter_for_source) == []
 
 
 def test_missing_header_fields_are_reported():
     text = make_log([make_row()]).replace("- Alias resolved: claude-haiku-5-5\n", "").replace(
         "- Effort variable: yes\n", ""
     )
-    errors = check_log(text, frontmatter_fake)
+    errors = check_log(text, fake_frontmatter_for_source)
     assert any("Alias resolved must be a concrete model ID" in e for e in errors)
     assert any("Effort variable must be yes or no" in e for e in errors)
 
@@ -513,35 +511,40 @@ def test_agent_info_row_without_an_agent_file_is_reported():
 
 def test_recall_gap_sentence_is_required():
     text = make_log([make_row()], include_recall_gap=False)
-    assert any("recall-gap" in e for e in check_log(text, frontmatter_fake))
+    assert any("recall-gap sentence missing" in e for e in check_log(text, fake_frontmatter_for_source))
 
 
 def test_candidates_evaluated_counts_tier_changes_and_failed_evals_only():
     rows = [
-        make_downgrade_row(),
+        make_tier_change_row(),
         make_row(agent="a", source="a.md", baseline_model="sonnet", baseline_effort="high",
                  final_model="sonnet", final_effort="high", evidence="failed eval", fixtures="10"),
         make_row(agent="s", source="s.md", baseline_model="n/a", final_model="n/a", fixtures="0"),
     ]
-    assert check_log(make_log(rows, candidates="2"), frontmatter_fake) == []
-    assert any("rows show 2" in e for e in check_log(make_log(rows, candidates="3"), frontmatter_fake))
+    assert check_log(make_log(rows, candidates="2"), fake_frontmatter_for_source) == []
+    assert any("rows show 2" in e for e in check_log(make_log(rows, candidates="3"), fake_frontmatter_for_source))
 
 
 def test_candidates_evaluated_must_match_rows():
     text = make_log([make_row()], candidates="9")
-    assert any("Candidates evaluated" in e for e in check_log(text, frontmatter_fake))
+    assert any("Candidates evaluated is '9'" in e for e in check_log(text, fake_frontmatter_for_source))
 
 
-@pytest.mark.parametrize("reason,fixtures", [
-    ("insufficient fixtures", "1"), ("directory fixtures only", "6"),
-    ("no fixture", "0"), ("failed eval", "10"),
-])
-def test_known_keep_reasons_are_accepted(reason, fixtures):
-    assert errors_for(make_row(evidence=reason, fixtures=fixtures)) == []
+# A valid Fixtures value for each keep reason; a new reason fails the parametrized test until added.
+KEEP_REASON_FIXTURES = {
+    "": "3", "no fixture": "0", "insufficient fixtures": "1",
+    "directory fixtures only": "6", "failed eval": "10",
+    "weak evidence: tools withheld": "3",
+}
+
+
+@pytest.mark.parametrize("reason", sorted(KEEP_REASONS))
+def test_known_keep_reasons_are_accepted(reason):
+    assert errors_for(make_row(evidence=reason, fixtures=KEEP_REASON_FIXTURES[reason])) == []
 
 
 def test_unknown_keep_reason_is_rejected():
-    assert any("known reasons" in e for e in errors_for(make_row(evidence="TBD")))
+    assert any("keep-row evidence must be one of the known reasons" in e for e in errors_for(make_row(evidence="TBD")))
 
 
 def test_no_fixture_reason_requires_zero_fixtures():
@@ -568,4 +571,4 @@ def test_keep_row_with_saving_is_rejected():
 
 
 def test_keep_row_cannot_carry_an_eval_record():
-    assert any("known reasons" in e for e in errors_for(make_row(evidence=GOOD_EVIDENCE)))
+    assert any("keep-row evidence must be one of the known reasons" in e for e in errors_for(make_row(evidence=GOOD_EVIDENCE)))
