@@ -13,7 +13,6 @@ from datetime import datetime
 from .arm import Arm
 from .fixtures import FixtureKind
 from .outcome import TrialResult
-from .paths import EvalPaths
 from .run_status import AbortReason, RunStatus
 from .trial_count import TrialCount
 
@@ -31,12 +30,11 @@ class RunMetadata:
 
 @dataclass(frozen=True)
 class TrialSettings:
-    """How each trial runs, apart from what the plan fixes."""
+    """How each trial runs, apart from what the plan fixes (the plan's snapshot owns the input paths)."""
 
     trials: TrialCount
     trial_timeout_seconds: float
     claude_bin: str
-    eval_paths: EvalPaths
 
 
 @dataclass(frozen=True)

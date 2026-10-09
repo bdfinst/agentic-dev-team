@@ -238,7 +238,6 @@ def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> in
             trials=resolve_trials(args.trials, args.agent),
             trial_timeout_seconds=args.trial_timeout_seconds,
             claude_bin=args.claude_bin,
-            eval_paths=plan.snapshot.eval_paths,
         )
         console = session.Console(deps.stdin, deps.stdin_is_tty, sys.stdout, sys.stderr)
         spend_limit = (

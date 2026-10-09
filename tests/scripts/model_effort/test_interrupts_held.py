@@ -237,7 +237,6 @@ class TestInterruptsAreHeldForTheRun:
             trials=trial_count.TrialCount(1, "test"),
             trial_timeout_seconds=TIMEOUT_SECONDS,
             claude_bin="unused",
-            eval_paths=world.deps.eval_paths,
         )
 
         def must_not_run(*_args):

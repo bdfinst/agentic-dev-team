@@ -173,7 +173,7 @@ class _TrialExecutor:
             arm=slot.arm,
             system_prompt=self.plan.system_prompt,
             profile=self.plan.profile,
-            eval_paths=self.settings.eval_paths,
+            eval_paths=self.plan.snapshot.eval_paths,
             claude_bin=self.settings.claude_bin,
         )
         record = self.run_trial(
@@ -183,7 +183,7 @@ class _TrialExecutor:
             grade_trial,
             self.plan.agent,
             slot.fixture.stem,
-            eval_paths=self.settings.eval_paths,
+            eval_paths=self.plan.snapshot.eval_paths,
         )
         return resolve_outcome(
             record,

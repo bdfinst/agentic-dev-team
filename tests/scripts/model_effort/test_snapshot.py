@@ -22,13 +22,22 @@ from _model_effort_support import (
     _make_file_fixture,
     _outcomes,
     _passing_stub,
+    _run_estimate,
     _snapshot,
     _write_expected,
     _written,
 )
+from model_effort import (
+    execution,
+    paths,
+    process_record,
+    run_types,
+    snapshot,
+    trial_count,
+)
 from model_effort import fixtures as fixture_resolution
-from model_effort import paths, process_record, snapshot
 from model_effort.arm import BASELINE_LABEL, CANDIDATE_LABEL
+from model_effort.outcome import Outcome
 
 
 class TestRunInputsAreFrozenAtPlanTime:
@@ -106,6 +115,35 @@ class TestRunInputsAreFrozenAtPlanTime:
         assert _written(world)["knowledge_dir"] == str(
             world.deps.eval_paths.knowledge_dir
         )
+
+    def test_trials_are_configured_and_graded_from_the_plans_snapshot(
+        self, world, scout_plan
+    ):
+        canned, calls = _deps_with_canned_trials(world.deps)
+        settings = run_types.TrialSettings(
+            trials=trial_count.TrialCount(1, "test"),
+            trial_timeout_seconds=1,
+            claude_bin="unused",
+        )
+        # The live entry says a pass is right; only the snapshot's copy says fail.
+        frozen_expected = scout_plan.snapshot.eval_paths.expected_dir
+        _write_expected(frozen_expected, "clean-form", "scout", "fail")
+
+        run = execution.run_trials(
+            scout_plan, settings, _run_estimate(), run_trial=canned.run_trial
+        )
+
+        assert {config.eval_paths for _, config, _ in calls} == {
+            scout_plan.snapshot.eval_paths
+        }
+        graded = [
+            result.outcome
+            for arm_run in run.arm_runs
+            for fixture in arm_run.fixture_trials
+            if fixture.stem == "clean-form"
+            for result in fixture.results
+        ]
+        assert graded and set(graded) == {Outcome.GRADED_FAIL}
 
 
 class TestSnapshotIsRemoved:
