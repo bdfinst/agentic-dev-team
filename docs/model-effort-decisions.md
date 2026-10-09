@@ -16,12 +16,17 @@ correctness-review recall gap is known and unfixed; its results are excluded fro
 
 ## Method
 
-A/B per candidate, run outside `/agent-eval`: each fixture in `evals/expected` that names the agent and is a single file, 3 trials per arm. Baseline arm = current frontmatter, candidate arm = proposed model/effort, same session. Each run is `claude -p --model <m> --effort <e>` with the agent definition as the system prompt, no tools, and the fixture file inline; output is graded by `scripts/eval_grade.py`. Evidence is therefore not directly comparable to `evals/baseline.json`, which `/agent-eval` produces.
+A/B per candidate, run outside `/agent-eval`: each fixture in `evals/expected` that names the agent and is a single file, 3 trials per arm (5 for the four agents re-run with tools; see Notes). Baseline arm = current frontmatter, candidate arm = proposed model/effort, same session. Each run is `claude -p --model <m> --effort <e>` with the agent definition as the system prompt and the fixture file inline, with no tools for the tool-less rows and with tools for the four re-run agents (`scripts/model_effort_ab.py`); output is graded by `scripts/eval_grade.py`. Evidence is therefore not directly comparable to `evals/baseline.json`, which `/agent-eval` produces.
 
 Cost is the USD the CLI reported, summed over all trials of one arm, not a figure computed from `model-pricing.json`. `Eval cost saving (USD)` is the baseline arm's cost minus the candidate arm's; it measures the eval run, not a forecast of production spend. `Fixtures` counts every fixture naming the agent; `directory fixtures only` means none could be run by this harness.
 
 ## Notes
 
+- Only `concurrency-review`, `js-fp-review`, `naming-review`, and `test-smell-review` were re-run with the tool-enabled harness (`scripts/model_effort_ab.py`) at 5 trials per fixture; their results replace the earlier tool-less evidence. Other rows with tool-less evidence (for example `token-efficiency-review`) keep it. A downgrade needs equal-or-better recall, no clean-fixture false-positive increase, and 100% parse.
+- `concurrency-review` (haiku/high to haiku/medium), run `20261009T120538Z-concurrency-review-haiku-high-4c89`: medium passed 48, failed 1, FP 1, cost 0.132; high passed 46, failed 3, FP 0, cost 0.168. The clean-fixture false positive rose, so reason `failed eval`; stays haiku/high keep. The run stopped at the cost cap 1 trial short of 100 (98 of 100 trials).
+- `js-fp-review` (haiku/medium to haiku/low), run `20261009T122901Z-js-fp-review-haiku-medium-9363`: low passed 31, failed 14, FP 0, cost 0.126; medium passed 29, failed 16, FP 0, cost 0.146. No recall lost, so the downgrade holds. Both arms fail about one third of trials, so the fixtures or the grader are worth a look.
+- `naming-review` (sonnet/high to haiku/high), run `20261009T124756Z-naming-review-sonnet-high-5e84`: haiku passed 10, FP 10, cost 0.249; sonnet passed 17, FP 10, cost 2.572. Recall fell, so reason `failed eval`; stays sonnet/high keep.
+- `test-smell-review` (sonnet/high to haiku/high), run `20261009T132115Z-test-smell-review-sonnet-high-d4d5`: haiku passed 10 with 1 parse failure, FP 1, cost 0.089; sonnet passed 11, FP 1, cost 1.077. Parse and recall both failed, so reason `failed eval`; stays sonnet/high keep.
 - `structure-review` (sonnet/high to haiku/high): candidate passed 27 of 30 trials; three `st-duplicate-code` trials returned unparseable JSON. Reason `failed eval`; stays keep.
 - `data-flow-tracer`: candidate passed 9 of 9 at cost 0.239 to 0.027, but the agent traces code with tools the harness withheld. Reason `weak evidence: tools withheld`; stays keep.
 - `claude-setup-review`: fixtures are directories, which the harness does not run. Stays keep.
@@ -43,15 +48,15 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 | claude-setup-review | plugins/dev-team/agents/claude-setup-review.md | haiku | high | haiku | high | keep | 6 | directory fixtures only |  |
 | codebase-recon | plugins/dev-team/agents/codebase-recon.md | opus | high | opus | high | keep | 0 | no fixture |  |
 | component-architecture-review | plugins/dev-team/agents/component-architecture-review.md | haiku | high | haiku | high | keep | 3 | not selected |  |
-| concurrency-review | plugins/dev-team/agents/concurrency-review.md | haiku | high | haiku | medium | downgrade | 10 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:medium; fixtures:10; trials:3; delta:0; cost:0.048->0.034 | 0.014 |
+| concurrency-review | plugins/dev-team/agents/concurrency-review.md | haiku | high | haiku | high | keep | 10 | failed eval |  |
 | correctness-review | plugins/dev-team/agents/correctness-review.md | opus | high | opus | high | keep | 12 |  |  |
 | data-flow-tracer | plugins/dev-team/agents/data-flow-tracer.md | sonnet | high | sonnet | high | keep | 3 | weak evidence: tools withheld |  |
 | doc-review | plugins/dev-team/agents/doc-review.md | haiku | medium | haiku | medium | keep | 6 | not selected |  |
 | domain-review | plugins/dev-team/agents/domain-review.md | opus | high | opus | high | keep | 5 |  |  |
 | gherkin-quality-critic | plugins/dev-team/agents/gherkin-quality-critic.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
-| js-fp-review | plugins/dev-team/agents/js-fp-review.md | haiku | medium | haiku | low | downgrade | 9 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:low; fixtures:9; trials:3; delta:0; cost:0.040->0.035 | 0.005 |
+| js-fp-review | plugins/dev-team/agents/js-fp-review.md | haiku | medium | haiku | low | downgrade | 9 | eval:20261009T122901Z-js-fp-review-haiku-medium-9363; model:claude-haiku-5-5; effort:low; fixtures:9; trials:5; delta:0; cost:0.146->0.126 | 0.020 |
 | mutation-kill | plugins/dev-team/agents/mutation-kill.md | opus | high | opus | high | keep | 0 | no fixture |  |
-| naming-review | plugins/dev-team/agents/naming-review.md | sonnet | high | haiku | high | downgrade | 6 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:high; fixtures:6; trials:3; delta:0; cost:0.523->0.060 | 0.463 |
+| naming-review | plugins/dev-team/agents/naming-review.md | sonnet | high | sonnet | high | keep | 6 | failed eval |  |
 | orchestrator | plugins/dev-team/agents/orchestrator.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | performance-review | plugins/dev-team/agents/performance-review.md | haiku | high | haiku | high | keep | 1 | insufficient fixtures |  |
 | plan-review-acceptance | plugins/dev-team/agents/plan-review-acceptance.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
@@ -75,7 +80,7 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 | structure-review | plugins/dev-team/agents/structure-review.md | sonnet | high | sonnet | high | keep | 12 | failed eval |  |
 | tech-writer | plugins/dev-team/agents/tech-writer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | test-review | plugins/dev-team/agents/test-review.md | sonnet | high | sonnet | high | keep | 13 |  |  |
-| test-smell-review | plugins/dev-team/agents/test-smell-review.md | sonnet | high | haiku | high | downgrade | 5 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:high; fixtures:5; trials:3; delta:0; cost:0.396->0.038 | 0.358 |
+| test-smell-review | plugins/dev-team/agents/test-smell-review.md | sonnet | high | sonnet | high | keep | 5 | failed eval |  |
 | token-efficiency-review | plugins/dev-team/agents/token-efficiency-review.md | haiku | high | haiku | medium | downgrade | 5 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:medium; fixtures:5; trials:3; delta:0; cost:0.055->0.039 | 0.016 |
 | ui-ux-designer | plugins/dev-team/agents/ui-ux-designer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | vue-reactivity-review | plugins/dev-team/agents/vue-reactivity-review.md | haiku | medium | haiku | medium | keep | 2 | insufficient fixtures |  |

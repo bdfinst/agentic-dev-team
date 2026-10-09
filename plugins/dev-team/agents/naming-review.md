@@ -3,7 +3,7 @@
 name: naming-review
 description: Naming clarity, conventions, magic values, and consistency
 tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
-model: haiku
+model: sonnet
 effort: high
 color: green
 ---
@@ -15,7 +15,7 @@ Verify-model: haiku
 Verify-effort: medium
 <!-- Verification-mode opt-in (#1628): confirming a rename landed
      consistently is near-mechanical once the rename itself is applied.
-     Verification runs one effort level below discovery (same model; see frontmatter). Contract: ${CLAUDE_PLUGIN_ROOT}/knowledge/verification-mode.md
+     Discovery stays sonnet/high. Contract: ${CLAUDE_PLUGIN_ROOT}/knowledge/verification-mode.md
      (Whole-file load: short shared contract, no anchors). -->
 Cites:
 - design-smells
