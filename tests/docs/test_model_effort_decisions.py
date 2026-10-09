@@ -130,6 +130,8 @@ def check_row(row: dict[str, str], frontmatter_for_source) -> list[str]:
     if final_effort not in EFFORT_RANK or row["Baseline effort"] not in EFFORT_RANK:
         return violation(name, "effort outside the allowed set")
     is_skill = final_model == NOT_APPLICABLE
+    if is_skill and row["Baseline model"] != NOT_APPLICABLE:
+        return violation(name, "Baseline model must be n/a when Final model is n/a")
     if not is_skill and (
         final_model not in MODEL_RANK or row["Baseline model"] not in MODEL_RANK
     ):
@@ -155,19 +157,25 @@ def check_keep_row(name: str, row: dict[str, str]) -> list[str]:
         return violation(name, "keep row must not report a cost saving")
     if evidence == "no fixture" and row["Fixtures"] != "0":
         return violation(name, "'no fixture' requires Fixtures of 0")
+    if evidence == "insufficient fixtures" and not (
+        row["Fixtures"].isdigit() and int(row["Fixtures"]) < MIN_FIXTURES
+    ):
+        return violation(name, f"'insufficient fixtures' requires Fixtures below {MIN_FIXTURES}")
     if evidence not in KEEP_REASONS:
         return violation(name, "keep-row evidence must be one of the known reasons")
     return []
 
 
 def tier_direction(row: dict[str, str]) -> str:
-    """'downgrade', 'upgrade', or 'mixed' for a row whose tier moved."""
+    """'downgrade', 'upgrade', 'mixed', or 'unchanged' when no ranked pair moved."""
     pairs = [(EFFORT_RANK[row["Baseline effort"]], EFFORT_RANK[row["Final effort"]])]
     if row["Final model"] != NOT_APPLICABLE:
         pairs.append((MODEL_RANK[row["Baseline model"]], MODEL_RANK[row["Final model"]]))
     if any(f > b for b, f in pairs) and any(f < b for b, f in pairs):
         return "mixed"
-    return "upgrade" if any(f > b for b, f in pairs) else "downgrade"
+    if any(f > b for b, f in pairs):
+        return "upgrade"
+    return "downgrade" if any(f < b for b, f in pairs) else "unchanged"
 
 
 def check_tier_change(name: str, row: dict[str, str]) -> list[str]:
@@ -527,6 +535,21 @@ def test_unknown_keep_reason_is_rejected():
 
 def test_no_fixture_reason_requires_zero_fixtures():
     assert any("requires Fixtures of 0" in e for e in errors_for(make_row(evidence="no fixture", fixtures="6")))
+
+
+def test_insufficient_fixtures_reason_requires_fewer_than_the_minimum():
+    row = make_row(evidence="insufficient fixtures", fixtures="3")
+    assert any("'insufficient fixtures' requires Fixtures below 3" in e for e in errors_for(row))
+
+
+def test_skill_row_with_a_baseline_model_is_rejected():
+    row = make_row(agent="s", source="s.md", baseline_model="haiku", final_model="n/a")
+    assert any("Baseline model must be n/a" in e for e in errors_for(row))
+
+
+def test_unmoved_tier_is_not_reported_as_a_downgrade():
+    row = dict(zip(COLUMNS, make_row(agent="s", source="s.md", baseline_model="haiku", final_model="n/a")))
+    assert tier_direction(row) == "unchanged"
 
 
 def test_keep_row_with_saving_is_rejected():
