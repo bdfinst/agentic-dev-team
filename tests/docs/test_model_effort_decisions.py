@@ -40,9 +40,10 @@ AGENT_INFO_AGENT_COLUMN = "Agent"
 AGENT_INFO_MODEL_COLUMN = "Model"
 UNVERSIONED_MODEL_IDS = {"claude-haiku", "claude-sonnet", "claude-opus"}
 # Keep-row reasons that mean the agent was evaluated and not changed.
+# Other reasons ("not selected" included) mean no evaluation ran.
 EVALUATED_KEEP_REASONS = {"failed eval", "weak evidence: tools withheld"}
 KEEP_REASONS = {
-    "", "no fixture", "insufficient fixtures", "directory fixtures only",
+    "", "no fixture", "insufficient fixtures", "directory fixtures only", "not selected",
 } | EVALUATED_KEEP_REASONS
 RECALL_GAP_SENTENCE = (
     "correctness-review recall gap is known and unfixed; "
@@ -164,6 +165,10 @@ def check_keep_row(name: str, row: dict[str, str]) -> list[str]:
         row["Fixtures"].isdigit() and int(row["Fixtures"]) < MIN_FIXTURES
     ):
         return violations_for(name, f"'insufficient fixtures' requires Fixtures below {MIN_FIXTURES}")
+    if evidence == "not selected" and not (
+        row["Fixtures"].isdigit() and int(row["Fixtures"]) >= MIN_FIXTURES
+    ):
+        return violations_for(name, f"'not selected' requires Fixtures of at least {MIN_FIXTURES}")
     if evidence not in KEEP_REASONS:
         return violations_for(name, "keep-row evidence must be one of the known reasons")
     return []
@@ -534,7 +539,7 @@ def test_candidates_evaluated_must_match_rows():
 KEEP_REASON_FIXTURES = {
     "": "3", "no fixture": "0", "insufficient fixtures": "1",
     "directory fixtures only": "6", "failed eval": "10",
-    "weak evidence: tools withheld": "3",
+    "weak evidence: tools withheld": "3", "not selected": "3",
 }
 
 
@@ -554,6 +559,11 @@ def test_no_fixture_reason_requires_zero_fixtures():
 def test_insufficient_fixtures_reason_requires_fewer_than_the_minimum():
     row = make_row(evidence="insufficient fixtures", fixtures="3")
     assert any("'insufficient fixtures' requires Fixtures below 3" in e for e in errors_for(row))
+
+
+def test_not_selected_reason_requires_the_minimum_fixtures():
+    row = make_row(evidence="not selected", fixtures="2")
+    assert any("'not selected' requires Fixtures of at least 3" in e for e in errors_for(row))
 
 
 def test_skill_row_with_a_baseline_model_is_rejected():

@@ -9,7 +9,7 @@ Per-agent record of the Haiku 5.5 re-evaluation (issues #2250, #2251). Agent fro
 - Alias check: `claude -p --model haiku` reports `modelUsage` key `claude-haiku-5-5`.
 - Effort variable: yes
 - Effort check: `claude -p --effort <level>` accepted at `low` and `high`.
-- Pricing: `plugins/dev-team/knowledge/model-pricing.json` now prices `claude-haiku-5-5` ($0.10 / $0.50 per 1M tokens) and the `haiku` alias points to `claude-haiku-5-5`.
+- Pricing: `plugins/dev-team/knowledge/model-pricing.json` now prices `claude-haiku-5-5` ($0.10 / $0.50 per 1M tokens, from the 2026-10-07 Haiku 5.5 announcement; not verified against the cached pricing page) and the `haiku` alias points to `claude-haiku-5-5`.
 - Evidence limit: evidence cells are self-reported text. The test checks format only; the run ID is not verified against an artifact.
 
 correctness-review recall gap is known and unfixed; its results are excluded from evidence.
@@ -25,13 +25,15 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 - `structure-review` (sonnet/high to haiku/high): candidate passed 27 of 30 trials; three `st-duplicate-code` trials returned unparseable JSON. Reason `failed eval`; stays keep.
 - `data-flow-tracer`: candidate passed 9 of 9 at cost 0.239 to 0.027, but the agent traces code with tools the harness withheld. Reason `weak evidence: tools withheld`; stays keep.
 - `claude-setup-review`: fixtures are directories, which the harness does not run. Stays keep.
-- A blank reason on a keep row means the agent was not evaluated. Seven candidates were evaluated, under the cap of 8. `test-review` was not run because its Phase 0 mechanical pre-phase is not reproduced by this harness. Opus and high-stakes agents were not run.
+- `not selected`: the agent has 3 or more fixtures but was not run (`a11y-review`, `component-architecture-review`, `doc-review`, `progress-guardian`, `refactor-opportunity-review`). Candidate selection ranks eligible agents by projected saving and caps the count; the cap is defined in [the plan](../plans/haiku-5-5-model-effort-review.md). Seven candidates were evaluated. All five already run on `haiku`, so only an effort downgrade was possible. This log does not record the per-agent ranking, so `not selected` means untested, not disproven.
+- `evals/model-effort/runs/20261008T213541Z-doc-review-haiku-low-8569.json` is a harness smoke run, not a candidate evaluation. `doc-review` stays `not selected`.
+- A blank reason on a keep row means the agent was not evaluated. `test-review` was not run because its Phase 0 mechanical pre-phase is not reproduced by this harness. Opus and high-stakes agents were not run.
 
 ## Decisions
 
 | Agent | Source | Baseline model | Baseline effort | Final model | Final effort | Decision | Fixtures | Evidence | Eval cost saving (USD) |
 |---|---|---|---|---|---|---|---|---|---|
-| a11y-review | plugins/dev-team/agents/a11y-review.md | haiku | medium | haiku | medium | keep | 3 |  |  |
+| a11y-review | plugins/dev-team/agents/a11y-review.md | haiku | medium | haiku | medium | keep | 3 | not selected |  |
 | adr-author | plugins/dev-team/agents/adr-author.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | ai-provenance-review | plugins/dev-team/agents/ai-provenance-review.md | opus | high | opus | high | keep | 2 | insufficient fixtures |  |
 | angular-reactivity-review | plugins/dev-team/agents/angular-reactivity-review.md | haiku | medium | haiku | medium | keep | 2 | insufficient fixtures |  |
@@ -40,11 +42,11 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 | autoship-batch-proposer | plugins/dev-team/agents/autoship-batch-proposer.md | haiku | low | haiku | low | keep | 0 | no fixture |  |
 | claude-setup-review | plugins/dev-team/agents/claude-setup-review.md | haiku | high | haiku | high | keep | 6 | directory fixtures only |  |
 | codebase-recon | plugins/dev-team/agents/codebase-recon.md | opus | high | opus | high | keep | 0 | no fixture |  |
-| component-architecture-review | plugins/dev-team/agents/component-architecture-review.md | haiku | high | haiku | high | keep | 3 |  |  |
+| component-architecture-review | plugins/dev-team/agents/component-architecture-review.md | haiku | high | haiku | high | keep | 3 | not selected |  |
 | concurrency-review | plugins/dev-team/agents/concurrency-review.md | haiku | high | haiku | medium | downgrade | 10 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:medium; fixtures:10; trials:3; delta:0; cost:0.048->0.034 | 0.014 |
 | correctness-review | plugins/dev-team/agents/correctness-review.md | opus | high | opus | high | keep | 12 |  |  |
 | data-flow-tracer | plugins/dev-team/agents/data-flow-tracer.md | sonnet | high | sonnet | high | keep | 3 | weak evidence: tools withheld |  |
-| doc-review | plugins/dev-team/agents/doc-review.md | haiku | medium | haiku | medium | keep | 6 |  |  |
+| doc-review | plugins/dev-team/agents/doc-review.md | haiku | medium | haiku | medium | keep | 6 | not selected |  |
 | domain-review | plugins/dev-team/agents/domain-review.md | opus | high | opus | high | keep | 5 |  |  |
 | gherkin-quality-critic | plugins/dev-team/agents/gherkin-quality-critic.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | js-fp-review | plugins/dev-team/agents/js-fp-review.md | haiku | medium | haiku | low | downgrade | 9 | eval:ab-2026-10-08; model:claude-haiku-5-5; effort:low; fixtures:9; trials:3; delta:0; cost:0.040->0.035 | 0.005 |
@@ -59,11 +61,11 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 | plan-review-ux | plugins/dev-team/agents/plan-review-ux.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | platform-engineer | plugins/dev-team/agents/platform-engineer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | product-manager | plugins/dev-team/agents/product-manager.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
-| progress-guardian | plugins/dev-team/agents/progress-guardian.md | haiku | high | haiku | high | keep | 3 |  |  |
+| progress-guardian | plugins/dev-team/agents/progress-guardian.md | haiku | high | haiku | high | keep | 3 | not selected |  |
 | qa-engineer | plugins/dev-team/agents/qa-engineer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | quality-reviewer | plugins/dev-team/agents/quality-reviewer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | react-reactivity-review | plugins/dev-team/agents/react-reactivity-review.md | haiku | medium | haiku | medium | keep | 2 | insufficient fixtures |  |
-| refactor-opportunity-review | plugins/dev-team/agents/refactor-opportunity-review.md | haiku | high | haiku | high | keep | 4 |  |  |
+| refactor-opportunity-review | plugins/dev-team/agents/refactor-opportunity-review.md | haiku | high | haiku | high | keep | 4 | not selected |  |
 | security-engineer | plugins/dev-team/agents/security-engineer.md | opus | high | opus | high | keep | 0 | no fixture |  |
 | security-review | plugins/dev-team/agents/security-review.md | opus | high | opus | high | keep | 6 |  |  |
 | session-analysis | plugins/dev-team/agents/session-analysis.md | sonnet | high | sonnet | high | keep | 1 | insufficient fixtures |  |
