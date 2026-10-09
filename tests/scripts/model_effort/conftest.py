@@ -14,6 +14,7 @@ from _model_effort_support import (
     GRADED_AGENT,
     GRADED_STEM,
     NOW,
+    PINNED_CHARS_PER_TOKEN,
     PINNED_OUTPUT_TOKENS,
     PINNED_TURN_MULTIPLIER,
     SCOUT_TOOLS,
@@ -67,6 +68,7 @@ def graded_expected_dir(expected_dir: Path) -> Path:
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch) -> World:
+    monkeypatch.setattr(estimate, "CHARS_PER_TOKEN", PINNED_CHARS_PER_TOKEN)
     monkeypatch.setattr(estimate, "TOOL_TURN_MULTIPLIER", PINNED_TURN_MULTIPLIER)
     monkeypatch.setattr(estimate, "OUTPUT_TOKENS_PER_TRIAL", PINNED_OUTPUT_TOKENS)
     agents, expected, fixtures = (

@@ -63,6 +63,7 @@ TEST_PRICING = {
     "aliases": {"sonnet": "test-pricey", "haiku": "test-cheap"},
 }
 # Pinned so CLI estimates do not move when the shipped calibration is retuned.
+PINNED_CHARS_PER_TOKEN = 4
 PINNED_TURN_MULTIPLIER = 2
 PINNED_OUTPUT_TOKENS = 100
 ARM_COUNT = 2
@@ -79,7 +80,7 @@ def _trial_input_chars(system_prompt_chars: int, fixture_chars: int, name: str) 
 
 def _arm_estimate_usd(input_chars: int, output_tokens: int, rate: dict) -> float:
     """What the estimator charges one arm for `SCOUT_TRIALS` rounds of the trial described."""
-    input_tokens = input_chars / estimate.CHARS_PER_TOKEN * PINNED_TURN_MULTIPLIER
+    input_tokens = input_chars / PINNED_CHARS_PER_TOKEN * PINNED_TURN_MULTIPLIER
     per_round_usd = (
         input_tokens * rate["input"] + output_tokens * rate["output"]
     ) / estimate.TOKENS_PER_RATE_UNIT
@@ -230,13 +231,21 @@ if BEHAVIOR.get("grandchild_marker"):
     Path(BEHAVIOR["grandchild_spawned"]).write_text("spawned")
 if BEHAVIOR.get("holder_sleep"):
     # Inherits stdout and stderr, so it keeps both pipes open after this process exits.
-    subprocess.Popen(
+    holder = subprocess.Popen(
         [sys.executable, "-c", "import time; time.sleep(%s)" % BEHAVIOR["holder_sleep"]],
         start_new_session=bool(BEHAVIOR.get("holder_new_session")),
     )
+    if BEHAVIOR.get("holder_pid_file"):
+        Path(BEHAVIOR["holder_pid_file"]).write_text(str(holder.pid))
 if BEHAVIOR.get("stdout_hex"):
     sys.stdout.buffer.write(bytes.fromhex(BEHAVIOR["stdout_hex"]))
     sys.stdout.flush()
+if BEHAVIOR.get("early_stdout") or BEHAVIOR.get("early_stderr"):
+    # Written and flushed before any sleep, so a killed process has left it behind.
+    sys.stdout.write(BEHAVIOR.get("early_stdout", ""))
+    sys.stderr.write(BEHAVIOR.get("early_stderr", ""))
+    sys.stdout.flush()
+    sys.stderr.flush()
 time.sleep(BEHAVIOR.get("sleep", 0))
 sys.stdout.write(BEHAVIOR.get("stdout", ""))
 sys.stderr.write(BEHAVIOR.get("stderr", ""))

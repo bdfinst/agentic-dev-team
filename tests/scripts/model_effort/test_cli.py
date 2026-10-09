@@ -135,6 +135,22 @@ class TestReadGitHeadSha:
         assert sha is not None and re.fullmatch(r"[0-9a-f]{40}", sha)
 
 
+class TestEntryPoint:
+    def test_the_script_runs_in_isolated_mode_from_another_directory(self, tmp_path):
+        script = paths.REPO_ROOT / "scripts" / "model_effort_ab.py"
+
+        completed = subprocess.run(
+            [sys.executable, "-I", str(script), "--help"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert completed.returncode == 0, completed.stderr
+        assert "usage:" in completed.stdout
+
+
 class TestDepsDefaults:
     def test_default_deps_use_the_shipped_directories_and_collaborators(self):
         deps = model_effort_ab.Deps()
@@ -686,6 +702,19 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
             capsys,
             code,
             "Fix the agent file's frontmatter; the baseline arm needs `model:` and `effort:`.",
+        )
+
+    @pytest.mark.parametrize("seconds", ["0", "-1", "abc", "1.5"])
+    def test_non_positive_or_non_integer_trial_timeout_names_the_fix(
+        self, world, capsys, seconds
+    ):
+        stub = StubClaude(world.stub_dir)
+
+        with pytest.raises(SystemExit) as excinfo:
+            _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trial-timeout", seconds)
+
+        self._assert_refused(
+            world, stub, capsys, excinfo.value.code, "a whole number of 1 or more"
         )
 
     def test_rubric_grader_is_refused_as_not_implemented(self, world, capsys):

@@ -283,6 +283,19 @@ def _wait_until_after(started: float, delay: float) -> None:
         time.sleep(remaining)
 
 
+def _process_gone_within(pid: int, seconds: float) -> bool:
+    """True once `pid` no longer exists; a killed orphan is reaped a moment after the kill."""
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.05)
+
+
 @pytest.fixture
 def short_output_grace(monkeypatch) -> None:
     monkeypatch.setattr(runner, "KILL_COLLECT_TIMEOUT_SECONDS", HOLDER_GRACE_SECONDS)
@@ -357,6 +370,44 @@ class TestExecution:
             "result",
             False,
         )
+
+    def test_a_descendant_in_the_trials_group_is_killed_when_the_output_wait_ends(
+        self, stub_dir, fixture_root, short_output_grace
+    ):
+        pid_file = stub_dir / "holder.pid"
+        stub = StubClaude(
+            stub_dir,
+            stdout="result",
+            holder_sleep=30,
+            holder_pid_file=str(pid_file),
+        )
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        record = runner.run_trial(
+            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS * 10
+        )
+
+        holder_pid = int(pid_file.read_text(encoding="utf-8"))
+        assert (record.exit_code, record.timed_out) == (0, False)
+        assert _process_gone_within(holder_pid, TIMEOUT_SECONDS)
+
+    def test_a_timed_out_trial_keeps_the_output_written_before_the_kill(
+        self, stub_dir, fixture_root
+    ):
+        stub = StubClaude(
+            stub_dir,
+            sleep=30,
+            early_stdout="partial stdout",
+            early_stderr="partial stderr",
+        )
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        record = runner.run_trial(
+            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS
+        )
+
+        assert record.timed_out is True
+        assert (record.stdout, record.stderr) == ("partial stdout", "partial stderr")
 
     def test_failing_exit_code_is_kept_when_a_descendant_holds_the_pipes_open(
         self, stub_dir, fixture_root, short_output_grace

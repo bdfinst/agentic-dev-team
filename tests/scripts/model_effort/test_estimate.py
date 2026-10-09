@@ -8,6 +8,7 @@ import pytest
 from _model_effort_support import (
     BASELINE_TWO_ARM_ESTIMATE,
     CANDIDATE_TWO_ARM_ESTIMATE,
+    PINNED_CHARS_PER_TOKEN,
     PINNED_OUTPUT_TOKENS,
     PINNED_TURN_MULTIPLIER,
     SCOUT_HAIKU_ARGS,
@@ -61,6 +62,7 @@ class TestFixtureSize:
 class TestEstimateRun:
     @pytest.fixture(autouse=True)
     def pinned_constants(self, monkeypatch):
+        monkeypatch.setattr(estimate, "CHARS_PER_TOKEN", PINNED_CHARS_PER_TOKEN)
         monkeypatch.setattr(estimate, "TOOL_TURN_MULTIPLIER", PINNED_TURN_MULTIPLIER)
         monkeypatch.setattr(estimate, "OUTPUT_TOKENS_PER_TRIAL", PINNED_OUTPUT_TOKENS)
 
