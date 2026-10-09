@@ -134,6 +134,46 @@ class TestGradeTrial:
         assert list(scratch.iterdir()) == []
 
 
+class TestUpstreamGraderDrift:
+    """A grader that no longer fits the call is the harness's fault, never a failed trial."""
+
+    def test_a_renamed_parameter_is_a_contract_error_not_a_failed_trial(
+        self, graded_expected_dir, monkeypatch
+    ):
+        def renamed(expected_directory, actuals, baseline, only=None):
+            raise AssertionError("must not be called with the old keywords")
+
+        monkeypatch.setattr(external.eval_grade(), "run_grading", renamed)
+
+        with pytest.raises(external.ExternalContractError, match="run_grading"):
+            grading.grade_trial(
+                GRADED_AGENT,
+                GRADED_STEM,
+                PASS_VERDICT,
+                eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+            )
+
+    @pytest.mark.parametrize(
+        "returned",
+        [None, [("pair", True, [])], (["pair"], None), ([("pair", True)], None)],
+        ids=["none", "no-baseline-slot", "short-row", "short-triple"],
+    )
+    def test_a_changed_return_shape_is_a_contract_error_not_a_failed_trial(
+        self, graded_expected_dir, monkeypatch, returned
+    ):
+        monkeypatch.setattr(
+            external.eval_grade(), "run_grading", lambda **_kwargs: returned
+        )
+
+        with pytest.raises(external.ExternalContractError, match="run_grading"):
+            grading.grade_trial(
+                GRADED_AGENT,
+                GRADED_STEM,
+                PASS_VERDICT,
+                eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+            )
+
+
 class TestShippedExpectedEntrySmoke:
     def test_clean_form_verdict_grades_as_pass_against_the_shipped_entry(self):
         passed, messages = grading.grade_trial(

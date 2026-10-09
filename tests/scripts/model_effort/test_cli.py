@@ -850,6 +850,21 @@ class TestUnexpectedTrialError:
         assert [arm["fixtures"] for arm in written["arms"]] == [[], []]
         assert "OSError: no space left" in capsys.readouterr().err
 
+    def test_grader_whose_return_shape_changed_is_a_harness_error_not_a_graded_fail(
+        self, world, capsys, monkeypatch
+    ):
+        monkeypatch.setattr(
+            external.eval_grade(), "run_grading", lambda **_kwargs: "drifted"
+        )
+
+        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "2")
+
+        written = _written(world)
+        assert code == 1
+        assert written["abort_reason"] == "harness-error"
+        assert [arm["fixtures"] for arm in written["arms"]] == [[], []]
+        assert "ExternalContractError" in capsys.readouterr().err
+
     def test_error_in_the_first_trial_still_writes_an_artifact_with_no_results(
         self, world
     ):

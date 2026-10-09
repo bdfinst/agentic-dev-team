@@ -34,11 +34,8 @@ def grade_trial(
     with tempfile.TemporaryDirectory(prefix=TEMP_DIR_PREFIX) as grading_dir:
         shutil.copy2(eval_paths.expected_dir / f"{stem}.json", grading_dir)
         try:
-            results, _ = external.eval_grade().run_grading(
-                expected_dir=Path(grading_dir),
-                actuals={stem: {"agents": {agent: parsed}}},
-                baseline=None,
-                only={agent},
+            results = external.grade_against_expected(
+                Path(grading_dir), stem, agent, parsed
             )
         except AGENT_ANSWER_ERRORS as error:
             return False, [f"grader raised {type(error).__name__}: {error}"]

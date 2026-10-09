@@ -7,18 +7,29 @@ the same name. `eval_grade` puts its own directory on `sys.path` when it loads,
 to find the grader registry beside it.
 
 The wrappers at the end are the only place that reaches those scripts' contract
-data and private helpers, so an upstream rename breaks one function here.
+data and private helpers, so an upstream rename breaks one function here. A
+wrapper that calls into an upstream script checks the call shape and the return
+shape itself and raises `ExternalContractError` when they have drifted, so that
+drift is a harness fault and never reads as an agent's answer failing.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import inspect
 from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
 from types import ModuleType
 
 from . import paths
+
+# What `grade_against_expected` passes to `run_grading`, as keyword names.
+_RUN_GRADING_KEYWORDS = ("expected_dir", "actuals", "baseline", "only")
+
+
+class ExternalContractError(ImportError):
+    """A script the harness reuses no longer has the interface the harness relies on."""
 
 
 @cache
@@ -54,6 +65,60 @@ def pricing() -> ModuleType:
 def eval_grade() -> ModuleType:
     """`scripts/eval_grade.py`, the deterministic grader the CI agent-eval gate uses."""
     return _load_module(paths.EVAL_GRADE)
+
+
+def _checked_run_grading():
+    run_grading = getattr(eval_grade(), "run_grading", None)
+    if run_grading is None:
+        raise ExternalContractError(
+            "scripts/eval_grade.py no longer defines run_grading"
+        )
+    try:
+        inspect.signature(run_grading).bind(**dict.fromkeys(_RUN_GRADING_KEYWORDS))
+    except TypeError as error:
+        raise ExternalContractError(
+            f"scripts/eval_grade.py run_grading no longer accepts the keywords "
+            f"{', '.join(_RUN_GRADING_KEYWORDS)}: {error}"
+        ) from error
+    return run_grading
+
+
+def grade_against_expected(
+    expected_dir: Path, stem: str, agent: str, parsed: dict
+) -> list[tuple[str, bool, list[str]]]:
+    """Grade `parsed` for `agent` on fixture `stem` against the entries in `expected_dir`.
+
+    Returns one `(pair, passed, failure messages)` row per graded entry; none when
+    `expected_dir` has no entry for `agent`. An error the grader raises because of
+    the shape of `parsed` propagates unchanged.
+
+    Raises:
+        ExternalContractError: the grader no longer takes this call or returns
+            another shape.
+    """
+    returned = _checked_run_grading()(
+        expected_dir=expected_dir,
+        actuals={stem: {"agents": {agent: parsed}}},
+        baseline=None,
+        only={agent},
+    )
+    return _grading_rows(returned)
+
+
+def _grading_rows(returned) -> list[tuple[str, bool, list[str]]]:
+    drifted = ExternalContractError(
+        "scripts/eval_grade.py run_grading no longer returns (rows, baseline) "
+        "with (pair, passed, failure messages) rows"
+    )
+    if not isinstance(returned, tuple) or len(returned) != 2:
+        raise drifted
+    rows = returned[0]
+    if not isinstance(rows, list) or not all(
+        isinstance(row, tuple) and len(row) == 3 and isinstance(row[2], list)
+        for row in rows
+    ):
+        raise drifted
+    return rows
 
 
 def should_scrub_env_var(name: str) -> bool:
