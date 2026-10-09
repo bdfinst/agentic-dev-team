@@ -9,7 +9,7 @@ Per-agent record of the Haiku 5.5 re-evaluation (issues #2250, #2251). Agent fro
 - Alias check: `claude -p --model haiku` reports `modelUsage` key `claude-haiku-5-5`.
 - Effort variable: yes
 - Effort check: `claude -p --effort <level>` accepted at `low` and `high`, and effort changes cost: in the `concurrency-review` run (see Notes) `medium` cost $0.132 and `high` cost $0.168 for the same 49 trials per arm.
-- Pricing: `plugins/dev-team/knowledge/model-pricing.json` now prices `claude-haiku-5-5` ($0.10 / $0.50 per 1M tokens; the `claude-api` skill pricing table lists Claude Haiku 5.5 at those rates) and the `haiku` alias points to `claude-haiku-5-5`.
+- Pricing: `plugins/dev-team/knowledge/model-pricing.json` now prices `claude-haiku-5-5` ($0.10 / $0.50 per 1M tokens; the `claude-api` skill pricing table lists Claude Haiku 5.5 at those rates) and the `haiku` alias points to `claude-haiku-5-5`. `claude -p` resolves `opus` to `claude-opus-5-5` and `sonnet` to `claude-sonnet-5-5` (checked 2026-10-09, including an `opus` and a `sonnet` agent), so those aliases and rates ($4 / $20 and $2 / $10) were added too.
 - Evidence limit: evidence cells are self-reported text. The test checks format only; the run ID is not verified against an artifact.
 
 correctness-review recall gap is known and unfixed; its results are excluded from evidence.
