@@ -412,7 +412,8 @@ unless you pass `--yes`.
   cost above the limit. The charged cost is the reported cost, plus the per-trial
   estimate for each trial whose `claude` output reports no cost.
 
-The estimate is a rough heuristic, and the real cost can be higher.
+The estimate is a rough heuristic. The real cost can be several times higher or
+lower: in the one real run, the estimate was 4.6 to 13.6 times the reported cost.
 
 ### Exit codes
 

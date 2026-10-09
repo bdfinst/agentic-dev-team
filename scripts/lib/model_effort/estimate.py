@@ -1,9 +1,11 @@
 """Estimate what a run will cost before it starts.
 
-The estimate is deliberately rough and errs low: it models the text the agent is
-given and the answer it writes, not the harness's own context overhead. All input
-tokens are priced at the model's input rate, so cache reads (billed at a fraction
-of that rate) make it high, while the fixed per-turn context makes it low.
+The estimate is deliberately rough and can be several times off in either
+direction: it models the text the agent is given and the answer it writes, not
+the harness's own context overhead. All input tokens are priced at the model's
+input rate, so cache reads (billed at a fraction of that rate) make it high,
+while the fixed per-turn context makes it low. In the one real run the estimate
+was 4.6 to 13.6 times the reported cost.
 
 Pure functions: the pricing table is a parameter and the only file access is
 measuring fixture sizes.

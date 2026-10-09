@@ -36,6 +36,6 @@ def _render_estimate(run_estimate: RunEstimate) -> str:
         f"{label} {format_usd(cost_usd)}" for label, cost_usd in run_estimate.by_arm
     )
     return (
-        "Estimate (rough; real cost may be higher): "
+        "Estimate (rough; real cost can be several times off, high or low): "
         f"{per_arm}, total {format_usd(run_estimate.estimated_total_usd)}"
     )
