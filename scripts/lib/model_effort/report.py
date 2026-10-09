@@ -122,12 +122,14 @@ def render_summary(arms: Sequence[ArmTotals]) -> list[str]:
     return lines
 
 
-def _render_cost(actual_usd: float, charged_usd: float, estimated_usd: float) -> str:
+def _render_cost(
+    actual_usd: float, unreported_trials_estimate_usd: float, estimated_usd: float
+) -> str:
     """Show the actual cost; flag it as a lower bound when trials reported no cost."""
     lower_bound = (
-        f" (lower bound; {format_usd(charged_usd)} charged as estimate for trials "
+        f" (lower bound; {format_usd(unreported_trials_estimate_usd)} charged as estimate for trials "
         "with no reported cost)"
-        if charged_usd > 0
+        if unreported_trials_estimate_usd > 0
         else ""
     )
     return (
