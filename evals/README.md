@@ -348,3 +348,133 @@ against the golden repo as-is). The first shipped fixture is
 
 See [ADR 0007](../docs/adr/0007-eval-confidence-pyramid-tier-vocabulary.md) for
 the tier vocabulary (unit → integration → acceptance).
+
+## Model and effort A/B harness
+
+`scripts/model_effort_ab.py` compares an agent's frontmatter `model:` and
+`effort:` (the baseline arm) with a candidate. Each trial runs through
+`claude -p` against a fresh copy of a fixture. The deterministic grader scores
+the reply against `evals/expected`. The runs are paid API calls.
+
+```bash
+python3 scripts/model_effort_ab.py security-review --model haiku --effort medium
+```
+
+The harness prints the resolved configuration and a cost estimate, then asks
+for approval before it starts the first trial. Trials alternate baseline,
+candidate, baseline, and so on, so a broken candidate fails on its first trial.
+
+### Flags
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `agent` (positional) | none | Agent name, as in `plugins/dev-team/agents/<agent>.md`. |
+| `--model` | frontmatter `model:` | Candidate model. |
+| `--effort` | frontmatter `effort:` | Candidate effort level. |
+| `--fixtures` | every `evals/expected` entry that names the agent and has a matching fixture in `evals/fixtures` | Comma-separated fixture stems. |
+| `--trials` | 10 for `security-review`, `correctness-review`, `architect` and `security-engineer`; otherwise 5 | Trials per arm per fixture. Must be a whole number of 1 or more. |
+| `--grader` | `expected-findings` | Only `expected-findings` works. `rubric` is refused as not implemented yet. |
+| `--trial-timeout` | 600 | Seconds before a trial is killed and recorded as `timeout`. |
+| `--max-cost` | none | Dollar limit on the estimate and on the charged cost, described in [Spend limit](#spend-limit). |
+| `--yes` | off | Skip the confirmation prompt. |
+| `--claude-bin` | `claude` | The `claude` executable to run. |
+| `--runs-dir` | `evals/model-effort/runs` | Directory the artifact is written to. |
+
+The candidate must differ from the frontmatter in `--model` or `--effort`. The
+harness refuses a candidate that ends up equal to the baseline, including a
+partial override such as `--model haiku` on an agent that already uses `haiku`.
+
+### Inputs are frozen when the run is planned
+
+When the harness plans a run, it copies the fixtures to run, their
+`evals/expected` entries and the plugin `knowledge/` directory into one private
+temp directory. Every trial stages its fixture from that copy, the `claude`
+process reads knowledge from it (`--add-dir`), and grading reads the expected
+entry from it. Editing a fixture, an expected entry or a knowledge file after the
+run is planned does not change the trials that follow. The `claude` process gets
+only the `knowledge` copy, never the expected entries. The harness removes the
+copy when the run ends, however it ends. The agent file is read once, at planning, and so are the grader and the
+environment-scrub scripts the trials use.
+The artifact's `knowledge_dir` names the source directory. Error text in the
+artifact shows the copy as `<snapshot>`.
+
+### Approval
+
+Without `--yes`, the harness prompts `Proceed? [y/N]` on a terminal and
+runs only on `y` or `yes`. When stdin is not a terminal, it refuses to start
+unless you pass `--yes`.
+
+### Spend limit
+
+`--max-cost` applies twice:
+
+- **At start.** The harness refuses to run when the estimate is above the limit.
+- **During the run.** The harness stops after the first trial that takes the charged
+  cost above the limit. The charged cost is the reported cost, plus the per-trial
+  estimate for each trial whose `claude` output reports no cost.
+
+The estimate is a rough heuristic. The real cost can be several times higher or
+lower: in the one real run, the estimate was 4.6 to 13.6 times the reported cost.
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | The run completed and the artifact was written. |
+| 1 | The run was declined, stopped early, or a signal arrived while the finished run was being saved (the artifact is still written), or the artifact could not be written. When the write fails, the artifact JSON goes to stdout so the paid results survive. A run interrupted before its first trial writes no artifact and exits 1. |
+| 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, an agent file that cannot be read or has no valid frontmatter (no `---` block at the top, invalid YAML, or a block that is not a key: value mapping), a missing, blank or invalid `model:` or `effort:` in the agent's frontmatter, identical arms, a write-capable agent, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
+
+Messages go to stderr.
+
+### Stop reasons
+
+A run that stops early still writes an artifact with the completed trials. The
+artifact records the reason in `abort_reason`:
+
+| `abort_reason` | Cause |
+| --- | --- |
+| `max-cost` | The charged cost went above `--max-cost`. |
+| `infra-failure` | An arm's first trial failed in the infrastructure, or three consecutive trials did. |
+| `interrupt` | Ctrl-C, SIGTERM or SIGHUP. |
+| `harness-error` | An unexpected error in the harness. |
+
+A stopped run cannot resume. A rerun starts over.
+
+Ctrl-C, SIGTERM and SIGHUP are held from the first trial until the artifact is
+saved, so none of them can drop a completed trial or a half-written artifact. A
+signal that arrives while a trial's `claude` process runs kills that process group
+and drops that trial. A signal that arrives while the harness grades, records or
+saves is acted on at the next safe point: the run starts no further trial and
+keeps every completed one. A signal that arrives after the last trial leaves the
+run `complete`; the harness saves it and then exits 1. A SIGHUP that the process
+ignores, as under `nohup`, does not stop the run. While a trial runs, the
+harness notices a signal within 0.1 s. A signal before the first trial starts
+stops the run with nothing run or spent.
+
+### Artifact
+
+Each run writes `evals/model-effort/runs/<run-id>.json`. The harness writes the
+artifact only when at least one trial started. A run interrupted before its first
+trial writes no artifact and exits 1. The key fields:
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `complete`, or `incomplete` when `abort_reason` is set. |
+| `abort_reason` | A stop reason from the table above, or `null`. |
+| `arms[].trials_per_fixture` | Trials planned per fixture (the `--trials` value). To count the trials that ran, count `fixtures[].trials`. |
+| `arms[].fixtures[].trials[].outcome` | The trial result, such as `pass`, `timeout` or `cli_error`. |
+| `arms[].fixtures[].trials[].cost_reported` | `false` when `claude` reported no cost; `cost_usd` is then 0. |
+| `arms[].estimated_cost_usd` | The pre-run estimate for the arm. |
+| `arms[].totals.clean_fixture_false_positives` | Trials the grader failed (`graded_fail`) on a fixture that expects no findings. Timeouts, CLI errors, parse failures and tool violations on such a fixture do not count. |
+| `arms[].totals.actual_cost_usd` | The reported cost. It is a lower bound when any `cost_reported` is `false`. |
+| `arms[].totals.unreported_trials_estimate_usd` | The sum of per-trial estimates charged for trials that reported no cost. The `--max-cost` check counts these in place of the cost. |
+
+### Tools and write-capable agents
+
+Trials get only the agent's read-only tools: `Read`, `Grep` and `Glob`. Every
+other `tools:` entry is withheld and recorded in the artifact under
+`tools_withheld`. The harness refuses an agent that declares `Bash`, `Edit`,
+`Write`, `MultiEdit` or `NotebookEdit`, because it has no sandbox for them. The
+refusal matches those names exactly. A scoped entry such as `Bash(graphify *)` is
+not refused: the harness withholds it and records it in `tools_withheld`. Support
+for write-capable agents is planned.
