@@ -96,16 +96,18 @@ def check_log(text: str, frontmatter_for_source) -> list[str]:
         errors.append(f"{dup}: listed more than once")
     for row in rows:
         errors += check_row(row, frontmatter_for_source)
-    evaluated = sum(
-        1 for r in rows
-        if r["Decision"] != "keep" or r["Evidence"] in EVALUATED_KEEP_REASONS
-    )
+    evaluated = sum(1 for r in rows if is_evaluated(r))
     if headers.get("Candidates evaluated") != str(evaluated):
         errors.append(
             f"Candidates evaluated is '{headers.get('Candidates evaluated')}', "
             f"rows show {evaluated}"
         )
     return errors
+
+
+def is_evaluated(row: dict[str, str]) -> bool:
+    """True when the agent was A/B evaluated: its tier changed or it failed the eval."""
+    return row["Decision"] != "keep" or row["Evidence"] in EVALUATED_KEEP_REASONS
 
 
 def check_header_fields(headers: dict[str, str]) -> list[str]:
@@ -299,14 +301,12 @@ def make_log(
     rows, candidates=None, include_recall_gap=True,
     alias="claude-haiku-5-5", effort_variable="yes",
 ):
-    evaluated = candidates if candidates is not None else str(
-        sum(1 for r in rows if r[6] != "keep" or r[8] in EVALUATED_KEEP_REASONS)
-    )
+    evaluated = candidates if candidates is not None else str(sum(1 for r in rows if is_evaluated(r)))
     head = f"- Candidates evaluated: {evaluated}\n"
     head += f"- Alias resolved: {alias}\n- Effort variable: {effort_variable}\n"
     head += (RECALL_GAP_SENTENCE + "\n") if include_recall_gap else ""
     table = "| " + " | ".join(COLUMNS) + " |\n|" + "---|" * len(COLUMNS) + "\n"
-    return head + table + "".join("| " + " | ".join(r) + " |\n" for r in rows)
+    return head + table + "".join("| " + " | ".join(r[c] for c in COLUMNS) + " |\n" for r in rows)
 
 
 def make_row(**overrides):
@@ -316,7 +316,7 @@ def make_row(**overrides):
         "final_effort": "medium", "decision": "keep", "evidence": "",
         "fixtures": "3", "saving": "", **overrides,
     }
-    return [row[field] for field in ROW_FIELDS]
+    return dict(zip(COLUMNS, (row[field] for field in ROW_FIELDS)))
 
 
 def make_downgrade_row(**overrides):
@@ -516,6 +516,17 @@ def test_recall_gap_sentence_is_required():
     assert any("recall-gap" in e for e in check_log(text, frontmatter_fake))
 
 
+def test_candidates_evaluated_counts_tier_changes_and_failed_evals_only():
+    rows = [
+        make_downgrade_row(),
+        make_row(agent="a", source="a.md", baseline_model="sonnet", baseline_effort="high",
+                 final_model="sonnet", final_effort="high", evidence="failed eval", fixtures="10"),
+        make_row(agent="s", source="s.md", baseline_model="n/a", final_model="n/a", fixtures="0"),
+    ]
+    assert check_log(make_log(rows, candidates="2"), frontmatter_fake) == []
+    assert any("rows show 2" in e for e in check_log(make_log(rows, candidates="3"), frontmatter_fake))
+
+
 def test_candidates_evaluated_must_match_rows():
     text = make_log([make_row()], candidates="9")
     assert any("Candidates evaluated" in e for e in check_log(text, frontmatter_fake))
@@ -548,7 +559,7 @@ def test_skill_row_with_a_baseline_model_is_rejected():
 
 
 def test_unmoved_tier_is_not_reported_as_a_downgrade():
-    row = dict(zip(COLUMNS, make_row(agent="s", source="s.md", baseline_model="haiku", final_model="n/a")))
+    row = make_row(agent="s", source="s.md", baseline_model="haiku", final_model="n/a")
     assert tier_direction(row) == "unchanged"
 
 
