@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import dataclasses
 import io
-import os
 import signal
 from pathlib import Path
 
@@ -25,6 +24,7 @@ from _model_effort_support import (
     _passing_stub,
     _written,
     assert_nothing_ran,
+    signal_own_thread,
 )
 from model_effort import interrupts, report
 from model_effort.arm import BASELINE_LABEL, CANDIDATE_LABEL
@@ -169,7 +169,7 @@ class TestTerminationSignals:
         self, signum
     ):
         with interrupts.termination_as_interrupt(), pytest.raises(KeyboardInterrupt):
-            os.kill(os.getpid(), signum)
+            signal_own_thread(signum)
 
     @pytest.mark.parametrize("signum", TERMINATION_SIGNALS, ids=lambda n: n.name)
     def test_previous_handlers_are_back_in_place_after_the_run(self, world, signum):
@@ -210,7 +210,7 @@ class TestRunGuard:
         guard = interrupts.RunGuard()
 
         with guard.held():
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
 
         assert guard.arrived is True
         held = interrupts.block()
@@ -299,7 +299,7 @@ class TestInterruptBeforeTheRun:
         self, world, capsys, signum
     ):
         def clock_that_receives_the_signal():
-            os.kill(os.getpid(), signum)
+            signal_own_thread(signum)
             return NOW
 
         stub = _passing_stub(world)

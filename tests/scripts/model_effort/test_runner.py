@@ -23,6 +23,7 @@ from _model_effort_support import (
     _make_file_fixture,
     _raise_keyboard_interrupt,
     _snapshot,
+    signal_own_thread,
 )
 from model_effort import invocation, runner
 
@@ -192,7 +193,7 @@ class TestSignalsAroundSpawn:
         def spawn_then_terminate(*args, **kwargs):
             child = real_popen(*args, **kwargs)
             children.append(child)
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
             return child
 
         monkeypatch.setattr(subprocess, "Popen", spawn_then_terminate)
@@ -226,7 +227,7 @@ class TestSignalsAroundSpawn:
 
         def spawn_then_terminate(*args, **kwargs):
             child = real_popen(*args, **kwargs)
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
             return child
 
         monkeypatch.setattr(runner, "_kill_process_group", record_mask_then_kill)

@@ -28,6 +28,7 @@ from _model_effort_support import (
     _snapshot,
     _write_expected,
     _written,
+    signal_own_thread,
 )
 from model_effort import (
     artifact_store,
@@ -263,7 +264,7 @@ class TestRunResourcesSurviveSignals:
 
         def make_then_signal(*args, **kwargs):
             made = make(*args, **kwargs)
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
             return made
 
         # Wraps the step: a signal can be sent into the window after it only by hand.
@@ -281,7 +282,7 @@ class TestRunResourcesSurviveSignals:
         remove = snapshot.remove_tree
 
         def signal_then_remove(directory):
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
             remove(directory)
 
         monkeypatch.setattr(snapshot, "remove_tree", signal_then_remove)

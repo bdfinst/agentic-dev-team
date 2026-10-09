@@ -10,9 +10,9 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-import os
 import signal
 import sys
+import threading
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -663,7 +663,7 @@ def _deps_signalling_after(
 ) -> model_effort_ab.Deps:
     """Send `signum` to this process inside the trial after `completed_trials` real ones."""
     return _deps_acting_after(
-        world, completed_trials, lambda: os.kill(os.getpid(), signum)
+        world, completed_trials, lambda: signal_own_thread(signum)
     )
 
 
@@ -712,3 +712,15 @@ def _outcomes(written: dict, label: str) -> list[str]:
 
 def _note_signal(_signum, _frame) -> None:
     """A harmless handler: the signal is delivered and nothing else happens."""
+
+
+def signal_own_thread(signum: int) -> None:
+    """Deliver `signum` to the test's own thread, where `interrupts` holds it back.
+
+    `os.kill(os.getpid(), ...)` is process-directed, so the kernel may hand the
+    signal to any thread that does not block it. A pytest-xdist worker runs a second
+    OS thread (execnet's receiver, invisible to `threading`) that blocks nothing, so
+    the signal can bypass the mask the test set on its own thread and is never seen
+    pending there. A thread-directed signal stays pending on the thread that blocks it.
+    """
+    signal.pthread_kill(threading.main_thread().ident, signum)

@@ -27,6 +27,7 @@ from _model_effort_support import (
     _raise_keyboard_interrupt,
     _run_estimate,
     _written,
+    signal_own_thread,
 )
 from model_effort import (
     artifact,
@@ -60,7 +61,7 @@ def _deps_signalling_with_trial_run(
     def run_then_signal(*args, **kwargs):
         record = runner.run_trial(*args, **kwargs)
         if len(started) == completed_trials:
-            os.kill(os.getpid(), signum)
+            signal_own_thread(signum)
         started.append(args)
         return record
 
@@ -78,7 +79,7 @@ def _signal_during(monkeypatch, owner, step: str, signum: int) -> list[str]:
 
     def signal_then_run(*args, **kwargs):
         calls.append(step)
-        os.kill(os.getpid(), signum)
+        signal_own_thread(signum)
         return real_step(*args, **kwargs)
 
     monkeypatch.setattr(owner, step, signal_then_run)
@@ -223,7 +224,7 @@ class TestInterruptsAreHeldForTheRun:
         killed = []
 
         def signal_then_kill(process):
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
             killed.append(process.pid)
             real_kill(process)
 
@@ -283,7 +284,7 @@ class TestInterruptsAreHeldForTheRun:
 
         held = interrupts.block()
         try:
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
             run = execution.run_trials(
                 scout_plan, settings, _run_estimate(), run_trial=must_not_run
             )
@@ -297,7 +298,7 @@ class TestInterruptsAreHeldForTheRun:
         previous_handler = signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
         try:
             with pytest.raises(KeyboardInterrupt), interrupts.held_signals():
-                os.kill(os.getpid(), signal.SIGTERM)
+                signal_own_thread(signal.SIGTERM)
                 finished.append("body")
         finally:
             signal.signal(signal.SIGTERM, previous_handler)
@@ -308,7 +309,7 @@ class TestInterruptsAreHeldForTheRun:
     def test_a_pending_signal_is_consumed_so_it_is_not_delivered_later(self):
         held = interrupts.block()
         try:
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
             first, second = interrupts.take_pending(), interrupts.take_pending()
         finally:
             interrupts.restore(held)
@@ -321,7 +322,7 @@ class TestInterruptsAreHeldForTheRun:
         held = interrupts.block()
 
         def consume_then_receive_one_more() -> bool:
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
             return False
 
         # Fault injected: `take_pending` is replaced so a SIGTERM lands after the
@@ -443,7 +444,7 @@ class TestSignalWhileFinishing:
 
         def restore_then_receive_one_more(previous_mask):
             arrived = real_restore(previous_mask)
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
             return arrived
 
         monkeypatch.setattr(
@@ -470,7 +471,7 @@ class TestSignalWhileFinishing:
 
         def run_then_receive_one_more(*args, **kwargs):
             code = real_run_session(*args, **kwargs)
-            os.kill(os.getpid(), signal.SIGTERM)
+            signal_own_thread(signal.SIGTERM)
             return code
 
         monkeypatch.setattr(session, "run_session", run_then_receive_one_more)
