@@ -1,5 +1,12 @@
 # Changelog
 
+## [14.0.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.0.1...dev-team-v14.0.2) (2026-10-14)
+
+
+### Documentation
+
+* **readme:** fix drift in dev-team README ([#2265](https://github.com/bdfinst/agentic-dev-team/issues/2265)) ([f076637](https://github.com/bdfinst/agentic-dev-team/commit/f076637f41e9ee6cc21c8a0d1e625bea20de218c)), closes [#2264](https://github.com/bdfinst/agentic-dev-team/issues/2264)
+
 ## [14.0.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.0.0...dev-team-v14.0.1) (2026-10-03)
 
 
