@@ -1,0 +1,162 @@
+{
+  "n_cells": 364,
+  "arms": {
+    "tdd-refactor": {
+      "cum_blast": 110.5,
+      "cost": 1.56,
+      "blast_per_dollar": 70.8,
+      "mutation": 0.78,
+      "coverage": 100.0,
+      "mi": 76.38,
+      "ccn": 3.5,
+      "core_pass": 100,
+      "edge_pass": 100,
+      "violations": 0,
+      "blast_by_task": [
+        137,
+        99,
+        101,
+        120
+      ]
+    },
+    "no-refactor-single": {
+      "cum_blast": 103.5,
+      "cost": 0.73,
+      "blast_per_dollar": 141.8,
+      "mutation": 0.95,
+      "coverage": 100.0,
+      "mi": 75.01,
+      "ccn": 6.5,
+      "core_pass": 100,
+      "edge_pass": 100,
+      "violations": 0,
+      "blast_by_task": [
+        119,
+        86,
+        90,
+        117
+      ]
+    },
+    "one-shot-single": {
+      "cum_blast": 154.5,
+      "cost": 1.97,
+      "blast_per_dollar": 78.4,
+      "mutation": 1.0,
+      "coverage": 100.0,
+      "mi": 75.61,
+      "ccn": 2.7,
+      "core_pass": 96,
+      "edge_pass": 96,
+      "violations": 0,
+      "blast_by_task": [
+        168,
+        126,
+        145,
+        164
+      ]
+    },
+    "continuous-single": {
+      "cum_blast": 118.5,
+      "cost": 0.97,
+      "blast_per_dollar": 122.2,
+      "mutation": 0.92,
+      "coverage": 100.0,
+      "mi": 71.91,
+      "ccn": 3.2,
+      "core_pass": 100,
+      "edge_pass": 100,
+      "violations": 0,
+      "blast_by_task": [
+        156,
+        107,
+        108,
+        129
+      ]
+    },
+    "no-refactor-split": {
+      "cum_blast": 105.5,
+      "cost": 1.53,
+      "blast_per_dollar": 69.0,
+      "mutation": 1.0,
+      "coverage": 100.0,
+      "mi": 79.64,
+      "ccn": 6.0,
+      "core_pass": 96,
+      "edge_pass": 96,
+      "violations": 0,
+      "blast_by_task": [
+        118,
+        85,
+        94,
+        117
+      ]
+    },
+    "one-shot-split": {
+      "cum_blast": 155.5,
+      "cost": 2.84,
+      "blast_per_dollar": 54.8,
+      "mutation": 1.0,
+      "coverage": 100.0,
+      "mi": 74.44,
+      "ccn": 3.0,
+      "core_pass": 98,
+      "edge_pass": 98,
+      "violations": 0,
+      "blast_by_task": [
+        171,
+        126,
+        151,
+        160
+      ]
+    },
+    "continuous-split": {
+      "cum_blast": 158.5,
+      "cost": 2.85,
+      "blast_per_dollar": 55.6,
+      "mutation": 1.0,
+      "coverage": 100.0,
+      "mi": 73.51,
+      "ccn": 2.7,
+      "core_pass": 98,
+      "edge_pass": 98,
+      "violations": 0,
+      "blast_by_task": [
+        172,
+        121,
+        147,
+        170
+      ]
+    }
+  },
+  "granularity_effect": {
+    "none": {
+      "cum_blast": 104.5,
+      "cost": 1.13,
+      "mi": 77.33
+    },
+    "one-shot": {
+      "cum_blast": 155.0,
+      "cost": 2.4,
+      "mi": 75.03
+    },
+    "continuous": {
+      "cum_blast": 138.5,
+      "cost": 1.91,
+      "mi": 72.71
+    }
+  },
+  "authorship_effect": {
+    "single": {
+      "cum_blast": 118.5,
+      "cost": 0.97,
+      "mutation": 0.95,
+      "edge_pass": 100
+    },
+    "split": {
+      "cum_blast": 155.5,
+      "cost": 2.84,
+      "mutation": 1.0,
+      "edge_pass": 98
+    }
+  }
+}
