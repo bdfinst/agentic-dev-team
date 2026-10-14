@@ -60,11 +60,11 @@ After `/setup`, you can start work. Run `/specs` to start a feature, or describe
 | `semgrep` | `/semgrep-analyze`, static analysis pre-pass in `/code-review` | `pip install semgrep`, `brew install semgrep`, or `pipx install semgrep` |
 | `playwright` | `/browse` (browser-based QA) | `npx playwright install chromium` (requires Node.js) |
 | `hadolint`, `trivy`, `grype` | `/docker-image-audit` | `brew install hadolint trivy grype`; Linux install scripts and Docker-container usage in the [docker-image-audit skill docs](skills/docker-image-audit/SKILL.md) |
-| `az` (with `az boards` extension) | `/test-modernize` when the parent issue lives on Azure DevOps | `brew install azure-cli` or [Azure CLI install docs](https://learn.microsoft.com/cli/azure/install-azure-cli); then `az extension add --name azure-devops` and `az login` |
-| `glab` | `/test-modernize` when the parent issue lives on GitLab | `brew install glab` or [GitLab CLI install docs](https://gitlab.com/gitlab-org/cli#installation); then `glab auth login` |
-| `acli` | `/test-modernize` when the parent issue lives on Jira (Atlassian Cloud) | See [Atlassian CLI install docs](https://developer.atlassian.com/cloud/acli/); REST + `JIRA_TOKEN` is the fallback |
+| `az` (with `az boards` extension) | `/test-improve` when the parent issue lives on Azure DevOps | `brew install azure-cli` or [Azure CLI install docs](https://learn.microsoft.com/cli/azure/install-azure-cli); then `az extension add --name azure-devops` and `az login` |
+| `glab` | `/test-improve` when the parent issue lives on GitLab | `brew install glab` or [GitLab CLI install docs](https://gitlab.com/gitlab-org/cli#installation); then `glab auth login` |
+| `acli` | `/test-improve` when the parent issue lives on Jira (Atlassian Cloud) | See [Atlassian CLI install docs](https://developer.atlassian.com/cloud/acli/); REST + `JIRA_TOKEN` is the fallback |
 
-`/test-modernize` falls back to local plan files under `./plans/test-modernize/` whenever the tracker CLI for the given parent URL is missing. The workflow continues uninterrupted. Only the destination of the issues changes.
+`/test-improve` falls back to local plan files under `.claude/plans/<workflow>/` (default `.claude/plans/test-improve/`) whenever the tracker CLI for the given parent URL is missing. The workflow continues uninterrupted. Only the destination of the issues changes.
 
 **Auto-formatting (the `post-format` hook, detected per language):** the hook auto-formats files on every edit. It detects available formatters and degrades silently if none are installed.
 
@@ -104,7 +104,7 @@ claude plugin marketplace add https://gitlab.example.com/team/agentic-dev-team.g
 claude plugin marketplace add git@gitlab.example.com:team/agentic-dev-team.git
 
 # pin a release tag
-claude plugin marketplace add https://gitlab.example.com/team/agentic-dev-team.git#dev-team-v6.6.0
+claude plugin marketplace add https://gitlab.example.com/team/agentic-dev-team.git#dev-team-v14.0.1
 
 # then, for any of the above:
 claude plugin install dev-team@bfinster
@@ -150,6 +150,6 @@ After `/setup` completes, confirm that the system works:
 
 - **11 team agents** — Orchestrator, Software Engineer, QA Engineer, Architect, Product Manager, etc.
 - **28 review agents** — security-review, domain-review, test-review, naming-review, …
-- **93 skills** — knowledge modules and procedures the team draws on, 89 of them user-invocable as slash commands (`/plan`, `/build`, `/pr`, `/code-review`, `/browse`, `/triage`, …)
+- **99 skills** — knowledge modules and procedures the team draws on, 95 of them user-invocable as slash commands (`/plan`, `/build`, `/pr`, `/code-review`, `/browse`, `/triage`, …)
 
 Full catalogs: [Agents](docs/agent_info.md) · [Skills](docs/skills.md) · [Workflows](docs/workflows.md)
