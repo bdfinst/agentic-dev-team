@@ -283,7 +283,9 @@ command is either a single-step worker (e.g. `/coverage-baseline`,
 or agent for each step, and where the human gates fall. Then you can operate
 these workflows confidently without re-reading every SKILL.md.
 
-One cross-command lifecycle *is* documented separately.
+Two cross-command lifecycles *are* documented separately.
+[spec-and-plan-flow.md](spec-and-plan-flow.md) diagrams how `/specs` and
+`/plan` collaborate with the user to define a spec and approve a plan.
 [triage-workflow.md](triage-workflow.md) covers the defect workflow
 that connects `/triage`'s triage records, `/code-review`'s correction
 prompts, and `/apply-fixes`. It runs from discovery to applied fix and says who

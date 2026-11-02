@@ -1,0 +1,65 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dbeafe', 'primaryTextColor': '#1e3a5f', 'primaryBorderColor': '#3b82f6', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#e0f2fe', 'background': '#ffffff', 'mainBkg': '#dbeafe', 'nodeBorder': '#2563eb', 'clusterBkg': '#eff6ff', 'clusterBorder': '#bfdbfe', 'titleColor': '#1e3a5f', 'edgeLabelBackground': '#f8fafc'}}}%%
+sequenceDiagram
+    actor User
+    participant Specs as /specs (orchestrator)
+    participant PM as Product Manager
+    participant Arch as Architect
+    participant Plan as /plan (orchestrator)
+    participant Critics as plan-review-* critics
+
+    User->>Specs: /specs "feature description"
+    Specs->>Specs: Select mode, check for an existing spec version
+
+    rect rgb(239, 246, 255)
+        note over User,PM: Intent Description
+        User->>PM: Draft intent
+        PM->>PM: Screen decision-defaults axes
+        PM-->>User: Critique: gaps, ambiguities, conflicts, scope
+        User-->>PM: Accept / reject / modify (with reasons)
+        PM-->>User: Refined intent (max 2 rounds)
+    end
+
+    rect rgb(239, 246, 255)
+        note over User,Arch: Architecture Specification
+        User->>Arch: Draft architecture notes
+        Arch-->>User: Critique
+        User-->>Arch: Decide
+        Arch-->>User: Refined architecture notes
+    end
+
+    rect rgb(239, 246, 255)
+        note over User,PM: Acceptance Criteria
+        Specs->>Specs: Ambiguity Resolution Protocol on every gap
+        Specs-->>User: "Before writing acceptance criteria, I need N decisions: [list]"
+        User-->>Specs: Answers
+        User->>PM: Draft acceptance criteria
+        PM-->>User: Critique, then refine
+        Specs->>Specs: Completeness sweep, Ambiguity Log, Glossary
+    end
+
+    Specs->>Arch: Run cross-artifact consistency gate
+    alt gate fails
+        Arch-->>User: Failing items, loop continues
+    else gate passes
+        Arch-->>Specs: Pass
+        Specs->>Specs: Persist (docs/specs file or GitHub epic issue)
+        Specs->>Plan: Auto-invoke /plan (authoring mode only)
+    end
+
+    Plan->>Plan: Read spec, cut vertical slices, author Gherkin per slice
+    Plan->>Plan: plan_waves.py derives waves, classify plan tier
+    Plan->>Critics: Dispatch tier-scaled reviewer set in parallel
+    Critics-->>Plan: approve / needs-revision with issues
+    loop until all approve (max 2)
+        Plan->>Plan: Revise plan
+        Plan->>Critics: Re-run flagged critics
+    end
+    Plan-->>User: Plan + Plan Review Summary. "Approve, or suggest changes?"
+    alt changes requested
+        User-->>Plan: Changes
+        Plan-->>User: Revised plan
+    else approved
+        User-->>Plan: Approve
+        Plan->>Plan: Mark approved, export .feature files, offer slice issues
+        Plan-->>User: Ready for /build
+    end
