@@ -351,6 +351,28 @@ Produce a Farley Score for the tests written on this branch — the last quality
 3. If no test files changed on the branch, print one line — `No tests written on this branch — skipping Farley Score.` — and continue to Step 8. **Exception:** when sub-step 1's degenerate-base check hit the "not found" case (no qualifying plan-start rollback point, base left at HEAD), print that sub-step's degraded-resolution warning instead of this clean line — an empty diff off an unresolved HEAD-equals-base is a resolution failure, not evidence of a clean branch. The "found" case (a validated plan-start SHA used as base) is a real base, so a genuine empty diff against it prints the ordinary clean line above. Either way, continue to Step 8.
 4. Otherwise invoke the `farley-score` skill scoped to those files. Present the suite-level Farley Score, rating, and distribution as the final pre-PR signal. This is **informational** — a low score does not block `/pr`, but surface it so the user can decide whether to revise before opening the PR.
 
+### 7.6. Acceptance examination
+
+This step runs on every /build invocation, including a re-run of a fully checked plan. A source-blind examiner runs the plan's commands and reads only their output. The SubagentStop recorder hook writes the record; you never relay a verdict. The prompt template and status tables are in [`references/acceptance-examination.md`](references/acceptance-examination.md).
+
+1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/acceptance_examination.py status --plan <plan>` first.
+   - Exit 0: skip dispatch when it exits zero. Run `render` and continue to Step 7.5. If the plan declares `Examination: not-applicable`, `status` prints an info line and exits 0. Skip dispatch, do not run `render` (there is no record), and continue to Step 7.5. The evidence bundle lists the exemption.
+   - On exit 1 for any reason → dispatch once (steps 2 to 5).
+2. Check the tree is clean: no tracked changes outside the plan file (`git status --porcelain --untracked-files=no -- ':(top,exclude)<plan>'`). `/build` edits the plan itself, so the plan is exempt. If the tree is dirty, stop with a message that lists the dirty paths and tells the user to commit first.
+3. **Dispatch-capability gate (re-confirm here — issue #1461).** Before dispatching `acceptance-examiner` below, re-verify the `Agent`/`Task` tool is present. If it is not, STOP per the Orchestrator constraints above — do not examine the criteria inline; report the missing capability and halt.
+4. Run `acceptance_examination.py inputs --plan <plan>`. Print `Examining N criteria with run commands only; this can take several minutes.` (N is the criteria count). Dispatch `acceptance-examiner` by `subagent_type` with the template from the reference. Dispatch exactly once when status exits 1, never when status exits 0, at most once per invocation. The step never retries after a dispatch.
+5. Run `acceptance_examination.py status --wait 15 --plan <plan>`. The rule: render only when status reports a readable record for this plan. If `render` exits non-zero, print its stderr and stop.
+   - Exit 0: `render`, then continue to Step 7.5.
+   - Exit 1: `render` when the record is readable, print the status message, and stop.
+   - Absent: print this and stop: No examination record was written after the examiner stopped. Likely causes: the SubagentStop recorder is not installed (reinstall the plugin), or the dispatch prompt lacked the marker line (see .claude/metrics/boundary-events.jsonl, rule missing-plan-marker). Fix the cause, then run: /build <plan>.
+
+**Hard stop.** On every stop above, the plan's **Status** line is not modified and Step 8 is not reached. Each bullet below is a stop, as in Step 5:
+
+- `not-met`: a criterion failed its run command; fix the delivered behavior, commit, then run `/build <plan>`; do not proceed to /pr.
+- `indeterminate`: the examiner could not observe a criterion; make it observable in the plan, then run `/build <plan>`; do not proceed to /pr.
+- `tainted`: the examiner ran a command it must not (pattern detection, possibly a false positive); name a run command per criterion, then run `/build <plan>`; do not proceed to /pr.
+- `missing`: no record exists for this plan; fix the cause the status message names, then run `/build <plan>`; do not proceed to /pr.
+
 ### 7.5. Assemble the evidence bundle
 
 Before the completion report, assemble a structured evidence bundle per

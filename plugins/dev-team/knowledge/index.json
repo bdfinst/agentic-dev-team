@@ -2746,6 +2746,10 @@
       "summary": "Produce a Farley Score for the tests written on this branch — the last quality signal before `/pr`.",
       "anchor": "7-final-test-quality-score-branch"
     },
+    "7.6. Acceptance examination": {
+      "summary": "This step runs on every /build invocation, including a re-run of a fully checked plan.",
+      "anchor": "76-acceptance-examination"
+    },
     "7.5. Assemble the evidence bundle": {
       "summary": "Before the completion report, assemble a structured evidence bundle per",
       "anchor": "75-assemble-the-evidence-bundle"
