@@ -26,6 +26,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
+| `acceptance-examiner` | [`acceptance-examiner.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/acceptance-examiner.md) | opus | Source-blind acceptance examination — runs the plan's run commands and reports one verdict per criterion; dispatched by `/build` Step 7.6, never directly |
 | `a11y-review` | [`a11y-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/a11y-review.md) | sonnet | WCAG 2.1 AA, ARIA, keyboard navigation |
 | `ai-provenance-review` | [`ai-provenance-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/ai-provenance-review.md) | opus | AI-authored test assertion verification debt, regeneration-risk candidates |
 | `angular-reactivity-review` | [`angular-reactivity-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/angular-reactivity-review.md) | sonnet | Angular Zone.js pitfalls, OnPush violations, RxJS subscription leaks |
@@ -49,7 +50,6 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `session-analysis` | [`session-analysis.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/session-analysis.md) | sonnet | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
 | `spec-compliance-review` | [`spec-compliance-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — general first gate before quality review (final `/code-review` gate; pre-build and batched/complex-slice checkpoints in `/build`) |
 | `spec-reviewer` | [`spec-reviewer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/spec-reviewer.md) | haiku | Spec-to-diff matching for a single freshly-implemented unit — Stage 1 of the three-stage inline review |
-| `acceptance-examiner` | [`acceptance-examiner.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/acceptance-examiner.md) | opus | Source-blind acceptance examination — runs the plan's run commands and reports one verdict per criterion; dispatched by `/build` Step 7.6, never directly |
 | `structure-review` | [`structure-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization, nesting depth, cognitive load, async-pattern judgment |
 | `test-review` | [`test-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
 | `test-smell-review` | [`test-smell-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-smell-review.md) | sonnet | xUnit test smells, test-double selection, pyramid placement |

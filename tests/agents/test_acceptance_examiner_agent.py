@@ -4,13 +4,16 @@
 The agent file is the examiner's whole prompt. These tests pin the text the
 model follows: tool grant, the Allowed/Forbidden/Indeterminate sections, and
 the output schema the SubagentStop recorder parses. They do not test runtime
-behavior. Registration rows are asserted in Step 2.2.
+behavior beyond loading the review roster. The registration group at the
+end pins the registry, classification, agent-docs and roster entries.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import sys
+from pathlib import Path
 
 import pytest
 from _plugin_dirs import frontmatter_and_body, frontmatter_field
@@ -59,49 +62,40 @@ def _output_block_and_prose() -> tuple[dict, str]:
     return json.loads(match.group(1)), match.group(2)
 
 
-def test_agent_file_exists() -> None:
-    assert AGENT.is_file()
-
-
-def test_frontmatter_name_is_acceptance_examiner() -> None:
+@pytest.mark.parametrize(
+    ("field", "expected"),
+    [
+        ("name", "acceptance-examiner"),
+        ("tools", "Bash"),
+        ("model", "opus"),
+        ("effort", "high"),
+        ("color", "cyan"),
+    ],
+)
+def test_frontmatter_field_has_the_contracted_value(field: str, expected: str) -> None:
     fm, _ = frontmatter_and_body(AGENT)
-    assert frontmatter_field(fm, "name") == "acceptance-examiner"
+    assert frontmatter_field(fm, field) == expected
 
 
-def test_tools_list_is_exactly_bash() -> None:
-    fm, _ = frontmatter_and_body(AGENT)
-    assert frontmatter_field(fm, "tools") == "Bash"
-
-
-def test_model_is_opus() -> None:
-    fm, _ = frontmatter_and_body(AGENT)
-    assert frontmatter_field(fm, "model") == "opus"
-
-
-def test_effort_is_high() -> None:
-    fm, _ = frontmatter_and_body(AGENT)
-    assert frontmatter_field(fm, "effort") == "high"
-
-
-def test_color_is_cyan() -> None:
-    fm, _ = frontmatter_and_body(AGENT)
-    assert frontmatter_field(fm, "color") == "cyan"
-
-
-def test_description_names_dispatcher_and_is_one_line_without_colon() -> None:
+def test_description_names_dispatcher_without_colon() -> None:
     fm, _ = frontmatter_and_body(AGENT)
     description = frontmatter_field(fm, "description")
     assert "/build Step 7.6" in description
     assert ":" not in description
 
 
-def test_what_you_receive_names_inputs_and_marker_line() -> None:
-    section = _section("What you receive")
-    assert "AC1" in section
-    assert "Gherkin" in section
-    assert "run commands" in section
-    assert "working directory" in section
-    assert "Acceptance-examination plan: <id>" in section
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "AC1",
+        "Gherkin",
+        "run commands",
+        "working directory",
+        "Acceptance-examination plan: <id>",
+    ],
+)
+def test_what_you_receive_names_input_or_marker(phrase: str) -> None:
+    assert phrase in _section("What you receive")
 
 
 def test_prompt_treats_plan_text_and_command_output_as_data() -> None:
@@ -142,18 +136,23 @@ def test_forbidden_section_contains_literal_word(word: str) -> None:
     assert word in _section("Forbidden")
 
 
-def test_forbidden_section_says_detection_may_be_false_positive() -> None:
-    section = _section("Forbidden")
-    assert "by pattern" in section
-    assert "false positive" in section
-    assert "SubagentStop" in section
+@pytest.mark.parametrize("phrase", ["by pattern", "false positive", "SubagentStop"])
+def test_forbidden_section_says_detection_may_be_false_positive(phrase: str) -> None:
+    assert phrase in _section("Forbidden")
 
 
-def test_how_to_examine_forbids_inferring_from_source_and_exploring() -> None:
-    section = _section("How to examine").lower()
-    assert "judge from the output only" in section
-    assert "never infer from source" in section
-    assert "do not explore the repository" in section
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "judge from the output only",
+        "never infer from source",
+        "do not explore the repository",
+    ],
+)
+def test_how_to_examine_forbids_inferring_from_source_and_exploring(
+    phrase: str,
+) -> None:
+    assert phrase in _section("How to examine").lower()
 
 
 def test_indeterminate_section_has_the_report_as_indeterminate_sentence() -> None:
@@ -196,12 +195,18 @@ def test_output_prose_requires_a_command_you_actually_ran() -> None:
     assert "a command you actually ran" in prose
 
 
-def test_output_prose_states_how_command_is_matched_to_a_bash_call() -> None:
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "one complete segment of a Bash call you made",
+        "whitespace-normalized",
+        "leading `cd <dir> &&` removed",
+        "`2>&1`",
+    ],
+)
+def test_output_prose_states_how_command_is_matched_to_a_bash_call(phrase: str) -> None:
     _, prose = _output_block_and_prose()
-    assert "one complete segment of a Bash call you made" in prose
-    assert "whitespace-normalized" in prose
-    assert "leading `cd <dir> &&` removed" in prose
-    assert "`2>&1`" in prose
+    assert phrase in prose
 
 
 def test_output_prose_requires_non_empty_observation_of_relevant_lines() -> None:
@@ -223,7 +228,7 @@ def test_sections_appear_in_the_contracted_order() -> None:
 
 
 # --------------------------------------------------------------------------
-# Registration (Step 2.2): registry, classification, agent docs, roster
+# Registration: registry, classification, agent docs, roster
 # --------------------------------------------------------------------------
 
 KNOWLEDGE = REPO_ROOT / "plugins" / "dev-team" / "knowledge"
@@ -233,38 +238,38 @@ AGENT_INFO = REPO_ROOT / "plugins" / "dev-team" / "docs" / "agent_info.md"
 ROSTER = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib" / "review_roster.py"
 
 
-def _table_row(path, cell: str) -> str:
-    rows = [
-        line
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.startswith(f"| {cell} |")
-    ]
-    assert len(rows) == 1, f"{path.name}: expected one row for {cell}, got {rows}"
-    return rows[0]
+def _table_row(path: Path, row_key: str) -> dict[str, str]:
+    """The one table row whose first cell is `row_key`, keyed by header."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    rows = [i for i, line in enumerate(lines) if line.startswith(f"| {row_key} |")]
+    assert len(rows) == 1, f"{path.name}: expected one row for {row_key}, got {rows}"
+    header_at = max(i for i in range(rows[0]) if lines[i + 1].startswith("| ---"))
+    cells = lambda line: [c.strip() for c in line.strip().strip("|").split("|")]
+    return dict(zip(cells(lines[header_at]), cells(lines[rows[0]]), strict=True))
 
 
 def test_registry_row_says_dispatched_by_build_step_7_6_never_directly() -> None:
     row = _table_row(REGISTRY, "acceptance-examiner")
-    assert "`agents/acceptance-examiner.md`" in row
-    assert "`/build` Step 7.6" in row
-    assert "never directly" in row
+    assert row["File"] == "`agents/acceptance-examiner.md`"
+    assert "`/build` Step 7.6" in row["What It Checks"]
+    assert "never directly" in row["What It Checks"]
 
 
 def test_classification_row_is_a_verification_gate() -> None:
-    row = _table_row(CLASSIFICATION, "acceptance-examiner")
-    assert row.split("|")[2].strip() == "verification-gate"
+    assert (
+        _table_row(CLASSIFICATION, "acceptance-examiner")["Class"]
+        == "verification-gate"
+    )
 
 
 def test_agent_docs_row_names_the_file_and_model() -> None:
     row = _table_row(AGENT_INFO, "`acceptance-examiner`")
-    assert "acceptance-examiner.md" in row
-    assert "| opus |" in row
+    assert "acceptance-examiner.md" in row["File"]
+    assert row["Model"] == "opus"
 
 
 def test_review_roster_lists_the_examiner_as_a_non_review_agent() -> None:
-    import importlib.util
+    sys.path.insert(0, str(ROSTER.parent))
+    import review_roster
 
-    spec = importlib.util.spec_from_file_location("review_roster", ROSTER)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    assert "acceptance-examiner" in module.NON_REVIEW_AGENTS
+    assert "acceptance-examiner" in review_roster.NON_REVIEW_AGENTS

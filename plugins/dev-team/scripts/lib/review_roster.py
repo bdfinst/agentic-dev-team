@@ -3,7 +3,8 @@
 ``NON_REVIEW_AGENTS`` names the agents that are **not** dispatchable
 code-review lenses — they have no per-file review scope at all: the team
 agents, the analysis-only agents, and the orchestrator-dispatched
-coordinators/gates (``quality-reviewer``, ``spec-reviewer``) that the
+coordinators/gates (``quality-reviewer``, ``spec-reviewer``, and the
+``/build``-dispatched ``acceptance-examiner``) that the
 registry's Review Agents table lists but which are never dispatched as
 standalone lenses. Two consumers share the set, for two related reasons —
 keep them together so an agent added for one reason is handled by both:
@@ -50,6 +51,7 @@ SCOPE_LINE_PATTERN = r"^\s*Scope\s*:\s*(.*)$"
 SCOPE_LINE_RE = re.compile(SCOPE_LINE_PATTERN)
 
 NON_REVIEW_AGENTS = frozenset({
+    "acceptance-examiner",  # /build Step 7.6 verification gate, Bash-only — not a lens
     "adr-author",
     "architect",
     "codebase-recon",
@@ -65,7 +67,6 @@ NON_REVIEW_AGENTS = frozenset({
     "session-analysis",
     "software-engineer",
     "spec-reviewer",  # Stage-1 spec gate, orchestrator-dispatched — not a lens
-    "acceptance-examiner",  # /build Step 7.6 verification gate, Bash-only — not a lens
     "tech-writer",
     "ui-ux-designer",
     # `claude-setup-review`, `token-efficiency-review`, and `ai-provenance-review`

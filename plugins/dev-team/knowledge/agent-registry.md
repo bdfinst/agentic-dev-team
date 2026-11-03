@@ -77,7 +77,7 @@ before naming:
 3. Else name ends `-review` or starts `plan-review-` → **green** (reviewer).
 4. Else → **cyan** (all others).
 
-Current fleet: 2 purple, 8 yellow, 32 green, 19 cyan (61 agents total, no
+Current fleet: 2 purple, 8 yellow, 32 green, 20 cyan (62 agents total, no
 ties). `tests/agents/test_agent_fleet_conventions.py` asserts every agent's
 declared `color:` matches the rule; `agent-create`/`agent-add` suggest the
 computed value the same way they already do `model:`/`effort:`.
@@ -94,7 +94,7 @@ same category as ADR 0026/0027):
   exactly `memory: project` (no other value, no omission). Neither tool →
   omit `memory:`.
 
-Current fleet: 12/61 agents carry `skills:`, 9/61 carry `memory: project`.
+Current fleet: 12/62 agents carry `skills:`, 9/62 carry `memory: project`.
 Same test file as color (`tests/agents/test_agent_fleet_conventions.py`)
 asserts both, via pure `classify_skills_declaration()` /
 `classify_memory_declaration()` functions; `agent-create`/`agent-add`

@@ -61,7 +61,7 @@ and attempting the recomputation, not acting on either yet").
 | test-smell-review | discovery-lens | Scans xUnit test smells, test-double selection, test-pyramid placement — open-ended. |
 | token-efficiency-review | discovery-lens | Scans file/function size and LLM anti-patterns for token cost — open-ended. |
 
-**Tally:** 24 discovery-lens (2 of them analysis-only, noted), 4
+**Tally:** 23 discovery-lens (2 of them analysis-only, noted), 5
 verification-gate, 1 not-applicable — 29 agents total, matching
 `agent-registry.md`'s Review Agents table row count exactly.
 
