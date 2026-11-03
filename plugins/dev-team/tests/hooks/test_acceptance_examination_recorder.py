@@ -128,12 +128,6 @@ def _record(repo: Path) -> dict:
     return store.read_record(store.record_path(repo, PLAN_ID))
 
 
-def _raw_record(repo: Path) -> dict:
-    """The record as written, bypassing the store's validation: the store
-    refuses a sentinel `binding_hash`, which these records carry."""
-    return json.loads(store.record_path(repo, PLAN_ID).read_text(encoding="utf-8"))
-
-
 def _events(repo: Path) -> list[dict]:
     path = repo / _EVENTS_REL
     if not path.is_file():
@@ -334,7 +328,7 @@ def test_unavailable_binding_is_indeterminate_with_binding_problem(
     )
     _stop(root, _examiner_rows())
 
-    record = _raw_record(root)
+    record = _record(root)
     assert record["overall"] == "indeterminate"
     assert "binding-hash-unavailable" in record["problems"]
     assert record["binding_hash"] == state

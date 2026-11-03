@@ -328,6 +328,16 @@ def test_write_record_propagates_a_write_failure(tmp_path: Path) -> None:
         store.write_record(blocker / "record.json", _valid_record())
 
 
+@pytest.mark.parametrize("sentinel", [store.BASE_UNRESOLVABLE, store.EMPTY_DIFF])
+def test_sentinel_binding_hash_is_readable_but_not_a_binding_hash(
+    tmp_path: Path, sentinel: str
+) -> None:
+    path = tmp_path / "record.json"
+    path.write_text(json.dumps({**_valid_record(), "binding_hash": sentinel}))
+    assert store.read_record(path)["binding_hash"] == sentinel
+    assert not store.is_binding_hash(sentinel)
+
+
 def test_tainted_overall_is_readable(tmp_path: Path) -> None:
     path = tmp_path / "record.json"
     path.write_text(json.dumps({**_valid_record(), "overall": "tainted"}))
@@ -391,16 +401,6 @@ def _without(key: str) -> dict:
             json.dumps({**_valid_record(), "criteria": [{"criterion": "AC1"}, 7]}),
             "invalid criteria",
             id="criteria-row-not-an-object",
-        ),
-        pytest.param(
-            json.dumps({**_valid_record(), "binding_hash": store.BASE_UNRESOLVABLE}),
-            "invalid binding_hash",
-            id="binding-hash-base-unresolvable",
-        ),
-        pytest.param(
-            json.dumps({**_valid_record(), "binding_hash": store.EMPTY_DIFF}),
-            "invalid binding_hash",
-            id="binding-hash-empty-diff",
         ),
         pytest.param(
             json.dumps(

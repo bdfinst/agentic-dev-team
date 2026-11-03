@@ -298,7 +298,9 @@ def stale_rule(record: dict, binding: Binding) -> str | None:
     """The staleness rule `record` trips against `binding`, or `None`.
 
     A sentinel binding (`BASE_UNRESOLVABLE`, `EMPTY_DIFF`) never equals a
-    stored hash, so it is always stale.
+    stored hash, so it is always stale. A stored sentinel (a record written
+    while the hash was unavailable) never equals a current hash either, so
+    once the base resolves that record is stale and must be re-run.
     """
     if record.get("binding_hash") != binding.hash:
         return RULE_STALE_DIFF

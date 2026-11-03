@@ -892,14 +892,14 @@ def test_a_record_path_that_is_a_directory_exits_with_one_line(
     assert "file could not be read" in result.stderr + result.stdout
 
 
-def test_render_refuses_a_sentinel_binding_hash_as_unreadable(repo: Path) -> None:
+def test_render_marks_a_sentinel_binding_hash_record_stale(repo: Path) -> None:
     write_met_record(repo)
     _rewrite_record(repo, binding_hash=store.BASE_UNRESOLVABLE)
 
     result = run_cli(repo, "render", "--plan", PLAN_ID)
 
-    assert result.returncode == 2
-    assert "invalid binding_hash" in result.stderr
+    assert result.returncode == 0
+    assert STALE_LINE in (repo / PLAN_ID).read_text(encoding="utf-8")
 
 
 def test_render_leaves_no_temp_file_beside_the_plan(repo: Path) -> None:

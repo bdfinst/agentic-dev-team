@@ -239,6 +239,19 @@ def test_base_unresolvable_remedy_is_the_git_fetch_line() -> None:
     assert "git fetch origin" in issue["suggestedFix"]
 
 
+@pytest.mark.parametrize("stored", [BASE_UNRESOLVABLE, EMPTY_DIFF])
+def test_record_stored_with_a_sentinel_hash_is_stale_once_the_base_resolves(
+    stored: str,
+) -> None:
+    record = make_record(
+        overall="indeterminate",
+        problems=["binding-hash-unavailable"],
+        binding_hash=stored,
+    )
+    issue = _only_error(_check(record, binding=HASH))
+    assert "out of date" in issue["message"]
+
+
 def test_unchanged_binding_and_inputs_are_not_stale() -> None:
     assert _check(binding=HASH, digest=DIGEST) == []
 
@@ -545,11 +558,10 @@ def test_record_path_that_is_a_directory_is_unreadable_not_a_traceback(
     assert "file could not be read" in issue["message"]
 
 
-def test_record_with_a_sentinel_binding_hash_is_unreadable(repo: Path) -> None:
+def test_met_record_with_a_sentinel_binding_hash_never_passes(repo: Path) -> None:
     write_met_record(repo, binding_hash=BASE_UNRESOLVABLE)
     issue = _only_error(gate.load_and_check(repo / PLAN_ID))
-    assert issue["rule_id"] == gate.RULE_UNREADABLE
-    assert "invalid binding_hash" in issue["message"]
+    assert issue["rule_id"] == gate.RULE_STALE_DIFF
 
 
 def test_record_with_a_non_object_criteria_row_is_unreadable(repo: Path) -> None:
