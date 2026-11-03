@@ -67,7 +67,7 @@ from examiner_fixtures import (  # type: ignore[import-not-found]
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 _EVENTS_REL = Path(".claude") / "metrics" / "boundary-events.jsonl"
-_RECORD_GLOB = ".claude/memory/acceptance-examination-*"
+_RECORD_GLOB = ".claude/memory/*acceptance-examination-*"  # also a leaked .tmp
 _RAN = "pytest -q"
 _FEATURE_READ = "cat features/login.feature"
 
@@ -170,7 +170,7 @@ def test_clean_transcript_writes_met_record_bound_to_branch_and_inputs(
     assert record["overall"] == "met"
     assert record["plan"] == PLAN_ID
     assert record["agent_id"] == AGENT_ID
-    assert record["binding_hash"] == store.current_binding(repo, PLAN_ID)
+    assert record["binding_hash"] == store.current_binding_hash(repo, PLAN_ID)
     assert record["inputs_digest"] == inputs_digest(plan_examination_inputs(PLAN_TEXT))
     assert record["problems"] == []
     assert record["audit_findings"] == []
@@ -437,7 +437,9 @@ def test_unavailable_binding_is_indeterminate_with_binding_problem(
 
     record = _record(root)
     assert record["overall"] == "indeterminate"
-    assert "binding-hash-unavailable" in record["problems"]
+    assert state in record["problems"]
+    other = "empty-diff" if state == "base-unresolvable" else "base-unresolvable"
+    assert other not in record["problems"]
     assert record["binding_hash"] == state
 
 

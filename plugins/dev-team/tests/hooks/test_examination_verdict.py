@@ -343,7 +343,8 @@ def test_criterion_id_outside_the_ac_grammar_is_an_invalid_shape(criterion):
 
 def test_problem_vocabulary_lives_with_the_writer():
     assert ev.PROBLEM_UNPARSEABLE == "unparseable-result"
-    assert ev.PROBLEM_BASE_UNRESOLVABLE == "binding-hash-unavailable"
+    assert ev.PROBLEM_BASE_UNRESOLVABLE == "base-unresolvable"
+    assert ev.PROBLEM_EMPTY_DIFF == "empty-diff"
 
 
 @pytest.mark.parametrize(

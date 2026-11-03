@@ -89,13 +89,18 @@ def canonical_plan_id(plan_path: Path | str, root: Path | str) -> str:
 
 
 def record_path(root: Path | str, plan_id: str) -> Path:
-    """Where the record for `plan_id` lives, one file per plan."""
+    """Where the record for `plan_id` lives, one file per plan.
+
+    `root` is the git toplevel already; the path is built without
+    `artifact_paths.memory_dir`, which would run `git rev-parse` again with no
+    timeout.
+    """
     escaped = plan_id.replace("/", _PATH_SEPARATOR_ESCAPE)
     filename = f"{RECORD_FILENAME_PREFIX}{escaped}{RECORD_FILENAME_SUFFIX}"
-    return artifact_paths.memory_dir(root) / filename
+    return Path(root) / ".claude" / "memory" / filename
 
 
-def current_binding(root: Path | str, plan_id: str) -> str:
+def current_binding_hash(root: Path | str, plan_id: str) -> str:
     """sha256 of the branch diff against its base, leaving out the plan file.
 
     Returns `BASE_UNRESOLVABLE` when no base ref resolves or git fails or times
@@ -116,7 +121,7 @@ def current_binding(root: Path | str, plan_id: str) -> str:
 def binding_for_plan(root: Path | str, plan_id: str, plan_text: str) -> Binding:
     """The current `Binding`: the branch hash and the plan's inputs digest."""
     digest = inputs_digest(plan_examination_inputs(plan_text))
-    return Binding(current_binding(root, plan_id), digest)
+    return Binding(current_binding_hash(root, plan_id), digest)
 
 
 def is_binding_hash(value: object) -> bool:
@@ -213,7 +218,7 @@ __all__ = (
     "RecordUnreadable",
     "binding_for_plan",
     "canonical_plan_id",
-    "current_binding",
+    "current_binding_hash",
     "is_binding_hash",
     "is_stored_binding_hash",
     "load_record",

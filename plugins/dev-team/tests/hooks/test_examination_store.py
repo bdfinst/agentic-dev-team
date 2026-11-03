@@ -71,20 +71,20 @@ def _valid_record() -> dict:
 
 
 def test_binding_hash_ignores_a_plan_only_commit(repo: Path) -> None:
-    before = store.current_binding(repo, PLAN_ID)
+    before = store.current_binding_hash(repo, PLAN_ID)
     commit_file(repo, PLAN_ID, "# plan\n- [x] ticked\n", "tick plan")
-    assert store.current_binding(repo, PLAN_ID) == before
+    assert store.current_binding_hash(repo, PLAN_ID) == before
 
 
 def test_binding_hash_changes_on_a_source_commit(repo: Path) -> None:
-    before = store.current_binding(repo, PLAN_ID)
+    before = store.current_binding_hash(repo, PLAN_ID)
     commit_file(repo, "src/app.py", "print(1)\n", "add source")
-    assert store.current_binding(repo, PLAN_ID) != before
+    assert store.current_binding_hash(repo, PLAN_ID) != before
 
 
 def test_binding_hash_is_a_binding_hash(repo: Path) -> None:
     commit_file(repo, "src/app.py", "print(1)\n", "add source")
-    assert store.is_binding_hash(store.current_binding(repo, PLAN_ID))
+    assert store.is_binding_hash(store.current_binding_hash(repo, PLAN_ID))
 
 
 def test_binding_is_unresolvable_without_a_base_ref(tmp_path: Path) -> None:
@@ -92,7 +92,7 @@ def test_binding_is_unresolvable_without_a_base_ref(tmp_path: Path) -> None:
     init_repo(root, "work")
     commit_file(root, "a.txt", "1\n", "one")
     commit_file(root, "b.txt", "2\n", "two")
-    assert store.current_binding(root, PLAN_ID) == store.BASE_UNRESOLVABLE
+    assert store.current_binding_hash(root, PLAN_ID) == store.BASE_UNRESOLVABLE
 
 
 def test_binding_is_empty_diff_when_work_equals_main(tmp_path: Path) -> None:
@@ -100,11 +100,11 @@ def test_binding_is_empty_diff_when_work_equals_main(tmp_path: Path) -> None:
     init_repo(root, "main")
     commit_file(root, "base.txt", "base\n", "base")
     git(root, "checkout", "-q", "-b", "work")
-    assert store.current_binding(root, PLAN_ID) == store.EMPTY_DIFF
+    assert store.current_binding_hash(root, PLAN_ID) == store.EMPTY_DIFF
 
 
 def test_binding_is_empty_diff_when_only_the_plan_differs(repo: Path) -> None:
-    assert store.current_binding(repo, PLAN_ID) == store.EMPTY_DIFF
+    assert store.current_binding_hash(repo, PLAN_ID) == store.EMPTY_DIFF
 
 
 def _git_fails_for_diff(monkeypatch: pytest.MonkeyPatch, outcome: object) -> None:
@@ -128,14 +128,14 @@ def test_binding_is_base_unresolvable_when_git_diff_fails(
     commit_file(repo, "src/app.py", "print(1)\n", "add source")
     failed = subprocess.CompletedProcess(["git"], 128, stdout=b"", stderr=b"fatal")
     _git_fails_for_diff(monkeypatch, failed)
-    assert store.current_binding(repo, PLAN_ID) == store.BASE_UNRESOLVABLE
+    assert store.current_binding_hash(repo, PLAN_ID) == store.BASE_UNRESOLVABLE
 
 
 def test_binding_is_base_unresolvable_when_git_diff_times_out(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _git_fails_for_diff(monkeypatch, subprocess.TimeoutExpired(["git"], 30))
-    assert store.current_binding(repo, PLAN_ID) == store.BASE_UNRESOLVABLE
+    assert store.current_binding_hash(repo, PLAN_ID) == store.BASE_UNRESOLVABLE
 
 
 def test_binding_is_base_unresolvable_when_a_base_probe_times_out(
@@ -145,7 +145,7 @@ def test_binding_is_base_unresolvable_when_a_base_probe_times_out(
         raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
 
     monkeypatch.setattr(subprocess, "run", _slow)
-    assert store.current_binding(repo, PLAN_ID) == store.BASE_UNRESOLVABLE
+    assert store.current_binding_hash(repo, PLAN_ID) == store.BASE_UNRESOLVABLE
 
 
 def test_binding_git_calls_carry_a_timeout(
@@ -159,7 +159,7 @@ def test_binding_git_calls_carry_a_timeout(
         return real_run(argv, **kwargs)
 
     monkeypatch.setattr(subprocess, "run", _spy)
-    store.current_binding(repo, PLAN_ID)
+    store.current_binding_hash(repo, PLAN_ID)
     assert timeouts and None not in timeouts
 
 
@@ -171,14 +171,14 @@ def test_binding_excludes_only_the_literal_plan_path(tmp_path: Path) -> None:
     plan_id = "plans/p*.md"
     commit_file(root, plan_id, "# plan\n", "add plan")
     commit_file(root, "plans/pq.py", "print(1)\n", "add sibling")
-    before = store.current_binding(root, plan_id)
+    before = store.current_binding_hash(root, plan_id)
     assert store.is_binding_hash(before)
 
     commit_file(root, plan_id, "# plan\n- [x] ticked\n", "tick plan")
-    assert store.current_binding(root, plan_id) == before
+    assert store.current_binding_hash(root, plan_id) == before
 
     commit_file(root, "plans/pq.md", "# sibling\n", "sibling matched by the glob")
-    assert store.current_binding(root, plan_id) != before
+    assert store.current_binding_hash(root, plan_id) != before
 
 
 def test_binding_for_plan_pairs_the_hash_with_the_inputs_digest(repo: Path) -> None:
@@ -186,7 +186,7 @@ def test_binding_for_plan_pairs_the_hash_with_the_inputs_digest(repo: Path) -> N
     plan_text = "# plan\n\n## Acceptance Criteria\n\n- [ ] one\n"
     binding = store.binding_for_plan(repo, PLAN_ID, plan_text)
     assert binding == store.Binding(
-        store.current_binding(repo, PLAN_ID),
+        store.current_binding_hash(repo, PLAN_ID),
         inputs_digest(plan_examination_inputs(plan_text)),
     )
     assert (binding.hash, binding.inputs_digest) == tuple(binding)
@@ -285,6 +285,17 @@ def test_same_stem_plans_in_different_directories_have_different_records(
 def test_record_path_lives_in_the_memory_dir_with_escaped_separators(
     repo: Path,
 ) -> None:
+    expected = repo / ".claude" / "memory" / "acceptance-examination-plans__x.md.json"
+    assert store.record_path(repo, "plans/x.md") == expected
+
+
+def test_record_path_runs_no_subprocess(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("record_path must not run a subprocess")
+
+    monkeypatch.setattr(subprocess, "run", refuse)
     expected = repo / ".claude" / "memory" / "acceptance-examination-plans__x.md.json"
     assert store.record_path(repo, "plans/x.md") == expected
 

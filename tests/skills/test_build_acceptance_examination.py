@@ -271,15 +271,24 @@ def test_step_states_dispatch_conditions_per_status_outcome() -> None:
 
 def test_clean_tree_check_exempts_the_plan_file() -> None:
     step = _step_76()
-    assert "no tracked changes outside the plan file" in step
+    assert "no tracked changes and no non-ignored untracked files outside the plan file" in step
     assert "commit first" in step
     assert "lists the dirty paths" in step
+
+
+def test_clean_tree_check_sees_untracked_files() -> None:
+    step = _step_76()
+    assert "`git status --porcelain -- ':(top,exclude)<plan>'`" in step
+    assert "untracked-files" not in step
+    assert "an untracked file counts as dirty" in step
+    row = _reference_row("Before dispatch", "exit 1 for any other reason")
+    assert "an untracked file counts as dirty" in row
 
 
 def test_clean_tree_check_and_capability_gate_come_before_dispatch() -> None:
     step = _step_76()
     dispatch = step.index("subagent_type")
-    assert step.index("no tracked changes outside the plan file") < dispatch
+    assert step.index("no tracked changes and no non-ignored untracked files outside the plan file") < dispatch
     assert step.index("Dispatch-capability gate") < dispatch
 
 
@@ -327,14 +336,14 @@ def test_exit_1_with_a_readable_record_renders_prints_and_stops() -> None:
     bullet = _item_bullet(5, "Exit 1 with a readable record")
     assert "`render`" in bullet
     assert "print the status message" in bullet
-    assert "stop" in bullet
+    assert "and stop" in bullet
 
 
 def test_unreadable_or_other_plan_record_is_not_rendered() -> None:
     bullet = _item_bullet(5, "Exit 1, record unreadable or for another plan")
     assert "do not run `render`" in bullet
     assert "print the status message" in bullet
-    assert "stop" in bullet
+    assert "and stop" in bullet
 
 
 def test_absent_bullet_is_recognised_by_prefix_and_prints_the_recorder_text() -> None:

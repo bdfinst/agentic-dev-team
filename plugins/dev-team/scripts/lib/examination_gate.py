@@ -7,8 +7,10 @@ through `load_and_check`; the `acceptance_examination.py status` CLI reuses it,
 so every caller shows the same text.
 
 Precedence when several conditions hold: exempt, absent, unreadable, other
-plan, older than `after`, base unresolvable, empty diff, stale diff, stale
-inputs, then the record's verdict (not-met, indeterminate, tainted). Exactly
+plan, older than `after`, base unresolvable (current binding), empty diff
+(current binding), stale diff, stale inputs, then the record's verdict
+(not-met, indeterminate, tainted). A record stored with a sentinel hash is
+stale once the current binding resolves, so it is re-dispatchable. Exactly
 one issue is returned. A caller passes `after` (an ISO 8601 time) to say "only
 a record written after this moment counts": a record whose `recorded_at` is
 missing, unparsable, or not strictly newer is reported absent. Message text
@@ -50,6 +52,7 @@ from examination_verdict import (  # type: ignore[import-not-found]
     PROBLEM_BASE_UNRESOLVABLE,
     PROBLEM_COMMAND_NOT_RUN,
     PROBLEM_DUPLICATE,
+    PROBLEM_EMPTY_DIFF,
     PROBLEM_INCOMPLETE_ROW,
     PROBLEM_INVALID_SHAPE,
     PROBLEM_INVALID_VERDICT,
@@ -87,6 +90,7 @@ _MALFORMED_REMEDY_AGAIN = "Run: /build {plan} again without changing the plan."
 _MALFORMED_REMEDY_NO_CRITERIA = (
     "Add acceptance criteria to the plan, then run: /build {plan}."
 )
+_REMEDY_COMMIT = "Commit your changes, then run: /build {plan}."
 _REMEDY_FETCH = (
     "Fetch the default branch (git fetch origin && git remote set-head origin -a), "
     "then run: /build {plan}."
@@ -121,7 +125,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
             "Acceptance examination cannot run: this branch has no commits ahead of "
             "the branch base, so there is nothing to examine."
         ),
-        "Commit your changes, then run: /build {plan}.",
+        _REMEDY_COMMIT,
     ),
     RULE_STALE_DIFF: (
         "Acceptance examination is out of date: commits landed after it ran.",
@@ -192,6 +196,7 @@ _GLOSSES: dict[str, str] = {
     PROBLEM_UNPARSEABLE: "the result could not be parsed",
     PROBLEM_NO_CRITERIA: "the plan lists no acceptance criteria",
     PROBLEM_BASE_UNRESOLVABLE: "the branch base could not be resolved",
+    PROBLEM_EMPTY_DIFF: "the branch has no commits ahead of its base",
 }
 
 _BINDING_RULES = {
@@ -288,6 +293,8 @@ def _malformed_fields(problems: list, plan_id: str) -> dict:
         remedy = _MALFORMED_REMEDY_NO_CRITERIA
     elif PROBLEM_BASE_UNRESOLVABLE in kinds:
         remedy = _REMEDY_FETCH
+    elif PROBLEM_EMPTY_DIFF in kinds:
+        remedy = _REMEDY_COMMIT
     else:
         remedy = _MALFORMED_REMEDY_AGAIN
     return {
@@ -325,10 +332,11 @@ def stale_rule(record: dict, binding: Binding) -> str | None:
 
     A sentinel binding (`BASE_UNRESOLVABLE`, `EMPTY_DIFF`) never equals a
     stored hash, so it is always stale. A stored sentinel (a record written
-    while the hash was unavailable) never equals a current hash either, so
-    this function reports it stale. `_refusal` checks a stored sentinel first
-    and refuses with that sentinel's own rule instead, so the gate never
-    reports it as plain staleness.
+    while the hash was unavailable) never equals a real current hash either,
+    so it is stale too: the gate reports `RULE_STALE_DIFF` and `/build`
+    re-dispatches the examiner. When the current binding is itself a
+    sentinel, `_refusal` returns that sentinel's rule before this function
+    runs.
     """
     if record.get("binding_hash") != binding.hash:
         return RULE_STALE_DIFF
@@ -357,9 +365,6 @@ def _refusal(
         return RULE_OTHER_PLAN, {"path": path, "other": record.get("plan")}
     if after is not None and not _is_newer_than(record, after):
         return RULE_MISSING, {"path": path}
-    stored = record.get("binding_hash")
-    if stored in _BINDING_RULES:
-        return _BINDING_RULES[stored], {}
     if binding.hash in _BINDING_RULES:
         return _BINDING_RULES[binding.hash], {}
     if stale := stale_rule(record, binding):
@@ -394,12 +399,20 @@ def _cannot_check(plan_path: Path | str, problem: str) -> list[dict]:
     return [_issue(RULE_CANNOT_CHECK, str(plan_path), problem=problem)]
 
 
-def load_and_check(plan_path: Path | str, *, after: str | None = None) -> list[dict]:
+def load_and_check(
+    plan_path: Path | str,
+    *,
+    after: str | None = None,
+    binding: Binding | None = None,
+) -> list[dict]:
     """Check the plan at `plan_path` against its record in the plan's repo.
 
     `after` is an ISO 8601 time; see the module docstring. A value that does
     not parse is a caller bug and raises `ValueError`; every other failure
-    becomes one error issue, never an exception.
+    becomes one error issue, never an exception. `binding` is a precomputed
+    current binding for this plan: a caller that checks the same plan
+    repeatedly (a poll loop) computes it once, and only the record is re-read
+    on each call.
     """
     after_time = None
     if after is not None:
@@ -419,7 +432,7 @@ def load_and_check(plan_path: Path | str, *, after: str | None = None) -> list[d
         plan_id,
         load_record(path),
         path,
-        binding_for_plan(root, plan_id, plan_text),
+        binding if binding is not None else binding_for_plan(root, plan_id, plan_text),
         is_exempt(plan_text),
         after_time,
     )

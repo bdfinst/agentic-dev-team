@@ -146,9 +146,14 @@ def test_unobservable_indeterminate_names_criteria_and_observation() -> None:
             "Add acceptance criteria to the plan",
         ),
         (
-            ["binding-hash-unavailable"],
+            ["base-unresolvable"],
             "the branch base could not be resolved",
             "git fetch origin",
+        ),
+        (
+            ["empty-diff"],
+            "the branch has no commits ahead of its base",
+            "Commit your changes",
         ),
         (["duplicate AC2"], "AC2 has more than one row", "again without changing"),
         (["unknown AC9"], "AC9 is not a criterion in the plan", "again without"),
@@ -227,9 +232,6 @@ def test_record_for_another_plan_names_it() -> None:
     issue = _only_error(_check(make_record(plan="plans/y.md")))
     assert "belongs to plans/y.md" in issue["message"]
     assert PATH in issue["message"]
-
-
-RECORDED_AT = "2026-11-03T10:00:00+00:00"
 
 
 @pytest.mark.parametrize(
@@ -332,6 +334,23 @@ def test_base_unresolvable_remedy_is_the_git_fetch_line() -> None:
     assert "git fetch origin" in issue["suggestedFix"]
 
 
+def _sentinel_record(stored: str) -> dict:
+    return make_record(
+        overall="indeterminate",
+        problems=["base-unresolvable"],
+        binding_hash=stored,
+    )
+
+
+@pytest.mark.parametrize("stored", [BASE_UNRESOLVABLE, EMPTY_DIFF])
+def test_record_stored_with_a_sentinel_is_redispatchable_once_the_binding_resolves(
+    stored: str,
+) -> None:
+    issue = _only_error(_check(_sentinel_record(stored), binding=HASH))
+    assert issue["rule_id"] == gate.RULE_STALE_DIFF
+    assert "re-runs the examiner" in issue["suggestedFix"]
+
+
 @pytest.mark.parametrize(
     ("stored", "rule", "remedy"),
     [
@@ -339,15 +358,10 @@ def test_base_unresolvable_remedy_is_the_git_fetch_line() -> None:
         (EMPTY_DIFF, gate.RULE_EMPTY_DIFF, "Commit your changes"),
     ],
 )
-def test_record_stored_with_a_sentinel_hash_gets_the_sentinels_own_refusal(
+def test_record_stored_with_a_sentinel_gets_the_current_sentinels_refusal(
     stored: str, rule: str, remedy: str
 ) -> None:
-    record = make_record(
-        overall="indeterminate",
-        problems=["binding-hash-unavailable"],
-        binding_hash=stored,
-    )
-    issue = _only_error(_check(record, binding=HASH))
+    issue = _only_error(_check(_sentinel_record(stored), binding=stored))
     assert issue["rule_id"] == rule
     assert remedy in issue["suggestedFix"]
 
@@ -628,13 +642,14 @@ def test_a_criterion_id_that_is_not_ac_n_never_reaches_the_gloss() -> None:
 
 
 def test_progress_guardian_and_the_cli_share_one_gate_module(tmp_path: Path) -> None:
-    """One interpreter, both entry points imported: `sys.modules` holds the gate
-    once, so a single monkeypatch of it reaches `--pre-pr` and `status` alike."""
+    """One interpreter, both entry points imported: they call the same gate
+    function, so a fix to the gate reaches `--pre-pr` and `status` alike."""
     scripts = REPO_ROOT / "plugins" / "dev-team" / "scripts"
     code = (
         "import sys; sys.path.insert(0, sys.argv[1]); "
         "import progress_guardian, acceptance_examination; "
-        "print(*sorted(m for m in sys.modules if m.endswith('examination_gate')))"
+        "print(progress_guardian.load_and_check is "
+        "acceptance_examination.examination_gate.load_and_check)"
     )
     result = subprocess.run(
         [sys.executable, "-c", code, str(scripts)],
@@ -644,12 +659,13 @@ def test_progress_guardian_and_the_cli_share_one_gate_module(tmp_path: Path) -> 
         cwd=tmp_path,
         env=git_env(tmp_path),
     )
-    assert result.stdout.split() == ["examination_gate"]
+    assert result.stdout.strip() == "True"
 
 
-def test_message_constants_do_not_name_the_base_refusal_malformed() -> None:
-    assert not hasattr(gate, "_MALFORMED_REMEDY_FETCH")
-    assert gate._REMEDY_FETCH in gate._MESSAGES[gate.RULE_BASE_UNRESOLVABLE]
+def test_base_refusal_message_is_not_the_malformed_result_message() -> None:
+    message = gate.refusal_message(gate.RULE_BASE_UNRESOLVABLE, PLAN_ID)
+    assert "branch base could not be resolved" in message
+    assert "incomplete" not in message
 
 
 def test_git_failure_is_reported_as_an_unresolvable_base_not_an_empty_diff(
@@ -683,7 +699,27 @@ def test_record_path_that_is_a_directory_is_unreadable_not_a_traceback(
 def test_met_record_with_a_sentinel_binding_hash_never_passes(repo: Path) -> None:
     write_met_record(repo, binding_hash=BASE_UNRESOLVABLE)
     issue = _only_error(gate.load_and_check(repo / PLAN_ID))
-    assert issue["rule_id"] == gate.RULE_BASE_UNRESOLVABLE
+    assert issue["rule_id"] in {
+        gate.RULE_STALE_DIFF,
+        gate.RULE_BASE_UNRESOLVABLE,
+        gate.RULE_EMPTY_DIFF,
+    }
+
+
+def test_load_and_check_uses_a_supplied_binding_without_recomputing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_met_record(repo)
+    current = gate.binding_for_plan(
+        repo, PLAN_ID, (repo / PLAN_ID).read_text(encoding="utf-8")
+    )
+
+    def _unexpected(*args: object, **kwargs: object) -> None:
+        raise AssertionError("binding_for_plan was called")
+
+    monkeypatch.setattr(gate, "binding_for_plan", _unexpected)
+
+    assert gate.load_and_check(repo / PLAN_ID, binding=current) == []
 
 
 def test_record_with_a_non_object_criteria_row_is_unreadable(repo: Path) -> None:

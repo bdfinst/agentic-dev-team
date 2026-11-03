@@ -15,8 +15,9 @@
   `## Acceptance Examination` section (replace in place, else after
   `## Plan Review Summary`, else at the end). Output is byte-stable.
 
-Exit codes: 0 success; 1 refusal (`status`) or an absent record (`show`,
-`render`); 2 usage error, a plan that cannot be written, or an unreadable
+Exit codes: 0 success; 1 refusal (`status`), an absent record (`show`,
+`render`), or a plan edited by someone else while `render` ran (nothing is
+written); 2 usage error, a plan that cannot be written, or an unreadable
 record under `show` and `render`. `status` reports an unreadable record as a
 refusal, exit 1, like any other gate condition. A failure prints one stderr
 line, never a traceback.
@@ -59,6 +60,7 @@ EXIT_USAGE = 2
 
 DEFAULT_POLL_INTERVAL = 0.5
 MET_LINE = "Acceptance examination met and up to date for {plan}."
+PLAN_CHANGED_LINE = "plan changed during render; nothing written"
 WAITING_LINE = "Waiting for the acceptance examination record (up to {wait:g}s)..."
 
 SECTION_HEADING = f"## {EXAMINATION_SECTION}"
@@ -272,23 +274,32 @@ def _iso_time(text: str) -> str:
 
 
 def _poll_gate(
-    plan: str, wait: float, interval: float, after: str | None = None
+    plan: str,
+    wait: float,
+    interval: float,
+    after: str | None,
+    binding: store.Binding,
 ) -> list[dict]:
-    """Check the gate; while it refuses, re-check until `wait` seconds pass."""
-    issues = examination_gate.load_and_check(plan, after=after)
+    """Check the gate; while it refuses, re-check until `wait` seconds pass.
+
+    `binding` is computed once by the caller; each re-check re-reads only the
+    record.
+    """
+    issues = examination_gate.load_and_check(plan, after=after, binding=binding)
     if wait <= 0 or not examination_gate.blocking_issues(issues):
         return issues
     print(WAITING_LINE.format(wait=wait), file=sys.stderr)
     deadline = time.monotonic() + wait
     while examination_gate.blocking_issues(issues) and time.monotonic() < deadline:
         time.sleep(interval)  # 0 yields the CPU rather than busy-waiting
-        issues = examination_gate.load_and_check(plan, after=after)
+        issues = examination_gate.load_and_check(plan, after=after, binding=binding)
     return issues
 
 
 def cmd_status(args: argparse.Namespace) -> int:
     loaded = _load(args.plan)
-    issues = _poll_gate(args.plan, args.wait, args.poll_interval, args.after)
+    binding = store.binding_for_plan(loaded.root, loaded.plan_id, loaded.plan_text)
+    issues = _poll_gate(args.plan, args.wait, args.poll_interval, args.after, binding)
     blocking = examination_gate.blocking_issues(issues)
     if blocking:
         print(blocking[0]["message"])
@@ -317,6 +328,13 @@ def cmd_show(args: argparse.Namespace) -> int:
         return EXIT_REFUSED
     print(json.dumps(record, indent=2))
     return EXIT_OK
+
+
+def _read_plan_text(path: str) -> str:
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise UsageError(f"cannot read plan {path}: {exc}") from exc
 
 
 def _write_plan(path: str, text: str) -> None:
@@ -352,6 +370,9 @@ def cmd_render(args: argparse.Namespace) -> int:
     section = render_section(record, examination_gate.is_stale(record, binding))
     updated = upsert_section(loaded.plan_text, section)
     if updated != loaded.plan_text:
+        if _read_plan_text(args.plan) != loaded.plan_text:
+            print(PLAN_CHANGED_LINE, file=sys.stderr)
+            return EXIT_REFUSED
         _write_plan(args.plan, updated)
     return EXIT_OK
 

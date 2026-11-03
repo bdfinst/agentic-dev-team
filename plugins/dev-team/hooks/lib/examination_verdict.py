@@ -43,8 +43,11 @@ PROBLEM_INVALID_VERDICT = "invalid-verdict"
 PROBLEM_COMMAND_NOT_RUN = "command-not-run"
 PROBLEM_UNPARSEABLE = "unparseable-result"
 #: The branch binding could not be computed: the base ref did not resolve or
-#: git failed (the store's `BASE_UNRESOLVABLE` sentinel).
-PROBLEM_BASE_UNRESOLVABLE = "binding-hash-unavailable"
+#: git failed (the store's `BASE_UNRESOLVABLE` sentinel, same spelling).
+PROBLEM_BASE_UNRESOLVABLE = "base-unresolvable"
+#: The branch has no commits ahead of its base (the store's `EMPTY_DIFF`
+#: sentinel, same spelling).
+PROBLEM_EMPTY_DIFF = "empty-diff"
 
 _COMMAND_VERDICTS = (MET, NOT_MET)
 RECORD_SCHEMA = 1

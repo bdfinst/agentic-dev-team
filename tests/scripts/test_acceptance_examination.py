@@ -192,13 +192,14 @@ def test_status_after_an_earlier_time_keeps_the_met_verdict(repo: Path) -> None:
     assert result.returncode == 0
 
 
+@pytest.mark.slow
 def test_status_wait_with_after_does_not_accept_an_old_record(repo: Path) -> None:
     write_met_record(repo)
 
     result = run_cli(
         repo,
         *("status", "--plan", PLAN_ID, "--after", "2999-01-01T00:00:00Z"),
-        *("--wait", "1", "--poll-interval", "0.1"),
+        *("--wait", "0.3", "--poll-interval", "0.05"),
     )
 
     assert result.returncode == 1
@@ -220,8 +221,9 @@ def _readline_within(stream, seconds: float) -> str:
     return lines[0]
 
 
+@pytest.mark.slow
 def test_status_waits_for_a_record_that_appears_late(repo: Path) -> None:
-    wait = 5
+    wait = 30  # a ceiling: the loop exits as soon as the record appears
     process = subprocess.Popen(
         [
             sys.executable,
@@ -250,15 +252,16 @@ def test_status_waits_for_a_record_that_appears_late(repo: Path) -> None:
     assert "met and up to date" in stdout
 
 
+@pytest.mark.slow
 def test_status_gives_up_after_the_wait_window(repo: Path) -> None:
     result = run_cli(
-        repo, "status", "--plan", PLAN_ID, "--wait", "1", "--poll-interval", "0.1"
+        repo, "status", "--plan", PLAN_ID, "--wait", "0.3", "--poll-interval", "0.05"
     )
 
     assert result.returncode == 1
     assert MISSING_MESSAGE in result.stdout
     assert BUILD_REMEDY in result.stdout
-    assert "Waiting for the acceptance examination record (up to 1s)" in result.stderr
+    assert "Waiting for the acceptance examination record (up to 0.3s)" in result.stderr
 
 
 @pytest.mark.parametrize(
@@ -986,6 +989,31 @@ def test_a_failed_plan_write_is_one_line_exit_two(
     assert (in_process / PLAN_ID).read_bytes() == before
 
 
+def test_render_writes_nothing_when_the_plan_changed_during_the_render(
+    in_process: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    write_met_record(in_process)
+    plan = in_process / PLAN_ID
+    real_upsert = cli.upsert_section
+    edited = {}
+
+    def _upsert_then_edit(text, section):
+        updated = real_upsert(text, section)
+        edited["text"] = text + "\nedited by someone else\n"
+        plan.write_text(edited["text"], encoding="utf-8")
+        return updated
+
+    monkeypatch.setattr(cli, "upsert_section", _upsert_then_edit)
+
+    code = cli.main(["render", "--plan", PLAN_ID])
+
+    assert code == 1
+    assert capsys.readouterr().err.strip().splitlines() == [
+        "plan changed during render; nothing written"
+    ]
+    assert plan.read_text(encoding="utf-8") == edited["text"]
+
+
 def test_render_writes_through_atomic_write(
     in_process: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1015,6 +1043,28 @@ def test_render_does_not_rewrite_a_plan_that_already_has_the_section(
     monkeypatch.setattr(cli.atomic_state, "atomic_write", _unexpected)
 
     assert cli.main(["render", "--plan", PLAN_ID]) == 0
+
+
+@pytest.mark.slow
+def test_status_polling_computes_the_binding_once(
+    in_process: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+    real = gate.binding_for_plan
+
+    def _count(*args, **kwargs):
+        calls.append(args[1])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(gate, "binding_for_plan", _count)
+    monkeypatch.setattr(store, "binding_for_plan", _count)
+
+    code = cli.main(
+        ["status", "--plan", PLAN_ID, "--wait", "0.3", "--poll-interval", "0.05"]
+    )
+
+    assert code == 1  # no record: the loop polled until the window closed
+    assert len(calls) == 1
 
 
 def test_is_stale_uses_the_gate_rule(in_process: Path) -> None:

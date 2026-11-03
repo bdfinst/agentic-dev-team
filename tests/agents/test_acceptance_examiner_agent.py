@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 from pathlib import Path
 
 import pytest
@@ -268,8 +267,10 @@ def test_agent_docs_row_names_the_file_and_model() -> None:
     assert row["Model"] == "opus"
 
 
-def test_review_roster_lists_the_examiner_as_a_non_review_agent() -> None:
-    sys.path.insert(0, str(ROSTER.parent))
+def test_review_roster_lists_the_examiner_as_a_non_review_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.syspath_prepend(str(ROSTER.parent))
     import review_roster
 
     assert "acceptance-examiner" in review_roster.NON_REVIEW_AGENTS

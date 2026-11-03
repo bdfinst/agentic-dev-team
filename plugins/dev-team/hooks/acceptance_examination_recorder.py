@@ -66,6 +66,7 @@ from examination_inputs import (  # type: ignore[import-not-found]
     plan_examination_inputs,
 )
 from examination_store import (  # type: ignore[import-not-found]
+    EMPTY_DIFF,
     Binding,
     NotARepository,
     binding_for_plan,
@@ -77,6 +78,7 @@ from examination_store import (  # type: ignore[import-not-found]
 )
 from examination_verdict import (  # type: ignore[import-not-found]
     PROBLEM_BASE_UNRESOLVABLE,
+    PROBLEM_EMPTY_DIFF,
     build_record,
     unparseable_problems,
     validate_rows,
@@ -153,7 +155,12 @@ def _build_examination(
     rows, problems = _rows_and_problems(records, expected_ids, ran_commands)
     findings = [f._asdict() for f in audit_commands(ran_commands, root=root, cwd=cwd)]
     if not is_binding_hash(binding.hash):
-        problems = [*problems, PROBLEM_BASE_UNRESOLVABLE]
+        unavailable = (
+            PROBLEM_EMPTY_DIFF
+            if binding.hash == EMPTY_DIFF
+            else PROBLEM_BASE_UNRESOLVABLE
+        )
+        problems = [*problems, unavailable]
     agent_id = _resolve_agent_id(records, payload)
     return build_record(plan_id, rows, findings, problems, binding, agent_id), findings
 

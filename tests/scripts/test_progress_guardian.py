@@ -29,6 +29,9 @@ from examination_repo import git_env, make_repo
 
 from _repo_root import REPO_ROOT
 
+sys.path.insert(0, str(REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib"))
+from examination_gate import RULE_NOT_APPLICABLE  # type: ignore[import-not-found]
+
 PG = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "progress_guardian.py"
 
 _GIT_SCRUB_ENV_VARS = (
@@ -64,16 +67,18 @@ def make_plan(path: Path, content: str) -> None:
 
 
 def assert_pre_pr_clean(data: dict) -> None:
-    """A passing --pre-pr result: nothing but the exemption notice `run_pg`
-    declares for its ad-hoc repositories (info issues never fail or warn)."""
+    """A passing --pre-pr result: nothing but the exemption notice that
+    `run_pg(..., exempt=True)` declares for its ad-hoc repositories (info
+    issues never fail or warn)."""
     assert data["status"] == "pass", data
     assert all(i["severity"] == "info" for i in data["issues"]), data
+    assert [i["rule_id"] for i in data["issues"]] in ([], [RULE_NOT_APPLICABLE]), data
 
 
-def run_pg(plan: Path, *args: str) -> subprocess.CompletedProcess:
-    """Run progress_guardian; a --pre-pr run declares the plan exempt from the
-    acceptance examination, so these ad-hoc repositories need no record."""
-    if "--pre-pr" in args:
+def run_pg(plan: Path, *args: str, exempt: bool = False) -> subprocess.CompletedProcess:
+    """Run progress_guardian. `exempt=True` first declares the plan exempt from
+    the acceptance examination, so an ad-hoc repository needs no record."""
+    if exempt:
         exempt_from_examination(plan)
     return subprocess.run(
         [sys.executable, str(PG), "--plan", str(plan), *args],
@@ -210,7 +215,7 @@ def test_3_3a_pre_pr_with_all_done_steps_matching_commits_clean_tree_exits_0(
     _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "feat: add checkbox parser")
     _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "feat: add git log check")
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 0
 
 
@@ -223,7 +228,7 @@ def test_3_3b_pre_pr_with_an_undone_step_exits_1(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "feat: add checkbox parser")
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 1
     data = json.loads(result.stdout)
     assert any(
@@ -485,7 +490,7 @@ def test_4_3_mirror_ac_mirror_inside_build_progress_is_skipped(tmp_path: Path) -
         "- [ ] A2: aspirational outcome 2\n"
     )
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 0
     data = json.loads(result.stdout)
     assert_pre_pr_clean(data)
@@ -506,7 +511,7 @@ def test_4_3a_build_progress_done_plus_ac_undone_pre_pr_exits_0_acs_ignored(
         "- [ ] A3: baz\n"
     )
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 0
     data = json.loads(result.stdout)
     assert_pre_pr_clean(data)
@@ -527,7 +532,7 @@ def test_4_3b_build_progress_undone_plus_ac_undone_pre_pr_exits_1_naming_slice_n
         "- [ ] A3: baz\n"
     )
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 1
     data = json.loads(result.stdout)
     errs = [i for i in data["issues"] if i["severity"] == "error"]
@@ -604,7 +609,7 @@ def test_4_4_realistic_plan_with_all_three_525_patterns_passes_the_pre_pr_gate(
     )
     _write_verify_log(work, branch="feature")
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 0
     assert_pre_pr_clean(json.loads(result.stdout))
 
@@ -780,7 +785,7 @@ def test_6a_pre_pr_with_runtime_file_and_no_verify_log_exits_1(tmp_path: Path) -
     plan = tmp_path / "plan.md"
     plan.write_text("- [x] do thing\n\n**Files:** `a.py`\n")
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 1
     data = json.loads(result.stdout)
     assert any("verify-log" in i["message"] for i in data["issues"]), data
@@ -798,7 +803,7 @@ def test_6b_pre_pr_with_runtime_file_and_matching_verify_log_entry_exits_0(
     plan.write_text("- [x] do thing\n\n**Files:** `a.py`\n")
     _write_verify_log(tmp_path, branch=_current_branch(tmp_path))
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 0
     data = json.loads(result.stdout)
     assert_pre_pr_clean(data)
@@ -816,7 +821,7 @@ def test_6c_pre_pr_with_verify_log_for_a_different_branch_still_fails(
     plan.write_text("- [x] do thing\n\n**Files:** `a.py`\n")
     _write_verify_log(tmp_path, branch="some-other-branch")
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 1
     data = json.loads(result.stdout)
     assert any("verify-log" in i["message"] for i in data["issues"]), data
@@ -833,7 +838,7 @@ def test_6d_pre_pr_with_test_only_changes_skips_the_verify_log_check(
     plan = tmp_path / "plan.md"
     plan.write_text("- [x] add test\n\n**Files:** `a.test.js`\n")
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 0
     data = json.loads(result.stdout)
     assert_pre_pr_clean(data)
@@ -850,7 +855,7 @@ def test_6e_pre_pr_with_docs_only_changes_skips_the_verify_log_check(
     plan = tmp_path / "plan.md"
     plan.write_text("- [x] add notes\n\n**Files:** `notes.md`\n")
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 0
     data = json.loads(result.stdout)
     assert_pre_pr_clean(data)
@@ -870,7 +875,7 @@ def test_865_1_pre_pr_with_matching_declared_scope_emits_no_warning(
     plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
     _write_verify_log(tmp_path, branch=_current_branch(tmp_path))
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 0
     data = json.loads(result.stdout)
     assert not any(
@@ -893,7 +898,7 @@ def test_865_2_pre_pr_with_out_of_scope_edit_emits_named_warning_not_a_gate_fail
     plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
     _write_verify_log(tmp_path, branch=_current_branch(tmp_path))
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     # Not a gate failure — exit 2 (warn) or better, never 1 (fail) for this
     # reason. (--skip-llm's existing check_scope may also warn; either way
     # returncode must never be 1 here.)
@@ -919,7 +924,7 @@ def test_865_3_pre_pr_with_no_slice_declaring_files_emits_no_warning(
     plan.write_text("- [x] Slice 1: do thing\n")
     _write_verify_log(tmp_path, branch=_current_branch(tmp_path))
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     data = json.loads(result.stdout)
     assert not any(
         i.get("rule_id") == "declared-scope-warning" for i in data["issues"]
@@ -937,7 +942,7 @@ def test_865_4_glob_pattern_in_files_covers_matching_file(tmp_path: Path) -> Non
     plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `*.py`\n")
     _write_verify_log(tmp_path, branch=_current_branch(tmp_path))
 
-    result = run_pg(plan, "--pre-pr", "--skip-llm")
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     data = json.loads(result.stdout)
     assert not any(
         i.get("rule_id") == "declared-scope-warning" for i in data["issues"]

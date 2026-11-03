@@ -58,9 +58,11 @@ def write_met_record(
     """Write a record bound to the real binding and inputs digest; return its path.
 
     `overall` and any keyword override replace the matching record field.
-    The binding is whatever `current_binding` reports now, so a repository
-    with no base or no diff gets a sentinel `binding_hash`, which the store
-    refuses to read back (an unreadable record).
+    The binding is whatever `current_binding_hash` reports now, so a repository
+    with no base or no diff gets a sentinel `binding_hash`. The sentinel is
+    stored and read back as written; the gate then refuses the record, never
+    passes it (stale diff once the binding resolves, the sentinel's own
+    refusal while it does not).
     """
     plan_text = (root / plan_id).read_text(encoding="utf-8")
     record = build_record(

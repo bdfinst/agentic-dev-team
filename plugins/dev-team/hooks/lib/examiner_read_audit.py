@@ -24,7 +24,9 @@ Paths resolve lexically against the effective cwd (`cd` is tracked within one
 command); a path is "inside the repository" when it is `root` or under `root`.
 After a `cd` whose target cannot be resolved lexically (`cd ~`, `cd -`, bare
 `cd`, `cd $VAR`), relative operands are treated as inside the repository: a
-false positive is preferred to an unaudited read. Paths ending `.feature` are
+false positive is preferred to an unaudited read. A home-tilde operand (`~`,
+`~/x`, `~user/x`) is treated the same way, because the home directory may
+contain the repository. Paths ending `.feature` are
 exempt from reads only, and absolute paths outside `root` are never findings.
 Findings report the operand as written. Command strings are untrusted model
 output: they are lexed and compared, never executed.
@@ -65,11 +67,27 @@ READERS = frozenset(
         "jq",
     }
 )
-GIT_READ = frozenset({"show", "diff", "log", "cat-file", "grep", "blame"})
+GIT_READ = frozenset(
+    {
+        "show",
+        "diff",
+        "log",
+        "cat-file",
+        "grep",
+        "blame",
+        "annotate",
+        "whatchanged",
+        "format-patch",
+        "archive",
+        "range-diff",
+    }
+)
 #: Commands whose repo-path operands are writes. `sed -i` is a write too and is
 #: handled in `_classify_command`; redirects in `_redirect_kind`.
 WRITERS = frozenset({"tee", "rm", "mv", "cp"})
-#: `branch`, `tag`, and `config` are absent: their listing forms are read-only.
+#: `branch`, `tag`, `remote`, `worktree`, `symbolic-ref`, and `config` are
+#: write-capable, but each has read-only forms that `_is_read_only_git_form`
+#: exempts; every other form of them is a finding.
 GIT_WRITE = frozenset(
     {
         "commit",
@@ -87,8 +105,26 @@ GIT_WRITE = frozenset(
         "merge",
         "rebase",
         "update-ref",
+        "branch",
+        "tag",
+        "remote",
+        "worktree",
+        "symbolic-ref",
+        "config",
     }
 )
+#: Flags and keywords that leave a write-capable git verb read-only.
+_GIT_LIST_FLAGS = frozenset({"--list", "-l", "-v", "-a", "--show-current"})
+_GIT_LISTING_FLAGS = frozenset({"--list", "-l"})
+_GIT_LISTING_WORD = {"remote": "show", "worktree": "list"}
+_GIT_LISTING_VERBS = frozenset({"branch", "tag", "remote", "worktree"})
+_GIT_CONFIG_READ_FLAGS = frozenset(
+    {"--list", "-l", "--get", "--get-all", "--get-regexp"}
+)
+_GIT_CONFIG_SCOPE_FLAGS = frozenset(
+    {"--local", "--global", "--system", "--worktree", "--show-origin", "--show-scope"}
+)
+_GIT_SYMBOLIC_REF_FLAGS = frozenset({"-q", "--quiet", "--short", "--no-recurse"})
 
 _CMD_CD = "cd"
 _CMD_GIT = "git"
@@ -168,7 +204,6 @@ _STDIN_OPERAND = "-"
 _END_OF_FLAGS = "--"
 _MAX_DEPTH = 3
 _GLOB_CHARS = re.compile(r"[*?\[{]")
-_CWD_TILDES = ("~+", "~-")
 _PROC_SELF_CWD = "/proc/self/cwd"
 
 # Operators, longest first. `_SEPARATORS` split commands; the rest redirect.
@@ -643,9 +678,50 @@ def _classify_git(args: list[_Word]) -> list[_Hit]:
     if _defines_alias(args):
         return [(KIND_GIT, _GIT_ALIAS_TARGET)]
     subcommand = _first_positional(args, _GIT_VALUE_FLAGS)
-    if subcommand and (subcommand.text in GIT_READ or subcommand.text in GIT_WRITE):
-        return [(KIND_GIT, subcommand.text)]
-    return []
+    if not subcommand or not (
+        subcommand.text in GIT_READ or subcommand.text in GIT_WRITE
+    ):
+        return []
+    rest = args[_index_of(args, subcommand) + 1 :]
+    if _is_read_only_git_form(subcommand.text, rest):
+        return []
+    return [(KIND_GIT, subcommand.text)]
+
+
+def _index_of(args: list[_Word], word: _Word) -> int:
+    """Position of `word` in `args` by identity, so an equal earlier word
+    (a flag value) is never mistaken for it."""
+    return next(index for index, arg in enumerate(args) if arg is word)
+
+
+def _is_read_only_git_form(subcommand: str, rest: list[_Word]) -> bool:
+    """True for a listing or query form of a write-capable git verb.
+
+    `branch`/`tag`/`remote`/`worktree`: no operands, or listing flags only,
+    or a listing flag or keyword (`remote show`, `worktree list`) with its
+    patterns. `config`: a read flag (`--get`, `--list`, ...) with scope flags
+    only. `symbolic-ref`: query flags and at most one ref. Anything else on
+    these verbs writes.
+    """
+    flags = [word.text for word in rest if word.text.startswith("-")]
+    operands = [word.text for word in rest if not word.text.startswith("-")]
+    if subcommand in _GIT_LISTING_VERBS:
+        if any(flag not in _GIT_LIST_FLAGS for flag in flags):
+            return False
+        listing_flag = any(flag in _GIT_LISTING_FLAGS for flag in flags)
+        listing_word = bool(operands) and operands[0] == _GIT_LISTING_WORD.get(
+            subcommand
+        )
+        return not operands or listing_flag or listing_word
+    if subcommand == "config":
+        return any(flag in _GIT_CONFIG_READ_FLAGS for flag in flags) and all(
+            flag in _GIT_CONFIG_READ_FLAGS | _GIT_CONFIG_SCOPE_FLAGS for flag in flags
+        )
+    if subcommand == "symbolic-ref":
+        return len(operands) <= 1 and all(
+            flag in _GIT_SYMBOLIC_REF_FLAGS for flag in flags
+        )
+    return False
 
 
 def _defines_alias(args: list[_Word]) -> bool:
@@ -773,7 +849,8 @@ def _is_repo_path(operand: str, scope: AuditScope) -> bool:
     literal = operand if glob is None else operand[: glob.start()]
     resolved = _resolve_operand(literal, scope.cwd)
     if resolved is None:
-        return not literal.startswith("~") or literal.startswith(_CWD_TILDES)
+        # Unresolvable (home tilde, `-`, unknown cwd): possibly inside the repo.
+        return True
     if _is_inside(resolved, scope.root):
         return True
     if glob is None:
