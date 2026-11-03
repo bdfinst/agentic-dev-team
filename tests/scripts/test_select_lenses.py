@@ -844,3 +844,25 @@ def test_file_type_lens_set_is_pinned_to_the_known_three():
 # set-difference test would be a self-referential tautology. Its presence is
 # guarded instead by the content-guard in test_code_review_frontend_dispatch.py
 # (review-config.json paragraph still in Step 3). See #1523 plan AC6.
+
+
+# --------------------------------------------------------------------------
+# acceptance-examiner is a /build Step 7.6 verification gate, never a lens
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        pytest.param((), id="empty"),
+        pytest.param(
+            ("plugins/dev-team/hooks/lib/examination_store.py",), id="python-only"
+        ),
+        pytest.param(("docs/cloud-setup.md",), id="docs-only"),
+        pytest.param(("plugins/dev-team/agents/spec-reviewer.md",), id="agents"),
+    ],
+)
+def test_cli_never_resolves_the_acceptance_examiner_as_a_lens(files):
+    r = _run(*files)
+    assert r.returncode == 0, r.stderr
+    assert "acceptance-examiner" not in json.loads(r.stdout)["lenses"]

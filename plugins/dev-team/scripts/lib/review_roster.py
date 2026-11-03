@@ -65,6 +65,7 @@ NON_REVIEW_AGENTS = frozenset({
     "session-analysis",
     "software-engineer",
     "spec-reviewer",  # Stage-1 spec gate, orchestrator-dispatched — not a lens
+    "acceptance-examiner",  # /build Step 7.6 verification gate, Bash-only — not a lens
     "tech-writer",
     "ui-ux-designer",
     # `claude-setup-review`, `token-efficiency-review`, and `ai-provenance-review`

@@ -52,6 +52,7 @@ and attempting the recomputation, not acting on either yet").
 | session-analysis | discovery-lens (analysis-only) | Surfaces ranked improvement suggestions from a session digest — no pass/fail verdict, but an open discovery surface, not a fixed-contract check. |
 | spec-compliance-review | **verification-gate** | The paradigm case named directly in #2007: confirms the implementation matches the spec. A gate that usually passes ("145 of 248 runs are pure pass") is doing its job — `$/finding` prices that silence as waste, which is the wrong metric for this class. |
 | spec-reviewer | verification-gate | Same family as `spec-compliance-review`, narrower — spec-to-diff matching for a single freshly-implemented unit (Stage 1 of the three-stage inline review). |
+| acceptance-examiner | verification-gate | Confirms the delivered behavior against the plan's acceptance criteria by running the plan's own run commands, source-blind — one fixed contract, one verdict per criterion. Dispatched by `/build` Step 7.6, never as a per-file lens. |
 | structure-review | discovery-lens | Scans SRP violations, DRY, coupling, file organization, nesting depth, cognitive load, and async-pattern pitfalls (folds `complexity-review`, retired #2093) — open-ended. |
 | angular-reactivity-review | discovery-lens | Scans Zone.js change-detection pitfalls, OnPush/immutability violations, RxJS leaks — open-ended. |
 | react-reactivity-review | discovery-lens | Scans hook-rule violations, stale closures, missing dependency arrays, subscription leaks — open-ended. |

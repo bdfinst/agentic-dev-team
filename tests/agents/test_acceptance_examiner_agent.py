@@ -220,3 +220,51 @@ def test_audit_note_says_hook_writes_record_from_transcript_with_agent_id() -> N
 def test_sections_appear_in_the_contracted_order() -> None:
     headings = re.findall(r"^## (.+?)\s*$", _body(), re.MULTILINE)
     assert headings == SECTION_ORDER
+
+
+# --------------------------------------------------------------------------
+# Registration (Step 2.2): registry, classification, agent docs, roster
+# --------------------------------------------------------------------------
+
+KNOWLEDGE = REPO_ROOT / "plugins" / "dev-team" / "knowledge"
+REGISTRY = KNOWLEDGE / "agent-registry.md"
+CLASSIFICATION = KNOWLEDGE / "review-lens-classification.md"
+AGENT_INFO = REPO_ROOT / "plugins" / "dev-team" / "docs" / "agent_info.md"
+ROSTER = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib" / "review_roster.py"
+
+
+def _table_row(path, cell: str) -> str:
+    rows = [
+        line
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.startswith(f"| {cell} |")
+    ]
+    assert len(rows) == 1, f"{path.name}: expected one row for {cell}, got {rows}"
+    return rows[0]
+
+
+def test_registry_row_says_dispatched_by_build_step_7_6_never_directly() -> None:
+    row = _table_row(REGISTRY, "acceptance-examiner")
+    assert "`agents/acceptance-examiner.md`" in row
+    assert "`/build` Step 7.6" in row
+    assert "never directly" in row
+
+
+def test_classification_row_is_a_verification_gate() -> None:
+    row = _table_row(CLASSIFICATION, "acceptance-examiner")
+    assert row.split("|")[2].strip() == "verification-gate"
+
+
+def test_agent_docs_row_names_the_file_and_model() -> None:
+    row = _table_row(AGENT_INFO, "`acceptance-examiner`")
+    assert "acceptance-examiner.md" in row
+    assert "| opus |" in row
+
+
+def test_review_roster_lists_the_examiner_as_a_non_review_agent() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("review_roster", ROSTER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert "acceptance-examiner" in module.NON_REVIEW_AGENTS
