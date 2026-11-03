@@ -153,6 +153,10 @@ FLOOR_TEST_SLICE = (
 #: whose body DOES carry such behavior (a version shim, a 3.11+-only stdlib
 #: API) belongs in `FLOOR_TEST_SLICE` instead, not here.
 SLICE_EXCLUSIONS = {
+    "acceptance_examination.py": (
+        "stdlib argparse/json/re/time/pathlib only; the examination libs it "
+        "imports are exercised under the floor through test_progress_guardian.py"
+    ),
     "review_findings_log.py": "stdlib argparse/json/re/pathlib/subprocess only; no floor-sensitive runtime API",
     "ship_resume_guard.py": "stdlib argparse/json/re/pathlib/subprocess only; no floor-sensitive runtime API",
     "ship_review_gate.py": "stdlib argparse/json/re/pathlib/subprocess only; no floor-sensitive runtime API",
