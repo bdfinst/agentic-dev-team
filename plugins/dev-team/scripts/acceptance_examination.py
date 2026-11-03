@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import stat
 import sys
 import time
 from pathlib import Path
@@ -307,8 +309,16 @@ def cmd_show(args: argparse.Namespace) -> int:
 
 
 def _write_plan(path: str, text: str) -> None:
+    """Replace the plan atomically, keeping the file's own permission bits.
+
+    `atomic_write` creates its temp file with mkstemp's 0600, so without the
+    chmod a user's 0644 plan would silently lose group/other read access.
+    """
+    target = Path(path)
     try:
-        atomic_state.atomic_write(Path(path), text, fail_open=False)
+        mode = stat.S_IMODE(target.stat().st_mode)
+        atomic_state.atomic_write(target, text, fail_open=False)
+        os.chmod(target, mode)
     except OSError as exc:
         raise UsageError(f"cannot write plan {path}: {exc}") from exc
 

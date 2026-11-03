@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -961,3 +962,12 @@ def test_inputs_without_criteria_is_one_line_exit_two(
     assert len(result.stderr.strip().splitlines()) == 1
     assert "Acceptance Criteria" in result.stderr
     assert result.stdout == ""
+
+
+def test_render_keeps_the_plan_file_mode(repo: Path) -> None:
+    write_met_record(repo)
+    plan = repo / PLAN_ID
+    plan.chmod(0o664)
+    result = run_cli(repo, "render", "--plan", PLAN_ID)
+    assert result.returncode == 0, result.stderr
+    assert stat.S_IMODE(plan.stat().st_mode) == 0o664
