@@ -338,6 +338,10 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/review_verdict_recorder.py"
+          },
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/acceptance_examination_recorder.py"
           }
         ]
       }

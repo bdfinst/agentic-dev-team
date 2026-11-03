@@ -477,3 +477,39 @@ def test_every_matched_rule_the_hook_emits_is_in_the_telemetry_schema() -> None:
 
     assert sorted(rules) == ["examiner-forbidden-read", "missing-plan-marker"]
     assert [rule for rule in rules if f"`{rule}`" not in schema] == []
+
+
+# ---------------------------------------------------------------------------
+# Step 3.3: registration on SubagentStop, after review_verdict_recorder.py
+# ---------------------------------------------------------------------------
+
+_SETTINGS_JSON = _PLUGIN_DIR / "settings.json"
+_HOOKS_JSON = _PLUGIN_DIR / "hooks" / "hooks.json"
+_PRECEDING_HOOK = "review_verdict_recorder.py"
+
+
+def _subagent_stop_scripts(path: Path) -> list[str]:
+    """Basenames of every SubagentStop command in `path`, in order."""
+    groups = json.loads(path.read_text(encoding="utf-8"))["hooks"]["SubagentStop"]
+    return [
+        Path(hook["command"].rstrip('"').split()[-1].strip('"')).name
+        for group in groups
+        for hook in group["hooks"]
+    ]
+
+
+@pytest.mark.parametrize(
+    "registry", [_SETTINGS_JSON, _HOOKS_JSON], ids=lambda p: p.name
+)
+def test_registry_lists_the_recorder_once_right_after_the_verdict_recorder(
+    registry: Path,
+) -> None:
+    scripts = _subagent_stop_scripts(registry)
+    assert scripts.count(_HOOK_PY.name) == 1
+    assert scripts.index(_HOOK_PY.name) == scripts.index(_PRECEDING_HOOK) + 1
+
+
+def test_both_registries_place_the_recorder_at_the_same_position() -> None:
+    settings = _subagent_stop_scripts(_SETTINGS_JSON)
+    hooks = _subagent_stop_scripts(_HOOKS_JSON)
+    assert settings.index(_HOOK_PY.name) == hooks.index(_HOOK_PY.name)
