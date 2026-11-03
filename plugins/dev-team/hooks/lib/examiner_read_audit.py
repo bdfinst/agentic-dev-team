@@ -283,8 +283,11 @@ _HEREDOC_OPS = frozenset({"<<", "<<-"})
 #: Redirects whose next word is a literal, never a file.
 _NO_FILE_OPS = frozenset({"<<", "<<-", "<<<"})
 _READ_REDIRECTS = frozenset({"<", "<&"})
-#: Redirects that open a file on stdin: a pipe no longer feeds the command.
-_STDIN_FILE_OPS = frozenset({"<", "<>"})
+#: Redirects that replace stdin when aimed at fd 0 (or no fd): `<` and `<>`
+#: open a file, `<&` duplicates or closes (`<&-`, `<&3`, `<&file`). A pipe no
+#: longer feeds the command. Heredocs and here-strings also replace stdin but
+#: are not listed here.
+_STDIN_OPS = frozenset({"<", "<>", "<&"})
 _FD_DUP_OPS = frozenset({">&", "<&"})
 _FD_TARGET = re.compile(r"^(\d+-?|-)$")
 _DOUBLE_QUOTE_ESCAPES = frozenset({'"', "\\", "$", "`"})
@@ -323,13 +326,16 @@ class _Word(NamedTuple):
 
 
 class _Operator(NamedTuple):
+    """`fd` is the descriptor written before the operator (`3` of `3<`), or
+    empty."""
+
     text: str
+    fd: str = ""
 
 
 class _Redirect(NamedTuple):
     kind: str
     target: _Word
-    stdin: bool = False
 
 
 _Token = _Word | _Operator
@@ -361,7 +367,7 @@ def _audit(command: str, scope: AuditScope, depth: int) -> list[_Hit]:
 def _audit_segment(
     segment: list[_Token], scope: AuditScope, depth: int, piped: bool
 ) -> tuple[list[_Hit], AuditScope]:
-    words, redirects = _split_redirects(segment)
+    words, redirects, stdin_replaced = _split_redirects(segment)
     command_words = _command_words(words)
     name = posixpath.basename(command_words[0].text) if command_words else ""
     args = command_words[1:]
@@ -376,7 +382,7 @@ def _audit_segment(
             hits.extend(_audit_nested(word, scope, depth))
     if script:
         hits.extend(_audit(script[0], scope, depth + 1))
-    fed_by_pipe = piped and not any(redirect.stdin for redirect in redirects)
+    fed_by_pipe = piped and not stdin_replaced
     hits.extend(_classify_command(name, args, scope, fed_by_pipe))
     for redirect in redirects:
         hits.extend(_repo_hits(redirect.kind, [redirect.target], scope))
@@ -570,11 +576,13 @@ class _Lexer:
             self._append(char)
             self._pos += 1
             return
+        fd = ""
         if operator not in _SEPARATORS and self._is_fd_prefix():
-            self._reset_word()  # the `2` of `2>` names a descriptor
+            fd = "".join(self._chars)  # the `2` of `2>` names a descriptor
+            self._reset_word()
         else:
             self._flush()
-        self._tokens.append(_Operator(operator))
+        self._tokens.append(_Operator(operator, fd))
         self._awaiting_delimiter = operator in _HEREDOC_OPS
         self._strip_tabs = operator == "<<-"
         self._pos += len(operator)
@@ -682,10 +690,14 @@ def _segments(tokens: list[_Token]) -> list[tuple[list[_Token], bool]]:
     return segments
 
 
-def _split_redirects(segment: list[_Token]) -> tuple[list[_Word], list[_Redirect]]:
-    """Split a segment into its words and its file redirects. Fd duplications
-    (`2>&1`, `>&2`), here-strings, and heredoc delimiters name no file."""
+def _split_redirects(
+    segment: list[_Token],
+) -> tuple[list[_Word], list[_Redirect], bool]:
+    """Split a segment into its words, its file redirects, and whether a
+    redirect replaced stdin. Fd duplications (`2>&1`, `>&2`), here-strings, and
+    heredoc delimiters name no file."""
     words: list[_Word] = []
+    stdin_replaced = False
     redirects: list[_Redirect] = []
     index = 0
     while index < len(segment):
@@ -698,10 +710,12 @@ def _split_redirects(segment: list[_Token]) -> tuple[list[_Word], list[_Redirect
         if not isinstance(target, _Word):
             continue
         index += 1
+        if token.text in _STDIN_OPS and token.fd in ("", "0"):
+            stdin_replaced = True
         kind = _redirect_kind(token.text, target.text)
         if kind:
-            redirects.append(_Redirect(kind, target, token.text in _STDIN_FILE_OPS))
-    return words, redirects
+            redirects.append(_Redirect(kind, target))
+    return words, redirects, stdin_replaced
 
 
 def _redirect_kind(operator: str, target: str) -> str | None:
