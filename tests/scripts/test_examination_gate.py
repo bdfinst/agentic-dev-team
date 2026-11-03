@@ -33,6 +33,7 @@ from examination_store import (  # type: ignore[import-not-found]
 )
 
 PG = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "progress_guardian.py"
+CLI = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "acceptance_examination.py"
 PATH = ".claude/memory/acceptance-examination-plans__x.md.json"
 HASH, DIGEST = "h1", "d1"
 
@@ -325,13 +326,21 @@ def _run_pg(root: Path, *args: str) -> subprocess.CompletedProcess:
     )
 
 
-def _tick_all_and_append_rendered_section(root: Path) -> None:
+def _tick_all_and_render_section(root: Path) -> None:
     plan = root / PLAN_ID
-    text = plan.read_text(encoding="utf-8").replace("- [ ]", "- [x]")
     plan.write_text(
-        text + "\n## Acceptance Examination\n\n### AC1 — met\n\n- [x] rendered\n",
-        encoding="utf-8",
+        plan.read_text(encoding="utf-8").replace("- [ ]", "- [x]"), encoding="utf-8"
     )
+    result = subprocess.run(
+        [sys.executable, str(CLI), "render", "--plan", str(plan)],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=root,
+        env=git_env(root.parent),
+    )
+    assert result.returncode == 0, result.stderr
+    assert "## Acceptance Examination" in plan.read_text(encoding="utf-8")
 
 
 def test_real_met_record_is_current_per_load_and_check(repo: Path) -> None:
@@ -341,7 +350,7 @@ def test_real_met_record_is_current_per_load_and_check(repo: Path) -> None:
 
 def test_real_met_record_stays_current_through_builds_own_edits(repo: Path) -> None:
     write_met_record(repo)
-    _tick_all_and_append_rendered_section(repo)
+    _tick_all_and_render_section(repo)
     result = _run_pg(repo, "--pre-pr")
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(result.stdout)["issues"] == []
