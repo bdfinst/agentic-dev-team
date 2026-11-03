@@ -450,6 +450,18 @@ def test_render_section_clips_a_long_finding_command() -> None:
     assert command not in section
 
 
+def test_render_section_clips_a_long_finding_target() -> None:
+    target = "src/" + "d/" * (gate.OBSERVATION_CHAR_LIMIT + 300)
+    finding = {"kind": "read", "target": target, "command": "cat x"}
+
+    section = cli.render_section(
+        make_record([make_row("AC1")], [finding], overall="tainted"), stale=False
+    )
+
+    assert f"  - read {gate.clip_line(target)}: cat x\n" in section
+    assert target not in section
+
+
 def test_render_section_lists_exactly_the_cap_of_findings_without_a_tail() -> None:
     section = cli.render_section(
         make_record([make_row("AC1")], _findings(20), overall="tainted"), stale=False

@@ -283,6 +283,8 @@ _HEREDOC_OPS = frozenset({"<<", "<<-"})
 #: Redirects whose next word is a literal, never a file.
 _NO_FILE_OPS = frozenset({"<<", "<<-", "<<<"})
 _READ_REDIRECTS = frozenset({"<", "<&"})
+#: Redirects that open a file on stdin: a pipe no longer feeds the command.
+_STDIN_FILE_OPS = frozenset({"<", "<>"})
 _FD_DUP_OPS = frozenset({">&", "<&"})
 _FD_TARGET = re.compile(r"^(\d+-?|-)$")
 _DOUBLE_QUOTE_ESCAPES = frozenset({'"', "\\", "$", "`"})
@@ -310,11 +312,14 @@ class AuditScope(NamedTuple):
 class _Word(NamedTuple):
     """A shell word with quoting removed. `has_expansion` marks a value the
     shell computes (`$x`, `$(..)`, backticks, `<(..)`); `nested` holds the
-    commands inside those substitutions."""
+    commands inside those substitutions. `synthetic` marks the word the lexer
+    emits to carry an unquoted heredoc body's substitutions: it is no command
+    word of the script, so it never takes a pending pipe."""
 
     text: str
     has_expansion: bool = False
     nested: tuple[str, ...] = ()
+    synthetic: bool = False
 
 
 class _Operator(NamedTuple):
@@ -324,6 +329,7 @@ class _Operator(NamedTuple):
 class _Redirect(NamedTuple):
     kind: str
     target: _Word
+    stdin: bool = False
 
 
 _Token = _Word | _Operator
@@ -370,7 +376,8 @@ def _audit_segment(
             hits.extend(_audit_nested(word, scope, depth))
     if script:
         hits.extend(_audit(script[0], scope, depth + 1))
-    hits.extend(_classify_command(name, args, scope, piped))
+    fed_by_pipe = piped and not any(redirect.stdin for redirect in redirects)
+    hits.extend(_classify_command(name, args, scope, fed_by_pipe))
     for redirect in redirects:
         hits.extend(_repo_hits(redirect.kind, [redirect.target], scope))
     return hits, scope
@@ -483,7 +490,7 @@ class _Lexer:
                 nested.extend(_body_substitutions("\n".join(body)))
         self._pending_heredocs.clear()
         if nested:
-            self._tokens.append(_Word("", True, tuple(nested)))
+            self._tokens.append(_Word("", True, tuple(nested), synthetic=True))
             self._tokens.append(_Operator("\n"))
 
     def _skip_comment(self) -> None:
@@ -665,7 +672,10 @@ def _segments(tokens: list[_Token]) -> list[tuple[list[_Token], bool]]:
                 pending_pipe = False
         else:
             if not current:
-                current_piped, pending_pipe = pending_pipe, False
+                if isinstance(token, _Word) and token.synthetic:
+                    current_piped = False
+                else:
+                    current_piped, pending_pipe = pending_pipe, False
             current.append(token)
     if current:
         segments.append((current, current_piped))
@@ -690,7 +700,7 @@ def _split_redirects(segment: list[_Token]) -> tuple[list[_Word], list[_Redirect
         index += 1
         kind = _redirect_kind(token.text, target.text)
         if kind:
-            redirects.append(_Redirect(kind, target))
+            redirects.append(_Redirect(kind, target, token.text in _STDIN_FILE_OPS))
     return words, redirects
 
 

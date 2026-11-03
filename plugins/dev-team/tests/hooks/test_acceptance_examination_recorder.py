@@ -553,12 +553,12 @@ def test_unexpected_error_in_process_exits_zero_silently(
 ) -> None:
     calls: list[dict] = []
 
-    def explode(payload: dict) -> None:
-        calls.append(payload)
-        raise RuntimeError("boom")
+    def explode(path: Path) -> None:
+        calls.append({"path": path})
+        raise OSError("boom")
 
-    # double-waiver: B1 — the transcript read opens the transcript file; a real read failure cannot be forced from the payload
-    monkeypatch.setattr(recorder.subagent_transcript, "own_records_and_type", explode)
+    # double-waiver: B1 — iter_file_records opens the transcript file and itself swallows OSError, so an unreadable path never reaches main()'s catch
+    monkeypatch.setattr(recorder.subagent_transcript._records, "iter_file_records", explode)
 
     assert _main_with_stdin(monkeypatch, _payload_for(repo, _examiner_rows())) == 0
     captured = capsys.readouterr()
