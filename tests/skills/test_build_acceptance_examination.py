@@ -211,6 +211,26 @@ def test_step_runs_every_invocation_and_names_the_exemption() -> None:
     assert EXEMPT_FIELD in step
 
 
+RUNNABLE_PREFIX = 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/acceptance_examination.py" '
+RUN_CALL = re.compile(r"Run `([^`]*acceptance_examination\.py[^`]*)`")
+
+
+@pytest.mark.parametrize(
+    ("label", "text_of", "minimum_calls"),
+    [
+        ("Step 7.6", _step_76_raw, 3),
+        ("reference", _reference_text, 3),
+    ],
+)
+def test_every_runnable_script_call_uses_the_plugin_root_form(
+    label: str, text_of: Callable[[], str], minimum_calls: int
+) -> None:
+    calls = RUN_CALL.findall(text_of())
+
+    assert len(calls) >= minimum_calls, label
+    assert [call for call in calls if not call.startswith(RUNNABLE_PREFIX)] == []
+
+
 def test_first_status_run_comes_before_any_dispatch() -> None:
     step = _step_76()
     assert step.index("acceptance_examination.py status") < step.index("subagent_type")

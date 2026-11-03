@@ -135,6 +135,7 @@ FLOOR_TEST_SLICE = (
     "plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py",
     "plugins/dev-team/tests/scripts/test_coverage_discovery_js.py",
     "plugins/dev-team/tests/scripts/test_autoship_reclaim.py",
+    "tests/scripts/test_examination_gate.py",
 )
 
 #: Issue #1829: `FLOOR_TEST_SLICE` above is hand-maintained, so a new shipped,
@@ -155,7 +156,8 @@ FLOOR_TEST_SLICE = (
 SLICE_EXCLUSIONS = {
     "acceptance_examination.py": (
         "stdlib argparse/json/re/time/pathlib only; the examination libs it "
-        "imports are exercised under the floor through test_progress_guardian.py"
+        "imports are exercised under the floor through test_examination_gate.py "
+        "(in FLOOR_TEST_SLICE), including parse_timestamp's trailing-`Z` path"
     ),
     "review_findings_log.py": "stdlib argparse/json/re/pathlib/subprocess only; no floor-sensitive runtime API",
     "ship_resume_guard.py": "stdlib argparse/json/re/pathlib/subprocess only; no floor-sensitive runtime API",

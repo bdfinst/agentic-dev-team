@@ -607,13 +607,13 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
     ),
     "plugins/dev-team/hooks/review_verdict_recorder.py": (
         "the 'attributionAgent' occurrences this check's own regex matches "
-        "are all in this file's own module docstring, recording #2166 Step "
-        "2.3's own pre-implementation spike finding against 124 real "
+        "are all in this file's own module docstring, recording its own "
+        "pre-implementation spike finding against 124 real "
         "subagent transcripts (mirrors cost_meter.py's entry above: prose "
         "documenting the harness field this hook's decisions are based on, "
         "not a second parsing implementation). The transcript readers "
-        "themselves live in hooks/lib/subagent_transcript.py (#2270 Step "
-        "3.0); this file carries no parsing of the field"
+        "themselves live in hooks/lib/subagent_transcript.py; this "
+        "file carries no parsing of the field"
     ),
     "plugins/dev-team/hooks/lib/subagent_transcript.py": (
         "attributionAgent is read only through session_log.records "
@@ -622,11 +622,11 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
         "prose naming the primary signal. `agentId` is NOT one of this "
         "check's own scanned identifiers (see _TRANSCRIPT_FIELD_RE above) "
         "and is read directly as a plain top-level field (`own_agent_id`'s "
-        "`rec.get(\"agentId\")`) rather than through session_log (#2166 Fix "
-        "#9, correctness review). `read_transcript_records` delegates to "
+        "`rec.get(\"agentId\")`) rather than through session_log. "
+        "`read_transcript_records` delegates to "
         "session_log.records.iter_file_records rather than carrying a "
         "second whole-file reader. Lifted verbatim from "
-        "hooks/review_verdict_recorder.py in #2270 Step 3.0 so the "
+        "hooks/review_verdict_recorder.py so the "
         "acceptance-examination recorder reuses these helpers instead of "
         "copying them"
     ),

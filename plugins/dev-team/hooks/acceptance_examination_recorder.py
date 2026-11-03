@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""hooks/acceptance_examination_recorder.py — SubagentStop recorder for the
-acceptance examiner (#2270, Step 3.2; plan: plans/2270-acceptance-examiner.md,
-Design decisions 1-5, 9, 10).
+"""hooks/acceptance_examination_recorder.py — SubagentStop recorder that
+writes the examiner record the acceptance-examination gate reads.
 
 ## Contract (docs/python-hook-contract.md)
 
@@ -24,7 +23,7 @@ Design decisions 1-5, 9, 10).
         never blocks. A missing record is what the acceptance-examination
         gate refuses on, so a failed hook still fails the gate closed.
 
-The hook is the sole record writer (decision 1); `/build` never relays a
+The hook is the sole record writer; `/build` never relays a
 verdict. It returns without a record or an event for any non-examiner
 subagent, an unreadable transcript, a marker that names a plan that is
 missing or outside the repository, or a repository that cannot be resolved.
@@ -35,7 +34,7 @@ like an absent marker.
 ## SubagentStop ordering
 
 This hook does not complete before the Agent tool result returns to the
-caller (decision 10). `/build` Step 7.6 therefore polls for the record
+caller. `/build` Step 7.6 therefore polls for the record
 (`status --wait`).
 
 SubagentStop ordering, first live observation (Pre-PR seeded-defect check,
@@ -66,19 +65,15 @@ from examination_inputs import (  # type: ignore[import-not-found]
     plan_examination_inputs,
 )
 from examination_store import (  # type: ignore[import-not-found]
-    EMPTY_DIFF,
     Binding,
     NotARepository,
     binding_for_plan,
     canonical_plan_id,
-    is_binding_hash,
     record_path,
     repo_root,
     write_record,
 )
 from examination_verdict import (  # type: ignore[import-not-found]
-    PROBLEM_BASE_UNRESOLVABLE,
-    PROBLEM_EMPTY_DIFF,
     build_record,
     unparseable_problems,
     validate_rows,
@@ -154,13 +149,6 @@ def _build_examination(
     ran_commands = subagent_transcript.bash_commands(records)
     rows, problems = _rows_and_problems(records, expected_ids, ran_commands)
     findings = [f._asdict() for f in audit_commands(ran_commands, root=root, cwd=cwd)]
-    if not is_binding_hash(binding.hash):
-        unavailable = (
-            PROBLEM_EMPTY_DIFF
-            if binding.hash == EMPTY_DIFF
-            else PROBLEM_BASE_UNRESOLVABLE
-        )
-        problems = [*problems, unavailable]
     agent_id = _resolve_agent_id(records, payload)
     return build_record(plan_id, rows, findings, problems, binding, agent_id), findings
 

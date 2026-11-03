@@ -62,6 +62,7 @@ from examination_verdict import (  # type: ignore[import-not-found]
     PROBLEM_UNKNOWN,
     PROBLEM_UNPARSEABLE,
     TAINTED,
+    parse_problem,
 )
 from lib.review_result import make_issue
 
@@ -280,16 +281,16 @@ def _row_fields(rows: list[dict]) -> dict:
 
 
 def _gloss(problem: str) -> str:
-    kind, _, rest = str(problem).partition(" ")
+    kind, ids = parse_problem(str(problem))
     template = _GLOSSES.get(kind)
     if template is None:
         return str(problem)
-    first_id = rest.split(" ")[0]
+    first_id = ids[0] if ids else ""
     return template.format(id=first_id, ids=first_id.replace(",", ", "))
 
 
 def _malformed_fields(problems: list, plan_id: str) -> dict:
-    kinds = {str(p).partition(" ")[0] for p in problems}
+    kinds = {parse_problem(str(p))[0] for p in problems}
     if PROBLEM_NO_CRITERIA in kinds:
         remedy = _MALFORMED_REMEDY_NO_CRITERIA
     elif PROBLEM_BASE_UNRESOLVABLE in kinds:
@@ -416,8 +417,10 @@ def load_and_check(
     becomes one error issue, never an exception. `binding` is a precomputed
     current binding for this plan: a caller that checks the same plan
     repeatedly (a poll loop) computes it once, and the call reuses its
-    branch-diff hash. The repository root, plan id and plan text are still
-    resolved on each call, and the record is re-read.
+    branch-diff hash and inputs digest. The repository root and plan id are
+    still resolved on each call, the record is re-read, and the plan text is
+    read only for the exemption check
+    (and to compute the binding when none is supplied).
     """
     after_time = None
     if after is not None:

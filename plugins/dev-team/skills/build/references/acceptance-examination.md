@@ -12,7 +12,7 @@ relays a verdict.
 
 Build the prompt in three parts:
 
-1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/acceptance_examination.py inputs --plan <plan>`.
+1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/acceptance_examination.py" inputs --plan <plan>`.
 2. Replace `<cwd>` with the absolute repo root.
 3. Paste the `inputs` output verbatim after the `Working directory:` line.
 
@@ -45,7 +45,7 @@ the plan's **Status** line.
 
 ### Before dispatch
 
-Run `acceptance_examination.py status --plan <plan>`.
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/acceptance_examination.py" status --plan <plan>`.
 
 | `status` result | Action |
 |---|---|
@@ -63,7 +63,7 @@ can take several minutes.` and record
 
 ### After dispatch
 
-Run `acceptance_examination.py status --wait 15 --after $DISPATCHED_AT --plan <plan>`.
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/acceptance_examination.py" status --wait 15 --after $DISPATCHED_AT --plan <plan>`.
 The wait covers the delay between the examiner stopping and the hook writing
 the record. A record older than the dispatch counts as absent. Do not
 dispatch again.

@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from examination_inputs import CRITERION_ID
+from review_gate_hash import EMPTY_DIGEST
 
 if TYPE_CHECKING:
     from examination_store import Binding
@@ -42,12 +43,16 @@ PROBLEM_INCOMPLETE_ROW = "incomplete-row"
 PROBLEM_INVALID_VERDICT = "invalid-verdict"
 PROBLEM_COMMAND_NOT_RUN = "command-not-run"
 PROBLEM_UNPARSEABLE = "unparseable-result"
-#: The branch binding could not be computed: the base ref did not resolve or
-#: git failed (the store's `BASE_UNRESOLVABLE` sentinel, same spelling).
-PROBLEM_BASE_UNRESOLVABLE = "base-unresolvable"
-#: The branch has no commits ahead of its base (the store's `EMPTY_DIFF`
-#: sentinel, same spelling).
-PROBLEM_EMPTY_DIFF = "empty-diff"
+#: The two values a record's `binding_hash` holds when no real hash was
+#: available. Defined here, not in the store, because the store imports this
+#: module. `BASE_UNRESOLVABLE`: the base ref did not resolve or git failed.
+#: `EMPTY_DIFF`: the branch has no commits ahead of its base.
+BASE_UNRESOLVABLE = "base-unresolvable"
+EMPTY_DIFF = "empty-diff"
+PROBLEM_BASE_UNRESOLVABLE = BASE_UNRESOLVABLE
+PROBLEM_EMPTY_DIFF = EMPTY_DIFF
+_BINDING_HASH = re.compile(r"[0-9a-f]{64}")
+_PROBLEM_SEPARATOR = " "
 
 _COMMAND_VERDICTS = (MET, NOT_MET)
 RECORD_SCHEMA = 1
@@ -66,6 +71,34 @@ _FINDING_KEYS = ("kind", "target", "command")
 _FD_DUPLICATION = re.compile(r"(?:(?<!\S)\d+)?>&\d+")
 _SEGMENT_SEPARATORS = re.compile(r"&&|\|\||;|\||\n")
 _LEADING_CD = re.compile(r"^cd\s+\S+$")
+
+
+def is_binding_hash(value: object) -> bool:
+    """True for a real binding hash: 64 lowercase hex characters, and not the
+    empty-input digest, which is never a valid subject-hash match."""
+    if not isinstance(value, str) or value == EMPTY_DIGEST:
+        return False
+    return _BINDING_HASH.fullmatch(value) is not None
+
+
+def format_problem(kind: str, *ids: str) -> str:
+    """A record problem: `kind`, then each id after a space."""
+    return _PROBLEM_SEPARATOR.join((kind, *ids))
+
+
+def parse_problem(text: str) -> tuple[str, list[str]]:
+    """The `(kind, ids)` of a problem that `format_problem` built."""
+    kind, _, rest = str(text).partition(_PROBLEM_SEPARATOR)
+    return kind, rest.split(_PROBLEM_SEPARATOR) if rest else []
+
+
+def _binding_problem(binding_hash: str) -> list[str]:
+    """The problem for a binding hash that is not a real one, else none."""
+    if is_binding_hash(binding_hash):
+        return []
+    if binding_hash == EMPTY_DIFF:
+        return [PROBLEM_EMPTY_DIFF]
+    return [PROBLEM_BASE_UNRESOLVABLE]
 
 
 def normalize_command(command: str) -> str:
@@ -133,10 +166,14 @@ def _coverage_problems(counts: Counter, expected_ids: list[str]) -> list[str]:
     problems = [PROBLEM_NO_CRITERIA] if not expected_ids else []
     missing = [cid for cid in expected_ids if cid not in counts]
     if missing:
-        problems.append(f"{PROBLEM_MISSING} {','.join(missing)}")
-    problems += [f"{PROBLEM_DUPLICATE} {cid}" for cid, n in counts.items() if n > 1]
+        problems.append(format_problem(PROBLEM_MISSING, ",".join(missing)))
     problems += [
-        f"{PROBLEM_UNKNOWN} {cid}" for cid in counts if cid not in expected_ids
+        format_problem(PROBLEM_DUPLICATE, cid) for cid, n in counts.items() if n > 1
+    ]
+    problems += [
+        format_problem(PROBLEM_UNKNOWN, cid)
+        for cid in counts
+        if cid not in expected_ids
     ]
     return problems
 
@@ -150,14 +187,14 @@ def _row_problems(row: dict, ran: set[str]) -> list[str]:
     cid, verdict = row["criterion"], row["verdict"]
     problems = []
     if verdict not in VERDICTS:
-        problems.append(f"{PROBLEM_INVALID_VERDICT} {cid} {verdict}")
+        problems.append(format_problem(PROBLEM_INVALID_VERDICT, cid, verdict))
     needs_command = verdict in _COMMAND_VERDICTS
     if _is_blank(row.get("observation")) or (
         needs_command and _is_blank(row.get("command"))
     ):
-        problems.append(f"{PROBLEM_INCOMPLETE_ROW} {cid}")
+        problems.append(format_problem(PROBLEM_INCOMPLETE_ROW, cid))
     elif needs_command and not _command_was_run(row["command"], ran):
-        problems.append(f"{PROBLEM_COMMAND_NOT_RUN} {cid}")
+        problems.append(format_problem(PROBLEM_COMMAND_NOT_RUN, cid))
     return problems
 
 
@@ -208,18 +245,20 @@ def build_record(
     binding: Binding,
     agent_id: str,
 ) -> dict:
-    """The examination record the SubagentStop hook persists."""
+    """The examination record the SubagentStop hook persists. A `binding` whose
+    hash is not a real one adds the matching binding problem to `problems`."""
+    all_problems = [*problems, *_binding_problem(binding.hash)]
     return {
         "schema": RECORD_SCHEMA,
         "plan": plan_id,
         "agent_id": agent_id,
-        "overall": derive_overall(rows, audit_findings, problems),
+        "overall": derive_overall(rows, audit_findings, all_problems),
         "criteria": list(rows),
         "audit_findings": [
             {key: finding.get(key) for key in _FINDING_KEYS}
             for finding in audit_findings
         ],
-        "problems": list(problems),
+        "problems": all_problems,
         "binding_hash": binding.hash,
         "inputs_digest": binding.inputs_digest,
         "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),

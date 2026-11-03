@@ -275,9 +275,58 @@ def _record(rows=(), findings=(), problems=()):
         list(rows),
         list(findings),
         list(problems),
-        Binding("bh", "id"),
+        Binding(REAL_HASH, "id"),
         "agent-1",
     )
+
+
+REAL_HASH = "a" * 64
+
+
+def _record_bound_to(binding_hash):
+    return ev.build_record(
+        "plans/x.md", [], [], ["missing AC1"], Binding(binding_hash, "id"), "agent-1"
+    )
+
+
+@pytest.mark.parametrize(
+    ("binding_hash", "problem"),
+    [
+        (ev.EMPTY_DIFF, ev.PROBLEM_EMPTY_DIFF),
+        (ev.BASE_UNRESOLVABLE, ev.PROBLEM_BASE_UNRESOLVABLE),
+        ("not-a-hash", ev.PROBLEM_BASE_UNRESOLVABLE),
+    ],
+)
+def test_build_record_derives_the_binding_problem_from_an_unavailable_hash(
+    binding_hash, problem
+):
+    record = _record_bound_to(binding_hash)
+
+    assert record["binding_hash"] == binding_hash
+    assert record["problems"] == ["missing AC1", problem]
+
+
+def test_build_record_adds_no_binding_problem_for_a_real_hash():
+    assert _record_bound_to(REAL_HASH)["problems"] == ["missing AC1"]
+
+
+@pytest.mark.parametrize(
+    ("kind", "ids"),
+    [
+        (ev.PROBLEM_UNPARSEABLE, []),
+        (ev.PROBLEM_MISSING, ["AC1,AC2"]),
+        (ev.PROBLEM_INVALID_VERDICT, ["AC3", "maybe"]),
+    ],
+)
+def test_format_problem_and_parse_problem_round_trip(kind, ids):
+    text = ev.format_problem(kind, *ids)
+
+    assert ev.parse_problem(text) == (kind, ids)
+
+
+def test_format_problem_spells_a_kind_then_space_separated_ids():
+    assert ev.format_problem("duplicate", "AC1") == "duplicate AC1"
+    assert ev.format_problem("unparseable-result") == "unparseable-result"
 
 
 def test_build_record_carries_every_field():
@@ -300,7 +349,7 @@ def test_build_record_carries_every_field():
     assert record["plan"] == "plans/x.md"
     assert record["agent_id"] == "agent-1"
     assert record["criteria"] == rows
-    assert (record["binding_hash"], record["inputs_digest"]) == ("bh", "id")
+    assert (record["binding_hash"], record["inputs_digest"]) == (REAL_HASH, "id")
     assert record["problems"] == []
 
 

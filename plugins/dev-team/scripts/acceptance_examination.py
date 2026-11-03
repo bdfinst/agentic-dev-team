@@ -77,6 +77,7 @@ UNTRUSTED_LINE = (
     "command output."
 )
 OBSERVATION_LINE_LIMIT = 5
+AUDIT_FINDING_LIMIT = 20
 MIN_FENCE = 3
 
 _PROG = "acceptance_examination.py"
@@ -166,7 +167,7 @@ def _render_criterion(row: dict) -> list[str]:
     body = _shown_observation(row.get("observation"))
     command = _text_or_empty(row.get("command"))
     if command:
-        body.insert(0, f"$ {command}")
+        body.insert(0, f"$ {examination_gate.clip_line(command)}")
     fence = _fence_for("\n".join(body))
     heading = _one_line(f"### {row.get('criterion', '')} — {row.get('verdict', '')}")
     return [heading, "", fence, *body, fence, ""]
@@ -176,9 +177,12 @@ def _render_findings(findings: list[dict]) -> list[str]:
     if not findings:
         return ["- Audit findings: none"]
     lines = ["- Audit findings:"]
-    for finding in findings:
+    for finding in findings[:AUDIT_FINDING_LIMIT]:
         kind, target = finding.get("kind"), finding.get("target")
         lines.append(_one_line(f"  - {kind} {target}: {finding.get('command')}"))
+    hidden = len(findings) - AUDIT_FINDING_LIMIT
+    if hidden > 0:
+        lines.append(f"  - (+{hidden} more)")
     return lines
 
 
@@ -330,7 +334,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def _read_record(path: Path) -> dict | None:
+def _load_record_or_report_absent(path: Path) -> dict | None:
     """The record at `path`; None (after a stderr line) when it is absent."""
     record = store.load_record(path)
     if record is None:
@@ -341,7 +345,7 @@ def _read_record(path: Path) -> dict | None:
 
 
 def cmd_show(args: argparse.Namespace) -> int:
-    record = _read_record(_load(args.plan).record_path)
+    record = _load_record_or_report_absent(_load(args.plan).record_path)
     if record is None:
         return EXIT_REFUSED
     print(json.dumps(record, indent=2))
@@ -372,7 +376,7 @@ def _write_plan(path: str, text: str) -> None:
 
 def cmd_render(args: argparse.Namespace) -> int:
     loaded = _load(args.plan)
-    record = _read_record(loaded.record_path)
+    record = _load_record_or_report_absent(loaded.record_path)
     if record is None:
         return EXIT_REFUSED
     if record["plan"] != loaded.plan_id:

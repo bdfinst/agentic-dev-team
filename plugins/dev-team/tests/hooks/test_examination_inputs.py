@@ -519,12 +519,13 @@ def test_gate_lines_inside_the_examination_section_are_ignored():
     assert ei.plan_examination_inputs(plan).run_commands == ["pytest -q"]
 
 
-def test_checkbox_grammar_is_shared_with_progress_guardian():
-    scripts = str(_PLUGIN_DIR / "scripts")
-    if scripts not in sys.path:
-        sys.path.insert(0, scripts)
+def test_checkbox_grammar_is_shared_with_progress_guardian(monkeypatch):
+    monkeypatch.syspath_prepend(str(_PLUGIN_DIR / "scripts"))
     import progress_guardian  # type: ignore[import-not-found]
 
-    assert progress_guardian.STEP_PATTERN.pattern.startswith(ei.CHECKBOX_PREFIX)
+    for line in ("- [ ] text", "- [X] text", "-  [x]  text"):
+        step = progress_guardian.STEP_PATTERN.match(line)
+        assert step is not None
+        assert step.group("state") == ei.CHECKBOX.match(line).group("state")
     assert ei.CHECKBOX.match("- [X] done").group("text") == "done"
     assert ei.CHECKBOX.match("-  [ ]  text").group("state") == " "

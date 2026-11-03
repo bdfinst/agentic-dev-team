@@ -401,7 +401,9 @@ chk_python_floor() {
   #     compatibility shim (`datetime.fromisoformat` rejects a trailing `Z`
   #     before 3.11) — the #1650 shape exactly, one paragraph up;
   #   - autoship_reclaim.py, which strips a trailing `Z` before
-  #     `datetime.fromisoformat` for the identical reason (#1829).
+  #     `datetime.fromisoformat` for the identical reason (#1829);
+  #   - examination_gate.py, whose parse_timestamp reads a trailing `Z` as
+  #     `+00:00` for the same 3.10 reason.
   #
   # Every OTHER shipped, tested plugins/dev-team/scripts/*.py module is
   # accounted for in tests/repo/test_python_floor.py's SLICE_EXCLUSIONS, with
@@ -459,6 +461,7 @@ chk_python_floor() {
     plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py \
     plugins/dev-team/tests/scripts/test_coverage_discovery_js.py \
     plugins/dev-team/tests/scripts/test_autoship_reclaim.py \
+    tests/scripts/test_examination_gate.py \
     -q || return 1
 }
 

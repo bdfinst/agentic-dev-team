@@ -400,6 +400,52 @@ def test_render_section_keeps_a_five_line_observation_whole() -> None:
     assert "(+" not in section
 
 
+def test_render_section_clips_a_long_command_line() -> None:
+    limit = gate.OBSERVATION_CHAR_LIMIT
+    command = "x" * (limit + 300)
+    row = make_row("AC1", command=command, observation="ok")
+
+    section = cli.render_section(make_record([row]), stale=False)
+
+    assert f"$ {gate.clip_line(command)}\nok\n" in section
+    assert "x" * (limit + 1) not in section
+
+
+def test_render_section_keeps_a_command_at_the_limit_whole() -> None:
+    command = "x" * gate.OBSERVATION_CHAR_LIMIT
+    row = make_row("AC1", command=command, observation="ok")
+
+    section = cli.render_section(make_record([row]), stale=False)
+
+    assert f"$ {command}\nok\n" in section
+
+
+def _findings(count: int) -> list[dict]:
+    return [
+        {"kind": "read", "target": f"src/f{n}.py", "command": f"cat src/f{n}.py"}
+        for n in range(count)
+    ]
+
+
+def test_render_section_caps_audit_findings_and_counts_the_rest() -> None:
+    section = cli.render_section(
+        make_record([make_row("AC1")], _findings(25), overall="tainted"), stale=False
+    )
+
+    assert "read src/f19.py: cat src/f19.py" in section
+    assert "src/f20.py" not in section
+    assert "  - (+5 more)\n" in section
+
+
+def test_render_section_lists_exactly_the_cap_of_findings_without_a_tail() -> None:
+    section = cli.render_section(
+        make_record([make_row("AC1")], _findings(20), overall="tainted"), stale=False
+    )
+
+    assert "read src/f19.py: cat src/f19.py" in section
+    assert "more)" not in section
+
+
 def test_render_section_lists_failing_criteria_first_in_id_order() -> None:
     rows = [
         make_row("AC1", "met"),
@@ -980,6 +1026,7 @@ def test_a_failed_plan_write_is_one_line_exit_two(
         assert fail_open is False
         raise OSError("disk full")
 
+    # double-waiver: B1 — atomic_write holds the plan file handle; a full disk cannot be provoked through a real seam
     monkeypatch.setattr(cli.atomic_state, "atomic_write", _fail)
 
     code = cli.main(["render", "--plan", PLAN_ID])
@@ -1006,6 +1053,7 @@ def test_render_writes_nothing_when_the_plan_changed_during_the_render(
         plan.write_text(edited["text"], encoding="utf-8")
         return updated
 
+    # double-waiver: B1 — the wrapper lands a concurrent plan-file edit inside the render window; no real seam fires between read and write
     monkeypatch.setattr(cli, "upsert_section", _upsert_then_edit)
 
     code = cli.main(["render", "--plan", PLAN_ID])
@@ -1028,6 +1076,7 @@ def test_render_writes_through_atomic_write(
         calls.append((Path(path).name, fail_open))
         real(path, text, fail_open=fail_open)
 
+    # double-waiver: B1 — the spy wraps the real atomic_write, which writes a file, to observe its arguments
     monkeypatch.setattr(cli.atomic_state, "atomic_write", _spy)
 
     assert cli.main(["render", "--plan", PLAN_ID]) == 0
@@ -1043,18 +1092,22 @@ def test_render_does_not_rewrite_a_plan_that_already_has_the_section(
     def _unexpected(*args, **kwargs):
         raise AssertionError("second render rewrote the plan")
 
+    # double-waiver: B1 — atomic_write writes a file; the stub proves a second render never reaches it
     monkeypatch.setattr(cli.atomic_state, "atomic_write", _unexpected)
 
     assert cli.main(["render", "--plan", PLAN_ID]) == 0
 
 
-def _patch_poll_sleep(monkeypatch: pytest.MonkeyPatch, sleep) -> None:
-    """Replace only the CLI's view of `time.sleep`, leaving the real module alone.
+def _patch_poll_sleep(
+    monkeypatch: pytest.MonkeyPatch, sleep, monotonic=time.monotonic
+) -> None:
+    """Replace only the CLI's view of `time.sleep` (and, when given, of
+    `time.monotonic`), leaving the real module alone.
 
     Patching `time.sleep` itself would also fire inside `subprocess`'s
     `wait(timeout=...)` loop, so the binding's git calls would trigger the
     fake sleep before the first poll."""
-    fake = types.SimpleNamespace(monotonic=time.monotonic, sleep=sleep)
+    fake = types.SimpleNamespace(monotonic=monotonic, sleep=sleep)
     monkeypatch.setattr(cli, "time", fake)
 
 
@@ -1090,7 +1143,9 @@ def test_status_polling_computes_the_binding_up_front_and_once_more_on_arrival(
             calls.append(args[1])
         return real(*args, **kwargs)
 
+    # double-waiver: B1 — binding_for_plan spawns git subprocesses; the wrapper counts the real calls
     monkeypatch.setattr(gate, "binding_for_plan", _count)
+    # double-waiver: B1 — same git-spawning binding_for_plan, patched where the CLI resolves it
     monkeypatch.setattr(store, "binding_for_plan", _count)
     _land_record_on_first_sleep(monkeypatch, in_process)
     land = cli.time.sleep
@@ -1123,7 +1178,9 @@ def test_status_wait_rebinds_when_the_record_is_already_present(
         calls.append(args[1])
         return real(*args, **kwargs)
 
+    # double-waiver: B1 — binding_for_plan spawns git subprocesses; the wrapper counts the real calls
     monkeypatch.setattr(gate, "binding_for_plan", _count)
+    # double-waiver: B1 — same git-spawning binding_for_plan, patched where the CLI resolves it
     monkeypatch.setattr(store, "binding_for_plan", _count)
 
     code = cli.main(
@@ -1152,6 +1209,7 @@ def test_status_wait_catches_a_commit_that_lands_before_the_first_poll(
         )
         return binding
 
+    # double-waiver: B1 — binding_for_plan spawns git subprocesses; the wrapper commits between the binding and the check
     monkeypatch.setattr(store, "binding_for_plan", _commit_after_binding)
 
     code = cli.main(
@@ -1172,8 +1230,16 @@ def test_status_polling_without_a_record_computes_the_binding_once(
         calls.append(args[1])
         return real(*args, **kwargs)
 
+    # double-waiver: B1 — binding_for_plan spawns git subprocesses; the wrapper counts the real calls
     monkeypatch.setattr(gate, "binding_for_plan", _count)
+    # double-waiver: B1 — same git-spawning binding_for_plan, patched where the CLI resolves it
     monkeypatch.setattr(store, "binding_for_plan", _count)
+    clock = {"now": 0.0}
+
+    def _advance(seconds: float) -> None:
+        clock["now"] += seconds
+
+    _patch_poll_sleep(monkeypatch, _advance, monotonic=lambda: clock["now"])
 
     code = cli.main(
         ["status", "--plan", PLAN_ID, "--wait", "0.3", "--poll-interval", "0.05"]
@@ -1199,9 +1265,9 @@ def test_status_wait_catches_a_commit_that_lands_with_the_record(
 
 def test_is_stale_uses_the_gate_rule(in_process: Path) -> None:
     write_met_record(in_process)
-    loaded = cli._load(PLAN_ID)
-    record = store.read_record(loaded.record_path)
-    current = store.binding_for_plan(loaded.root, loaded.plan_id, loaded.plan_text)
+    plan_text = (in_process / PLAN_ID).read_text(encoding="utf-8")
+    record = store.read_record(store.record_path(in_process, PLAN_ID))
+    current = gate.binding_for_plan(in_process, PLAN_ID, plan_text)
     assert not gate.is_stale(record, current)
     assert gate.is_stale(record, Binding("0" * 64, current.inputs_digest))
 

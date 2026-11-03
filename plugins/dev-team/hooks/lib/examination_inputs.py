@@ -2,7 +2,7 @@
 
 Pure, stdlib only, no I/O. The code here is the single source of criteria
 numbering (`criteria_ids`: `AC1..ACn` by position in `plan_examination_inputs`),
-of the checkbox grammar (`CHECKBOX_PREFIX`) and of fenced-block detection
+of the checkbox grammar (`CHECKBOX_PATTERN_PREFIX`) and of fenced-block detection
 (`scan_fences`), which every other reader of a plan's markdown builds on.
 """
 
@@ -27,8 +27,8 @@ CRITERION_ID_PREFIX = "AC"
 CRITERION_ID = re.compile(rf"{CRITERION_ID_PREFIX}\d+", re.ASCII)
 #: The start of a plan checkbox line; `progress_guardian.STEP_PATTERN` builds on
 #: it. Group `state` is the box content.
-CHECKBOX_PREFIX = r"^-\s+\[(?P<state>[ xX])\]\s+"
-CHECKBOX = re.compile(CHECKBOX_PREFIX + r"(?P<text>.+)$")
+CHECKBOX_PATTERN_PREFIX = r"^-\s+\[(?P<state>[ xX])\]\s+"
+CHECKBOX = re.compile(CHECKBOX_PATTERN_PREFIX + r"(?P<text>.+)$")
 
 _FENCE = "```"
 _FENCE_OPEN = re.compile(r"^\s*(`{3,})([^`]*)$")

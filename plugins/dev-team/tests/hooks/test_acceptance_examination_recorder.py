@@ -557,6 +557,7 @@ def test_unexpected_error_in_process_exits_zero_silently(
         calls.append(cwd)
         raise RuntimeError("boom")
 
+    # double-waiver: B1 — process reads the transcript, the plan, and git; a real failure there cannot be forced from the payload
     monkeypatch.setattr(recorder, "process", explode)
 
     assert _main_with_stdin(monkeypatch, _payload_for(repo, _examiner_rows())) == 0
@@ -575,6 +576,7 @@ def test_record_write_failure_exits_zero_silently_and_leaves_no_file(
         attempts.append(Path(path))
         raise OSError("disk full")
 
+    # double-waiver: B1 — write_record opens the record file; a full disk cannot be provoked through a real seam
     monkeypatch.setattr(recorder, "write_record", fail_write)
 
     assert _main_with_stdin(monkeypatch, _payload_for(repo, _examiner_rows())) == 0

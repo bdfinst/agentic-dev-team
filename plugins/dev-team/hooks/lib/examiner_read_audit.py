@@ -12,7 +12,9 @@ result does not mean the run was clean. What the audit does NOT cover:
   with an unquoted-literal `$` or a backtick (`cat "$f"`, `> "${TMPDIR}/x"`),
   and any glob or substitution result. This is an accepted false negative.
   (Command substitutions and process substitutions are audited as nested
-  commands, to a recursion depth of 3.)
+  commands, to a recursion depth of 3. A heredoc body is not parsed, except
+  that an unquoted delimiter (`<<EOF`) makes the `$(...)` and backtick spans
+  in the body nested commands; a quoted one (`<<'EOF'`) is never parsed.)
 - Symlinks (made with `ln` or otherwise), case-insensitive filesystems, and
   sibling git worktrees: paths resolve lexically against `root` only.
 - Interpreter-based reads (`python3 -c`, `node -e`, `bash script.sh`,
@@ -65,6 +67,18 @@ READERS = frozenset(
         "od",
         "wc",
         "jq",
+        "tac",
+        "base64",
+        "paste",
+        "rev",
+        "fold",
+        "pr",
+        "hexdump",
+        "uniq",
+        "comm",
+        "cmp",
+        "vim",
+        "view",
     }
 )
 GIT_READ = frozenset(
@@ -134,6 +148,10 @@ _CMD_CD = "cd"
 _CMD_GIT = "git"
 _CMD_XARGS = "xargs"
 _CMD_SED = "sed"
+_CMD_DD = "dd"
+_DD_INPUT_PREFIX = "if="
+_CMD_GREP = "grep"
+_CMD_RG = "rg"
 _CMD_EVAL = "eval"
 _CMD_TIMEOUT = "timeout"
 _SHELLS = frozenset({"bash", "sh", "dash", "zsh"})
@@ -187,7 +205,7 @@ _JQ_BINDING_FLAGS = frozenset({"--arg", "--argjson", "--slurpfile", "--rawfile"}
 #: Flags that consume the next token, per reader. Readers not listed take no
 #: value flags (`tail -f` follows; `wc -m` counts characters).
 _VALUE_FLAGS = {
-    "grep": _PATTERN_READER_VALUE_FLAGS,
+    "grep": _PATTERN_READER_VALUE_FLAGS | {"-d", "--directories"},
     "rg": _PATTERN_READER_VALUE_FLAGS,
     "sed": _PATTERN_READER_VALUE_FLAGS,
     "awk": _PATTERN_READER_VALUE_FLAGS | {"-F", "-v"},
@@ -196,12 +214,28 @@ _VALUE_FLAGS = {
     "tail": frozenset({"-n", "-c"}),
     "cut": frozenset({"-d", "-f"}),
     "sort": frozenset({"-k", "-t"}),
+    "fold": frozenset({"-w"}),
+    "base64": frozenset({"-w"}),
+    "uniq": frozenset({"-f", "-s", "-w"}),
+    "tac": frozenset({"-s"}),
+    "paste": frozenset({"-d"}),
+    "cmp": frozenset({"-n", "-i"}),
+    "hexdump": frozenset({"-n", "-s", "-e"}),
 }
 _XARGS_VALUE_FLAGS = frozenset({"-I", "-n", "-P", "-L", "-s", "-E", "-d", "-a"})
 _GIT_VALUE_FLAGS = frozenset(
     {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
     | {"--super-prefix"}
 )
+
+_IMPLICIT_OPERAND = "."
+_GREP_RECURSIVE_FLAGS = frozenset(
+    {"-r", "-R", "--recursive", "--dereference-recursive", "--directories=recurse"}
+    | {"-drecurse"}
+)
+_GREP_DIRECTORIES_FLAGS = frozenset({"-d", "--directories"})
+_GREP_RECURSE = "recurse"
+_GREP_VALUE_LETTERS = frozenset("efmABCd")
 
 FEATURE_SUFFIX = ".feature"
 _STDIN_OPERAND = "-"
@@ -234,6 +268,7 @@ _OPERATORS = (
     ")",
 )
 _SEPARATORS = frozenset({"&&", "||", "|&", ";", "|", "&", "\n", "(", ")"})
+_PIPES = frozenset({"|", "|&"})
 _HEREDOC_OPS = frozenset({"<<", "<<-"})
 #: Redirects whose next word is a literal, never a file.
 _NO_FILE_OPS = frozenset({"<<", "<<-", "<<<"})
@@ -301,14 +336,14 @@ def _audit(command: str, scope: AuditScope, depth: int) -> list[_Hit]:
     if depth > _MAX_DEPTH:
         return []
     hits: list[_Hit] = []
-    for segment in _segments(_lex(command)):
-        segment_hits, scope = _audit_segment(segment, scope, depth)
+    for segment, piped in _segments(_lex(command)):
+        segment_hits, scope = _audit_segment(segment, scope, depth, piped)
         hits.extend(segment_hits)
     return hits
 
 
 def _audit_segment(
-    segment: list[_Token], scope: AuditScope, depth: int
+    segment: list[_Token], scope: AuditScope, depth: int, piped: bool
 ) -> tuple[list[_Hit], AuditScope]:
     words, redirects = _split_redirects(segment)
     command_words = _command_words(words)
@@ -325,7 +360,7 @@ def _audit_segment(
             hits.extend(_audit_nested(word, scope, depth))
     if script:
         hits.extend(_audit(script[0], scope, depth + 1))
-    hits.extend(_classify_command(name, args, scope))
+    hits.extend(_classify_command(name, args, scope, piped))
     for redirect in redirects:
         hits.extend(_repo_hits(redirect.kind, [redirect.target], scope))
     return hits, scope
@@ -344,7 +379,8 @@ def _lex(command: str) -> list[_Token]:
 
 class _Lexer:
     """Single-pass shell lexer: quotes, escapes, comments, substitutions,
-    operators, and heredoc bodies. An unterminated quote is ignored, so what
+    operators, and heredoc bodies (skipped, apart from the substitutions in an
+    unquoted-delimiter body). An unterminated quote is ignored, so what
     follows it is still lexed (and audited) as ordinary shell."""
 
     def __init__(self, source: str) -> None:
@@ -357,7 +393,8 @@ class _Lexer:
         self._nested: list[str] = []
         self._awaiting_delimiter = False
         self._strip_tabs = False
-        self._pending_heredocs: list[tuple[str, bool]] = []
+        self._quoted = False
+        self._pending_heredocs: list[tuple[str, bool, bool]] = []
 
     def run(self) -> list[_Token]:
         while self._pos < len(self._src):
@@ -397,7 +434,7 @@ class _Lexer:
             return
         word = _Word("".join(self._chars), self._has_expansion, tuple(self._nested))
         if self._awaiting_delimiter:
-            self._pending_heredocs.append((word.text, self._strip_tabs))
+            self._pending_heredocs.append((word.text, self._strip_tabs, self._quoted))
             self._awaiting_delimiter = False
         self._tokens.append(word)
         self._reset_word()
@@ -406,6 +443,7 @@ class _Lexer:
         self._chars = []
         self._in_word = False
         self._has_expansion = False
+        self._quoted = False
         self._nested = []
 
     def _newline(self) -> None:
@@ -416,8 +454,13 @@ class _Lexer:
         self._skip_heredoc_bodies()
 
     def _skip_heredoc_bodies(self) -> None:
+        """Drop each pending heredoc body. Bash still runs `$(..)` and
+        backticks in the body of an unquoted-delimiter heredoc, so those spans
+        are emitted as a word of their own to be audited as nested commands."""
         src = self._src
-        for delimiter, strip_tabs in self._pending_heredocs:
+        nested: list[str] = []
+        for delimiter, strip_tabs, quoted in self._pending_heredocs:
+            body: list[str] = []
             while self._pos < len(src):
                 end = src.find("\n", self._pos)
                 end = len(src) if end == -1 else end
@@ -425,7 +468,13 @@ class _Lexer:
                 self._pos = min(end + 1, len(src))
                 if (line.lstrip("\t") if strip_tabs else line) == delimiter:
                     break
+                body.append(line)
+            if not quoted:
+                nested.extend(_body_substitutions("\n".join(body)))
         self._pending_heredocs.clear()
+        if nested:
+            self._tokens.append(_Word("", True, tuple(nested)))
+            self._tokens.append(_Operator("\n"))
 
     def _skip_comment(self) -> None:
         end = self._src.find("\n", self._pos)
@@ -433,6 +482,7 @@ class _Lexer:
 
     def _escape(self) -> None:
         following = self._src[self._pos + 1 : self._pos + 2]
+        self._quoted = True
         if following and following != "\n":
             self._append(following)
         self._pos += 2 if following else 1
@@ -442,6 +492,7 @@ class _Lexer:
         if end == -1:
             self._pos += 1
             return
+        self._quoted = True
         self._append(self._src[self._pos + 1 : end])
         self._pos = end + 1
 
@@ -453,6 +504,7 @@ class _Lexer:
         while index < len(src):
             char = src[index]
             if char == '"':
+                self._quoted = True
                 self._append("".join(parts), expands=expands)
                 self._nested.extend(nested)
                 self._pos = index + 1
@@ -481,6 +533,7 @@ class _Lexer:
             self._nested.append(inner)
             self._pos = end
         elif src[self._pos + 1 : self._pos + 2] in ("'", '"'):
+            self._quoted = True
             self._pos += 1  # `$'..'` and `$".."` quote like `'..'` and `".."`
         else:
             self._append(char, expands=True)
@@ -528,6 +581,22 @@ def _command_substitution(src: str, pos: int) -> tuple[str, int] | None:
     return None
 
 
+def _body_substitutions(body: str) -> list[str]:
+    """Inner commands of the `$(..)` and backtick spans in an unquoted heredoc
+    body; a backslash-escaped `$` or backtick is literal."""
+    inner: list[str] = []
+    index = 0
+    while index < len(body):
+        if body[index] == "\\":
+            index += 2
+        elif substitution := _command_substitution(body, index):
+            inner.append(substitution[0])
+            index = substitution[1]
+        else:
+            index += 1
+    return inner
+
+
 def _scan_parens(src: str, start: int) -> tuple[str, int]:
     """Inner text of a parenthesised command that opens just before `start`."""
     depth, index = 1, start
@@ -567,16 +636,17 @@ def _skip_quoted(src: str, start: int) -> int:
 # --- segments and redirects ------------------------------------------------
 
 
-def _segments(tokens: list[_Token]) -> list[list[_Token]]:
-    """Token lists per simple command. Pipe position has no effect on the
-    operand rules (a stdin filter has no path operand), so it is not kept."""
-    segments: list[list[_Token]] = [[]]
+def _segments(tokens: list[_Token]) -> list[tuple[list[_Token], bool]]:
+    """`(tokens, piped)` per simple command. `piped` is True when a pipe feeds
+    the command's stdin: a recursive reader with no path operand then reads
+    that stream, not the working directory."""
+    segments: list[tuple[list[_Token], bool]] = [([], False)]
     for token in tokens:
         if isinstance(token, _Operator) and token.text in _SEPARATORS:
-            segments.append([])
+            segments.append(([], token.text in _PIPES))
         else:
-            segments[-1].append(token)
-    return [segment for segment in segments if segment]
+            segments[-1][0].append(token)
+    return [(segment, piped) for segment, piped in segments if segment]
 
 
 def _split_redirects(segment: list[_Token]) -> tuple[list[_Word], list[_Redirect]]:
@@ -663,7 +733,9 @@ def _next_cwd(args: list[_Word], cwd: str | None) -> str | None:
     return _resolve_operand(operands[0].text, cwd)
 
 
-def _classify_command(name: str, args: list[_Word], scope: AuditScope) -> list[_Hit]:
+def _classify_command(
+    name: str, args: list[_Word], scope: AuditScope, piped: bool
+) -> list[_Hit]:
     if name == _CMD_GIT:
         return _classify_git(args)
     if name == _CMD_XARGS:
@@ -672,10 +744,21 @@ def _classify_command(name: str, args: list[_Word], scope: AuditScope) -> list[_
         return [(KIND_XARGS, reader_name)] if reader_name in READERS else []
     if name in WRITERS:
         return _repo_hits(KIND_WRITE, _operands(args), scope)
+    if name == _CMD_DD:
+        return _repo_hits(KIND_READ, _dd_inputs(args), scope)
     if name in READERS:
         kind = KIND_WRITE if name == _CMD_SED and _is_in_place(args) else KIND_READ
-        return _repo_hits(kind, _reader_operands(name, args), scope)
+        return _repo_hits(kind, _reader_operands(name, args, piped), scope)
     return []
+
+
+def _dd_inputs(args: list[_Word]) -> list[_Word]:
+    """The `if=<path>` operands of `dd`, as plain path words."""
+    return [
+        _Word(arg.text[len(_DD_INPUT_PREFIX) :], arg.has_expansion)
+        for arg in args
+        if arg.text.startswith(_DD_INPUT_PREFIX)
+    ]
 
 
 def _classify_git(args: list[_Word]) -> list[_Hit]:
@@ -764,9 +847,10 @@ def _operands(args: list[_Word]) -> list[_Word]:
     return operands
 
 
-def _reader_operands(name: str, args: list[_Word]) -> list[_Word]:
+def _reader_operands(name: str, args: list[_Word], piped: bool) -> list[_Word]:
     """Candidate path operands of a reader, after flag values and the leading
-    pattern or script are removed."""
+    pattern or script are removed. A recursive search that is not fed by a
+    pipe and names no path searches the working directory: an implicit `.`."""
     value_flags = _VALUE_FLAGS.get(name, frozenset())
     pattern_flags = _PATTERN_FLAGS.get(name, frozenset())
     operands: list[_Word] = []
@@ -786,8 +870,46 @@ def _reader_operands(name: str, args: list[_Word]) -> list[_Word]:
             has_pattern_flag = has_pattern_flag or flag in pattern_flags
             skip_values = _values_to_skip(text, value_flags)
     if name in _PATTERN_FLAGS and not has_pattern_flag:
-        return operands[1:]
+        operands = operands[1:]
+    if not operands and not piped and _searches_cwd_by_default(name, args):
+        return [_Word(_IMPLICIT_OPERAND)]
     return operands
+
+
+def _searches_cwd_by_default(name: str, args: list[_Word]) -> bool:
+    """`rg`, and `grep` with a recursive flag, search `.` when given no path."""
+    return name == _CMD_RG or (name == _CMD_GREP and _is_recursive_grep(args))
+
+
+def _is_recursive_grep(args: list[_Word]) -> bool:
+    """`-r`, `-R`, `--recursive`, `-d recurse`, or a short cluster holding
+    `r`/`R` ahead of any value-taking letter (`-rn`, `-nR`)."""
+    texts = [arg.text for arg in args]
+    for index, text in enumerate(texts):
+        if text == _END_OF_FLAGS:
+            return False
+        if text in _GREP_RECURSIVE_FLAGS:
+            return True
+        if text in _GREP_DIRECTORIES_FLAGS and texts[index + 1 : index + 2] == [
+            _GREP_RECURSE
+        ]:
+            return True
+        if (
+            text.startswith("-")
+            and not text.startswith("--")
+            and _short_cluster_recurses(text)
+        ):
+            return True
+    return False
+
+
+def _short_cluster_recurses(cluster: str) -> bool:
+    for letter in cluster[1:]:
+        if letter in "rR":
+            return True
+        if letter in _GREP_VALUE_LETTERS:
+            return False  # the rest of the cluster is that flag's value
+    return False
 
 
 def _values_to_skip(flag: str, value_flags: frozenset[str]) -> int:

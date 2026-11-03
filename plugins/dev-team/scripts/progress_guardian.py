@@ -31,7 +31,7 @@ from examination_gate import (  # type: ignore[import-not-found]
     blocking_issues,
     load_and_check,
 )
-from examination_inputs import CHECKBOX_PREFIX  # type: ignore[import-not-found]
+from examination_inputs import CHECKBOX_PATTERN_PREFIX  # type: ignore[import-not-found]
 from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
 # ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ from lib.review_result import build_result, main_exit, make_issue, skipped_llm_w
 
 # Matches: - [x] Step 1.1: Header text  OR  - [ ] Just a header
 # The checkbox grammar is shared with the examination inputs parser.
-STEP_PATTERN = re.compile(CHECKBOX_PREFIX + r"(?:Step\s+[\d.]+:\s+)?(.+)$")
+STEP_PATTERN = re.compile(CHECKBOX_PATTERN_PREFIX + r"(?:Step\s+[\d.]+:\s+)?(.+)$")
 
 # Matches backtick-quoted paths in plan text (declared file references)
 BACKTICK_PATH_RE = re.compile(r"`([^`\s]+\.[a-zA-Z0-9_]+)`")

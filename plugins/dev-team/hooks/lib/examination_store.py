@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -16,11 +15,14 @@ import artifact_paths
 import atomic_state
 from examination_inputs import inputs_digest, plan_examination_inputs
 from examination_verdict import (
+    BASE_UNRESOLVABLE,
+    EMPTY_DIFF,
     RECORD_LIST_KEYS,
     RECORD_REQUIRED_KEYS,
     RECORD_SCHEMA,
     TAINTED,
     VERDICTS,
+    is_binding_hash,
 )
 from review_gate_hash import (
     EMPTY_DIGEST,
@@ -28,14 +30,11 @@ from review_gate_hash import (
     default_base_ref,
 )
 
-BASE_UNRESOLVABLE = "base-unresolvable"
-EMPTY_DIFF = "empty-diff"
 RECORD_FILENAME_PREFIX = "acceptance-examination-"
 RECORD_FILENAME_SUFFIX = ".json"
 _PATH_SEPARATOR_ESCAPE = "__"
 _GIT_TIMEOUT_SECONDS = 30
 UNREADABLE_FILE = "file could not be read"
-_BINDING_HASH = re.compile(r"[0-9a-f]{64}")
 _OVERALL_VALUES = (*VERDICTS, TAINTED)
 _STORED_SENTINELS = (BASE_UNRESOLVABLE, EMPTY_DIFF)
 
@@ -122,14 +121,6 @@ def binding_for_plan(root: Path | str, plan_id: str, plan_text: str) -> Binding:
     """The current `Binding`: the branch hash and the plan's inputs digest."""
     digest = inputs_digest(plan_examination_inputs(plan_text))
     return Binding(current_binding_hash(root, plan_id), digest)
-
-
-def is_binding_hash(value: object) -> bool:
-    """True for a real binding hash: 64 lowercase hex characters, and not the
-    empty-input digest, which is never a valid subject-hash match."""
-    if not isinstance(value, str) or value == EMPTY_DIGEST:
-        return False
-    return _BINDING_HASH.fullmatch(value) is not None
 
 
 def is_stored_binding_hash(value: object) -> bool:

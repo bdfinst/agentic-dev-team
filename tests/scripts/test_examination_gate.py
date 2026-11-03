@@ -705,14 +705,12 @@ def test_record_path_that_is_a_directory_is_unreadable_not_a_traceback(
     assert "file could not be read" in issue["message"]
 
 
-def test_met_record_with_a_sentinel_binding_hash_never_passes(repo: Path) -> None:
+def test_met_record_with_a_stored_sentinel_against_a_real_hash_reports_stale_diff(
+    repo: Path,
+) -> None:
     write_met_record(repo, binding_hash=BASE_UNRESOLVABLE)
     issue = _only_error(gate.load_and_check(repo / PLAN_ID))
-    assert issue["rule_id"] in {
-        gate.RULE_STALE_DIFF,
-        gate.RULE_BASE_UNRESOLVABLE,
-        gate.RULE_EMPTY_DIFF,
-    }
+    assert issue["rule_id"] == gate.RULE_STALE_DIFF
 
 
 def test_load_and_check_uses_a_supplied_binding_without_recomputing(
@@ -726,6 +724,7 @@ def test_load_and_check_uses_a_supplied_binding_without_recomputing(
     def _unexpected(*args: object, **kwargs: object) -> None:
         raise AssertionError("binding_for_plan was called")
 
+    # double-waiver: B1 — binding_for_plan spawns git subprocesses; the spy proves none run
     monkeypatch.setattr(gate, "binding_for_plan", _unexpected)
 
     assert gate.load_and_check(repo / PLAN_ID, binding=current) == []

@@ -163,7 +163,7 @@ def first_turn_text(records: list[dict]) -> str | None:
     return message_text(records[0].get("message"))
 
 
-def _tool_use_blocks(records: list[dict], name: str) -> Iterator[dict]:
+def _tool_use_inputs(records: list[dict], name: str) -> Iterator[dict]:
     """The `input` dict of every `tool_use` block named `name`, in transcript
     order. Rows without a dict `message` or a list `content`, non-dict blocks,
     and blocks whose `input` is not a dict are skipped."""
@@ -199,7 +199,7 @@ def handback_message_text(records: list[dict]) -> str | None:
     across 70 real transcripts ("Finding 3 — SubagentHandback is a real,
     distinguishable tool_use block"). Scans backward so the LAST handback
     call wins if a transcript ever carries more than one."""
-    for handback_input in reversed(list(_tool_use_blocks(records, "SubagentHandback"))):
+    for handback_input in reversed(list(_tool_use_inputs(records, "SubagentHandback"))):
         text = handback_input.get("message")
         if isinstance(text, str) and text:
             return text
@@ -301,6 +301,6 @@ def bash_commands(records: list[dict]) -> list[str]:
     `records`, in transcript order. A Bash block whose `input` isn't a dict,
     or whose `command` is missing or not a non-empty string, is skipped."""
     commands = (
-        tool_input.get("command") for tool_input in _tool_use_blocks(records, "Bash")
+        tool_input.get("command") for tool_input in _tool_use_inputs(records, "Bash")
     )
     return [command for command in commands if isinstance(command, str) and command]
