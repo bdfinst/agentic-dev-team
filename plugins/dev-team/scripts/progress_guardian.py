@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from lib.examination_gate import load_and_check
 from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
 # ---------------------------------------------------------------------------
@@ -864,6 +865,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.pre_pr:
             pre_pr_issues = check_pre_pr(steps)
             errors.extend(pre_pr_issues)
+
+            # 5b. Acceptance examination (#2270): a current `met` record.
+            exam_issues = load_and_check(plan_path)
+            errors.extend(i for i in exam_issues if i["severity"] == "error")
 
             # 6. Verify-log gate (issue #727): runtime-surface changes need
             # evidence /verify ran before the PR can be opened.

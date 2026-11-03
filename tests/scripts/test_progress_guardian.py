@@ -23,6 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from examination_fixtures import give_current_met_record
+
 from _repo_root import REPO_ROOT
 
 PG = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "progress_guardian.py"
@@ -60,6 +62,8 @@ def make_plan(path: Path, content: str) -> None:
 
 
 def run_pg(plan: Path, *args: str) -> subprocess.CompletedProcess:
+    if "--pre-pr" in args:
+        give_current_met_record(plan)
     return subprocess.run(
         [sys.executable, str(PG), "--plan", str(plan), *args],
         capture_output=True,
