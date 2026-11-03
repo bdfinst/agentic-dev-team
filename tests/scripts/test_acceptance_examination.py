@@ -20,6 +20,7 @@ from examination_repo import (
     PLAN_ID,
     PLAN_TEXT,
     RUN_COMMAND,
+    SOURCE_FILE,
     git_env,
     make_repo,
 )
@@ -1045,8 +1046,57 @@ def test_render_does_not_rewrite_a_plan_that_already_has_the_section(
     assert cli.main(["render", "--plan", PLAN_ID]) == 0
 
 
-@pytest.mark.slow
-def test_status_polling_computes_the_binding_once(
+def _land_record_on_first_sleep(
+    monkeypatch: pytest.MonkeyPatch, root: Path, *, commit_after: bool = False
+) -> None:
+    """On the first poll sleep, write a met record (and optionally commit)."""
+
+    def _sleep(_seconds: float) -> None:
+        write_met_record(root)
+        if commit_after:
+            (root / SOURCE_FILE).write_text("changed\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "commit", "-q", "-am", "fix: change"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+        monkeypatch.setattr(cli.time, "sleep", lambda _s: None)
+
+    monkeypatch.setattr(cli.time, "sleep", _sleep)
+
+
+def test_status_polling_computes_the_binding_up_front_and_once_more_on_arrival(
+    in_process: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+    counting = {"on": True}
+    real = gate.binding_for_plan
+
+    def _count(*args, **kwargs):
+        if counting["on"]:
+            calls.append(args[1])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(gate, "binding_for_plan", _count)
+    monkeypatch.setattr(store, "binding_for_plan", _count)
+    _land_record_on_first_sleep(monkeypatch, in_process)
+    land = cli.time.sleep
+
+    def _land_uncounted(seconds: float) -> None:
+        counting["on"] = False
+        land(seconds)
+        counting["on"] = True
+
+    monkeypatch.setattr(cli.time, "sleep", _land_uncounted)
+
+    code = cli.main(["status", "--plan", PLAN_ID, "--wait", "30", "--poll-interval", "0"])
+
+    assert code == 0
+    assert len(calls) == 2  # once up front, once fresh when the record arrived
+
+
+def test_status_polling_without_a_record_computes_the_binding_once(
     in_process: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[str] = []
@@ -1065,6 +1115,18 @@ def test_status_polling_computes_the_binding_once(
 
     assert code == 1  # no record: the loop polled until the window closed
     assert len(calls) == 1
+
+
+def test_status_wait_catches_a_commit_that_lands_with_the_record(
+    in_process: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _land_record_on_first_sleep(monkeypatch, in_process, commit_after=True)
+
+    code = cli.main(["status", "--plan", PLAN_ID, "--wait", "30", "--poll-interval", "0"])
+
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "commits landed after it ran" in out
 
 
 def test_is_stale_uses_the_gate_rule(in_process: Path) -> None:

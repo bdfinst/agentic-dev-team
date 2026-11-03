@@ -41,6 +41,7 @@ from examination_store import (  # type: ignore[import-not-found]
     RecordUnreadable,
     binding_for_plan,
     canonical_plan_id,
+    is_binding_hash,
     load_record,
     record_path,
     repo_root,
@@ -330,15 +331,18 @@ def _verdict_refusal(record: dict, plan_id: str) -> tuple[str, dict] | None:
 def stale_rule(record: dict, binding: Binding) -> str | None:
     """The staleness rule `record` trips against `binding`, or `None`.
 
-    A sentinel binding (`BASE_UNRESOLVABLE`, `EMPTY_DIFF`) never equals a
-    stored hash, so it is always stale. A stored sentinel (a record written
-    while the hash was unavailable) never equals a real current hash either,
-    so it is stale too: the gate reports `RULE_STALE_DIFF` and `/build`
+    A hash that is not a binding hash (a sentinel such as `BASE_UNRESOLVABLE`
+    or `EMPTY_DIFF`) on either side is always stale, even when both sides hold
+    the same sentinel: a sentinel says "no hash was available", not "the diff
+    is unchanged". The gate reports `RULE_STALE_DIFF` and `/build`
     re-dispatches the examiner. When the current binding is itself a
     sentinel, `_refusal` returns that sentinel's rule before this function
     runs.
     """
-    if record.get("binding_hash") != binding.hash:
+    stored = record.get("binding_hash")
+    if not (is_binding_hash(stored) and is_binding_hash(binding.hash)):
+        return RULE_STALE_DIFF
+    if stored != binding.hash:
         return RULE_STALE_DIFF
     if record.get("inputs_digest") != binding.inputs_digest:
         return RULE_STALE_INPUTS
@@ -411,8 +415,9 @@ def load_and_check(
     not parse is a caller bug and raises `ValueError`; every other failure
     becomes one error issue, never an exception. `binding` is a precomputed
     current binding for this plan: a caller that checks the same plan
-    repeatedly (a poll loop) computes it once, and only the record is re-read
-    on each call.
+    repeatedly (a poll loop) computes it once, and the call reuses its
+    branch-diff hash. The repository root, plan id and plan text are still
+    resolved on each call, and the record is re-read.
     """
     after_time = None
     if after is not None:

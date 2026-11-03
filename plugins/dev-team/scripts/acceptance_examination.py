@@ -115,8 +115,8 @@ class _Parser(argparse.ArgumentParser):
 
 def _load(plan: str) -> Loaded:
     """Read the plan and resolve its repository, canonical id and record path."""
+    plan_text = _read_plan_text(plan)
     try:
-        plan_text = Path(plan).read_text(encoding="utf-8")
         root = store.repo_root(plan)
         plan_id = store.canonical_plan_id(plan, root)
     except store.NotARepository as exc:
@@ -273,6 +273,12 @@ def _iso_time(text: str) -> str:
     return text
 
 
+def _is_missing(issues: list[dict]) -> bool:
+    """True when the gate refused because the record is absent (or not newer
+    than `--after`)."""
+    return any(i.get("rule_id") == examination_gate.RULE_MISSING for i in issues)
+
+
 def _poll_gate(
     plan: str,
     wait: float,
@@ -280,20 +286,25 @@ def _poll_gate(
     after: str | None,
     binding: store.Binding,
 ) -> list[dict]:
-    """Check the gate; while it refuses, re-check until `wait` seconds pass.
+    """Check the gate; while the record is missing, re-check until `wait` seconds pass.
 
-    `binding` is computed once by the caller; each re-check re-reads only the
-    record.
+    The polls reuse the caller's `binding`, which holds the branch-diff hash
+    computed once; the root, plan id and plan text are still resolved on each
+    call. When a poll sees a record that is not missing, the loop stops and one
+    final check runs with no precomputed binding, so a commit or plan edit made
+    during the wait is caught.
     """
     issues = examination_gate.load_and_check(plan, after=after, binding=binding)
-    if wait <= 0 or not examination_gate.blocking_issues(issues):
+    if wait <= 0 or not _is_missing(issues):
         return issues
     print(WAITING_LINE.format(wait=wait), file=sys.stderr)
     deadline = time.monotonic() + wait
-    while examination_gate.blocking_issues(issues) and time.monotonic() < deadline:
+    while _is_missing(issues) and time.monotonic() < deadline:
         time.sleep(interval)  # 0 yields the CPU rather than busy-waiting
         issues = examination_gate.load_and_check(plan, after=after, binding=binding)
-    return issues
+    if _is_missing(issues):
+        return issues
+    return examination_gate.load_and_check(plan, after=after)
 
 
 def cmd_status(args: argparse.Namespace) -> int:

@@ -278,11 +278,12 @@ def test_clean_tree_check_exempts_the_plan_file() -> None:
 
 def test_clean_tree_check_sees_untracked_files() -> None:
     step = _step_76()
-    assert "`git status --porcelain -- ':(top,exclude)<plan>'`" in step
-    assert "untracked-files" not in step
+    command = "`git status --porcelain --untracked-files=all -- ':(top,exclude)<plan>'`"
+    assert command in step
     assert "an untracked file counts as dirty" in step
     row = _reference_row("Before dispatch", "exit 1 for any other reason")
     assert "an untracked file counts as dirty" in row
+    assert "--untracked-files=all" in row
 
 
 def test_clean_tree_check_and_capability_gate_come_before_dispatch() -> None:

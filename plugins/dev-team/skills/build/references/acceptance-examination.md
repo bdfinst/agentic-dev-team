@@ -52,7 +52,7 @@ Run `acceptance_examination.py status --plan <plan>`.
 | exit 0, met record | Skip dispatch. Run `render` and continue to Step 7.5. The record certifies committed state only. A later commit makes it stale. |
 | exit 0, plan declares `**Examination**: not-applicable` | Skip dispatch. Do not run `render` (there is no record). Continue to Step 7.5. The evidence bundle lists the exemption. |
 | exit 1, message starts `Acceptance examination cannot be verified` or `Acceptance examination cannot run` | The branch base is unresolvable, or there are no commits ahead of the base. Print the message and stop. Do not dispatch. There is nothing to examine. |
-| exit 1 for any other reason | The record is absent, stale, or failing. Dispatch once (steps 2 to 5 of Step 7.6): run the clean-tree check (an untracked file counts as dirty), run `inputs`, then dispatch the examiner once with the template above. |
+| exit 1 for any other reason | The record is absent, stale, or failing. Dispatch once (steps 2 to 5 of Step 7.6): run the clean-tree check (`git status --porcelain --untracked-files=all`; an untracked file counts as dirty), run `inputs`, then dispatch the examiner once with the template above. |
 | exit 2 | Usage error, or the plan is not in a git repository. Print stderr and stop. No dispatch, no `render`. |
 
 If `inputs` exits non-zero (for example the plan has no

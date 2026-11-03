@@ -80,6 +80,10 @@ GIT_READ = frozenset(
         "format-patch",
         "archive",
         "range-diff",
+        "diff-tree",
+        "diff-index",
+        "diff-files",
+        "fast-export",
     }
 )
 #: Commands whose repo-path operands are writes. `sed -i` is a write too and is
@@ -114,9 +118,9 @@ GIT_WRITE = frozenset(
     }
 )
 #: Flags and keywords that leave a write-capable git verb read-only.
-_GIT_LIST_FLAGS = frozenset({"--list", "-l", "-v", "-a", "--show-current"})
-_GIT_LISTING_FLAGS = frozenset({"--list", "-l"})
-_GIT_LISTING_WORD = {"remote": "show", "worktree": "list"}
+_GIT_READ_ONLY_FLAGS = frozenset({"--list", "-l", "-v", "-a", "--show-current"})
+_GIT_LISTING_ONLY_FLAGS = frozenset({"--list", "-l"})
+_GIT_LISTING_KEYWORD_BY_VERB = {"remote": "show", "worktree": "list"}
 _GIT_LISTING_VERBS = frozenset({"branch", "tag", "remote", "worktree"})
 _GIT_CONFIG_READ_FLAGS = frozenset(
     {"--list", "-l", "--get", "--get-all", "--get-regexp"}
@@ -706,12 +710,11 @@ def _is_read_only_git_form(subcommand: str, rest: list[_Word]) -> bool:
     flags = [word.text for word in rest if word.text.startswith("-")]
     operands = [word.text for word in rest if not word.text.startswith("-")]
     if subcommand in _GIT_LISTING_VERBS:
-        if any(flag not in _GIT_LIST_FLAGS for flag in flags):
+        if any(flag not in _GIT_READ_ONLY_FLAGS for flag in flags):
             return False
-        listing_flag = any(flag in _GIT_LISTING_FLAGS for flag in flags)
-        listing_word = bool(operands) and operands[0] == _GIT_LISTING_WORD.get(
-            subcommand
-        )
+        listing_flag = any(flag in _GIT_LISTING_ONLY_FLAGS for flag in flags)
+        keyword = _GIT_LISTING_KEYWORD_BY_VERB.get(subcommand)
+        listing_word = bool(operands) and operands[0] == keyword
         return not operands or listing_flag or listing_word
     if subcommand == "config":
         return any(flag in _GIT_CONFIG_READ_FLAGS for flag in flags) and all(

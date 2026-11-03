@@ -337,7 +337,7 @@ def test_base_unresolvable_remedy_is_the_git_fetch_line() -> None:
 def _sentinel_record(stored: str) -> dict:
     return make_record(
         overall="indeterminate",
-        problems=["base-unresolvable"],
+        problems=[stored],
         binding_hash=stored,
     )
 
@@ -597,6 +597,15 @@ def test_is_stale_is_true_for_a_moved_hash_or_a_moved_digest() -> None:
 def test_is_stale_is_true_against_a_sentinel_binding() -> None:
     for sentinel in (BASE_UNRESOLVABLE, EMPTY_DIFF):
         assert gate.is_stale(make_record(), Binding(sentinel, DIGEST))
+
+
+@pytest.mark.parametrize("sentinel", [BASE_UNRESOLVABLE, EMPTY_DIFF])
+def test_is_stale_is_true_for_a_sentinel_record_against_the_same_sentinel(
+    sentinel: str,
+) -> None:
+    record = make_record(binding_hash=sentinel)
+    assert gate.is_stale(record, Binding(sentinel, DIGEST))
+    assert gate.stale_rule(record, Binding(sentinel, DIGEST)) == gate.RULE_STALE_DIFF
 
 
 def test_blocking_issues_keeps_only_errors() -> None:
