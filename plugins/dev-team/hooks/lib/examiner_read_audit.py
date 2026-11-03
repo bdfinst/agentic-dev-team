@@ -290,7 +290,7 @@ _READ_REDIRECTS = frozenset({"<", "<&"})
 #: are not listed here.
 _STDIN_OPS = frozenset({"<", "<>", "<&"})
 #: Duplicating stdin onto itself leaves the pipe in place.
-_STDIN_SELF_DUP = "0"
+_STDIN_SELF_DUP = 0
 _FD_DUP_OPS = frozenset({">&", "<&"})
 _FD_TARGET = re.compile(r"^(\d+-?|-)$")
 _DOUBLE_QUOTE_ESCAPES = frozenset({'"', "\\", "$", "`"})
@@ -730,7 +730,8 @@ def _replaces_stdin(token: _Operator, target: _Word) -> bool:
         on_stdin = token.text in _STDIN_OPS
     if not on_stdin:
         return False
-    return not (token.text in _FD_DUP_OPS and target.text == _STDIN_SELF_DUP)
+    self_dup = target.text.isdigit() and int(target.text) == _STDIN_SELF_DUP
+    return not (token.text in _FD_DUP_OPS and self_dup)
 
 
 def _redirect_kind(operator: str, target: str) -> str | None:

@@ -344,6 +344,7 @@ ROWS = [
     _row("pytest -q | rg secret 00<&-", (READ, ".")),
     _row("pytest -q | rg secret <&0"),
     _row("pytest -q | rg secret 0<&0"),
+    _row("pytest -q | rg secret <&00"),
     _row("cat <<EOF |\n$(date)\nEOF\nrg x"),
     _row("cat <<EOF |\nplain body\nEOF\nrg x"),
     _row("grep -n x features/a.feature"),
