@@ -309,3 +309,36 @@ def test_cli_branch_diff_exits_nonzero_and_prints_nothing_when_base_ref_unresolv
     )
     assert completed.returncode != 0
     assert completed.stdout.strip() == ""
+
+
+def test_branch_diff_gate_hash_exclude_reaches_git_as_top_exclude_pathspec(
+    monkeypatch,
+) -> None:
+    captured = {}
+
+    def _fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, stdout=b"x", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    gate.branch_diff_gate_hash("main", exclude=("plans/x.md", "docs/y.md"))
+    argv = captured["argv"]
+    assert argv[argv.index("--") :] == [
+        "--",
+        ":(top,exclude)plans/x.md",
+        ":(top,exclude)docs/y.md",
+    ]
+
+
+def test_branch_diff_gate_hash_without_exclude_has_no_pathspec_separator(
+    monkeypatch,
+) -> None:
+    captured = {}
+
+    def _fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, stdout=b"x", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    gate.branch_diff_gate_hash("main")
+    assert "--" not in captured["argv"]

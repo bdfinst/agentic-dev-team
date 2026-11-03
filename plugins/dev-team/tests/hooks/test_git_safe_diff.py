@@ -144,3 +144,51 @@ def test_real_git_diff_cached_name_only(tmp_path: Path) -> None:
     completed = gsd.run_safe_git_diff(["--name-only"], cwd=tmp_path, text=True)
     assert completed.returncode == 0
     assert completed.stdout.strip() == "a.ts"
+
+
+def test_pathspec_is_appended_last_after_ignore_submodules(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = {}
+
+    def _fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    gsd.run_safe_git_diff(
+        ["--no-color"], target="main...HEAD", pathspec=[":(top,exclude)plans/x.md"]
+    )
+    assert captured["argv"] == [
+        "git",
+        "-c",
+        "diff.relative=false",
+        "diff",
+        "main...HEAD",
+        "--no-color",
+        "--ignore-submodules=none",
+        "--",
+        ":(top,exclude)plans/x.md",
+    ]
+
+
+def test_empty_pathspec_leaves_argv_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = {}
+
+    def _fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    gsd.run_safe_git_diff(["--name-only"], pathspec=())
+    assert captured["argv"] == [
+        "git",
+        "-c",
+        "diff.relative=false",
+        "diff",
+        "--cached",
+        "--name-only",
+        "--ignore-submodules=none",
+    ]

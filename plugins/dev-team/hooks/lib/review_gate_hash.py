@@ -70,6 +70,7 @@ from __future__ import annotations
 import hashlib
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 _LIB_DIR = Path(__file__).resolve().parent
@@ -86,16 +87,25 @@ from git_safe_diff import run_safe_git_diff
 EMPTY_DIGEST = hashlib.sha256(b"").hexdigest()
 
 
-def _git_diff_hash(extra_flags, cwd: Path | None, target: str) -> str:
+def _git_diff_hash(
+    extra_flags,
+    cwd: Path | None,
+    target: str,
+    pathspec: Sequence[str] = (),
+) -> str:
     """Shared computation behind `review_gate_hash()`, `branch_diff_gate_hash()`,
     and (historically) `working_tree_gate_hash()` — differing ONLY in
     `target`. Extracted (issue #1904) after the three were ~95%
     byte-identical copy-paste. Fails closed to `EMPTY_DIGEST` on any git
     launch failure or non-zero exit — see the module docstring for why a
     caller must never treat that value as a valid subject-hash match.
+
+    `pathspec` (#2270) is forwarded to `run_safe_git_diff` unchanged.
     """
     try:
-        completed = run_safe_git_diff(extra_flags, cwd=cwd, text=False, target=target)
+        completed = run_safe_git_diff(
+            extra_flags, cwd=cwd, text=False, target=target, pathspec=pathspec
+        )
     except (FileNotFoundError, OSError):
         # git not installed; the .sh would have `command not found` on stderr
         # and an empty stdout piped through shasum → sha256 of empty input.
@@ -145,7 +155,9 @@ def review_gate_hash(cwd: Path | None = None) -> str:
     return _git_diff_hash(_DIFF_RENDER_FLAGS, cwd, "--cached")
 
 
-def branch_diff_gate_hash(base_ref: str, cwd: Path | None = None) -> str:
+def branch_diff_gate_hash(
+    base_ref: str, cwd: Path | None = None, exclude: Sequence[str] = ()
+) -> str:
     """Return the sha256 hex digest of `git diff <base_ref>...HEAD` — the
     PR-time gate's binding content (#1886): the WHOLE branch diff against
     its merge-base with `base_ref`, rather than one commit's staged patch
@@ -159,8 +171,15 @@ def branch_diff_gate_hash(base_ref: str, cwd: Path | None = None) -> str:
     function's own docstring for the full rationale of each flag and why a
     forgotten fix on one sibling would reopen the subject-binding bypass
     both exist to prevent.
+
+    `exclude` (#2270): repo-root-relative paths left out of the hashed diff,
+    passed to git as `:(top,exclude)<path>` pathspecs. Empty (the default)
+    hashes the whole diff, as before.
     """
-    return _git_diff_hash(_DIFF_RENDER_FLAGS, cwd, f"{base_ref}...HEAD")
+    pathspec = [f":(top,exclude){p}" for p in exclude]
+    return _git_diff_hash(
+        _DIFF_RENDER_FLAGS, cwd, f"{base_ref}...HEAD", pathspec=pathspec
+    )
 
 
 def default_base_ref(cwd: Path | None = None) -> str | None:
