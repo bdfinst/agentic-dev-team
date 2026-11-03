@@ -247,3 +247,53 @@ def test_absent_after_dispatch_text_is_identical_in_step_and_reference() -> None
     )
     assert absent in _step()
     assert absent in collapsed(_reference_text())
+
+
+# --- Evidence bundle scenario (Step 4.2) ------------------------------------
+
+BUNDLE = PLUGIN_ROOT / "knowledge" / "evidence-bundle.md"
+CHECKS_RUN_PINS = ("acceptance_examination.py status", "overall verdict")
+RESIDUAL_RISKS_PINS = ("tainted", "Examination: not-applicable")
+
+
+def _step_75_bullet(label: str) -> str:
+    """The Step 7.5 bullet that starts `- **<label>**`, through its continuation lines."""
+    lines = _step_section(_skill_text(), STEP_75).splitlines()
+    starts = [i for i, line in enumerate(lines) if line.startswith(f"- **{label}**")]
+    assert len(starts) == 1, f"expected one '{label}' bullet in Step 7.5"
+    end = next(
+        (i for i in range(starts[0] + 1, len(lines)) if not lines[i].startswith("  ")),
+        len(lines),
+    )
+    return collapsed("\n".join(lines[starts[0] : end]))
+
+
+def _bundle_row(section: str) -> str:
+    """The fixed-sections table row of evidence-bundle.md for `section`."""
+    rows = [
+        line
+        for line in BUNDLE.read_text(encoding="utf-8").splitlines()
+        if line.startswith(f"| {section} |")
+    ]
+    assert len(rows) == 1, f"expected one '{section}' table row"
+    return collapsed(rows[0])
+
+
+@pytest.mark.parametrize("pin", CHECKS_RUN_PINS)
+def test_step_75_checks_run_lists_the_examination(pin: str) -> None:
+    assert pin in _step_75_bullet("Checks run")
+
+
+@pytest.mark.parametrize("pin", RESIDUAL_RISKS_PINS)
+def test_step_75_residual_risks_names_examination_sources(pin: str) -> None:
+    assert pin in _step_75_bullet("Residual risks")
+
+
+@pytest.mark.parametrize("pin", CHECKS_RUN_PINS)
+def test_bundle_checks_run_row_lists_the_examination(pin: str) -> None:
+    assert pin in _bundle_row("Checks run")
+
+
+@pytest.mark.parametrize("pin", RESIDUAL_RISKS_PINS)
+def test_bundle_residual_risks_row_names_examination_sources(pin: str) -> None:
+    assert pin in _bundle_row("Residual risks")

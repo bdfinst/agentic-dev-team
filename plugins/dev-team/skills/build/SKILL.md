@@ -381,7 +381,10 @@ re-execution**; it renders data this run already produced:
 
 - **Checks run**: the Step 5 full-suite command + result, the Step 6
   `/code-review` status, the Step 7 Farley Score command/output (or its
-  skip line when no tests changed).
+  skip line when no tests changed), and the Step 7.6 acceptance
+  examination: the `acceptance_examination.py status` command and the
+  record's overall verdict. Step 7.6 already ran `status`; render its
+  outcome, do not run it again.
 - **Scope notes**: review agents dispatched vs. skipped across the build's
   checkpoints (sub-steps 4/6), and any gate reported "not applicable."
 - **Untested regions**: read `baseline-coverage.json` / `coverage-history.json`
@@ -390,8 +393,9 @@ re-execution**; it renders data this run already produced:
 - **Residual risks**: derived-first from this run's `.claude/metrics/review-value.jsonl`
   entries with `outcome: "escalated"`, any non-interactive gate-bypass audit
   lines printed in Steps 2–3, and any `failed-then-fixed` runtime-verification
-  entries in `metrics/verify-log.jsonl`. "None identified" only when all of
-  those are empty.
+  entries in `metrics/verify-log.jsonl`, any `tainted` examination record,
+  and a plan that declares `Examination: not-applicable` (the plan was not
+  examined). "None identified" only when all of those are empty.
 
 Follow the degradation rule: every one of the four section headers appears in
 the completion report even when a section has nothing to show — it states why.
