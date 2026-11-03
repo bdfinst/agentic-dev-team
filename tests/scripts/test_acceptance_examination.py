@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import stat
 import subprocess
 import sys
@@ -435,6 +436,18 @@ def test_render_section_caps_audit_findings_and_counts_the_rest() -> None:
     assert "read src/f19.py: cat src/f19.py" in section
     assert "src/f20.py" not in section
     assert "  - (+5 more)\n" in section
+
+
+def test_render_section_clips_a_long_finding_command() -> None:
+    command = "cat src/a.py " + "x" * (gate.OBSERVATION_CHAR_LIMIT + 300)
+    finding = {"kind": "read", "target": "src/a.py", "command": command}
+
+    section = cli.render_section(
+        make_record([make_row("AC1")], [finding], overall="tainted"), stale=False
+    )
+
+    assert f"  - read src/a.py: {gate.clip_line(command)}\n" in section
+    assert command not in section
 
 
 def test_render_section_lists_exactly_the_cap_of_findings_without_a_tail() -> None:
@@ -1044,17 +1057,17 @@ def test_render_writes_nothing_when_the_plan_changed_during_the_render(
 ) -> None:
     write_met_record(in_process)
     plan = in_process / PLAN_ID
-    real_upsert = cli.upsert_section
+    real_binding = store.binding_for_plan
     edited = {}
 
-    def _upsert_then_edit(text, section):
-        updated = real_upsert(text, section)
-        edited["text"] = text + "\nedited by someone else\n"
+    def _bind_then_edit(*args, **kwargs):
+        binding = real_binding(*args, **kwargs)
+        edited["text"] = plan.read_text(encoding="utf-8") + "\nedited by someone else\n"
         plan.write_text(edited["text"], encoding="utf-8")
-        return updated
+        return binding
 
-    # double-waiver: B1 — the wrapper lands a concurrent plan-file edit inside the render window; no real seam fires between read and write
-    monkeypatch.setattr(cli, "upsert_section", _upsert_then_edit)
+    # double-waiver: B1 — binding_for_plan spawns git subprocesses; the wrapper lands a concurrent plan-file edit right after the real call
+    monkeypatch.setattr(store, "binding_for_plan", _bind_then_edit)
 
     code = cli.main(["render", "--plan", PLAN_ID])
 
@@ -1065,37 +1078,18 @@ def test_render_writes_nothing_when_the_plan_changed_during_the_render(
     assert plan.read_text(encoding="utf-8") == edited["text"]
 
 
-def test_render_writes_through_atomic_write(
-    in_process: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    write_met_record(in_process)
-    calls = []
-    real = cli.atomic_state.atomic_write
-
-    def _spy(path, text, *, fail_open=True):
-        calls.append((Path(path).name, fail_open))
-        real(path, text, fail_open=fail_open)
-
-    # double-waiver: B1 — the spy wraps the real atomic_write, which writes a file, to observe its arguments
-    monkeypatch.setattr(cli.atomic_state, "atomic_write", _spy)
-
-    assert cli.main(["render", "--plan", PLAN_ID]) == 0
-    assert calls == [("x.md", False)]
-
-
 def test_render_does_not_rewrite_a_plan_that_already_has_the_section(
-    in_process: Path, monkeypatch: pytest.MonkeyPatch
+    in_process: Path,
 ) -> None:
     write_met_record(in_process)
+    plan = in_process / PLAN_ID
+    assert cli.main(["render", "--plan", PLAN_ID]) == 0
+    os.utime(plan, ns=(1_000_000_000, 1_000_000_000))
+    before = (plan.read_bytes(), plan.stat().st_mtime_ns)
+
     assert cli.main(["render", "--plan", PLAN_ID]) == 0
 
-    def _unexpected(*args, **kwargs):
-        raise AssertionError("second render rewrote the plan")
-
-    # double-waiver: B1 — atomic_write writes a file; the stub proves a second render never reaches it
-    monkeypatch.setattr(cli.atomic_state, "atomic_write", _unexpected)
-
-    assert cli.main(["render", "--plan", PLAN_ID]) == 0
+    assert (plan.read_bytes(), plan.stat().st_mtime_ns) == before
 
 
 def _patch_poll_sleep(

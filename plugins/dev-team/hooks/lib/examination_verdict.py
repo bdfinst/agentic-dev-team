@@ -87,9 +87,10 @@ def format_problem(kind: str, *ids: str) -> str:
 
 
 def parse_problem(text: str) -> tuple[str, list[str]]:
-    """The `(kind, ids)` of a problem that `format_problem` built."""
+    """The `(kind, ids)` of a problem that `format_problem` built. A problem
+    carries at most two ids; the second may contain spaces."""
     kind, _, rest = str(text).partition(_PROBLEM_SEPARATOR)
-    return kind, rest.split(_PROBLEM_SEPARATOR) if rest else []
+    return kind, rest.split(_PROBLEM_SEPARATOR, 1) if rest else []
 
 
 def _binding_problem(binding_hash: str) -> list[str]:

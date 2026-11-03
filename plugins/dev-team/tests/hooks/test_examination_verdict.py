@@ -316,6 +316,7 @@ def test_build_record_adds_no_binding_problem_for_a_real_hash():
         (ev.PROBLEM_UNPARSEABLE, []),
         (ev.PROBLEM_MISSING, ["AC1,AC2"]),
         (ev.PROBLEM_INVALID_VERDICT, ["AC3", "maybe"]),
+        (ev.PROBLEM_INVALID_VERDICT, ["AC3", "not met"]),
     ],
 )
 def test_format_problem_and_parse_problem_round_trip(kind, ids):

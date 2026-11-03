@@ -79,6 +79,11 @@ READERS = frozenset(
         "cmp",
         "vim",
         "view",
+        "vi",
+        "egrep",
+        "fgrep",
+        "zgrep",
+        "zcat",
     }
 )
 GIT_READ = frozenset(
@@ -152,6 +157,9 @@ _CMD_DD = "dd"
 _DD_INPUT_PREFIX = "if="
 _CMD_GREP = "grep"
 _CMD_RG = "rg"
+#: Variants that take grep's flags, so they share its value-flag, pattern-flag,
+#: and recursive rules.
+_GREP_VARIANTS = frozenset({"egrep", "fgrep", "zgrep"})
 _CMD_EVAL = "eval"
 _CMD_TIMEOUT = "timeout"
 _SHELLS = frozenset({"bash", "sh", "dash", "zsh"})
@@ -269,6 +277,8 @@ _OPERATORS = (
 )
 _SEPARATORS = frozenset({"&&", "||", "|&", ";", "|", "&", "\n", "(", ")"})
 _PIPES = frozenset({"|", "|&"})
+#: Separators that leave a pending pipe in place (`a |\n b`, `a | (b)`).
+_PIPE_TRANSPARENT = frozenset({"\n", "("})
 _HEREDOC_OPS = frozenset({"<<", "<<-"})
 #: Redirects whose next word is a literal, never a file.
 _NO_FILE_OPS = frozenset({"<<", "<<-", "<<<"})
@@ -482,8 +492,8 @@ class _Lexer:
 
     def _escape(self) -> None:
         following = self._src[self._pos + 1 : self._pos + 2]
-        self._quoted = True
         if following and following != "\n":
+            self._quoted = True
             self._append(following)
         self._pos += 2 if following else 1
 
@@ -638,15 +648,28 @@ def _skip_quoted(src: str, start: int) -> int:
 
 def _segments(tokens: list[_Token]) -> list[tuple[list[_Token], bool]]:
     """`(tokens, piped)` per simple command. `piped` is True when a pipe feeds
-    the command's stdin: a recursive reader with no path operand then reads
-    that stream, not the working directory."""
-    segments: list[tuple[list[_Token], bool]] = [([], False)]
+    the command's stdin. The pipe stays pending across a newline or `(` and
+    attaches to the next segment that receives a token."""
+    segments: list[tuple[list[_Token], bool]] = []
+    current: list[_Token] = []
+    current_piped = False
+    pending_pipe = False
     for token in tokens:
         if isinstance(token, _Operator) and token.text in _SEPARATORS:
-            segments.append(([], token.text in _PIPES))
+            if current:
+                segments.append((current, current_piped))
+                current = []
+            if token.text in _PIPES:
+                pending_pipe = True
+            elif token.text not in _PIPE_TRANSPARENT:
+                pending_pipe = False
         else:
-            segments[-1][0].append(token)
-    return [(segment, piped) for segment, piped in segments if segment]
+            if not current:
+                current_piped, pending_pipe = pending_pipe, False
+            current.append(token)
+    if current:
+        segments.append((current, current_piped))
+    return segments
 
 
 def _split_redirects(segment: list[_Token]) -> tuple[list[_Word], list[_Redirect]]:
@@ -748,7 +771,8 @@ def _classify_command(
         return _repo_hits(KIND_READ, _dd_inputs(args), scope)
     if name in READERS:
         kind = KIND_WRITE if name == _CMD_SED and _is_in_place(args) else KIND_READ
-        return _repo_hits(kind, _reader_operands(name, args, piped), scope)
+        reader = _CMD_GREP if name in _GREP_VARIANTS else name
+        return _repo_hits(kind, _reader_operands(reader, args, piped), scope)
     return []
 
 
@@ -849,8 +873,9 @@ def _operands(args: list[_Word]) -> list[_Word]:
 
 def _reader_operands(name: str, args: list[_Word], piped: bool) -> list[_Word]:
     """Candidate path operands of a reader, after flag values and the leading
-    pattern or script are removed. A recursive search that is not fed by a
-    pipe and names no path searches the working directory: an implicit `.`."""
+    pattern or script are removed. A recursive `grep`, or an `rg` that is not
+    fed by a pipe, searches the working directory when it names no path: an
+    implicit `.`."""
     value_flags = _VALUE_FLAGS.get(name, frozenset())
     pattern_flags = _PATTERN_FLAGS.get(name, frozenset())
     operands: list[_Word] = []
@@ -871,19 +896,22 @@ def _reader_operands(name: str, args: list[_Word], piped: bool) -> list[_Word]:
             skip_values = _values_to_skip(text, value_flags)
     if name in _PATTERN_FLAGS and not has_pattern_flag:
         operands = operands[1:]
-    if not operands and not piped and _searches_cwd_by_default(name, args):
+    if not operands and _searches_cwd_by_default(name, args, piped):
         return [_Word(_IMPLICIT_OPERAND)]
     return operands
 
 
-def _searches_cwd_by_default(name: str, args: list[_Word]) -> bool:
-    """`rg`, and `grep` with a recursive flag, search `.` when given no path."""
-    return name == _CMD_RG or (name == _CMD_GREP and _is_recursive_grep(args))
+def _searches_cwd_by_default(name: str, args: list[_Word], piped: bool) -> bool:
+    """`grep` with a recursive flag searches `.` when given no path, even after
+    a pipe. `rg` does too, unless a pipe feeds it: then it reads that stream."""
+    if name == _CMD_RG:
+        return not piped
+    return name == _CMD_GREP and _is_recursive_grep(args)
 
 
 def _is_recursive_grep(args: list[_Word]) -> bool:
-    """`-r`, `-R`, `--recursive`, `-d recurse`, or a short cluster holding
-    `r`/`R` ahead of any value-taking letter (`-rn`, `-nR`)."""
+    """A flag in `_GREP_RECURSIVE_FLAGS`, `-d recurse`, or a short cluster
+    holding `r`/`R` ahead of any value-taking letter (`-rn`, `-nR`)."""
     texts = [arg.text for arg in args]
     for index, text in enumerate(texts):
         if text == _END_OF_FLAGS:

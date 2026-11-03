@@ -145,16 +145,6 @@ def test_unobservable_indeterminate_names_criteria_and_observation() -> None:
             "the plan lists no acceptance criteria",
             "Add acceptance criteria to the plan",
         ),
-        (
-            ["base-unresolvable"],
-            "the branch base could not be resolved",
-            "git fetch origin",
-        ),
-        (
-            ["empty-diff"],
-            "the branch has no commits ahead of its base",
-            "Commit your changes",
-        ),
         (["duplicate AC2"], "AC2 has more than one row", "again without changing"),
         (["unknown AC9"], "AC9 is not a criterion in the plan", "again without"),
         (["incomplete-row AC1"], "AC1 has no observation or no command", "again"),

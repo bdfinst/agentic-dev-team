@@ -293,10 +293,6 @@ def _malformed_fields(problems: list, plan_id: str) -> dict:
     kinds = {parse_problem(str(p))[0] for p in problems}
     if PROBLEM_NO_CRITERIA in kinds:
         remedy = _MALFORMED_REMEDY_NO_CRITERIA
-    elif PROBLEM_BASE_UNRESOLVABLE in kinds:
-        remedy = _REMEDY_FETCH
-    elif PROBLEM_EMPTY_DIFF in kinds:
-        remedy = _REMEDY_COMMIT
     else:
         remedy = _MALFORMED_REMEDY_AGAIN
     return {

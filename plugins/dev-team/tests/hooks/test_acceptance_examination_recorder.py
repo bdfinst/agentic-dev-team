@@ -551,18 +551,18 @@ def _main_with_stdin(monkeypatch: pytest.MonkeyPatch, raw_stdin: bytes) -> int:
 def test_unexpected_error_in_process_exits_zero_silently(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
-    calls: list[str] = []
+    calls: list[dict] = []
 
-    def explode(payload: dict, cwd: str) -> None:
-        calls.append(cwd)
+    def explode(payload: dict) -> None:
+        calls.append(payload)
         raise RuntimeError("boom")
 
-    # double-waiver: B1 — process reads the transcript, the plan, and git; a real failure there cannot be forced from the payload
-    monkeypatch.setattr(recorder, "process", explode)
+    # double-waiver: B1 — the transcript read opens the transcript file; a real read failure cannot be forced from the payload
+    monkeypatch.setattr(recorder.subagent_transcript, "own_records_and_type", explode)
 
     assert _main_with_stdin(monkeypatch, _payload_for(repo, _examiner_rows())) == 0
     captured = capsys.readouterr()
-    assert calls == [str(repo)]
+    assert len(calls) == 1
     assert (captured.out, captured.err) == ("", "")
     assert _record_files(repo) == []
 

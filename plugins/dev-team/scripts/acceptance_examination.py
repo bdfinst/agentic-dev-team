@@ -179,7 +179,8 @@ def _render_findings(findings: list[dict]) -> list[str]:
     lines = ["- Audit findings:"]
     for finding in findings[:AUDIT_FINDING_LIMIT]:
         kind, target = finding.get("kind"), finding.get("target")
-        lines.append(_one_line(f"  - {kind} {target}: {finding.get('command')}"))
+        command = examination_gate.clip_line(str(finding.get("command")))
+        lines.append(_one_line(f"  - {kind} {target}: {command}"))
     hidden = len(findings) - AUDIT_FINDING_LIMIT
     if hidden > 0:
         lines.append(f"  - (+{hidden} more)")
