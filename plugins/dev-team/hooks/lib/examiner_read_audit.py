@@ -283,11 +283,14 @@ _HEREDOC_OPS = frozenset({"<<", "<<-"})
 #: Redirects whose next word is a literal, never a file.
 _NO_FILE_OPS = frozenset({"<<", "<<-", "<<<"})
 _READ_REDIRECTS = frozenset({"<", "<&"})
-#: Redirects that replace stdin when aimed at fd 0 (or no fd): `<` and `<>`
-#: open a file, `<&` duplicates or closes (`<&-`, `<&3`, `<&file`). A pipe no
+#: Redirects whose default descriptor is stdin: `<` and `<>` open a file,
+#: `<&` duplicates or closes (`<&-`, `<&3`, `<&file`). Any redirect that names
+#: fd 0 explicitly (`0>&-`, `0>/dev/null`) also replaces stdin, so a pipe no
 #: longer feeds the command. Heredocs and here-strings also replace stdin but
 #: are not listed here.
 _STDIN_OPS = frozenset({"<", "<>", "<&"})
+#: Duplicating stdin onto itself leaves the pipe in place.
+_STDIN_SELF_DUP = "0"
 _FD_DUP_OPS = frozenset({">&", "<&"})
 _FD_TARGET = re.compile(r"^(\d+-?|-)$")
 _DOUBLE_QUOTE_ESCAPES = frozenset({'"', "\\", "$", "`"})
@@ -710,12 +713,24 @@ def _split_redirects(
         if not isinstance(target, _Word):
             continue
         index += 1
-        if token.text in _STDIN_OPS and token.fd in ("", "0"):
+        if _replaces_stdin(token, target):
             stdin_replaced = True
         kind = _redirect_kind(token.text, target.text)
         if kind:
             redirects.append(_Redirect(kind, target))
     return words, redirects, stdin_replaced
+
+
+def _replaces_stdin(token: _Operator, target: _Word) -> bool:
+    """True when the redirect leaves fd 0 no longer fed by a pipe: a read-family
+    operator with no fd, or any operator whose fd is 0, except a self dup."""
+    if token.fd:
+        on_stdin = token.fd.isdigit() and int(token.fd) == 0
+    else:
+        on_stdin = token.text in _STDIN_OPS
+    if not on_stdin:
+        return False
+    return not (token.text in _FD_DUP_OPS and target.text == _STDIN_SELF_DUP)
 
 
 def _redirect_kind(operator: str, target: str) -> str | None:
