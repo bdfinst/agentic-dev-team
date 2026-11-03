@@ -647,3 +647,24 @@ def test_render_refuses_a_record_for_another_plan(repo: Path) -> None:
     assert f"Record at {path} belongs to plans/other.md, not {PLAN_ID}" in result.stderr
     assert "Traceback" not in result.stderr
     assert (repo / PLAN_ID).read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "acceptance-examination-plans__x.md.json",
+        "acceptance-examination-plans__x.md.json.lock",
+    ],
+)
+def test_record_and_lock_paths_are_gitignored(name: str) -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    rules = (repo_root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert ".claude/memory/acceptance-examination-*.json*" in rules
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", f".claude/memory/{name}"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
