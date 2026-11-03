@@ -221,6 +221,23 @@ def fallback_last_parseable_turn_text(records: list[dict]) -> str | None:
     return None
 
 
+def last_assistant_text(records: list[dict]) -> str | None:
+    """The text of the last assistant turn, or `None` when no assistant
+    turn carries text. For an agent whose tool grant has no
+    `SubagentHandback` (the acceptance examiner: `Bash` only) this is its
+    final result. Unlike `fallback_last_parseable_turn_text` it does not
+    scan back past a non-JSON final turn, so a stale JSON turn earlier in
+    the transcript never stands in for the result."""
+    for rec in reversed(records):
+        message = rec.get("message")
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            continue
+        text = message_text(message)
+        if text and text.strip():
+            return text
+    return None
+
+
 def final_result_text(records: list[dict]) -> str | None:
     """The text handed to `extract_json_object` for the agent's final JSON
     result: `handback_message_text` first, `fallback_last_parseable_turn_text`

@@ -206,6 +206,29 @@ def test_final_result_text_is_none_when_nothing_parses() -> None:
     assert subagent_transcript.final_result_text(records) is None
 
 
+def test_last_assistant_text_is_the_last_assistant_turn_with_text() -> None:
+    records = [
+        {"message": {"role": "assistant", "content": '{"status": "pass"}'}},
+        {"message": {"role": "user", "content": "tool result"}},
+        {"message": {"role": "assistant", "content": [{"type": "text", "text": "done"}]}},
+    ]
+    assert subagent_transcript.last_assistant_text(records) == "done"
+
+
+def test_last_assistant_text_skips_tool_use_only_turns_and_blank_text() -> None:
+    records = [
+        {"message": {"role": "assistant", "content": "final"}},
+        _assistant_row(_tool_use("Bash", {"command": "ls"})),
+        {"message": {"role": "assistant", "content": [{"type": "text", "text": "  "}]}},
+    ]
+    assert subagent_transcript.last_assistant_text(records) == "final"
+
+
+def test_last_assistant_text_is_none_without_an_assistant_text_turn() -> None:
+    records = [{"message": {"role": "user", "content": "hi"}}, {"type": "attachment"}]
+    assert subagent_transcript.last_assistant_text(records) is None
+
+
 def test_handback_message_text_is_the_last_handback_calls_message() -> None:
     records = [
         _assistant_row(_tool_use("SubagentHandback", {"message": "first"})),

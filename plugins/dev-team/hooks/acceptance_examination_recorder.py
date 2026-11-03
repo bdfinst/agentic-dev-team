@@ -34,11 +34,16 @@ like an absent marker.
 
 ## SubagentStop ordering
 
-Whether this hook completes before the Agent tool result returns to the
-caller is not yet observed (decision 10). `/build` Step 7.6 therefore polls
-for the record (`status --wait`).
+This hook does not complete before the Agent tool result returns to the
+caller (decision 10). `/build` Step 7.6 therefore polls for the record
+(`status --wait`).
 
-SubagentStop ordering, first live observation: pending (recorded at the Pre-PR gate's seeded-defect check).
+SubagentStop ordering, first live observation (Pre-PR seeded-defect check,
+headless `claude -p` with the branch's plugin): the caller's next Bash call
+(`status --wait 15`) started before the record existed and printed the
+waiting line; the record landed inside the 15 s window. The examiner, a
+`Bash`-only agent, made no `SubagentHandback` call; its result was its
+last text turn.
 
 Stdlib-only. See ADR 0014, ADR 0015.
 """
@@ -114,8 +119,16 @@ def _resolve_agent_id(records: list[dict], payload: dict) -> str:
 def _rows_and_problems(
     records: list[dict], expected_ids: list[str], ran_commands: list[str]
 ) -> tuple[list[dict], list[str]]:
-    """The usable criterion rows and the problems found in the handback."""
-    text = subagent_transcript.handback_message_text(records)
+    """The usable criterion rows and the problems found in the handback.
+
+    The examiner's tool grant is `Bash` only, so it never calls
+    `SubagentHandback`; its result is the text of its last assistant turn.
+    A handback call wins when one exists (first live observation at the
+    Pre-PR seeded-defect check: no handback, final text turn only).
+    """
+    text = subagent_transcript.handback_message_text(
+        records
+    ) or subagent_transcript.last_assistant_text(records)
     result = subagent_transcript.extract_json_object(text) if text else None
     if result is None:
         return [], unparseable_problems(expected_ids)

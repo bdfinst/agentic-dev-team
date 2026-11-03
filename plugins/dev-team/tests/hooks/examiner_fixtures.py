@@ -111,6 +111,27 @@ def handback_rows(
     ]
 
 
+def final_text_rows(
+    text: str, agent_id: str = AGENT_ID, attribution_agent: str = EXAMINER
+) -> list[dict]:
+    """The examiner's result as its last assistant text turn, no handback
+    call: the shape a `Bash`-only agent produces (first live observation at
+    the Pre-PR seeded-defect check)."""
+    return [
+        {
+            "type": "assistant",
+            "isSidechain": True,
+            "agentId": agent_id,
+            "attributionAgent": attribution_agent,
+            "message": {
+                "role": "assistant",
+                "stop_reason": "end_turn",
+                "content": [{"type": "text", "text": text}],
+            },
+        }
+    ]
+
+
 def write_transcript(
     directory: Path, rows: list[dict], agent_id: str = AGENT_ID
 ) -> Path:

@@ -59,6 +59,7 @@ from examiner_fixtures import (  # type: ignore[import-not-found]
     SESSION_ID,
     bash_call_rows,
     dispatch_row,
+    final_text_rows,
     handback_rows,
     stop_payload,
     write_transcript,
@@ -301,6 +302,48 @@ def test_handback_missing_a_row_is_indeterminate_naming_the_missing_id(
     record = _record(repo)
     assert record["overall"] == "indeterminate"
     assert "missing AC2" in record["problems"]
+
+
+# ---------------------------------------------------------------------------
+# Scenario: A Bash-only examiner's result is its last text turn (no handback)
+# ---------------------------------------------------------------------------
+
+
+def _fenced(result: dict, trailing: str = "") -> str:
+    return "```json\n" + json.dumps(result, indent=2) + "\n```" + trailing
+
+
+def test_final_text_turn_without_a_handback_is_the_result(repo: Path) -> None:
+    not_met = {"criteria": [row("AC1", verdict="not-met", command=_RAN), row("AC2", command=_RAN)]}
+    rows = [dispatch_row(PLAN_ID)] + bash_call_rows(_RAN)
+    rows += final_text_rows(_fenced(not_met, "\n\nAC1 is not met: the CLI printed sum=11."))
+
+    _stop(repo, rows)
+
+    record = _record(repo)
+    assert record["overall"] == "not-met"
+    assert record["problems"] == []
+    assert [r["verdict"] for r in record["criteria"]] == ["not-met", "met"]
+
+
+def test_last_text_turn_is_the_result_even_when_an_earlier_turn_parsed(repo: Path) -> None:
+    rows = [dispatch_row(PLAN_ID)] + bash_call_rows(_RAN)
+    rows += final_text_rows(_fenced(_met_result()))
+    rows += bash_call_rows(_RAN)
+    rows += final_text_rows("I could not finish the examination.")
+
+    _stop(repo, rows)
+
+    assert _record(repo)["problems"] == ["unparseable-result"]
+
+
+def test_handback_call_wins_over_a_later_text_turn(repo: Path) -> None:
+    rows = [dispatch_row(PLAN_ID)] + bash_call_rows(_RAN)
+    rows += handback_rows(json.dumps(_met_result()))
+
+    _stop(repo, rows)
+
+    assert _record(repo)["overall"] == "met"
 
 
 # ---------------------------------------------------------------------------
