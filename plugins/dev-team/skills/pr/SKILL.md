@@ -47,7 +47,7 @@ If a plan file is present (check `plans/` for the most recently modified approve
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py" --pre-pr --plan <plan-file>
 ```
 
-A non-zero exit means incomplete steps remain; stop and surface the findings — do not open the PR until all steps are `[x]`.
+A non-zero exit means incomplete steps remain; stop and surface the findings — do not open the PR until all steps are `[x]`. The gate also refuses without a current `met` acceptance examination for the plan; run `/build <plan>` (Step 7.6 examines the plan), then run `/pr` again.
 
 ### 2. Run quality gate
 

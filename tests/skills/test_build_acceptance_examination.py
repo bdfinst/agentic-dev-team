@@ -297,3 +297,38 @@ def test_bundle_checks_run_row_lists_the_examination(pin: str) -> None:
 @pytest.mark.parametrize("pin", RESIDUAL_RISKS_PINS)
 def test_bundle_residual_risks_row_names_examination_sources(pin: str) -> None:
     assert pin in _bundle_row("Residual risks")
+
+
+# --- /pr and /fix refusal scenario (Step 4.3) -------------------------------
+
+PR_SKILL = PLUGIN_ROOT / "skills" / "pr" / "SKILL.md"
+FIX_SKILL = PLUGIN_ROOT / "skills" / "fix" / "SKILL.md"
+REFUSAL_PINS = ("acceptance examination", "/build <plan>")
+
+
+def _block_containing(path, anchor: str, offset: int = 0) -> str:
+    """The blank-line-separated block holding `anchor`, or the one `offset` after it."""
+    blocks = path.read_text(encoding="utf-8").split("\n\n")
+    hits = [i for i, block in enumerate(blocks) if anchor in block]
+    assert len(hits) == 1, f"expected exactly one block containing {anchor!r}"
+    return collapsed(blocks[hits[0] + offset])
+
+
+def _pr_gate_text() -> str:
+    """The paragraph right after the `--pre-pr` command block in /pr."""
+    return _block_containing(PR_SKILL, 'progress_guardian.py" --pre-pr', offset=1)
+
+
+def _fix_gate_text() -> str:
+    """The /fix paragraph that names the `--pre-pr` plan-completion gate as a stop."""
+    return _block_containing(FIX_SKILL, "(`progress_guardian.py --pre-pr`)")
+
+
+@pytest.mark.parametrize("pin", REFUSAL_PINS)
+def test_pr_gate_text_names_the_examination_refusal(pin: str) -> None:
+    assert pin in _pr_gate_text()
+
+
+@pytest.mark.parametrize("pin", REFUSAL_PINS)
+def test_fix_gate_text_names_the_examination_refusal(pin: str) -> None:
+    assert pin in _fix_gate_text()
