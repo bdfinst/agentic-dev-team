@@ -6,13 +6,15 @@ import json
 import stat
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from examination_fixtures import (
+from examination_fixtures import EXEMPT_HEADER, store, write_met_record
+from examination_repo import (
     CRITERION_1,
     CRITERION_2,
     PLAN_ID,
@@ -20,9 +22,9 @@ from examination_fixtures import (
     RUN_COMMAND,
     git_env,
     make_repo,
-    store,
-    write_met_record,
 )
+from examination_repo import record as make_record
+from examination_repo import row as make_row
 
 SCRIPT = (
     Path(__file__).resolve().parents[2]
@@ -40,6 +42,15 @@ from examination_store import Binding
 
 MARKER = f"Acceptance-examination plan: {PLAN_ID}"
 GHERKIN_BLOCK = "Feature: x\n  Scenario: y"
+
+
+@pytest.fixture(autouse=True)
+def _no_inherited_git_redirection(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pre-push hook exports GIT_DIR and friends; in-process calls such as
+    `write_met_record(repo)` would then see the parent repository."""
+    for key in ("GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE", "GIT_PREFIX"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.delenv("GIT_REFLOG_ACTION", raising=False)
 
 
 def run_cli(
@@ -79,22 +90,25 @@ def test_inputs_prints_criteria_gherkin_commands_and_marker(repo: Path) -> None:
     assert result.stdout.rstrip().endswith(MARKER)
 
 
-@pytest.mark.parametrize(
-    "plan_arg",
-    ["plans/missing.md", "NO_AC_PLAN"],
-    ids=["missing-plan-file", "no-acceptance-criteria-heading"],
-)
-def test_inputs_misuse_is_one_line_exit_two(repo: Path, plan_arg: str) -> None:
-    if plan_arg == "NO_AC_PLAN":
-        plan_arg = "plans/no-ac.md"
-        (repo / plan_arg).write_text("# Plan\n\n## Goal\n\ntext\n", encoding="utf-8")
-
-    result = run_cli(repo, "inputs", "--plan", plan_arg)
-
+def _assert_one_line_exit_two(result: subprocess.CompletedProcess[str]) -> None:
     assert result.returncode == 2
     assert "Traceback" not in result.stderr
     assert len(result.stderr.strip().splitlines()) == 1
     assert result.stdout == ""
+
+
+def test_inputs_on_a_missing_plan_file_is_one_line_exit_two(repo: Path) -> None:
+    _assert_one_line_exit_two(run_cli(repo, "inputs", "--plan", "plans/missing.md"))
+
+
+def test_inputs_on_a_plan_without_acceptance_criteria_is_one_line_exit_two(
+    repo: Path,
+) -> None:
+    (repo / "plans/no-ac.md").write_text(
+        "# Plan\n\n## Goal\n\ntext\n", encoding="utf-8"
+    )
+
+    _assert_one_line_exit_two(run_cli(repo, "inputs", "--plan", "plans/no-ac.md"))
 
 
 NOT_MET_ROW = {
@@ -133,7 +147,7 @@ def test_status_prints_exactly_the_not_met_message_and_remedy(repo: Path) -> Non
 def test_status_on_exempt_plan_exits_zero_without_a_record(repo: Path) -> None:
     plan = repo / PLAN_ID
     plan.write_text(
-        "**Examination**: not-applicable\n\n" + plan.read_text(encoding="utf-8"),
+        EXEMPT_HEADER + plan.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
 
@@ -155,14 +169,29 @@ def test_status_without_wait_reports_missing_and_does_not_announce_waiting(
     assert "Waiting" not in result.stderr
 
 
+LINE_TIMEOUT = 30
+
+
+def _readline_within(stream, seconds: float) -> str:
+    """One line from `stream`, or a test failure if none arrives in time."""
+    lines: list[str] = []
+    reader = threading.Thread(target=lambda: lines.append(stream.readline()))
+    reader.daemon = True
+    reader.start()
+    reader.join(seconds)
+    if reader.is_alive():
+        pytest.fail(f"no line within {seconds}s")
+    return lines[0]
+
+
 def test_status_waits_for_a_record_that_appears_late(repo: Path) -> None:
-    wait = 30
+    wait = 5
     process = subprocess.Popen(
         [
             sys.executable,
             str(SCRIPT),
             *("status", "--plan", PLAN_ID),
-            *("--wait", str(wait), "--poll-interval", "0"),
+            *("--wait", str(wait), "--poll-interval", "0.05"),
         ],
         cwd=repo,
         stdout=subprocess.PIPE,
@@ -171,7 +200,7 @@ def test_status_waits_for_a_record_that_appears_late(repo: Path) -> None:
         env=git_env(repo.parent),
     )
     try:
-        waiting_line = process.stderr.readline()  # blocks until polling began
+        waiting_line = _readline_within(process.stderr, LINE_TIMEOUT)  # polling began
         write_met_record(repo)
         stdout, stderr = process.communicate(timeout=60)
     finally:
@@ -186,7 +215,9 @@ def test_status_waits_for_a_record_that_appears_late(repo: Path) -> None:
 
 
 def test_status_gives_up_after_the_wait_window(repo: Path) -> None:
-    result = run_cli(repo, "status", "--plan", PLAN_ID, "--wait", "1")
+    result = run_cli(
+        repo, "status", "--plan", PLAN_ID, "--wait", "1", "--poll-interval", "0.1"
+    )
 
     assert result.returncode == 1
     assert MISSING_MESSAGE in result.stdout
@@ -270,30 +301,8 @@ UNTRUSTED_LINE = (
 )
 
 
-def _row(n: int, verdict: str = "met", command: str = RUN_COMMAND, obs: str = "ok"):
-    return {
-        "criterion": f"AC{n}",
-        "verdict": verdict,
-        "command": command,
-        "observation": obs,
-    }
-
-
-def _record(rows: list[dict], findings: list[dict] | None = None) -> dict:
-    return {
-        "plan": PLAN_ID,
-        "agent_id": "agent-7",
-        "overall": "not-met",
-        "criteria": rows,
-        "audit_findings": findings or [],
-        "binding_hash": "b" * 64,
-        "inputs_digest": "d" * 64,
-        "recorded_at": "2026-11-03T10:00:00+00:00",
-    }
-
-
 def test_render_section_opens_with_heading_then_legend() -> None:
-    lines = cli.render_section(_record([_row(1)]), stale=False).splitlines()
+    lines = cli.render_section(make_record([make_row("AC1")]), stale=False).splitlines()
 
     assert lines[0] == HEADING
     assert lines[1] == ""
@@ -303,9 +312,13 @@ def test_render_section_opens_with_heading_then_legend() -> None:
 
 
 def test_render_section_puts_command_and_observation_in_a_fence() -> None:
-    row = _row(1, command="pytest -q | tail -5", obs="line one\nline two\nline three")
+    row = make_row(
+        "AC1",
+        command="pytest -q | tail -5",
+        observation="line one\nline two\nline three",
+    )
 
-    section = cli.render_section(_record([row]), stale=False)
+    section = cli.render_section(make_record([row]), stale=False)
 
     assert (
         "### AC1 — met\n\n```\n$ pytest -q | tail -5\nline one\nline two\nline three\n```\n"
@@ -316,7 +329,9 @@ def test_render_section_puts_command_and_observation_in_a_fence() -> None:
 def test_render_section_truncates_a_forty_line_observation() -> None:
     observation = "\n".join(f"row {n}" for n in range(1, 41))
 
-    section = cli.render_section(_record([_row(1, obs=observation)]), stale=False)
+    section = cli.render_section(
+        make_record([make_row("AC1", observation=observation)]), stale=False
+    )
 
     assert "row 5\n(+35 lines)\n```" in section
     assert "row 6" not in section
@@ -325,7 +340,9 @@ def test_render_section_truncates_a_forty_line_observation() -> None:
 def test_render_section_keeps_a_five_line_observation_whole() -> None:
     observation = "\n".join(f"row {n}" for n in range(1, 6))
 
-    section = cli.render_section(_record([_row(1, obs=observation)]), stale=False)
+    section = cli.render_section(
+        make_record([make_row("AC1", observation=observation)]), stale=False
+    )
 
     assert "row 5\n```" in section
     assert "(+" not in section
@@ -333,14 +350,14 @@ def test_render_section_keeps_a_five_line_observation_whole() -> None:
 
 def test_render_section_lists_failing_criteria_first_in_id_order() -> None:
     rows = [
-        _row(1, "met"),
-        _row(2, "indeterminate", command=""),
-        _row(3, "met"),
-        _row(10, "not-met"),
-        _row(4, "not-met"),
+        make_row("AC1", "met"),
+        make_row("AC2", "indeterminate", command=""),
+        make_row("AC3", "met"),
+        make_row("AC10", "not-met"),
+        make_row("AC4", "not-met"),
     ]
 
-    section = cli.render_section(_record(rows), stale=False)
+    section = cli.render_section(make_record(rows), stale=False)
 
     headings = [ln for ln in section.splitlines() if ln.startswith("### AC")]
     assert headings == [
@@ -353,17 +370,17 @@ def test_render_section_lists_failing_criteria_first_in_id_order() -> None:
 
 
 def test_render_section_omits_the_command_line_when_there_is_no_command() -> None:
-    row = _row(1, "indeterminate", command="", obs="could not observe")
+    row = make_row("AC1", "indeterminate", command="", observation="could not observe")
 
-    section = cli.render_section(_record([row]), stale=False)
+    section = cli.render_section(make_record([row]), stale=False)
 
     assert "```\ncould not observe\n```" in section
 
 
 def test_render_section_outgrows_backticks_inside_the_observation() -> None:
-    row = _row(1, obs="before\n```\n## not a heading\nafter")
+    row = make_row("AC1", observation="before\n```\n## not a heading\nafter")
 
-    section = cli.render_section(_record([row]), stale=False)
+    section = cli.render_section(make_record([row]), stale=False)
 
     assert (
         "````\n$ python3 -m pytest -q\nbefore\n```\n## not a heading\nafter\n````"
@@ -372,8 +389,8 @@ def test_render_section_outgrows_backticks_inside_the_observation() -> None:
 
 
 def test_render_section_stale_marker_is_the_first_line_after_the_heading() -> None:
-    stale = cli.render_section(_record([_row(1)]), stale=True).splitlines()
-    fresh = cli.render_section(_record([_row(1)]), stale=False)
+    stale = cli.render_section(make_record([make_row("AC1")]), stale=True).splitlines()
+    fresh = cli.render_section(make_record([make_row("AC1")]), stale=False)
 
     assert stale[0] == HEADING
     assert stale[1] == STALE_LINE
@@ -384,7 +401,9 @@ def test_render_section_stale_marker_is_the_first_line_after_the_heading() -> No
 def test_render_section_ends_with_audit_details() -> None:
     findings = [{"kind": "read", "target": "src/a.py", "command": "cat src/a.py"}]
 
-    section = cli.render_section(_record([_row(1)], findings), stale=False)
+    section = cli.render_section(
+        make_record([make_row("AC1")], findings, overall="not-met"), stale=False
+    )
 
     tail = section.split("### Audit details\n", 1)[1]
     for expected in (
@@ -400,7 +419,7 @@ def test_render_section_ends_with_audit_details() -> None:
 
 
 def test_render_section_says_none_without_audit_findings() -> None:
-    section = cli.render_section(_record([_row(1)]), stale=False)
+    section = cli.render_section(make_record([make_row("AC1")]), stale=False)
 
     assert "Audit findings: none" in section
 
@@ -537,7 +556,12 @@ def test_render_writes_legend_criteria_and_audit_details(repo: Path) -> None:
 
 def test_render_keeps_pipes_and_multiline_output_verbatim(repo: Path) -> None:
     write_met_record(repo)
-    rows = [_row(1, command="pytest -q | tail -5", obs="a | b\nsecond\nthird"), _row(2)]
+    rows = [
+        make_row(
+            "AC1", command="pytest -q | tail -5", observation="a | b\nsecond\nthird"
+        ),
+        make_row("AC2"),
+    ]
     _rewrite_record(repo, criteria=rows)
 
     run_cli(repo, "render", "--plan", PLAN_ID)
@@ -586,7 +610,9 @@ def test_render_twice_leaves_the_file_byte_identical(repo: Path) -> None:
 def test_render_truncates_a_forty_line_observation(repo: Path) -> None:
     write_met_record(repo)
     observation = "\n".join(f"line {n}" for n in range(1, 41))
-    _rewrite_record(repo, criteria=[_row(1, obs=observation), _row(2)])
+    _rewrite_record(
+        repo, criteria=[make_row("AC1", observation=observation), make_row("AC2")]
+    )
 
     run_cli(repo, "render", "--plan", PLAN_ID)
 
@@ -711,7 +737,9 @@ def test_render_of_an_observation_with_fences_and_headings_keeps_the_inputs(
     before = _inputs_of(repo)
     assert before.run_commands == [RUN_COMMAND]
     hostile = "before\n```\n## Pre-PR Quality Gate\n- [ ] `evil`\nafter"
-    _rewrite_record(repo, criteria=[_row(1, obs=hostile), _row(2)])
+    _rewrite_record(
+        repo, criteria=[make_row("AC1", observation=hostile), make_row("AC2")]
+    )
 
     result = run_cli(repo, "render", "--plan", PLAN_ID)
 
@@ -725,7 +753,9 @@ def test_status_still_passes_after_render_of_a_fenced_observation(repo: Path) ->
     _gate_after_section_plan(repo)
     write_met_record(repo)
     hostile = "before\n```\n## Pre-PR Quality Gate\n- [ ] `evil`\nafter"
-    _rewrite_record(repo, criteria=[_row(1, obs=hostile), _row(2)])
+    _rewrite_record(
+        repo, criteria=[make_row("AC1", observation=hostile), make_row("AC2")]
+    )
     run_cli(repo, "render", "--plan", PLAN_ID)
 
     result = run_cli(repo, "status", "--plan", PLAN_ID)
@@ -770,9 +800,9 @@ def test_render_twice_with_a_heredoc_finding_is_byte_identical(repo: Path) -> No
 
 
 def test_render_section_collapses_newlines_in_every_scalar() -> None:
-    record = _record([_row(1)])
+    record = make_record([make_row("AC1")])
     record.update(agent_id="a\n## Evil", recorded_at="t\n## Evil")
-    row = {**_row(1), "criterion": "AC1\n## Evil", "verdict": "met\n## Evil"}
+    row = {**make_row("AC1"), "criterion": "AC1\n## Evil", "verdict": "met\n## Evil"}
     record["criteria"] = [row]
 
     section = cli.render_section(record, stale=False)
@@ -781,9 +811,12 @@ def test_render_section_collapses_newlines_in_every_scalar() -> None:
 
 
 def test_render_criterion_ignores_a_null_command() -> None:
-    row = {**_row(1, "indeterminate", obs="could not observe"), "command": None}
+    row = {
+        **make_row("AC1", "indeterminate", observation="could not observe"),
+        "command": None,
+    }
 
-    section = cli.render_section(_record([row]), stale=False)
+    section = cli.render_section(make_record([row]), stale=False)
 
     assert "$" not in section
     assert "None" not in section
@@ -791,15 +824,17 @@ def test_render_criterion_ignores_a_null_command() -> None:
 
 
 def test_render_criterion_ignores_a_non_string_command_and_observation() -> None:
-    row = {**_row(1), "command": 7, "observation": None}
+    row = {**make_row("AC1"), "command": 7, "observation": None}
 
-    section = cli.render_section(_record([row]), stale=False)
+    section = cli.render_section(make_record([row]), stale=False)
 
     assert "$" not in section and "None" not in section
 
 
 def test_render_section_caps_a_huge_single_line_observation() -> None:
-    section = cli.render_section(_record([_row(1, obs="z" * 200_000)]), stale=False)
+    section = cli.render_section(
+        make_record([make_row("AC1", observation="z" * 200_000)]), stale=False
+    )
 
     assert len(section) < 5_000
     assert "z" * gate.OBSERVATION_CHAR_LIMIT + "…\n" in section
@@ -810,7 +845,9 @@ def test_render_a_huge_single_line_observation_keeps_the_plan_small(
     repo: Path,
 ) -> None:
     write_met_record(repo)
-    _rewrite_record(repo, criteria=[_row(1, obs="z" * 200_000), _row(2)])
+    _rewrite_record(
+        repo, criteria=[make_row("AC1", observation="z" * 200_000), make_row("AC2")]
+    )
 
     run_cli(repo, "render", "--plan", PLAN_ID)
 

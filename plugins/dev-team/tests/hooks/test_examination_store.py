@@ -25,30 +25,16 @@ from examination_inputs import (  # type: ignore[import-not-found]
     inputs_digest,
     plan_examination_inputs,
 )
+from examination_repo import (  # type: ignore[import-not-found]
+    PLAN_ID,
+    commit_file,
+    git,
+    init_repo,
+    make_repo,
+)
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
-PLAN_ID = "plans/x.md"
 HASH_A = "a" * 64
-
-
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
-
-
-def _commit_file(root: Path, rel: str, content: str, message: str) -> None:
-    target = root / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content)
-    _git(root, "add", rel)
-    _git(root, "commit", "-q", "-m", message)
-
-
-def _init(root: Path, branch: str) -> None:
-    root.mkdir()
-    _git(root, "init", "-q", "-b", branch)
-    _git(root, "config", "init.defaultBranch", "main")
-    _git(root, "config", "user.name", "tester")
-    _git(root, "config", "user.email", "t@t.dev")
 
 
 @pytest.fixture(autouse=True)
@@ -67,12 +53,7 @@ def _hermetic_git(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     """`main` as base, `work` one commit ahead; the plan is tracked on `work`."""
-    root = tmp_path / "repo"
-    _init(root, "main")
-    _commit_file(root, "base.txt", "base\n", "base")
-    _git(root, "checkout", "-q", "-b", "work")
-    _commit_file(root, PLAN_ID, "# plan\n", "add plan")
-    return root
+    return make_repo(tmp_path, with_source=False)
 
 
 def _valid_record() -> dict:
@@ -91,34 +72,34 @@ def _valid_record() -> dict:
 
 def test_binding_hash_ignores_a_plan_only_commit(repo: Path) -> None:
     before = store.current_binding(repo, PLAN_ID)
-    _commit_file(repo, PLAN_ID, "# plan\n- [x] ticked\n", "tick plan")
+    commit_file(repo, PLAN_ID, "# plan\n- [x] ticked\n", "tick plan")
     assert store.current_binding(repo, PLAN_ID) == before
 
 
 def test_binding_hash_changes_on_a_source_commit(repo: Path) -> None:
     before = store.current_binding(repo, PLAN_ID)
-    _commit_file(repo, "src/app.py", "print(1)\n", "add source")
+    commit_file(repo, "src/app.py", "print(1)\n", "add source")
     assert store.current_binding(repo, PLAN_ID) != before
 
 
 def test_binding_hash_is_a_binding_hash(repo: Path) -> None:
-    _commit_file(repo, "src/app.py", "print(1)\n", "add source")
+    commit_file(repo, "src/app.py", "print(1)\n", "add source")
     assert store.is_binding_hash(store.current_binding(repo, PLAN_ID))
 
 
 def test_binding_is_unresolvable_without_a_base_ref(tmp_path: Path) -> None:
     root = tmp_path / "solo"
-    _init(root, "work")
-    _commit_file(root, "a.txt", "1\n", "one")
-    _commit_file(root, "b.txt", "2\n", "two")
+    init_repo(root, "work")
+    commit_file(root, "a.txt", "1\n", "one")
+    commit_file(root, "b.txt", "2\n", "two")
     assert store.current_binding(root, PLAN_ID) == store.BASE_UNRESOLVABLE
 
 
 def test_binding_is_empty_diff_when_work_equals_main(tmp_path: Path) -> None:
     root = tmp_path / "same"
-    _init(root, "main")
-    _commit_file(root, "base.txt", "base\n", "base")
-    _git(root, "checkout", "-q", "-b", "work")
+    init_repo(root, "main")
+    commit_file(root, "base.txt", "base\n", "base")
+    git(root, "checkout", "-q", "-b", "work")
     assert store.current_binding(root, PLAN_ID) == store.EMPTY_DIFF
 
 
@@ -144,7 +125,7 @@ def _git_fails_for_diff(monkeypatch: pytest.MonkeyPatch, outcome: object) -> Non
 def test_binding_is_base_unresolvable_when_git_diff_fails(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _commit_file(repo, "src/app.py", "print(1)\n", "add source")
+    commit_file(repo, "src/app.py", "print(1)\n", "add source")
     failed = subprocess.CompletedProcess(["git"], 128, stdout=b"", stderr=b"fatal")
     _git_fails_for_diff(monkeypatch, failed)
     assert store.current_binding(repo, PLAN_ID) == store.BASE_UNRESOLVABLE
@@ -184,24 +165,24 @@ def test_binding_git_calls_carry_a_timeout(
 
 def test_binding_excludes_only_the_literal_plan_path(tmp_path: Path) -> None:
     root = tmp_path / "glob"
-    _init(root, "main")
-    _commit_file(root, "base.txt", "base\n", "base")
-    _git(root, "checkout", "-q", "-b", "work")
+    init_repo(root, "main")
+    commit_file(root, "base.txt", "base\n", "base")
+    git(root, "checkout", "-q", "-b", "work")
     plan_id = "plans/p*.md"
-    _commit_file(root, plan_id, "# plan\n", "add plan")
-    _commit_file(root, "plans/pq.py", "print(1)\n", "add sibling")
+    commit_file(root, plan_id, "# plan\n", "add plan")
+    commit_file(root, "plans/pq.py", "print(1)\n", "add sibling")
     before = store.current_binding(root, plan_id)
     assert store.is_binding_hash(before)
 
-    _commit_file(root, plan_id, "# plan\n- [x] ticked\n", "tick plan")
+    commit_file(root, plan_id, "# plan\n- [x] ticked\n", "tick plan")
     assert store.current_binding(root, plan_id) == before
 
-    _commit_file(root, "plans/pq.md", "# sibling\n", "sibling matched by the glob")
+    commit_file(root, "plans/pq.md", "# sibling\n", "sibling matched by the glob")
     assert store.current_binding(root, plan_id) != before
 
 
 def test_binding_for_plan_pairs_the_hash_with_the_inputs_digest(repo: Path) -> None:
-    _commit_file(repo, "src/app.py", "print(1)\n", "add source")
+    commit_file(repo, "src/app.py", "print(1)\n", "add source")
     plan_text = "# plan\n\n## Acceptance Criteria\n\n- [ ] one\n"
     binding = store.binding_for_plan(repo, PLAN_ID, plan_text)
     assert binding == store.Binding(

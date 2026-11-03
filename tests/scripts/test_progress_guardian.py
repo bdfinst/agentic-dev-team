@@ -23,7 +23,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from examination_fixtures import give_current_met_record
+import pytest
+from examination_fixtures import exempt_from_examination, write_met_record
+from examination_repo import git_env, make_repo
 
 from _repo_root import REPO_ROOT
 
@@ -62,15 +64,17 @@ def make_plan(path: Path, content: str) -> None:
 
 
 def assert_pre_pr_clean(data: dict) -> None:
-    """A passing --pre-pr result: nothing but the exemption notice `run_pg`'s
-    ad-hoc repositories may carry (info issues never fail or warn)."""
+    """A passing --pre-pr result: nothing but the exemption notice `run_pg`
+    declares for its ad-hoc repositories (info issues never fail or warn)."""
     assert data["status"] == "pass", data
     assert all(i["severity"] == "info" for i in data["issues"]), data
 
 
 def run_pg(plan: Path, *args: str) -> subprocess.CompletedProcess:
+    """Run progress_guardian; a --pre-pr run declares the plan exempt from the
+    acceptance examination, so these ad-hoc repositories need no record."""
     if "--pre-pr" in args:
-        give_current_met_record(plan)
+        exempt_from_examination(plan)
     return subprocess.run(
         [sys.executable, str(PG), "--plan", str(plan), *args],
         capture_output=True,
@@ -602,8 +606,7 @@ def test_4_4_realistic_plan_with_all_three_525_patterns_passes_the_pre_pr_gate(
 
     result = run_pg(plan, "--pre-pr", "--skip-llm")
     assert result.returncode == 0
-    data = json.loads(result.stdout)
-    assert data["issues"] == [], data
+    assert_pre_pr_clean(json.loads(result.stdout))
 
 
 # ---------------------------------------------------------------------------
@@ -956,3 +959,42 @@ def test_6f_non_pre_pr_run_does_not_enforce_the_verify_log_check(
     assert result.returncode == 0
     data = json.loads(result.stdout)
     assert data["issues"] == [], data
+
+
+# ---------------------------------------------------------------------------
+# Acceptance examination (#2270) — the non-exempt path, with a real record
+# ---------------------------------------------------------------------------
+
+
+def _run_pg_unexempted(root: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(PG), "--plan", str(root / "plans/x.md"), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=root,
+        env=git_env(root.parent),
+    )
+
+
+def test_pre_pr_passes_with_a_current_met_record_on_a_branch_with_a_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for key, value in git_env(tmp_path).items():
+        monkeypatch.setenv(key, value)
+    repo = make_repo(tmp_path)
+    write_met_record(repo)
+
+    result = _run_pg_unexempted(repo, "--pre-pr", "--skip-llm")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def test_pre_pr_refuses_the_same_branch_without_a_record(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+
+    result = _run_pg_unexempted(repo, "--pre-pr", "--skip-llm")
+
+    assert result.returncode == 1
+    assert "Acceptance examination missing" in result.stdout

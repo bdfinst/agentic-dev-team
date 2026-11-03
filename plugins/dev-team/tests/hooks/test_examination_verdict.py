@@ -12,10 +12,14 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _LIB_DIR = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
 
-if str(_LIB_DIR) not in sys.path:
-    sys.path.insert(0, str(_LIB_DIR))
+_TESTS_LIB_DIR = _REPO_ROOT / "plugins" / "dev-team" / "tests" / "lib"
+
+for _entry in (_LIB_DIR, _TESTS_LIB_DIR):
+    if str(_entry) not in sys.path:
+        sys.path.insert(0, str(_entry))
 
 import examination_verdict as ev  # type: ignore[import-not-found]
+from examination_repo import row  # type: ignore[import-not-found]
 from examination_store import Binding  # type: ignore[import-not-found]
 
 
@@ -51,24 +55,20 @@ def test_ran_segments_splits_calls_into_normalized_segments(calls, expected):
     assert ev.ran_segments(calls) == expected
 
 
-def _row(verdict):
-    return {"criterion": "AC1", "verdict": verdict}
-
-
 _FINDING = {"kind": "read", "target": "src/app.py", "command": "cat src/app.py"}
 
 
 @pytest.mark.parametrize(
     ("rows", "findings", "problems", "expected"),
     [
-        ([_row("met"), _row("met")], [], [], "met"),
-        ([_row("met"), _row("not-met")], [], [], "not-met"),
-        ([_row("met"), _row("indeterminate")], [], [], "indeterminate"),
-        ([_row("not-met"), _row("indeterminate")], [], [], "not-met"),
-        ([_row("met")], [], ["missing AC2"], "indeterminate"),
-        ([_row("not-met")], [], ["missing AC2"], "indeterminate"),
-        ([_row("met")], [_FINDING], [], "tainted"),
-        ([_row("not-met")], [_FINDING], ["missing AC2"], "tainted"),
+        ([row(verdict="met"), row(verdict="met")], [], [], "met"),
+        ([row(verdict="met"), row(verdict="not-met")], [], [], "not-met"),
+        ([row(verdict="met"), row(verdict="indeterminate")], [], [], "indeterminate"),
+        ([row(verdict="not-met"), row(verdict="indeterminate")], [], [], "not-met"),
+        ([row(verdict="met")], [], ["missing AC2"], "indeterminate"),
+        ([row(verdict="not-met")], [], ["missing AC2"], "indeterminate"),
+        ([row(verdict="met")], [_FINDING], [], "tainted"),
+        ([row(verdict="not-met")], [_FINDING], ["missing AC2"], "tainted"),
     ],
 )
 def test_derive_overall_applies_precedence(rows, findings, problems, expected):
@@ -85,12 +85,7 @@ _IDS = ["AC1", "AC2", "AC3"]
 
 
 def _full_row(cid="AC1", verdict="met", command="pytest -q", observation="exit 0"):
-    return {
-        "criterion": cid,
-        "verdict": verdict,
-        "command": command,
-        "observation": observation,
-    }
+    return row(cid, verdict, command, observation)
 
 
 def _derive(result, ids, ran):

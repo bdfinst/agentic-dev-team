@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -299,10 +300,13 @@ def _guardian_parse(text: str, tmp_path):
 
 def _ac_section_only(plan_text: str) -> str:
     """The plan reduced to its AC section: a legacy (no Build Progress) plan,
-    on which `parse_plan` scans every checkbox line."""
-    kept, active = [], False
+    on which `parse_plan` scans every checkbox line. Headings inside a fenced
+    block are text, not sections."""
+    kept, active, fenced = [], False, False
     for line in plan_text.splitlines():
-        if line.startswith("## "):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        elif line.startswith("## ") and not fenced:
             active = line.rstrip() == _AC_HEADING
         if active:
             kept.append(line)
@@ -322,18 +326,22 @@ def test_both_parsers_exclude_the_build_progress_mirror(tmp_path):
     assert guardian == ["do the work"]
 
 
-_REPO_PLANS = sorted((_REPO_ROOT / "plans").glob("*.md"))
+_FIXTURE_PLANS = sorted((Path(__file__).parent / "fixtures" / "plans").glob("*.md"))
 
 
-@pytest.mark.skipif(not _REPO_PLANS, reason="no plans/*.md at the repo root")
-@pytest.mark.parametrize("plan_path", _REPO_PLANS, ids=lambda p: p.name)
-def test_parser_agrees_with_progress_guardian_on_repo_plans(plan_path, tmp_path):
+def test_there_are_fixture_plans_to_compare() -> None:
+    assert len(_FIXTURE_PLANS) >= 3
+
+
+@pytest.mark.parametrize("plan_path", _FIXTURE_PLANS, ids=lambda p: p.stem)
+def test_parser_agrees_with_progress_guardian_on_fixture_plans(plan_path, tmp_path):
+    """Our criteria equal `progress_guardian.parse_plan`'s checkbox extraction
+    on the plan reduced to its AC section (`_ac_section_only`), where
+    `parse_plan` falls back to scanning every checkbox line."""
     text = plan_path.read_text(encoding="utf-8")
     ours = ei.plan_examination_inputs(text).criteria
-    section = _ac_section_only(text)
-    if not ours:
-        pytest.skip("plan has no acceptance-criteria checkboxes")
-    assert _guardian_parse(section, tmp_path) == ours
+    assert ours, "a fixture plan must carry acceptance criteria"
+    assert _guardian_parse(_ac_section_only(text), tmp_path) == ours
 
 
 # --- review-fix additions (#2270) ---------------------------------------------

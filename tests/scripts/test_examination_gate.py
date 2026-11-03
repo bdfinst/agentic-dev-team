@@ -13,14 +13,18 @@ import sys
 from pathlib import Path
 
 import pytest
-from examination_fixtures import (
+from examination_fixtures import EXEMPT_HEADER, write_met_record
+from examination_repo import (
+    BINDING_HASH,
     CRITERION_1,
+    INPUTS_DIGEST,
     PLAN_ID,
     SOURCE_FILE,
     git_env,
     make_repo,
-    write_met_record,
 )
+from examination_repo import record as make_record
+from examination_repo import row as make_row
 
 from _repo_root import REPO_ROOT
 
@@ -40,30 +44,7 @@ from examination_verdict import (  # type: ignore[import-not-found]
 PG = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "progress_guardian.py"
 CLI = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "acceptance_examination.py"
 PATH = ".claude/memory/acceptance-examination-plans__x.md.json"
-HASH, DIGEST = "h1", "d1"
-
-
-def _row(cid: str, verdict: str = "met", observation: str = "fine") -> dict:
-    return {
-        "criterion": cid,
-        "verdict": verdict,
-        "command": "run",
-        "observation": observation,
-    }
-
-
-def _record(**overrides: object) -> dict:
-    record = {
-        "plan": PLAN_ID,
-        "overall": "met",
-        "criteria": [_row("AC1"), _row("AC2")],
-        "problems": [],
-        "audit_findings": [],
-        "binding_hash": HASH,
-        "inputs_digest": DIGEST,
-    }
-    record.update(overrides)
-    return record
+HASH, DIGEST = BINDING_HASH, INPUTS_DIGEST
 
 
 def _check(
@@ -72,7 +53,7 @@ def _check(
     digest: str = DIGEST,
     exempt: bool = False,
 ) -> list[dict]:
-    record = _record() if record == "default" else record
+    record = make_record() if record == "default" else record
     return gate.check_acceptance_examination(
         PLAN_ID, record, PATH, Binding(binding, digest), exempt
     )
@@ -104,8 +85,11 @@ def test_exempt_plan_ignores_an_unreadable_record() -> None:
 
 
 def test_not_met_names_criteria_and_first_observation_line_only() -> None:
-    rows = [_row("AC1"), _row("AC2", "not-met", "expected 3 got 2\nstack trace")]
-    issue = _only_error(_check(_record(overall="not-met", criteria=rows)))
+    rows = [
+        make_row("AC1"),
+        make_row("AC2", "not-met", observation="expected 3 got 2\nstack trace"),
+    ]
+    issue = _only_error(_check(make_record(overall="not-met", criteria=rows)))
     text = _text(issue)
     for expected in (
         "Acceptance criteria not met: AC2",
@@ -117,15 +101,21 @@ def test_not_met_names_criteria_and_first_observation_line_only() -> None:
 
 
 def test_not_met_lists_every_failing_criterion() -> None:
-    rows = [_row("AC1", "not-met", "one"), _row("AC2", "not-met", "two")]
-    text = _text(_only_error(_check(_record(overall="not-met", criteria=rows))))
+    rows = [
+        make_row("AC1", "not-met", observation="one"),
+        make_row("AC2", "not-met", observation="two"),
+    ]
+    text = _text(_only_error(_check(make_record(overall="not-met", criteria=rows))))
     assert "not met: AC1, AC2" in text
     assert "AC1: one" in text and "AC2: two" in text
 
 
 def test_unobservable_indeterminate_names_criteria_and_observation() -> None:
-    rows = [_row("AC1"), _row("AC2", "indeterminate", "no HTTP entry point named")]
-    issue = _only_error(_check(_record(overall="indeterminate", criteria=rows)))
+    rows = [
+        make_row("AC1"),
+        make_row("AC2", "indeterminate", observation="no HTTP entry point named"),
+    ]
+    issue = _only_error(_check(make_record(overall="indeterminate", criteria=rows)))
     for expected in (
         "could not observe AC2",
         "no HTTP entry point named",
@@ -165,7 +155,7 @@ def test_unobservable_indeterminate_names_criteria_and_observation() -> None:
 def test_malformed_result_glosses_each_problem(
     problems: list[str], gloss: str, remedy: str
 ) -> None:
-    issue = _only_error(_check(_record(overall="indeterminate", problems=problems)))
+    issue = _only_error(_check(make_record(overall="indeterminate", problems=problems)))
     assert "the examiner's result was incomplete" in issue["message"]
     assert gloss in issue["message"]
     assert remedy in issue["suggestedFix"]
@@ -173,19 +163,21 @@ def test_malformed_result_glosses_each_problem(
 
 def test_malformed_result_glosses_every_problem() -> None:
     problems = ["missing AC2", "command-not-run AC1"]
-    issue = _only_error(_check(_record(overall="indeterminate", problems=problems)))
+    issue = _only_error(_check(make_record(overall="indeterminate", problems=problems)))
     assert "no row for AC2" in issue["message"]
     assert "AC1 names a command it never ran" in issue["message"]
 
 
 def test_unrecognised_problem_is_shown_as_written() -> None:
-    issue = _only_error(_check(_record(overall="indeterminate", problems=["odd 7"])))
+    issue = _only_error(
+        _check(make_record(overall="indeterminate", problems=["odd 7"]))
+    )
     assert "odd 7" in issue["message"]
 
 
 def test_tainted_lists_three_commands_the_overflow_and_the_show_hint() -> None:
     findings = [{"command": f"cat secret{n}"} for n in range(1, 5)]
-    issue = _only_error(_check(_record(overall="tainted", audit_findings=findings)))
+    issue = _only_error(_check(make_record(overall="tainted", audit_findings=findings)))
     text = _text(issue)
     for expected in (
         "cat secret1",
@@ -203,7 +195,7 @@ def test_tainted_lists_three_commands_the_overflow_and_the_show_hint() -> None:
 def test_tainted_with_three_commands_has_no_overflow_marker() -> None:
     findings = [{"command": f"cat s{n}"} for n in range(3)]
     text = _text(
-        _only_error(_check(_record(overall="tainted", audit_findings=findings)))
+        _only_error(_check(make_record(overall="tainted", audit_findings=findings)))
     )
     assert "more)" not in text
 
@@ -226,7 +218,7 @@ def test_unreadable_record_names_path_and_problem() -> None:
 
 
 def test_record_for_another_plan_names_it() -> None:
-    issue = _only_error(_check(_record(plan="plans/y.md")))
+    issue = _only_error(_check(make_record(plan="plans/y.md")))
     assert "belongs to plans/y.md" in issue["message"]
     assert PATH in issue["message"]
 
@@ -247,21 +239,21 @@ def test_base_unresolvable_remedy_is_the_git_fetch_line() -> None:
     assert "git fetch origin" in issue["suggestedFix"]
 
 
+def test_unchanged_binding_and_inputs_are_not_stale() -> None:
+    assert _check(binding=HASH, digest=DIGEST) == []
+
+
 @pytest.mark.parametrize(
     ("hash_now", "digest_now", "expected"),
     [
-        ("h1", "d1", None),
-        ("h2", "d1", "commits landed after it ran"),
-        ("h1", "d2", "acceptance criteria, Gherkin, or run commands"),
+        ("h2", DIGEST, "commits landed after it ran"),
+        (HASH, "d2", "acceptance criteria, Gherkin, or run commands"),
     ],
 )
 def test_staleness_is_detected_by_hash_or_digest(
-    hash_now: str, digest_now: str, expected: str | None
+    hash_now: str, digest_now: str, expected: str
 ) -> None:
     issues = _check(binding=hash_now, digest=digest_now)
-    if expected is None:
-        assert issues == []
-        return
     assert expected in _only_error(issues)["message"]
     assert "re-runs the examiner" in issues[0]["suggestedFix"]
 
@@ -273,7 +265,7 @@ PRECEDENCE_CASES = {
         "record unreadable",
     ),
     "other plan over not-met": (
-        {"record": _record(plan="plans/y.md", overall="not-met")},
+        {"record": make_record(plan="plans/y.md", overall="not-met")},
         "belongs to plans/y.md",
     ),
     "base-unresolvable over stale diff": (
@@ -284,13 +276,15 @@ PRECEDENCE_CASES = {
     "stale diff over stale inputs": (STALE_BOTH, "commits landed after it ran"),
     "stale inputs over tainted": (
         {
-            "record": _record(overall="tainted", audit_findings=[{"command": "cat x"}]),
+            "record": make_record(
+                overall="tainted", audit_findings=[{"command": "cat x"}]
+            ),
             "digest": "d2",
         },
         "acceptance criteria, Gherkin, or run commands",
     ),
     "stale diff over not-met": (
-        {"record": _record(overall="not-met"), "binding": "h2"},
+        {"record": make_record(overall="not-met"), "binding": "h2"},
         "commits landed after it ran",
     ),
 }
@@ -401,7 +395,7 @@ def test_exempt_plan_passes_pre_pr_without_a_record(repo: Path) -> None:
     plan = repo / PLAN_ID
     plan.write_text(
         plan.read_text(encoding="utf-8").replace(
-            "# Plan x\n", "# Plan x\n\n**Examination**: not-applicable\n"
+            "# Plan x\n", "# Plan x\n\n" + EXEMPT_HEADER
         ),
         encoding="utf-8",
     )
@@ -445,7 +439,7 @@ def test_load_and_check_with_a_missing_plan_file_is_one_error(repo: Path) -> Non
 
 
 def test_is_stale_is_true_for_a_moved_hash_or_a_moved_digest() -> None:
-    record = _record()
+    record = make_record()
     assert not gate.is_stale(record, Binding(HASH, DIGEST))
     assert gate.is_stale(record, Binding("h2", DIGEST))
     assert gate.is_stale(record, Binding(HASH, "d2"))
@@ -453,7 +447,7 @@ def test_is_stale_is_true_for_a_moved_hash_or_a_moved_digest() -> None:
 
 def test_is_stale_is_true_against_a_sentinel_binding() -> None:
     for sentinel in (BASE_UNRESOLVABLE, EMPTY_DIFF):
-        assert gate.is_stale(_record(), Binding(sentinel, DIGEST))
+        assert gate.is_stale(make_record(), Binding(sentinel, DIGEST))
 
 
 def test_blocking_issues_keeps_only_errors() -> None:
@@ -467,26 +461,26 @@ def test_refusal_message_is_the_one_message_table_text() -> None:
     message = gate.refusal_message(
         gate.RULE_OTHER_PLAN, PLAN_ID, path=PATH, other="plans/y.md"
     )
-    assert message == _only_error(_check(_record(plan="plans/y.md")))["message"]
+    assert message == _only_error(_check(make_record(plan="plans/y.md")))["message"]
 
 
 def test_a_huge_single_line_observation_is_capped_in_the_refusal() -> None:
-    rows = [_row("AC1", "not-met", "x" * 200_000)]
-    issue = _only_error(_check(_record(overall="not-met", criteria=rows)))
+    rows = [make_row("AC1", "not-met", observation="x" * 200_000)]
+    issue = _only_error(_check(make_record(overall="not-met", criteria=rows)))
     assert len(issue["message"]) < 2 * gate.OBSERVATION_CHAR_LIMIT
     assert "x" * gate.OBSERVATION_CHAR_LIMIT + "…" in issue["message"]
 
 
 def test_an_observation_at_the_cap_is_shown_whole() -> None:
     observation = "y" * gate.OBSERVATION_CHAR_LIMIT
-    rows = [_row("AC1", "not-met", observation)]
-    issue = _only_error(_check(_record(overall="not-met", criteria=rows)))
+    rows = [make_row("AC1", "not-met", observation=observation)]
+    issue = _only_error(_check(make_record(overall="not-met", criteria=rows)))
     assert observation in issue["message"]
     assert "…" not in issue["message"]
 
 
 def test_a_criterion_id_that_is_not_ac_n_never_reaches_the_gloss() -> None:
-    result = {"criteria": [{**_row("AC9 extra"), "observation": "ok"}]}
+    result = {"criteria": [{**make_row("AC9 extra"), "observation": "ok"}]}
     rows, problems = validate_rows(result, ["AC1"], ["run"])
     record = build_record(PLAN_ID, rows, [], problems, Binding("a" * 64, "d"), "agent")
     issue = _only_error(
@@ -496,6 +490,26 @@ def test_a_criterion_id_that_is_not_ac_n_never_reaches_the_gloss() -> None:
     )
     assert "AC9" not in issue["message"]
     assert "did not have the expected shape" in issue["message"]
+
+
+def test_progress_guardian_and_the_cli_share_one_gate_module(tmp_path: Path) -> None:
+    """One interpreter, both entry points imported: `sys.modules` holds the gate
+    once, so a single monkeypatch of it reaches `--pre-pr` and `status` alike."""
+    scripts = REPO_ROOT / "plugins" / "dev-team" / "scripts"
+    code = (
+        "import sys; sys.path.insert(0, sys.argv[1]); "
+        "import progress_guardian, acceptance_examination; "
+        "print(*sorted(m for m in sys.modules if m.endswith('examination_gate')))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(scripts)],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=tmp_path,
+        env=git_env(tmp_path),
+    )
+    assert result.stdout.split() == ["examination_gate"]
 
 
 def test_message_constants_do_not_name_the_base_refusal_malformed() -> None:

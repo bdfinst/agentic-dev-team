@@ -228,6 +228,8 @@ plans/
 .claude/plans/
 # …but keep parity-fixture reports (see #574 / #572).
 !plugins/dev-team/tests/hooks/parity/fixtures/**/reports/
+# …and the checked-in plan fixtures for the examination parser tests (#2270).
+!plugins/dev-team/tests/hooks/fixtures/plans/
 
 # Scratch files
 xx

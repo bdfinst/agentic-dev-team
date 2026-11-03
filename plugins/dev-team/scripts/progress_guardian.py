@@ -24,11 +24,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks" / "lib"))
-from examination_inputs import CHECKBOX_PREFIX  # type: ignore[import-not-found]
-from lib.examination_gate import (
+# The gate is imported by its bare name, as acceptance_examination.py does, so
+# one process holds one copy of it (a `lib.`-qualified spelling would be a second).
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from examination_gate import (  # type: ignore[import-not-found]
     blocking_issues,
     load_and_check,
 )
+from examination_inputs import CHECKBOX_PREFIX  # type: ignore[import-not-found]
 from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
 # ---------------------------------------------------------------------------
