@@ -43,8 +43,8 @@ real subagent transcript from this session
     `dev-team:structure-review`, `dev-team:correctness-review`,
     `dev-team:software-engineer`) and bare for harness-builtin agent types
     (`general-purpose`, `claude-code-guide`) — `strip_plugin_prefix`
-    (`hooks/lib/review_agent_registry.py`) already normalizes exactly this,
-    reused below rather than reimplemented.
+    (`hooks/lib/review_agent_registry.py`) already normalizes exactly this;
+    `hooks/lib/subagent_transcript.py` applies it.
   * The field is NOT stamped on every record in a subagent transcript — only
     the usage-bearing (assistant) ones. The transcript's first record (the
     dispatch-prompt `user` turn this hook also needs, for the Decision 3
@@ -57,10 +57,11 @@ change to this step.** The documented Task/Agent-dispatch-join fallback
 (main-thread `tool_use.input.subagent_type` + `toolUseResult.agentId`,
 matched against the subagent transcript's own `agentId`, with the parent
 transcript path derived from `transcript_path`'s own directory structure) is
-still implemented below, per the plan's explicit instruction — but the spike
-found no real transcript that ever needed it.
+still implemented, per the plan's explicit instruction, in
+`hooks/lib/subagent_transcript.py` — but the spike found no real transcript
+that ever needed it.
 
-Stdlib-only (hashlib/json/pathlib/sys). See ADR 0014, ADR 0015.
+Stdlib-only (contextlib/pathlib/sys). See ADR 0014, ADR 0015.
 """
 
 from __future__ import annotations
@@ -197,19 +198,10 @@ def process(payload: dict) -> None:
     registered-but-non-review `subagent_type`) stay silent — those are
     legitimate no-ops: this dispatch was never confirmed to be a review
     lens that should have produced rows at all."""
-    transcript_path = payload.get("transcript_path")
-    if not isinstance(transcript_path, str) or not transcript_path:
+    resolved = subagent_transcript.own_records_and_type(payload)
+    if resolved is None:
         return
-    transcript = subagent_transcript.resolve_subagent_transcript(
-        Path(transcript_path), payload.get("agent_id")
-    )
-    records = subagent_transcript.read_transcript_records(transcript)
-    if not records:
-        return
-
-    subagent_type = subagent_transcript.resolve_subagent_type(transcript, records)
-    if not subagent_type:
-        return
+    records, subagent_type = resolved
 
     if not is_registered_review_lens(subagent_type):
         return

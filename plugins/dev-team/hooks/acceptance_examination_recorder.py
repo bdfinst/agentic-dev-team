@@ -26,8 +26,11 @@ Design decisions 1-5, 9, 10).
 
 The hook is the sole record writer (decision 1); `/build` never relays a
 verdict. It returns without a record or an event for any non-examiner
-subagent, an unreadable transcript, a plan that cannot be located inside the
-repository, or a repository that cannot be resolved.
+subagent, an unreadable transcript, a marker that names a plan that is
+missing or outside the repository, or a repository that cannot be resolved.
+A marker whose path is empty or contains `..` is not a plan path at all:
+`parse_plan_marker` returns `None` for it, so it yields `missing-plan-marker`
+like an absent marker.
 
 ## SubagentStop ordering
 
@@ -69,8 +72,8 @@ from examination_store import (  # type: ignore[import-not-found]
 )
 from examination_verdict import (  # type: ignore[import-not-found]
     PROBLEM_BASE_UNRESOLVABLE,
-    PROBLEM_UNPARSEABLE,
     build_record,
+    unparseable_problems,
     validate_rows,
 )
 from examiner_read_audit import audit_commands  # type: ignore[import-not-found]
@@ -96,22 +99,6 @@ def _emit(cwd: str, rule: str, session_id: object) -> None:
     )
 
 
-def _examiner_records(payload: dict) -> list[dict] | None:
-    """The examiner's own transcript rows, or `None` for any other subagent
-    (or an unreadable transcript)."""
-    transcript_path = payload.get("transcript_path")
-    if not isinstance(transcript_path, str) or not transcript_path:
-        return None
-    transcript = subagent_transcript.resolve_subagent_transcript(
-        Path(transcript_path), payload.get("agent_id")
-    )
-    records = subagent_transcript.read_transcript_records(transcript)
-    if not records:
-        return None
-    subagent_type = subagent_transcript.resolve_subagent_type(transcript, records)
-    return records if subagent_type == EXAMINER_AGENT else None
-
-
 def _read_plan(plan_path: Path) -> str | None:
     try:
         return plan_path.read_text(encoding="utf-8")
@@ -119,38 +106,42 @@ def _read_plan(plan_path: Path) -> str | None:
         return None
 
 
-def _agent_id(records: list[dict], payload: dict) -> str:
+def _resolve_agent_id(records: list[dict], payload: dict) -> str:
     agent_id = subagent_transcript.own_agent_id(records) or payload.get("agent_id")
     return str(agent_id) if agent_id else ""
 
 
 def _rows_and_problems(
-    records: list[dict], expected: list[str], ran: list[str]
+    records: list[dict], expected_ids: list[str], ran_commands: list[str]
 ) -> tuple[list[dict], list[str]]:
     """The usable criterion rows and the problems found in the handback."""
     text = subagent_transcript.handback_message_text(records)
     result = subagent_transcript.extract_json_object(text) if text else None
     if result is None:
-        return [], [PROBLEM_UNPARSEABLE]
-    return validate_rows(result, expected, ran)
+        return [], unparseable_problems(expected_ids)
+    return validate_rows(result, expected_ids, ran_commands)
 
 
-def _examination(
+def _build_examination(
     records: list[dict],
-    agent_id: str,
+    payload: dict,
     plan_id: str,
     plan_text: str,
     binding: Binding,
-    audit_scope: tuple[str, str],
+    *,
+    root: str,
+    cwd: str,
 ) -> tuple[dict, list[dict]]:
     """The record for this stop and the audit findings behind it (pure).
-    `audit_scope` is the repository root and the examiner's cwd."""
-    expected = criteria_ids(plan_examination_inputs(plan_text))
-    ran = subagent_transcript.bash_commands(records)
-    rows, problems = _rows_and_problems(records, expected, ran)
-    findings = [f._asdict() for f in audit_commands(ran, *audit_scope)]
+    `root` is the resolved repository root and `cwd` the examiner's resolved
+    working directory."""
+    expected_ids = criteria_ids(plan_examination_inputs(plan_text))
+    ran_commands = subagent_transcript.bash_commands(records)
+    rows, problems = _rows_and_problems(records, expected_ids, ran_commands)
+    findings = [f._asdict() for f in audit_commands(ran_commands, root=root, cwd=cwd)]
     if not is_binding_hash(binding.hash):
         problems = [*problems, PROBLEM_BASE_UNRESOLVABLE]
+    agent_id = _resolve_agent_id(records, payload)
     return build_record(plan_id, rows, findings, problems, binding, agent_id), findings
 
 
@@ -161,8 +152,11 @@ def process(payload: dict, cwd: str) -> None:
     write, and the boundary events (plus the store's bounded git calls for the
     root and the binding). Every input it cannot resolve returns without a
     record."""
-    records = _examiner_records(payload)
-    if records is None:
+    resolved = subagent_transcript.own_records_and_type(payload)
+    if resolved is None:
+        return
+    records, subagent_type = resolved
+    if subagent_type != EXAMINER_AGENT:
         return
     session_id = payload.get("session_id")
 
@@ -181,13 +175,14 @@ def process(payload: dict, cwd: str) -> None:
     if plan_text is None:
         return
 
-    record, findings = _examination(
+    record, findings = _build_examination(
         records,
-        _agent_id(records, payload),
+        payload,
         plan_id,
         plan_text,
         binding_for_plan(root, plan_id, plan_text),
-        (str(root), cwd),
+        root=str(root),
+        cwd=str(Path(cwd).resolve()),
     )
     write_record(record_path(root, plan_id), record)
     if findings:

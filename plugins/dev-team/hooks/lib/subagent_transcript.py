@@ -1,7 +1,7 @@
 """hooks/lib/subagent_transcript.py — subagent-transcript readers shared by the
-SubagentStop recorders (lifted verbatim from `hooks/review_verdict_recorder.py`
-for #2270 Step 3.0 so `hooks/acceptance_examination_recorder.py` reuses them
-instead of copying them).
+SubagentStop recorders (moved from `hooks/review_verdict_recorder.py`, names
+made public, for #2270 Step 3.0 so `hooks/acceptance_examination_recorder.py`
+reuses them instead of copying them).
 
 Stdlib-only (json/pathlib/sys). See ADR 0014, ADR 0015.
 """
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 _LIB_DIR = Path(__file__).resolve().parent
@@ -20,8 +21,9 @@ if str(_LIB_DIR) not in sys.path:
 # exception (see hooks/lib/cost_meter.py's identical import for the full
 # rationale): session_log/ ships INSIDE this same plugin package,
 # always present wherever a hook runs, and session_log itself imports
-# nothing from hooks/lib/ (no cycle). Mirrors cost_meter.py's own
-# sys.path.insert + bare-package-import MECHANISM, not its directionality.
+# nothing from hooks/lib/ (no cycle). This is a second instance of the
+# `cost_meter.py` exception: the same direction (hooks/lib -> scripts/lib),
+# the same sys.path.insert + bare-package-import mechanism.
 _SCRIPTS_LIB_DIR = _LIB_DIR.parents[1] / "scripts" / "lib"
 if str(_SCRIPTS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_LIB_DIR))
@@ -58,9 +60,9 @@ def read_transcript_records(path: Path) -> list[dict] | None:
 
 
 def attribution_subagent_type(records: list[dict]) -> str | None:
-    """Primary signal (see module docstring spike finding): the first
-    non-empty native attribution value found on any record in the subagent's
-    own transcript."""
+    """Primary signal (see the "Spike finding" in the module docstring of
+    `hooks/review_verdict_recorder.py`): the first non-empty native attribution
+    value found on any record in the subagent's own transcript."""
     for rec in records:
         agent = _records.attribution_agent_of(rec)
         if agent:
@@ -91,8 +93,9 @@ def fallback_subagent_type(
     subagent_transcript: Path, records: list[dict]
 ) -> str | None:
     """The documented Task/Agent dispatch join, used only when the primary
-    `attributionAgent` signal is absent from every record (see module
-    docstring: the spike found no real transcript that needed this path)."""
+    `attributionAgent` signal is absent from every record (see the "Spike
+    finding" in the module docstring of `hooks/review_verdict_recorder.py`: the
+    spike found no real transcript that needed this path)."""
     agent_id = own_agent_id(records)
     if not agent_id:
         return None
@@ -114,6 +117,25 @@ def resolve_subagent_type(subagent_transcript: Path, records: list[dict]) -> str
         subagent_transcript, records
     )
     return strip_plugin_prefix(raw) if raw else None
+
+
+def own_records_and_type(payload: dict) -> tuple[list[dict], str] | None:
+    """The shared SubagentStop preamble: the stopping subagent's own transcript
+    rows and its plugin-prefix-stripped `subagent_type`, or `None` when any
+    step cannot resolve (no `transcript_path`, an unreadable or empty
+    transcript, an unresolvable type). Callers treat `None` as "not
+    ours" and return without writing."""
+    transcript_path = payload.get("transcript_path")
+    if not isinstance(transcript_path, str) or not transcript_path:
+        return None
+    transcript = resolve_subagent_transcript(
+        Path(transcript_path), payload.get("agent_id")
+    )
+    records = read_transcript_records(transcript)
+    if not records:
+        return None
+    subagent_type = resolve_subagent_type(transcript, records)
+    return (records, subagent_type) if subagent_type else None
 
 
 def message_text(message: object) -> str | None:
@@ -141,6 +163,25 @@ def first_turn_text(records: list[dict]) -> str | None:
     return message_text(records[0].get("message"))
 
 
+def _tool_use_blocks(records: list[dict], name: str) -> Iterator[dict]:
+    """The `input` dict of every `tool_use` block named `name`, in transcript
+    order. Rows without a dict `message` or a list `content`, non-dict blocks,
+    and blocks whose `input` is not a dict are skipped."""
+    for rec in records:
+        message = rec.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "tool_use"
+                and block.get("name") == name
+                and isinstance(block.get("input"), dict)
+            ):
+                yield block["input"]
+
+
 def handback_message_text(records: list[dict]) -> str | None:
     """PRIMARY result-extraction path (Fix #1, #2166 correctness review —
     CRITICAL: this hook wrote zero rows in production before this fix).
@@ -158,24 +199,10 @@ def handback_message_text(records: list[dict]) -> str | None:
     across 70 real transcripts ("Finding 3 — SubagentHandback is a real,
     distinguishable tool_use block"). Scans backward so the LAST handback
     call wins if a transcript ever carries more than one."""
-    for rec in reversed(records):
-        message = rec.get("message")
-        if not isinstance(message, dict):
-            continue
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if (
-                isinstance(block, dict)
-                and block.get("type") == "tool_use"
-                and block.get("name") == "SubagentHandback"
-            ):
-                handback_input = block.get("input")
-                if isinstance(handback_input, dict):
-                    text = handback_input.get("message")
-                    if isinstance(text, str) and text:
-                        return text
+    for handback_input in reversed(list(_tool_use_blocks(records, "SubagentHandback"))):
+        text = handback_input.get("message")
+        if isinstance(text, str) and text:
+            return text
     return None
 
 
@@ -256,25 +283,7 @@ def bash_commands(records: list[dict]) -> list[str]:
     """The `input.command` string of every `Bash` `tool_use` block in
     `records`, in transcript order. A Bash block whose `input` isn't a dict,
     or whose `command` is missing or not a non-empty string, is skipped."""
-    commands: list[str] = []
-    for rec in records:
-        message = rec.get("message")
-        if not isinstance(message, dict):
-            continue
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if (
-                not isinstance(block, dict)
-                or block.get("type") != "tool_use"
-                or block.get("name") != "Bash"
-            ):
-                continue
-            tool_input = block.get("input")
-            command = (
-                tool_input.get("command") if isinstance(tool_input, dict) else None
-            )
-            if isinstance(command, str) and command:
-                commands.append(command)
-    return commands
+    commands = (
+        tool_input.get("command") for tool_input in _tool_use_blocks(records, "Bash")
+    )
+    return [command for command in commands if isinstance(command, str) and command]

@@ -410,6 +410,26 @@ def _without(key: str) -> dict:
             id="binding-hash-empty-digest",
         ),
         pytest.param(
+            json.dumps({**_valid_record(), "binding_hash": "not-a-hash"}),
+            "invalid binding_hash",
+            id="binding-hash-not-a-hash",
+        ),
+        pytest.param(
+            json.dumps({**_valid_record(), "binding_hash": "base-unresolvable "}),
+            "invalid binding_hash",
+            id="binding-hash-sentinel-with-trailing-space",
+        ),
+        pytest.param(
+            json.dumps({**_valid_record(), "binding_hash": None}),
+            "invalid binding_hash",
+            id="binding-hash-null",
+        ),
+        pytest.param(
+            json.dumps({**_valid_record(), "binding_hash": 7}),
+            "invalid binding_hash",
+            id="binding-hash-number",
+        ),
+        pytest.param(
             json.dumps({**_valid_record(), "audit_findings": "none"}),
             "invalid audit_findings",
             id="audit-findings-not-a-list",

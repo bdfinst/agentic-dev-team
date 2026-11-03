@@ -807,9 +807,10 @@ def test_malformed_final_json_result_writes_no_rows(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tolerant JSON-recovery path (Fix #7, test review): `_extract_json_object`'s
-# fenced-block/prose-preamble recovery branches had zero test coverage --
-# only the "no JSON at all" failure path (above) was tested.
+# Tolerant JSON-recovery path (Fix #7, test review):
+# `subagent_transcript.extract_json_object`'s fenced-block/prose-preamble
+# recovery branches had zero test coverage -- only the "no JSON at all"
+# failure path (above) was tested.
 # ---------------------------------------------------------------------------
 
 

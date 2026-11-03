@@ -300,7 +300,9 @@ def stale_rule(record: dict, binding: Binding) -> str | None:
     A sentinel binding (`BASE_UNRESOLVABLE`, `EMPTY_DIFF`) never equals a
     stored hash, so it is always stale. A stored sentinel (a record written
     while the hash was unavailable) never equals a current hash either, so
-    once the base resolves that record is stale and must be re-run.
+    this function reports it stale. `_refusal` checks a stored sentinel first
+    and refuses with that sentinel's own rule instead, so the gate never
+    reports it as plain staleness.
     """
     if record.get("binding_hash") != binding.hash:
         return RULE_STALE_DIFF
@@ -326,6 +328,9 @@ def _refusal(
         return RULE_UNREADABLE, {"path": path, "problem": record.problem}
     if record.get("plan") != plan_id:
         return RULE_OTHER_PLAN, {"path": path, "other": record.get("plan")}
+    stored = record.get("binding_hash")
+    if stored in _BINDING_RULES:
+        return _BINDING_RULES[stored], {}
     if binding.hash in _BINDING_RULES:
         return _BINDING_RULES[binding.hash], {}
     if stale := stale_rule(record, binding):

@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -28,17 +29,25 @@ for _p in (
 ):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
+# examination_gate lives in scripts/lib; appended so it cannot shadow a hooks/lib module.
+_SCRIPTS_LIB_DIR = _PLUGIN_DIR / "scripts" / "lib"
+if str(_SCRIPTS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_SCRIPTS_LIB_DIR))
 
 import acceptance_examination_recorder as recorder  # type: ignore[import-not-found]
+import examination_gate  # type: ignore[import-not-found]
 import examination_store as store  # type: ignore[import-not-found]
 from examination_inputs import (  # type: ignore[import-not-found]
     inputs_digest,
     plan_examination_inputs,
 )
 from examination_repo import (  # type: ignore[import-not-found]
+    CRITERION_1,
+    CRITERION_2,
     PLAN_ID,
     PLAN_TEXT,
     commit_file,
+    git_env,
     init_repo,
     make_repo,
     row,
@@ -105,12 +114,15 @@ def _run_hook(raw_stdin: bytes, home: Path) -> subprocess.CompletedProcess:
     )
 
 
+def _payload_for(repo: Path, rows: list[dict], *, cwd: Path | None = None) -> bytes:
+    transcript = write_transcript(repo.parent, rows)
+    return json.dumps(stop_payload(cwd or repo, transcript)).encode()
+
+
 def _stop(repo: Path, rows: list[dict], *, cwd: Path | None = None) -> None:
     """Write `rows` as the examiner's transcript, stop the subagent, and assert
     the hook's silent exit-zero contract."""
-    transcript = write_transcript(repo.parent, rows)
-    payload = stop_payload(cwd or repo, transcript)
-    _stop_raw(repo, json.dumps(payload).encode())
+    _stop_raw(repo, _payload_for(repo, rows, cwd=cwd))
 
 
 def _stop_raw(repo: Path, raw_stdin: bytes) -> None:
@@ -136,7 +148,10 @@ def _events(repo: Path) -> list[dict]:
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> Path:
+def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The pinned repo; in-process git calls (binding, gate) run hermetically."""
+    for key, value in git_env(tmp_path).items():
+        monkeypatch.setenv(key, value)
     return make_repo(tmp_path)
 
 
@@ -154,11 +169,17 @@ def test_clean_transcript_writes_met_record_bound_to_branch_and_inputs(
     assert record["overall"] == "met"
     assert record["plan"] == PLAN_ID
     assert record["agent_id"] == AGENT_ID
-    assert store.is_binding_hash(record["binding_hash"])
+    assert record["binding_hash"] == store.current_binding(repo, PLAN_ID)
     assert record["inputs_digest"] == inputs_digest(plan_examination_inputs(PLAN_TEXT))
     assert record["problems"] == []
     assert record["audit_findings"] == []
     assert _events(repo) == []
+
+
+def test_hook_written_met_record_passes_the_gate(repo: Path) -> None:
+    _stop(repo, _examiner_rows())
+
+    assert examination_gate.load_and_check(repo / PLAN_ID) == []
 
 
 # ---------------------------------------------------------------------------
@@ -231,11 +252,11 @@ def test_forbidden_reads_taint_record_and_emit_one_event_without_path_text(
         ("read", "src/app.py", "cat src/app.py"),
         ("read", "src/b.py", "head -3 src/b.py"),
     ]
-    event_lines = (repo / _EVENTS_REL).read_text().splitlines()
-    assert len(event_lines) == 1
-    assert json.loads(event_lines[0])["matched_rule"] == "examiner-forbidden-read"
+    events = _events(repo)
+    assert [e["matched_rule"] for e in events] == ["examiner-forbidden-read"]
+    serialized = json.dumps(events[0])
     for leaked in ("src/app.py", "src/b.py", "cat ", "head "):
-        assert leaked not in event_lines[0]
+        assert leaked not in serialized
 
 
 # ---------------------------------------------------------------------------
@@ -243,18 +264,27 @@ def test_forbidden_reads_taint_record_and_emit_one_event_without_path_text(
 # ---------------------------------------------------------------------------
 
 
+_RECORD_REL = store.record_path(Path("/"), PLAN_ID).relative_to("/").as_posix()
+
+
 @pytest.mark.parametrize(
-    "command",
+    ("command", "kind", "target"),
     [
-        "echo '{}' > .claude/memory/acceptance-examination-plans__x.md.json",
-        "git commit -am wip",
-        "sed -i s/a/b/ src/app.py",
+        (f"echo '{{}}' > {_RECORD_REL}", "write", _RECORD_REL),
+        ("git commit -am wip", "git", "commit"),
+        ("sed -i s/a/b/ src/app.py", "write", "src/app.py"),
     ],
 )
-def test_state_changing_command_taints_record(repo: Path, command: str) -> None:
+def test_state_changing_command_taints_record(
+    repo: Path, command: str, kind: str, target: str
+) -> None:
     _stop(repo, _examiner_rows(commands=(_RAN, command)))
 
-    assert _record(repo)["overall"] == "tainted"
+    record = _record(repo)
+    assert record["overall"] == "tainted"
+    assert [
+        (f["kind"], f["target"], f["command"]) for f in record["audit_findings"]
+    ] == [(kind, target, command)]
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +331,40 @@ def test_malformed_handback_is_indeterminate_and_still_recorded(
     assert record["overall"] == "indeterminate"
     assert problem in record["problems"]
     assert record["criteria"] == []
+
+
+def test_prose_handback_for_a_plan_without_criteria_keeps_the_no_criteria_problem(
+    repo: Path,
+) -> None:
+    no_criteria_plan = PLAN_TEXT.replace(
+        f"- [ ] {CRITERION_1}\n- [ ] {CRITERION_2}\n", ""
+    )
+    commit_file(repo, PLAN_ID, no_criteria_plan, "docs: drop the criteria")
+    _stop(repo, _examiner_rows(handback="All criteria look fine to me."))
+
+    record = _record(repo)
+    assert record["overall"] == "indeterminate"
+    assert record["problems"] == ["unparseable-result", "no-acceptance-criteria"]
+
+
+# ---------------------------------------------------------------------------
+# Scenario: The examiner's cwd is resolved before the read audit
+# ---------------------------------------------------------------------------
+
+
+def test_forbidden_read_is_found_when_the_payload_cwd_is_a_symlink_to_the_repo(
+    repo: Path,
+) -> None:
+    link = repo.parent / "link"
+    link.symlink_to(repo, target_is_directory=True)
+
+    _stop(repo, _examiner_rows(commands=(_RAN, "cat src/app.py")), cwd=link)
+
+    record = _record(repo)
+    assert record["overall"] == "tainted"
+    assert [(f["kind"], f["target"]) for f in record["audit_findings"]] == [
+        ("read", "src/app.py")
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -355,18 +419,13 @@ def test_second_examination_replaces_the_first_record(repo: Path) -> None:
 
     assert _record(repo)["overall"] == "met"
     assert [p.name for p in _record_files(repo) if p.suffix == ".json"] == [
-        "acceptance-examination-plans__x.md.json"
+        store.record_path(repo, PLAN_ID).name
     ]
 
 
 # ---------------------------------------------------------------------------
 # Scenario Outline: The recorder never blocks on infrastructure failure
 # ---------------------------------------------------------------------------
-
-
-def _payload_for(repo: Path, rows: list[dict], *, cwd: Path | None = None) -> bytes:
-    transcript = write_transcript(repo.parent, rows)
-    return json.dumps(stop_payload(cwd or repo, transcript)).encode()
 
 
 def _fault_missing_transcript(repo: Path) -> bytes:
@@ -439,19 +498,43 @@ def test_infrastructure_fault_exits_zero_silently_and_leaves_no_record_file(
     assert list(repo.parent.glob("elsewhere/" + _RECORD_GLOB)) == []
 
 
+def _main_with_stdin(monkeypatch: pytest.MonkeyPatch, raw_stdin: bytes) -> int:
+    monkeypatch.setattr(sys, "stdin", io.StringIO(raw_stdin.decode()))
+    return recorder.main()
+
+
 def test_unexpected_error_in_process_exits_zero_silently(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
+    calls: list[str] = []
+
     def explode(payload: dict, cwd: str) -> None:
+        calls.append(cwd)
         raise RuntimeError("boom")
 
     monkeypatch.setattr(recorder, "process", explode)
-    monkeypatch.setattr(
-        sys, "stdin", io.StringIO(_payload_for(repo, _examiner_rows()).decode())
-    )
 
-    assert recorder.main() == 0
+    assert _main_with_stdin(monkeypatch, _payload_for(repo, _examiner_rows())) == 0
     captured = capsys.readouterr()
+    assert calls == [str(repo)]
+    assert (captured.out, captured.err) == ("", "")
+    assert _record_files(repo) == []
+
+
+def test_record_write_failure_exits_zero_silently_and_leaves_no_file(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    attempts: list[Path] = []
+
+    def fail_write(path: Path, record: dict) -> None:
+        attempts.append(Path(path))
+        raise OSError("disk full")
+
+    monkeypatch.setattr(recorder, "write_record", fail_write)
+
+    assert _main_with_stdin(monkeypatch, _payload_for(repo, _examiner_rows())) == 0
+    captured = capsys.readouterr()
+    assert attempts == [store.record_path(repo, PLAN_ID)]
     assert (captured.out, captured.err) == ("", "")
     assert _record_files(repo) == []
 
@@ -492,10 +575,16 @@ def _subagent_stop_scripts(path: Path) -> list[str]:
     """Basenames of every SubagentStop command in `path`, in order."""
     groups = json.loads(path.read_text(encoding="utf-8"))["hooks"]["SubagentStop"]
     return [
-        Path(hook["command"].rstrip('"').split()[-1].strip('"')).name
+        Path(shlex.split(hook["command"])[-1]).name
         for group in groups
         for hook in group["hooks"]
     ]
+
+
+def _recorder_offset_from_verdict_recorder(registry: Path) -> int:
+    scripts = _subagent_stop_scripts(registry)
+    assert scripts.count(_HOOK_PY.name) == 1
+    return scripts.index(_HOOK_PY.name) - scripts.index(_PRECEDING_HOOK)
 
 
 @pytest.mark.parametrize(
@@ -504,12 +593,10 @@ def _subagent_stop_scripts(path: Path) -> list[str]:
 def test_registry_lists_the_recorder_once_right_after_the_verdict_recorder(
     registry: Path,
 ) -> None:
-    scripts = _subagent_stop_scripts(registry)
-    assert scripts.count(_HOOK_PY.name) == 1
-    assert scripts.index(_HOOK_PY.name) == scripts.index(_PRECEDING_HOOK) + 1
+    assert _recorder_offset_from_verdict_recorder(registry) == 1
 
 
-def test_both_registries_place_the_recorder_at_the_same_position() -> None:
-    settings = _subagent_stop_scripts(_SETTINGS_JSON)
-    hooks = _subagent_stop_scripts(_HOOKS_JSON)
-    assert settings.index(_HOOK_PY.name) == hooks.index(_HOOK_PY.name)
+def test_both_registries_place_the_recorder_at_the_same_relative_position() -> None:
+    assert _recorder_offset_from_verdict_recorder(
+        _SETTINGS_JSON
+    ) == _recorder_offset_from_verdict_recorder(_HOOKS_JSON)

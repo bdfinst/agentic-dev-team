@@ -1,9 +1,9 @@
 """Tests for hooks/lib/subagent_transcript.py (#2270, Step 3.0).
 
-The transcript helpers were lifted verbatim out of
-`hooks/review_verdict_recorder.py`; `test_review_verdict_recorder.py` still
-exercises them end-to-end through the hook. This file covers them directly,
-plus the new `bash_commands`.
+The transcript helpers were moved out of `hooks/review_verdict_recorder.py`
+(names made public); `test_review_verdict_recorder.py` still exercises them
+end-to-end through the hook. This file covers them directly, plus the new
+`bash_commands` and `own_records_and_type`.
 """
 
 from __future__ import annotations
@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+
+import pytest
 
 _LIB_DIR = Path(__file__).resolve().parents[2] / "hooks" / "lib"
 if str(_LIB_DIR) not in sys.path:
@@ -204,6 +206,47 @@ def test_final_result_text_is_none_when_nothing_parses() -> None:
     assert subagent_transcript.final_result_text(records) is None
 
 
+def test_handback_message_text_is_the_last_handback_calls_message() -> None:
+    records = [
+        _assistant_row(_tool_use("SubagentHandback", {"message": "first"})),
+        _assistant_row(_tool_use("SubagentHandback", {"message": "second"})),
+        {"message": {"role": "assistant", "content": "Report delivered."}},
+    ]
+    assert subagent_transcript.handback_message_text(records) == "second"
+
+
+def test_handback_message_text_skips_a_later_handback_with_no_usable_message() -> None:
+    records = [
+        _assistant_row(_tool_use("SubagentHandback", {"message": "usable"})),
+        _assistant_row(_tool_use("SubagentHandback", {"message": ""})),
+        _assistant_row(_tool_use("SubagentHandback", "not-a-dict")),
+        _assistant_row(_tool_use("SubagentHandback", {"message": 7})),
+    ]
+    assert subagent_transcript.handback_message_text(records) == "usable"
+
+
+def test_handback_message_text_ignores_other_tools_and_is_none_without_a_handback() -> (
+    None
+):
+    records = [_assistant_row(_tool_use("Bash", {"message": "not a handback"}))]
+    assert subagent_transcript.handback_message_text(records) is None
+    assert subagent_transcript.handback_message_text([]) is None
+
+
+def test_fallback_last_parseable_turn_text_is_the_last_turn_that_parses() -> None:
+    records = [
+        {"message": {"content": '{"n": 1}'}},
+        {"message": {"content": '{"n": 2}'}},
+        {"message": {"content": "Report delivered."}},
+    ]
+    assert subagent_transcript.fallback_last_parseable_turn_text(records) == '{"n": 2}'
+
+
+def test_fallback_last_parseable_turn_text_is_none_when_no_turn_parses() -> None:
+    records = [{"message": {"content": "prose"}}, {"type": "user"}]
+    assert subagent_transcript.fallback_last_parseable_turn_text(records) is None
+
+
 def test_extract_json_object_recovers_a_fenced_block() -> None:
     text = 'Done.\n```json\n{"status": "pass", "issues": []}\n```\n'
     assert subagent_transcript.extract_json_object(text) == {
@@ -293,9 +336,7 @@ def test_fallback_resolves_subagent_type_via_task_agent_join(tmp_path: Path) -> 
             "message": {"role": "assistant", "content": "done"},
         },
     ]
-    with agent_transcript_path.open("w", encoding="utf-8") as fh:
-        for row in subagent_rows:
-            fh.write(json.dumps(row) + "\n")
+    _write_jsonl(agent_transcript_path, subagent_rows)
 
     parent_transcript = tmp_path / "session-1.jsonl"
     parent_rows = [
@@ -322,10 +363,151 @@ def test_fallback_resolves_subagent_type_via_task_agent_join(tmp_path: Path) -> 
             },
         },
     ]
-    with parent_transcript.open("w", encoding="utf-8") as fh:
-        for row in parent_rows:
-            fh.write(json.dumps(row) + "\n")
+    _write_jsonl(parent_transcript, parent_rows)
 
     records = subagent_transcript.read_transcript_records(agent_transcript_path)
     resolved = subagent_transcript.resolve_subagent_type(agent_transcript_path, records)
     assert resolved == _REVIEW_AGENT
+
+
+def _dispatch_pair(tmp_path: Path, subagent_type: str) -> Path:
+    """A subagent transcript with no attribution, plus the parent transcript
+    that joins `abc123` to `subagent_type`; returns the subagent path."""
+    sub = _write_jsonl(
+        tmp_path / "session-1" / "subagents" / "agent-abc123.jsonl",
+        [{"type": "user", "agentId": "abc123", "message": {"content": "go"}}],
+    )
+    _write_jsonl(
+        tmp_path / "session-1.jsonl",
+        [
+            _assistant_row(
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "Task",
+                    "input": {"subagent_type": subagent_type},
+                }
+            ),
+            {
+                "type": "user",
+                "toolUseResult": {"agentId": "abc123"},
+                "message": {
+                    "role": "user",
+                    "content": [{"type": "tool_result", "tool_use_id": "toolu_1"}],
+                },
+            },
+        ],
+    )
+    return sub
+
+
+def test_fallback_subagent_type_is_the_dispatched_type_unstripped(
+    tmp_path: Path,
+) -> None:
+    sub = _dispatch_pair(tmp_path, f"dev-team:{_REVIEW_AGENT}")
+    records = subagent_transcript.read_transcript_records(sub)
+    assert (
+        subagent_transcript.fallback_subagent_type(sub, records)
+        == f"dev-team:{_REVIEW_AGENT}"
+    )
+
+
+def test_fallback_subagent_type_is_none_without_an_agent_id(tmp_path: Path) -> None:
+    sub = tmp_path / "session-1" / "subagents" / "agent-abc123.jsonl"
+    assert subagent_transcript.fallback_subagent_type(sub, [{"type": "user"}]) is None
+
+
+def test_fallback_subagent_type_is_none_outside_the_subagents_layout(
+    tmp_path: Path,
+) -> None:
+    flat = tmp_path / "agent-abc123.jsonl"
+    assert (
+        subagent_transcript.fallback_subagent_type(flat, [{"agentId": "abc123"}])
+        is None
+    )
+
+
+def test_fallback_subagent_type_is_none_when_the_parent_transcript_is_missing(
+    tmp_path: Path,
+) -> None:
+    sub = tmp_path / "session-1" / "subagents" / "agent-abc123.jsonl"
+    assert (
+        subagent_transcript.fallback_subagent_type(sub, [{"agentId": "abc123"}]) is None
+    )
+
+
+# ---------------------------------------------------------------------------
+# own_records_and_type (the shared SubagentStop preamble)
+# ---------------------------------------------------------------------------
+
+
+def _attributed_rows(agent: str | None) -> list[dict]:
+    assistant: dict = {
+        "type": "assistant",
+        "agentId": "abc",
+        "message": {"role": "assistant", "content": "done"},
+    }
+    if agent:
+        assistant["attributionAgent"] = agent
+    return [
+        {"type": "user", "agentId": "abc", "message": {"content": "go"}},
+        assistant,
+    ]
+
+
+def _subagent_payload(tmp_path: Path, rows: list[dict]) -> dict:
+    _write_jsonl(tmp_path / "session-1" / "subagents" / "agent-abc.jsonl", rows)
+    return {"transcript_path": str(tmp_path / "session-1.jsonl"), "agent_id": "abc"}
+
+
+def test_own_records_and_type_returns_the_subagents_rows_and_stripped_type(
+    tmp_path: Path,
+) -> None:
+    rows = _attributed_rows(f"dev-team:{_REVIEW_AGENT}")
+    payload = _subagent_payload(tmp_path, rows)
+    assert subagent_transcript.own_records_and_type(payload) == (rows, _REVIEW_AGENT)
+
+
+def test_own_records_and_type_reads_the_given_path_when_it_is_the_subagent_file(
+    tmp_path: Path,
+) -> None:
+    rows = _attributed_rows(_REVIEW_AGENT)
+    path = _write_jsonl(tmp_path / "t.jsonl", rows)
+    payload = {"transcript_path": str(path)}
+    assert subagent_transcript.own_records_and_type(payload) == (rows, _REVIEW_AGENT)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        pytest.param({}, id="no-transcript-path"),
+        pytest.param({"transcript_path": ""}, id="empty-transcript-path"),
+        pytest.param({"transcript_path": 7}, id="non-string-transcript-path"),
+    ],
+)
+def test_own_records_and_type_is_none_without_a_usable_transcript_path(
+    payload: dict,
+) -> None:
+    assert subagent_transcript.own_records_and_type(payload) is None
+
+
+def test_own_records_and_type_is_none_for_a_missing_transcript(tmp_path: Path) -> None:
+    payload = {"transcript_path": str(tmp_path / "missing.jsonl")}
+    assert subagent_transcript.own_records_and_type(payload) is None
+
+
+def test_own_records_and_type_is_none_for_a_transcript_with_no_json_object(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text("[1, 2]\n", encoding="utf-8")
+    assert (
+        subagent_transcript.own_records_and_type({"transcript_path": str(path)}) is None
+    )
+
+
+def test_own_records_and_type_is_none_when_the_type_cannot_be_resolved(
+    tmp_path: Path,
+) -> None:
+    payload = _subagent_payload(tmp_path, _attributed_rows(None))
+    assert subagent_transcript.own_records_and_type(payload) is None

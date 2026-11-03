@@ -231,6 +231,17 @@ def test_wrong_shaped_result_with_no_criteria_reports_both_problems():
     assert problems == ["invalid-result-shape", "no-acceptance-criteria"]
 
 
+def test_unparseable_problems_names_only_the_parse_failure_when_criteria_exist():
+    assert ev.unparseable_problems(["AC1"]) == ["unparseable-result"]
+
+
+def test_unparseable_problems_keeps_the_no_criteria_problem():
+    assert ev.unparseable_problems([]) == [
+        "unparseable-result",
+        "no-acceptance-criteria",
+    ]
+
+
 @pytest.mark.parametrize("verdict", ["not-met", "indeterminate"])
 def test_failing_row_sets_the_overall_verdict(verdict):
     command = "" if verdict == "indeterminate" else "pytest -q"

@@ -127,11 +127,11 @@ def is_binding_hash(value: object) -> bool:
     return _BINDING_HASH.fullmatch(value) is not None
 
 
-def is_stored_binding(value: object) -> bool:
+def is_stored_binding_hash(value: object) -> bool:
     """True for a value the recorder stores as `binding_hash`: a real binding
     hash, or one of the sentinels it stores when the hash was unavailable
     (decision 5). A stored sentinel never equals a current hash, so such a
-    record is stale by construction, never current."""
+    record is never current; the gate refuses it with the sentinel's own rule."""
     return is_binding_hash(value) or value in _STORED_SENTINELS
 
 
@@ -161,7 +161,7 @@ def _check_record(data: dict) -> None:
         raise RecordUnreadable("invalid plan")
     if data["overall"] not in _OVERALL_VALUES:
         raise RecordUnreadable("invalid overall")
-    if not is_stored_binding(data["binding_hash"]):
+    if not is_stored_binding_hash(data["binding_hash"]):
         raise RecordUnreadable("invalid binding_hash")
 
 
@@ -215,7 +215,7 @@ __all__ = (
     "canonical_plan_id",
     "current_binding",
     "is_binding_hash",
-    "is_stored_binding",
+    "is_stored_binding_hash",
     "load_record",
     "read_record",
     "record_path",

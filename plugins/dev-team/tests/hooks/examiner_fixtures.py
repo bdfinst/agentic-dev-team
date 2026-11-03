@@ -10,6 +10,7 @@ rides on the assistant rows, as it does in real transcripts.
 
 from __future__ import annotations
 
+import itertools
 import json
 from pathlib import Path
 
@@ -19,6 +20,7 @@ EXAMINER = "acceptance-examiner"
 AGENT_ID = "agent-examiner-1"
 SESSION_ID = "sess-1"
 _PARENT_TRANSCRIPT = "session.jsonl"
+_BASH_CALL_COUNTER = itertools.count(1)
 
 
 def dispatch_row(marker_plan_rel: str | None, agent_id: str = AGENT_ID) -> dict:
@@ -72,7 +74,7 @@ def bash_call_rows(
     command: str, agent_id: str = AGENT_ID, attribution_agent: str = EXAMINER
 ) -> list[dict]:
     """One `Bash` call and its result ack."""
-    tool_use_id = f"toolu_bash_{abs(hash(command))}"
+    tool_use_id = f"toolu_bash_{next(_BASH_CALL_COUNTER)}"
     return [
         _tool_use_row(
             "Bash", {"command": command}, tool_use_id, agent_id, attribution_agent

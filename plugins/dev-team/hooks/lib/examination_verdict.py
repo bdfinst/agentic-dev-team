@@ -190,6 +190,13 @@ def validate_rows(
     return usable, _coverage_problems(counts, expected_ids) + row_problems
 
 
+def unparseable_problems(expected_ids: list[str]) -> list[str]:
+    """The problems for a handback that could not be parsed at all: the parse
+    failure, plus the plan's missing criteria when it lists none."""
+    no_criteria = [] if expected_ids else [PROBLEM_NO_CRITERIA]
+    return [PROBLEM_UNPARSEABLE, *no_criteria]
+
+
 def build_record(
     plan_id: str,
     rows: list[dict],
