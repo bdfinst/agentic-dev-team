@@ -1,7 +1,9 @@
 """Examination inputs for the acceptance examiner (#2270).
 
 Pure, stdlib only, no I/O. The code here is the single source of criteria
-numbering: ids are `AC1..ACn` by position in `plan_examination_inputs`.
+numbering (`criteria_ids`: `AC1..ACn` by position in `plan_examination_inputs`),
+of the checkbox grammar (`CHECKBOX_PREFIX`) and of fenced-block detection
+(`scan_fences`), which every other reader of a plan's markdown builds on.
 """
 
 from __future__ import annotations
@@ -9,20 +11,30 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
 AC_SECTION = "Acceptance Criteria"
 SLICES_SECTION = "Slices"
 GATE_SECTION = "Pre-PR Quality Gate"
+EXAMINATION_SECTION = "Acceptance Examination"
 GHERKIN_FENCE = "gherkin"
 SKILL_COMMAND_PREFIX = "/"
 PLAN_MARKER_PREFIX = "Acceptance-examination plan: "
 
-_CHECKBOX = re.compile(r"^-\s+\[[ xX]\]\s+(.+)$")
+CRITERION_ID_PREFIX = "AC"
+CRITERION_ID = re.compile(rf"{CRITERION_ID_PREFIX}\d+", re.ASCII)
+#: The start of a plan checkbox line; `progress_guardian.STEP_PATTERN` builds on
+#: it. Group `state` is the box content.
+CHECKBOX_PREFIX = r"^-\s+\[(?P<state>[ xX])\]\s+"
+CHECKBOX = re.compile(CHECKBOX_PREFIX + r"(?P<text>.+)$")
+
 _FENCE = "```"
+_FENCE_OPEN = re.compile(r"^\s*(`{3,})([^`]*)$")
+_FENCE_CLOSE = re.compile(r"^\s*(`{3,})\s*$")
 _BACKTICKED = re.compile(r"`([^`]+)`")
+_TRAILING_PUNCTUATION = re.compile(r"[.,;:!?]*")
 _PATH_SEPARATORS = re.compile(r"[\\/]")
 _EXEMPT_FIELD = re.compile(r"^\*\*Examination\*\*:\s*not-applicable\s*$")
 _PARENT_SEGMENT = ".."
@@ -35,39 +47,70 @@ class ExaminationInputs:
     run_commands: list[str] = field(default_factory=list)
 
 
-class _Line(NamedTuple):
-    section: str  # title of the enclosing "## " heading; "" before the first
-    text: str
+class ScannedLine(NamedTuple):
+    index: int  # position in the scanned input
+    text: str  # right-stripped
+    is_delimiter: bool  # an opening or closing fence line
     in_fence: bool  # True for lines between fence delimiters
     fence_index: int  # ordinal of the enclosing fence; -1 outside fences
     fence_info: str  # info string of the enclosing fence ("gherkin", ...)
 
 
+def scan_fences(lines: Iterable[str]) -> Iterator[ScannedLine]:
+    """Yield every line with its fenced-block context (CommonMark rules).
+
+    A fence opens on a line of three or more backticks (no backtick in the
+    info string) and closes only on a line of at least as many backticks and
+    nothing else, so a 4-backtick fence can hold a 3-backtick line. Every
+    reader of a plan's markdown uses this one scanner, so they agree on what
+    is inside a fence.
+    """
+    fence_length, fence_info, fence_index = 0, "", -1
+    for index, raw in enumerate(lines):
+        text = raw.rstrip()
+        if fence_length:
+            closing = _FENCE_CLOSE.match(text)
+            if closing and len(closing.group(1)) >= fence_length:
+                yield ScannedLine(index, text, True, False, -1, "")
+                fence_length = 0
+                continue
+            yield ScannedLine(index, text, False, True, fence_index, fence_info)
+            continue
+        opening = _FENCE_OPEN.match(text)
+        if opening:
+            fence_length, fence_index = len(opening.group(1)), fence_index + 1
+            fence_info = opening.group(2).strip()
+            yield ScannedLine(index, text, True, False, -1, "")
+            continue
+        yield ScannedLine(index, text, False, False, -1, "")
+
+
+class _Line(NamedTuple):
+    section: str  # title of the enclosing "## " heading; "" before the first
+    text: str
+    in_fence: bool
+    fence_index: int
+    fence_info: str
+
+
 def _scan_lines(plan_text: str) -> Iterator[_Line]:
     """Yield every non-delimiter line with its section and fence context.
 
-    Headings inside fenced blocks never change the section.
+    Headings inside fenced blocks never change the section. Lines under the
+    rendered `## Acceptance Examination` section are not inputs and are
+    dropped, so that section's content can never move the digest.
     """
-    section, fence_info, fence_index = "", None, -1
-    for raw in plan_text.splitlines():
-        text = raw.rstrip()
-        if text.lstrip().startswith(_FENCE):
-            fence_index, fence_info = _toggle_fence(fence_index, fence_info, text)
+    section = ""
+    for line in scan_fences(plan_text.splitlines()):
+        if line.is_delimiter:
             continue
-        if fence_info is None and text.startswith("## "):
-            section = text[3:].strip()
-        in_fence = fence_info is not None
+        if not line.in_fence and line.text.startswith("## "):
+            section = line.text[3:].strip()
+        if section == EXAMINATION_SECTION:
+            continue
         yield _Line(
-            section, text, in_fence, fence_index if in_fence else -1, fence_info or ""
+            section, line.text, line.in_fence, line.fence_index, line.fence_info
         )
-
-
-def _toggle_fence(
-    index: int, info: str | None, delimiter: str
-) -> tuple[int, str | None]:
-    if info is not None:
-        return index, None
-    return index + 1, delimiter.lstrip()[len(_FENCE) :].strip()
 
 
 def _criteria(lines: list[_Line]) -> list[str]:
@@ -80,12 +123,15 @@ def _criteria(lines: list[_Line]) -> list[str]:
             in_subheading = False
         elif line.text.startswith("### "):
             in_subheading = True
-        elif not in_subheading and (match := _CHECKBOX.match(line.text)):
-            found.append(match.group(1).strip())
+        elif not in_subheading and (match := CHECKBOX.match(line.text)):
+            found.append(match.group("text").strip())
     return found
 
 
 def _gherkin(lines: list[_Line]) -> list[str]:
+    # Every gherkin block under `## Slices`, in document order. Differs from
+    # `scripts/lib/plan_parse.slice_gherkin_blocks` (first block per slice) on
+    # purpose, and cannot reuse it: hooks/lib must not import scripts/lib.
     blocks: dict[int, list[str]] = {}
     for line in lines:
         if line.section == SLICES_SECTION and line.fence_info == GHERKIN_FENCE:
@@ -93,20 +139,25 @@ def _gherkin(lines: list[_Line]) -> list[str]:
     return ["\n".join(body) for _, body in sorted(blocks.items())]
 
 
+def _line_run_command(text: str) -> str | None:
+    """The backticked span that ends `text` (trailing punctuation allowed)."""
+    spans = list(_BACKTICKED.finditer(text))
+    if not spans or not _TRAILING_PUNCTUATION.fullmatch(text[spans[-1].end() :]):
+        return None
+    command = spans[-1].group(1).strip()
+    if not command or command.startswith(SKILL_COMMAND_PREFIX):
+        return None
+    return command
+
+
 def _run_commands(lines: list[_Line]) -> list[str]:
-    commands: list[str] = []
-    for line in lines:
-        if (
-            line.section != GATE_SECTION
-            or line.in_fence
-            or not _CHECKBOX.match(line.text)
-        ):
-            continue
-        for candidate in _BACKTICKED.findall(line.text):
-            command = candidate.strip()
-            if command and not command.startswith(SKILL_COMMAND_PREFIX):
-                commands.append(command)
-    return commands
+    """One command per `## Pre-PR Quality Gate` line, checkbox or not."""
+    commands = (
+        _line_run_command(line.text)
+        for line in lines
+        if line.section == GATE_SECTION and not line.in_fence
+    )
+    return [command for command in commands if command]
 
 
 def plan_examination_inputs(plan_text: str) -> ExaminationInputs:
@@ -117,6 +168,11 @@ def plan_examination_inputs(plan_text: str) -> ExaminationInputs:
         gherkin=_gherkin(lines),
         run_commands=_run_commands(lines),
     )
+
+
+def criteria_ids(inputs: ExaminationInputs) -> list[str]:
+    """The criterion ids, `AC1..ACn`, in the order of `inputs.criteria`."""
+    return [f"{CRITERION_ID_PREFIX}{n}" for n in range(1, len(inputs.criteria) + 1)]
 
 
 def inputs_digest(inputs: ExaminationInputs) -> str:
@@ -140,7 +196,8 @@ def inputs_digest(inputs: ExaminationInputs) -> str:
 
 def render_inputs(inputs: ExaminationInputs, plan_id: str) -> str:
     """The block `/build` Step 7.6 pastes verbatim into the examiner prompt."""
-    lines = [f"AC{n}: {text}" for n, text in enumerate(inputs.criteria, start=1)]
+    ids = criteria_ids(inputs)
+    lines = [f"{cid}: {text}" for cid, text in zip(ids, inputs.criteria)]
     for block in inputs.gherkin:
         lines += ["", f"{_FENCE}{GHERKIN_FENCE}", block, _FENCE]
     if inputs.run_commands:

@@ -311,7 +311,7 @@ def test_cli_branch_diff_exits_nonzero_and_prints_nothing_when_base_ref_unresolv
     assert completed.stdout.strip() == ""
 
 
-def test_branch_diff_gate_hash_exclude_reaches_git_as_top_exclude_pathspec(
+def test_branch_diff_gate_hash_exclude_reaches_git_as_literal_top_exclude_pathspec(
     monkeypatch,
 ) -> None:
     captured = {}
@@ -325,8 +325,8 @@ def test_branch_diff_gate_hash_exclude_reaches_git_as_top_exclude_pathspec(
     argv = captured["argv"]
     assert argv[argv.index("--") :] == [
         "--",
-        ":(top,exclude)plans/x.md",
-        ":(top,exclude)docs/y.md",
+        ":(top,exclude,literal)plans/x.md",
+        ":(top,exclude,literal)docs/y.md",
     ]
 
 
@@ -342,3 +342,80 @@ def test_branch_diff_gate_hash_without_exclude_has_no_pathspec_separator(
     monkeypatch.setattr(subprocess, "run", _fake_run)
     gate.branch_diff_gate_hash("main")
     assert "--" not in captured["argv"]
+
+
+# --- failure vs. empty diff, and timeouts (#2270) ---------------------------
+
+
+def _fake_completed(returncode: int, stdout: bytes = b""):
+    def _fake_run(argv, **kwargs):
+        _fake_run.kwargs = kwargs
+        return subprocess.CompletedProcess(argv, returncode, stdout=stdout, stderr=b"")
+
+    return _fake_run
+
+
+def test_branch_diff_hash_or_none_is_none_when_git_fails(monkeypatch) -> None:
+    monkeypatch.setattr(subprocess, "run", _fake_completed(128))
+    assert gate.branch_diff_gate_hash_or_none("main") is None
+
+
+def test_branch_diff_hash_or_none_is_none_when_git_is_missing(monkeypatch) -> None:
+    def _missing(argv, **kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(subprocess, "run", _missing)
+    assert gate.branch_diff_gate_hash_or_none("main") is None
+
+
+def test_branch_diff_hash_or_none_is_none_on_timeout(monkeypatch) -> None:
+    def _slow(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", _slow)
+    assert gate.branch_diff_gate_hash_or_none("main", timeout=1) is None
+
+
+def test_branch_diff_hash_or_none_passes_the_timeout_to_git(monkeypatch) -> None:
+    fake = _fake_completed(0, b"diff")
+    monkeypatch.setattr(subprocess, "run", fake)
+    gate.branch_diff_gate_hash_or_none("main", timeout=7)
+    assert fake.kwargs["timeout"] == 7
+
+
+def test_branch_diff_hash_or_none_keeps_a_genuinely_empty_diff_distinct(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(subprocess, "run", _fake_completed(0, b""))
+    assert gate.branch_diff_gate_hash_or_none("main") == gate.EMPTY_DIGEST
+
+
+def test_branch_diff_gate_hash_still_maps_failure_to_the_empty_digest(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(subprocess, "run", _fake_completed(128))
+    assert gate.branch_diff_gate_hash("main") == gate.EMPTY_DIGEST
+
+
+def test_default_base_ref_gives_up_at_the_first_timeout(monkeypatch) -> None:
+    calls = []
+
+    def _slow(argv, **kwargs):
+        calls.append(kwargs["timeout"])
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", _slow)
+    assert gate.default_base_ref(timeout=3) is None
+    assert calls == [3]
+
+
+def test_default_base_ref_passes_the_timeout_to_every_probe(monkeypatch) -> None:
+    timeouts = []
+
+    def _unresolved(argv, **kwargs):
+        timeouts.append(kwargs["timeout"])
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _unresolved)
+    assert gate.default_base_ref(timeout=3) is None
+    assert timeouts == [3] * 5

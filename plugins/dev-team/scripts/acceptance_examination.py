@@ -12,8 +12,11 @@
   `## Acceptance Examination` section (replace in place, else after
   `## Plan Review Summary`, else at the end). Output is byte-stable.
 
-Exit codes: 0 success, 1 refusal or absent record, 2 usage error or an
-unreadable record. A failure prints one stderr line, never a traceback.
+Exit codes: 0 success; 1 refusal (`status`) or an absent record (`show`,
+`render`); 2 usage error, a plan that cannot be written, or an unreadable
+record under `show` and `render`. `status` reports an unreadable record as a
+refusal, exit 1, like any other gate condition. A failure prints one stderr
+line, never a traceback.
 
 Stdlib-only. See ADR 0014 / ADR 0015.
 """
@@ -33,29 +36,27 @@ for _lib_dir in (_HERE.parent / "hooks" / "lib", _HERE / "lib"):
     if str(_lib_dir) not in sys.path:
         sys.path.insert(0, str(_lib_dir))
 
+import atomic_state  # type: ignore[import-not-found]
 import examination_gate  # type: ignore[import-not-found]
 import examination_store as store  # type: ignore[import-not-found]
 from examination_inputs import (  # type: ignore[import-not-found]
     AC_SECTION,
-    inputs_digest,
+    EXAMINATION_SECTION,
     plan_examination_inputs,
     render_inputs,
+    scan_fences,
 )
+from examination_verdict import MET  # type: ignore[import-not-found]
 
 EXIT_OK = 0
 EXIT_REFUSED = 1
 EXIT_USAGE = 2
 
-SECTION_TITLE = "Acceptance Examination"
 DEFAULT_POLL_INTERVAL = 0.5
 MET_LINE = "Acceptance examination met and up to date for {plan}."
-NOT_APPLICABLE_LINE = (
-    "Acceptance examination not applicable: "
-    "the plan declares Examination: not-applicable."
-)
 WAITING_LINE = "Waiting for the acceptance examination record (up to {wait:g}s)..."
 
-SECTION_HEADING = f"## {SECTION_TITLE}"
+SECTION_HEADING = f"## {EXAMINATION_SECTION}"
 PLAN_REVIEW_HEADING = "## Plan Review Summary"
 AUDIT_HEADING = "### Audit details"
 LEGEND_LINE = (
@@ -71,15 +72,19 @@ UNTRUSTED_LINE = (
 OBSERVATION_LINE_LIMIT = 5
 MIN_FENCE = 3
 
-_ERROR = "error"
 _PROG = "acceptance_examination.py"
-_AC_HEADING = re.compile(rf"^## {re.escape(AC_SECTION)}\s*$", re.MULTILINE)
 _CRITERION_NUMBER = re.compile(r"(\d+)")
 _BACKTICK_RUN = re.compile(r"`+")
-_MET = "met"
-_SECTION_HEADING_LINE = re.compile(rf"^{re.escape(SECTION_HEADING)}\s*$")
-_REVIEW_HEADING_LINE = re.compile(rf"^{re.escape(PLAN_REVIEW_HEADING)}\s*$")
-_FENCE_OPEN = re.compile(r"^ {0,3}(`{3,})")
+_NEWLINES = re.compile(r"\s*[\r\n]+\s*")
+
+
+def _heading_pattern(heading: str) -> re.Pattern[str]:
+    """Matches a line that is exactly `heading`."""
+    return re.compile(rf"^{re.escape(heading)}\s*$")
+
+
+_SECTION_HEADING_LINE = _heading_pattern(SECTION_HEADING)
+_REVIEW_HEADING_LINE = _heading_pattern(PLAN_REVIEW_HEADING)
 
 
 class UsageError(Exception):
@@ -119,7 +124,7 @@ def _criterion_order(row: dict) -> tuple[int, int, str]:
     criterion = str(row.get("criterion", ""))
     found = _CRITERION_NUMBER.search(criterion)
     number = int(found.group(1)) if found else 0
-    return (row.get("verdict") == _MET, number, criterion)
+    return (row.get("verdict") == MET, number, criterion)
 
 
 def _fence_for(body: str) -> str:
@@ -128,8 +133,22 @@ def _fence_for(body: str) -> str:
     return "`" * max(MIN_FENCE, longest + 1)
 
 
+def _one_line(value: object) -> str:
+    """`value` as text on a single line: record text cannot start a new
+    markdown line, so it cannot forge a heading or checkbox in the plan."""
+    return _NEWLINES.sub(" ", str(value))
+
+
+def _text_or_empty(value: object) -> str:
+    """`value` when it is a string; JSON null and other types read as absent."""
+    return value if isinstance(value, str) else ""
+
+
 def _shown_observation(observation: object) -> list[str]:
-    lines = str(observation).splitlines()
+    lines = [
+        examination_gate.clip_line(line)
+        for line in _text_or_empty(observation).splitlines()
+    ]
     if len(lines) <= OBSERVATION_LINE_LIMIT:
         return lines
     hidden = len(lines) - OBSERVATION_LINE_LIMIT
@@ -137,12 +156,12 @@ def _shown_observation(observation: object) -> list[str]:
 
 
 def _render_criterion(row: dict) -> list[str]:
-    body = _shown_observation(row.get("observation", ""))
-    command = str(row.get("command", ""))
+    body = _shown_observation(row.get("observation"))
+    command = _text_or_empty(row.get("command"))
     if command:
         body.insert(0, f"$ {command}")
     fence = _fence_for("\n".join(body))
-    heading = f"### {row.get('criterion', '')} — {row.get('verdict', '')}"
+    heading = _one_line(f"### {row.get('criterion', '')} — {row.get('verdict', '')}")
     return [heading, "", fence, *body, fence, ""]
 
 
@@ -152,7 +171,7 @@ def _render_findings(findings: list[dict]) -> list[str]:
     lines = ["- Audit findings:"]
     for finding in findings:
         kind, target = finding.get("kind"), finding.get("target")
-        lines.append(f"  - {kind} {target}: {finding.get('command')}")
+        lines.append(_one_line(f"  - {kind} {target}: {finding.get('command')}"))
     return lines
 
 
@@ -160,11 +179,11 @@ def _render_audit(record: dict) -> list[str]:
     return [
         AUDIT_HEADING,
         "",
-        f"- Overall: {record['overall']}",
-        f"- Binding hash: {record['binding_hash']}",
-        f"- Inputs digest: {record['inputs_digest']}",
-        f"- Agent: {record.get('agent_id')}",
-        f"- Recorded at: {record.get('recorded_at')}",
+        _one_line(f"- Overall: {record['overall']}"),
+        _one_line(f"- Binding hash: {record['binding_hash']}"),
+        _one_line(f"- Inputs digest: {record['inputs_digest']}"),
+        _one_line(f"- Agent: {record.get('agent_id')}"),
+        _one_line(f"- Recorded at: {record.get('recorded_at')}"),
         *_render_findings(record.get("audit_findings") or []),
         "",
         UNTRUSTED_LINE,
@@ -173,35 +192,23 @@ def _render_audit(record: dict) -> list[str]:
 
 def render_section(record: dict, stale: bool) -> str:
     """The `## Acceptance Examination` section text; pure and byte-stable."""
-    lines = [SECTION_HEADING, ""]
+    lines = [SECTION_HEADING]
     if stale:
-        lines += [STALE_LINE, ""]
-    lines += [LEGEND_LINE, ""]
+        lines.append(STALE_LINE)
+    lines += ["", LEGEND_LINE, ""]
     for row in sorted(record["criteria"], key=_criterion_order):
         lines += _render_criterion(row)
     lines += _render_audit(record)
     return "\n".join(lines) + "\n"
 
 
-def _closes_fence(line: str, fence: int) -> bool:
-    """True for a line of only backticks, at least as many as the open fence."""
-    stripped = line.strip()
-    return len(stripped) >= fence and not stripped.strip("`")
-
-
 def _heading_indexes(lines: list[str]) -> list[int]:
     """Indexes of `## ` heading lines that are not inside a fenced block."""
-    indexes: list[int] = []
-    fence = 0  # length of the open fence, 0 when outside one
-    for index, line in enumerate(lines):
-        opened = _FENCE_OPEN.match(line)
-        if fence:
-            fence = 0 if _closes_fence(line, fence) else fence
-        elif opened:
-            fence = len(opened.group(1))
-        elif line.startswith("## "):
-            indexes.append(index)
-    return indexes
+    return [
+        line.index
+        for line in scan_fences(lines)
+        if line.text.startswith("## ") and not line.is_delimiter and not line.in_fence
+    ]
 
 
 def _section_span(lines: list[str], pattern: re.Pattern[str]) -> tuple[int, int] | None:
@@ -236,9 +243,9 @@ def upsert_section(plan_text: str, section: str) -> str:
 
 def cmd_inputs(args: argparse.Namespace) -> int:
     loaded = _load(args.plan)
-    if not _AC_HEADING.search(loaded.plan_text):
-        raise UsageError(f"{args.plan} has no '## {AC_SECTION}' section")
     inputs = plan_examination_inputs(loaded.plan_text)
+    if not inputs.criteria:
+        raise UsageError(f"{args.plan} has no '## {AC_SECTION}' section")
     print(render_inputs(inputs, loaded.plan_id))
     return EXIT_OK
 
@@ -253,18 +260,14 @@ def _non_negative_seconds(text: str) -> float:
     return seconds
 
 
-def _blocking(issues: list[dict]) -> list[dict]:
-    return [issue for issue in issues if issue["severity"] == _ERROR]
-
-
 def _poll_gate(plan: str, wait: float, interval: float) -> list[dict]:
     """Check the gate; while it refuses, re-check until `wait` seconds pass."""
     issues = examination_gate.load_and_check(plan)
-    if wait <= 0 or not _blocking(issues):
+    if wait <= 0 or not examination_gate.blocking_issues(issues):
         return issues
     print(WAITING_LINE.format(wait=wait), file=sys.stderr)
     deadline = time.monotonic() + wait
-    while _blocking(issues) and time.monotonic() < deadline:
+    while examination_gate.blocking_issues(issues) and time.monotonic() < deadline:
         time.sleep(interval)  # 0 yields the CPU rather than busy-waiting
         issues = examination_gate.load_and_check(plan)
     return issues
@@ -273,27 +276,26 @@ def _poll_gate(plan: str, wait: float, interval: float) -> list[dict]:
 def cmd_status(args: argparse.Namespace) -> int:
     loaded = _load(args.plan)
     issues = _poll_gate(args.plan, args.wait, args.poll_interval)
-    blocking = _blocking(issues)
+    blocking = examination_gate.blocking_issues(issues)
     if blocking:
         print(blocking[0]["message"])
         print(blocking[0]["suggestedFix"])
         return EXIT_REFUSED
-    line = NOT_APPLICABLE_LINE if issues else MET_LINE.format(plan=loaded.plan_id)
-    print(line)
+    exempt = [
+        i for i in issues if i.get("rule_id") == examination_gate.RULE_NOT_APPLICABLE
+    ]
+    print(exempt[0]["message"] if exempt else MET_LINE.format(plan=loaded.plan_id))
     return EXIT_OK
 
 
 def _read_record(path: Path) -> dict | None:
     """The record at `path`; None (after a stderr line) when it is absent."""
-    try:
-        return store.read_record(path)
-    except FileNotFoundError:
+    record = store.load_record(path)
+    if record is None:
         print(f"No examination record at {path}", file=sys.stderr)
-        return None
-    except store.RecordUnreadable as exc:
-        raise UsageError(f"examination record unreadable: {path} ({exc.problem})")
-    except OSError as exc:
-        raise UsageError(f"examination record unreadable: {path} ({exc})")
+    elif isinstance(record, store.RecordUnreadable):
+        raise UsageError(f"examination record unreadable: {path} ({record.problem})")
+    return record
 
 
 def cmd_show(args: argparse.Namespace) -> int:
@@ -304,11 +306,11 @@ def cmd_show(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def _is_stale(loaded: Loaded, record: dict) -> bool:
-    """True when the branch diff or the plan's inputs moved since the record."""
-    binding = store.current_binding(loaded.root, loaded.plan_id)
-    digest = inputs_digest(plan_examination_inputs(loaded.plan_text))
-    return record["binding_hash"] != binding or record["inputs_digest"] != digest
+def _write_plan(path: str, text: str) -> None:
+    try:
+        atomic_state.atomic_write(Path(path), text, fail_open=False)
+    except OSError as exc:
+        raise UsageError(f"cannot write plan {path}: {exc}") from exc
 
 
 def cmd_render(args: argparse.Namespace) -> int:
@@ -318,13 +320,18 @@ def cmd_render(args: argparse.Namespace) -> int:
         return EXIT_REFUSED
     if record["plan"] != loaded.plan_id:
         raise UsageError(
-            f"Record at {loaded.record_path} belongs to {record['plan']}, "
-            f"not {loaded.plan_id}"
+            examination_gate.refusal_message(
+                examination_gate.RULE_OTHER_PLAN,
+                loaded.plan_id,
+                path=loaded.record_path,
+                other=record["plan"],
+            )
         )
-    section = render_section(record, _is_stale(loaded, record))
+    binding = store.binding_for_plan(loaded.root, loaded.plan_id, loaded.plan_text)
+    section = render_section(record, examination_gate.is_stale(record, binding))
     updated = upsert_section(loaded.plan_text, section)
     if updated != loaded.plan_text:
-        Path(args.plan).write_text(updated, encoding="utf-8")
+        _write_plan(args.plan, updated)
     return EXIT_OK
 
 

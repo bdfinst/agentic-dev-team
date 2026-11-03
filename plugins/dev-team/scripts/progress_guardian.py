@@ -23,7 +23,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.examination_gate import load_and_check
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks" / "lib"))
+from examination_inputs import CHECKBOX_PREFIX  # type: ignore[import-not-found]
+from lib.examination_gate import (
+    blocking_issues,
+    load_and_check,
+)
 from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
 # ---------------------------------------------------------------------------
@@ -31,7 +36,8 @@ from lib.review_result import build_result, main_exit, make_issue, skipped_llm_w
 # ---------------------------------------------------------------------------
 
 # Matches: - [x] Step 1.1: Header text  OR  - [ ] Just a header
-STEP_PATTERN = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
+# The checkbox grammar is shared with the examination inputs parser.
+STEP_PATTERN = re.compile(CHECKBOX_PREFIX + r"(?:Step\s+[\d.]+:\s+)?(.+)$")
 
 # Matches backtick-quoted paths in plan text (declared file references)
 BACKTICK_PATH_RE = re.compile(r"`([^`\s]+\.[a-zA-Z0-9_]+)`")
@@ -829,6 +835,7 @@ def main(argv: list[str] | None = None) -> int:
 
     errors: list[dict] = []
     warnings: list[dict] = []
+    notices: list[dict] = []
 
     # 1. Parse plan checkboxes
     steps, parse_errors = parse_plan(plan_path)
@@ -868,7 +875,11 @@ def main(argv: list[str] | None = None) -> int:
 
             # 5b. Acceptance examination (#2270): a current `met` record.
             exam_issues = load_and_check(plan_path)
-            errors.extend(i for i in exam_issues if i["severity"] == "error")
+            blocking = blocking_issues(exam_issues)
+            errors.extend(blocking)
+            # Non-blocking issues (an exempt plan) are shown, not counted:
+            # they never turn a passing result into a warning.
+            notices.extend(i for i in exam_issues if i not in blocking)
 
             # 6. Verify-log gate (issue #727): runtime-surface changes need
             # evidence /verify ran before the PR can be opened.
@@ -886,6 +897,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
     result = build_result(errors, warnings)
+    result["issues"].extend(notices)
     return main_exit(result)
 
 

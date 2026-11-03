@@ -21,6 +21,10 @@ if str(_TESTS_LIB) not in sys.path:
 
 import atomic_state  # type: ignore[import-not-found]
 import examination_store as store  # type: ignore[import-not-found]
+from examination_inputs import (  # type: ignore[import-not-found]
+    inputs_digest,
+    plan_examination_inputs,
+)
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 PLAN_ID = "plans/x.md"
@@ -122,6 +126,91 @@ def test_binding_is_empty_diff_when_only_the_plan_differs(repo: Path) -> None:
     assert store.current_binding(repo, PLAN_ID) == store.EMPTY_DIFF
 
 
+def _git_fails_for_diff(monkeypatch: pytest.MonkeyPatch, outcome: object) -> None:
+    """Every `git diff` call answers `outcome` (a result or an exception); other
+    git calls run for real, so the base ref still resolves."""
+    real_run = subprocess.run
+
+    def _run(argv, **kwargs):
+        if "diff" not in argv:
+            return real_run(argv, **kwargs)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+
+def test_binding_is_base_unresolvable_when_git_diff_fails(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _commit_file(repo, "src/app.py", "print(1)\n", "add source")
+    failed = subprocess.CompletedProcess(["git"], 128, stdout=b"", stderr=b"fatal")
+    _git_fails_for_diff(monkeypatch, failed)
+    assert store.current_binding(repo, PLAN_ID) == store.BASE_UNRESOLVABLE
+
+
+def test_binding_is_base_unresolvable_when_git_diff_times_out(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _git_fails_for_diff(monkeypatch, subprocess.TimeoutExpired(["git"], 30))
+    assert store.current_binding(repo, PLAN_ID) == store.BASE_UNRESOLVABLE
+
+
+def test_binding_is_base_unresolvable_when_a_base_probe_times_out(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _slow(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", _slow)
+    assert store.current_binding(repo, PLAN_ID) == store.BASE_UNRESOLVABLE
+
+
+def test_binding_git_calls_carry_a_timeout(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_run = subprocess.run
+    timeouts = []
+
+    def _spy(argv, **kwargs):
+        timeouts.append(kwargs.get("timeout"))
+        return real_run(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", _spy)
+    store.current_binding(repo, PLAN_ID)
+    assert timeouts and None not in timeouts
+
+
+def test_binding_excludes_only_the_literal_plan_path(tmp_path: Path) -> None:
+    root = tmp_path / "glob"
+    _init(root, "main")
+    _commit_file(root, "base.txt", "base\n", "base")
+    _git(root, "checkout", "-q", "-b", "work")
+    plan_id = "plans/p*.md"
+    _commit_file(root, plan_id, "# plan\n", "add plan")
+    _commit_file(root, "plans/pq.py", "print(1)\n", "add sibling")
+    before = store.current_binding(root, plan_id)
+    assert store.is_binding_hash(before)
+
+    _commit_file(root, plan_id, "# plan\n- [x] ticked\n", "tick plan")
+    assert store.current_binding(root, plan_id) == before
+
+    _commit_file(root, "plans/pq.md", "# sibling\n", "sibling matched by the glob")
+    assert store.current_binding(root, plan_id) != before
+
+
+def test_binding_for_plan_pairs_the_hash_with_the_inputs_digest(repo: Path) -> None:
+    _commit_file(repo, "src/app.py", "print(1)\n", "add source")
+    plan_text = "# plan\n\n## Acceptance Criteria\n\n- [ ] one\n"
+    binding = store.binding_for_plan(repo, PLAN_ID, plan_text)
+    assert binding == store.Binding(
+        store.current_binding(repo, PLAN_ID),
+        inputs_digest(plan_examination_inputs(plan_text)),
+    )
+    assert (binding.hash, binding.inputs_digest) == tuple(binding)
+
+
 @pytest.mark.parametrize(
     "value",
     [HASH_A, hashlib.sha256(b"x").hexdigest()],
@@ -180,6 +269,28 @@ def test_repo_root_outside_a_repository_raises(tmp_path: Path) -> None:
     outside.mkdir()
     with pytest.raises(store.NotARepository):
         store.repo_root(outside / "plan.md")
+
+
+def test_repo_root_times_out_as_not_a_repository(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _slow(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", _slow)
+    with pytest.raises(store.NotARepository):
+        store.repo_root(repo / "plan.md")
+
+
+def test_repo_root_without_git_is_not_a_repository(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _missing(argv, **kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(subprocess, "run", _missing)
+    with pytest.raises(store.NotARepository):
+        store.repo_root(repo / "plan.md")
 
 
 def test_same_stem_plans_in_different_directories_have_different_records(
@@ -295,6 +406,38 @@ def _without(key: str) -> dict:
             "invalid overall",
             id="overall-pass",
         ),
+        pytest.param(
+            json.dumps({**_valid_record(), "criteria": [{"criterion": "AC1"}, 7]}),
+            "invalid criteria",
+            id="criteria-row-not-an-object",
+        ),
+        pytest.param(
+            json.dumps({**_valid_record(), "binding_hash": store.BASE_UNRESOLVABLE}),
+            "invalid binding_hash",
+            id="binding-hash-base-unresolvable",
+        ),
+        pytest.param(
+            json.dumps({**_valid_record(), "binding_hash": store.EMPTY_DIFF}),
+            "invalid binding_hash",
+            id="binding-hash-empty-diff",
+        ),
+        pytest.param(
+            json.dumps(
+                {**_valid_record(), "binding_hash": hashlib.sha256(b"").hexdigest()}
+            ),
+            "invalid binding_hash",
+            id="binding-hash-empty-digest",
+        ),
+        pytest.param(
+            json.dumps({**_valid_record(), "audit_findings": "none"}),
+            "invalid audit_findings",
+            id="audit-findings-not-a-list",
+        ),
+        pytest.param(
+            json.dumps({**_valid_record(), "problems": {"a": 1}}),
+            "invalid problems",
+            id="problems-not-a-list",
+        ),
     ],
 )
 def test_malformed_record_is_unreadable_naming_the_problem(
@@ -313,3 +456,51 @@ def test_malformed_record_is_unreadable_naming_the_problem(
 def test_missing_record_file_is_absent_not_unreadable(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         store.read_record(tmp_path / "nope.json")
+
+
+def test_record_with_list_audit_findings_and_problems_is_readable(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "record.json"
+    record = {**_valid_record(), "audit_findings": [], "problems": ["missing AC1"]}
+    path.write_text(json.dumps(record))
+    assert store.read_record(path) == record
+
+
+# --- one translation of absent / unreadable ---------------------------------
+
+
+def test_load_record_is_none_for_an_absent_file(tmp_path: Path) -> None:
+    assert store.load_record(tmp_path / "nope.json") is None
+
+
+def test_load_record_returns_a_valid_record(tmp_path: Path) -> None:
+    path = tmp_path / "record.json"
+    store.write_record(path, _valid_record())
+    assert store.load_record(path) == _valid_record()
+
+
+def test_load_record_returns_the_problem_for_a_malformed_record(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "record.json"
+    path.write_text("{not json")
+    result = store.load_record(path)
+    assert isinstance(result, store.RecordUnreadable)
+    assert result.problem == "invalid JSON"
+
+
+def test_load_record_treats_an_os_error_as_unreadable(tmp_path: Path) -> None:
+    result = store.load_record(tmp_path)  # a directory, not a file
+    assert isinstance(result, store.RecordUnreadable)
+    assert result.problem == store.UNREADABLE_FILE
+
+
+# --- the record's key vocabulary ---------------------------------------------
+
+
+def test_the_keys_build_record_writes_are_the_keys_the_store_validates() -> None:
+    from examination_verdict import RECORD_KEYS, build_record
+
+    record = build_record("p", [], [], [], store.Binding(HASH_A, "d"), "agent")
+    assert set(record) == set(RECORD_KEYS)

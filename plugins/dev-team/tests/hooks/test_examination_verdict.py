@@ -16,6 +16,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import examination_verdict as ev  # type: ignore[import-not-found]
+from examination_store import Binding  # type: ignore[import-not-found]
 
 
 @pytest.mark.parametrize(
@@ -28,7 +29,7 @@ import examination_verdict as ev  # type: ignore[import-not-found]
     ],
 )
 def test_normalize_command_collapses_whitespace(raw, expected):
-    assert ev.normalize_command(raw) == expected
+    assert ev.normalize_command(command=raw) == expected
 
 
 @pytest.mark.parametrize(
@@ -264,14 +265,20 @@ def test_rows_with_problems_are_not_usable():
 
 def _record(rows=(), findings=(), problems=()):
     return ev.build_record(
-        "plans/x.md", list(rows), list(findings), list(problems), "bh", "id", "agent-1"
+        "plans/x.md",
+        list(rows),
+        list(findings),
+        list(problems),
+        Binding("bh", "id"),
+        "agent-1",
     )
 
 
 def test_build_record_carries_every_field():
     rows = [_full_row()]
     record = _record(rows)
-    assert set(record) == {
+    assert set(record) == set(ev.RECORD_KEYS)
+    assert set(ev.RECORD_KEYS) == {
         "schema",
         "plan",
         "agent_id",
@@ -313,3 +320,55 @@ def test_build_record_recorded_at_is_iso_8601_utc():
 
 def test_build_record_is_json_serializable():
     assert json.loads(json.dumps(_record([_full_row()], [_FINDING], ["x"])))
+
+
+# --- review-fix additions (#2270) ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "criterion", ["AC9 extra", "ac1", "AC", "AC1\n", " AC1", "AC١"]
+)
+def test_criterion_id_outside_the_ac_grammar_is_an_invalid_shape(criterion):
+    result = {"criteria": [_full_row(cid=criterion)]}
+    rows, problems = ev.validate_rows(result, ["AC1"], ["pytest -q"])
+    assert rows == []
+    assert problems == ["invalid-result-shape"]
+
+
+def test_problem_vocabulary_lives_with_the_writer():
+    assert ev.PROBLEM_UNPARSEABLE == "unparseable-result"
+    assert ev.PROBLEM_BASE_UNRESOLVABLE == "binding-hash-unavailable"
+
+
+@pytest.mark.parametrize(
+    "call",
+    ["pytest -q\nls", "ls\npytest -q", "ls\r\npytest -q", "cd repo\npytest -q"],
+)
+def test_a_multi_line_call_is_several_segments(call):
+    row = _full_row(command="pytest -q")
+    assert _derive({"criteria": [row]}, ["AC1"], [call]) == ("met", [])
+
+
+def test_a_claimed_multi_line_command_is_not_one_segment():
+    row = _full_row(command="pytest -q\nls")
+    _, problems = _derive({"criteria": [row]}, ["AC1"], ["pytest -q\nls"])
+    assert problems == ["command-not-run AC1"]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        "pytest -q 2>&1| tail",
+        "pytest -q 2>&1 | tail",
+        "pytest -q 2>&1|tail",
+        "pytest -q >&2| tail",
+        "pytest -q 1>&2|tail",
+        "pytest -q 2>&1&& tail",
+    ],
+)
+def test_fd_duplication_is_stripped_whatever_the_adjacent_whitespace(call):
+    assert ev.ran_segments([call]) == {"pytest -q", "tail"}
+
+
+def test_fd_duplication_does_not_eat_digits_that_end_a_word():
+    assert ev.ran_segments(["pytest2>&1 | tail"]) == {"pytest2", "tail"}

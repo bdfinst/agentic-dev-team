@@ -59,6 +59,41 @@ def test_project_root_does_not_raise_on_a_non_path_like_start() -> None:
     assert artifact_paths.project_root(start=12345) == Path.cwd()
 
 
+def test_git_toplevel_is_none_outside_a_repo(tmp_path: Path) -> None:
+    non_repo = tmp_path / "not-a-repo"
+    non_repo.mkdir()
+    assert artifact_paths.git_toplevel(non_repo) is None
+
+
+def test_git_toplevel_resolves_inside_a_repo(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    assert artifact_paths.git_toplevel(tmp_path) == tmp_path.resolve()
+
+
+def test_git_toplevel_is_none_when_git_times_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen = []
+
+    def _slow(argv, **kwargs):
+        seen.append(kwargs["timeout"])
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", _slow)
+    assert artifact_paths.git_toplevel(tmp_path, timeout=5) is None
+    assert seen == [5]
+
+
+def test_project_root_still_falls_back_to_start_when_git_times_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _slow(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, 1)
+
+    monkeypatch.setattr(subprocess, "run", _slow)
+    assert artifact_paths.project_root(start=tmp_path) == tmp_path
+
+
 # --- category directory accessors -----------------------------------------
 
 

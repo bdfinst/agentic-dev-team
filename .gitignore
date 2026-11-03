@@ -20,8 +20,9 @@ _mkdocs_src/
 .claude/memory/test-improve/
 .claude/memory/archive/
 .claude/memory/recon-*
-# Acceptance examination records (#2270) and their .lock sidecars — SubagentStop-written, per-branch, never committed.
+# Acceptance examination records (#2270), their .lock sidecars and atomic_write temp files — SubagentStop-written, per-branch, never committed.
 .claude/memory/acceptance-examination-*.json*
+.claude/memory/.acceptance-examination-*.tmp
 # /repo-review's own per-run drift state (#1735) — regeneratable, and
 # un-ignored would make it committable, which combined with an unvalidated
 # read would be a hostile-PR delivery vector (see repo-review/SKILL.md § 2).

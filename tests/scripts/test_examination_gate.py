@@ -29,7 +29,12 @@ import examination_gate as gate  # type: ignore[import-not-found]
 from examination_store import (  # type: ignore[import-not-found]
     BASE_UNRESOLVABLE,
     EMPTY_DIFF,
+    Binding,
     RecordUnreadable,
+)
+from examination_verdict import (  # type: ignore[import-not-found]
+    build_record,
+    validate_rows,
 )
 
 PG = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "progress_guardian.py"
@@ -69,7 +74,7 @@ def _check(
 ) -> list[dict]:
     record = _record() if record == "default" else record
     return gate.check_acceptance_examination(
-        PLAN_ID, record, PATH, binding, digest, exempt
+        PLAN_ID, record, PATH, Binding(binding, digest), exempt
     )
 
 
@@ -90,6 +95,7 @@ def test_exempt_plan_without_record_reports_info_only() -> None:
     issues = _check(record=None, exempt=True)
     assert [i["severity"] for i in issues] == ["info"]
     assert "not applicable" in issues[0]["message"]
+    assert issues[0]["rule_id"] == gate.RULE_NOT_APPLICABLE
 
 
 def test_exempt_plan_ignores_an_unreadable_record() -> None:
@@ -401,11 +407,16 @@ def test_exempt_plan_passes_pre_pr_without_a_record(repo: Path) -> None:
     )
     result = _run_pg(repo, "--pre-pr")
     assert result.returncode == 0, result.stdout
-    assert "Acceptance examination" not in result.stdout
+    issues = json.loads(result.stdout)["issues"]
+    assert [i["rule_id"] for i in issues] == [gate.RULE_NOT_APPLICABLE]
+    assert [i["severity"] for i in issues] == ["info"]
+    assert "not applicable" in issues[0]["message"]
 
 
 def test_without_pre_pr_the_gate_is_not_consulted(repo: Path) -> None:
     result = _run_pg(repo)
+    json.loads(result.stdout)  # a result document, not a crash
+    assert "Traceback" not in result.stderr
     assert "Acceptance examination" not in result.stdout
 
 
@@ -428,3 +439,106 @@ def test_load_and_check_outside_a_repository_is_one_error(tmp_path: Path) -> Non
 def test_load_and_check_with_a_missing_plan_file_is_one_error(repo: Path) -> None:
     issue = _only_error(gate.load_and_check(repo / "plans" / "gone.md"))
     assert "could not be read" in issue["message"]
+
+
+# --- review-fix additions (#2270) ---------------------------------------------
+
+
+def test_is_stale_is_true_for_a_moved_hash_or_a_moved_digest() -> None:
+    record = _record()
+    assert not gate.is_stale(record, Binding(HASH, DIGEST))
+    assert gate.is_stale(record, Binding("h2", DIGEST))
+    assert gate.is_stale(record, Binding(HASH, "d2"))
+
+
+def test_is_stale_is_true_against_a_sentinel_binding() -> None:
+    for sentinel in (BASE_UNRESOLVABLE, EMPTY_DIFF):
+        assert gate.is_stale(_record(), Binding(sentinel, DIGEST))
+
+
+def test_blocking_issues_keeps_only_errors() -> None:
+    info = _check(record=None, exempt=True)
+    error = _check(record=None)
+    assert gate.blocking_issues(info + error) == error
+    assert gate.SEVERITY_ERROR == "error"
+
+
+def test_refusal_message_is_the_one_message_table_text() -> None:
+    message = gate.refusal_message(
+        gate.RULE_OTHER_PLAN, PLAN_ID, path=PATH, other="plans/y.md"
+    )
+    assert message == _only_error(_check(_record(plan="plans/y.md")))["message"]
+
+
+def test_a_huge_single_line_observation_is_capped_in_the_refusal() -> None:
+    rows = [_row("AC1", "not-met", "x" * 200_000)]
+    issue = _only_error(_check(_record(overall="not-met", criteria=rows)))
+    assert len(issue["message"]) < 2 * gate.OBSERVATION_CHAR_LIMIT
+    assert "x" * gate.OBSERVATION_CHAR_LIMIT + "…" in issue["message"]
+
+
+def test_an_observation_at_the_cap_is_shown_whole() -> None:
+    observation = "y" * gate.OBSERVATION_CHAR_LIMIT
+    rows = [_row("AC1", "not-met", observation)]
+    issue = _only_error(_check(_record(overall="not-met", criteria=rows)))
+    assert observation in issue["message"]
+    assert "…" not in issue["message"]
+
+
+def test_a_criterion_id_that_is_not_ac_n_never_reaches_the_gloss() -> None:
+    result = {"criteria": [{**_row("AC9 extra"), "observation": "ok"}]}
+    rows, problems = validate_rows(result, ["AC1"], ["run"])
+    record = build_record(PLAN_ID, rows, [], problems, Binding("a" * 64, "d"), "agent")
+    issue = _only_error(
+        gate.check_acceptance_examination(
+            PLAN_ID, record, PATH, Binding("a" * 64, "d"), False
+        )
+    )
+    assert "AC9" not in issue["message"]
+    assert "did not have the expected shape" in issue["message"]
+
+
+def test_message_constants_do_not_name_the_base_refusal_malformed() -> None:
+    assert not hasattr(gate, "_MALFORMED_REMEDY_FETCH")
+    assert gate._REMEDY_FETCH in gate._MESSAGES[gate.RULE_BASE_UNRESOLVABLE]
+
+
+def test_git_failure_is_reported_as_an_unresolvable_base_not_an_empty_diff(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_met_record(repo)
+    real_run = subprocess.run
+
+    def _run(argv, **kwargs):
+        if "diff" in argv:
+            return subprocess.CompletedProcess(argv, 128, stdout=b"", stderr=b"fatal")
+        return real_run(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    issue = _only_error(gate.load_and_check(repo / PLAN_ID))
+    assert issue["rule_id"] == gate.RULE_BASE_UNRESOLVABLE
+    assert "no commits ahead" not in issue["message"]
+
+
+def test_record_path_that_is_a_directory_is_unreadable_not_a_traceback(
+    repo: Path,
+) -> None:
+    path = write_met_record(repo)
+    path.unlink()
+    path.mkdir()
+    issue = _only_error(gate.load_and_check(repo / PLAN_ID))
+    assert issue["rule_id"] == gate.RULE_UNREADABLE
+    assert "file could not be read" in issue["message"]
+
+
+def test_record_with_a_sentinel_binding_hash_is_unreadable(repo: Path) -> None:
+    write_met_record(repo, binding_hash=BASE_UNRESOLVABLE)
+    issue = _only_error(gate.load_and_check(repo / PLAN_ID))
+    assert issue["rule_id"] == gate.RULE_UNREADABLE
+    assert "invalid binding_hash" in issue["message"]
+
+
+def test_record_with_a_non_object_criteria_row_is_unreadable(repo: Path) -> None:
+    write_met_record(repo, criteria=[7])
+    issue = _only_error(gate.load_and_check(repo / PLAN_ID))
+    assert "invalid criteria" in issue["message"]

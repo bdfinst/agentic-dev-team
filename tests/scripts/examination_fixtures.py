@@ -24,7 +24,7 @@ for _entry in (_PLUGIN / "hooks" / "lib", _PLUGIN / "scripts" / "lib"):
 
 import examination_store as store  # type: ignore[import-not-found]
 from examination_inputs import (  # type: ignore[import-not-found]
-    inputs_digest,
+    criteria_ids,
     plan_examination_inputs,
 )
 from examination_verdict import (
@@ -109,15 +109,14 @@ def make_repo(tmp_path: Path) -> Path:
 
 
 def _met_rows(plan_text: str) -> list[dict]:
-    count = len(plan_examination_inputs(plan_text).criteria)
     return [
         {
-            "criterion": f"AC{n}",
+            "criterion": cid,
             "verdict": "met",
             "command": RUN_COMMAND,
-            "observation": f"AC{n} passed",
+            "observation": f"{cid} passed",
         }
-        for n in range(1, count + 1)
+        for cid in criteria_ids(plan_examination_inputs(plan_text))
     ]
 
 
@@ -128,7 +127,8 @@ def write_met_record(
 
     `overall` and any keyword override replace the matching record field.
     The binding is whatever `current_binding` reports now, so a repository
-    with no base or no diff gets a record that is never current.
+    with no base or no diff gets a sentinel `binding_hash`, which the store
+    refuses to read back (an unreadable record).
     """
     plan_text = (root / plan_id).read_text(encoding="utf-8")
     record = build_record(
@@ -136,8 +136,7 @@ def write_met_record(
         _met_rows(plan_text),
         [],
         [],
-        store.current_binding(root, plan_id),
-        inputs_digest(plan_examination_inputs(plan_text)),
+        store.binding_for_plan(root, plan_id, plan_text),
         "agent-1",
     )
     record["overall"] = overall

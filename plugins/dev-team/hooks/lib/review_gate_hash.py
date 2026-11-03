@@ -87,6 +87,35 @@ from git_safe_diff import run_safe_git_diff
 EMPTY_DIGEST = hashlib.sha256(b"").hexdigest()
 
 
+def _git_diff_hash_or_none(
+    extra_flags,
+    cwd: Path | None,
+    target: str,
+    pathspec: Sequence[str] = (),
+    timeout: float | None = None,
+) -> str | None:
+    """The sha256 of the diff, or `None` when git could not produce one.
+
+    `None` covers a launch failure, a non-zero exit and a timeout, so a caller
+    can tell a broken git from a genuinely empty diff, which hashes to
+    `EMPTY_DIGEST`.
+    """
+    try:
+        completed = run_safe_git_diff(
+            extra_flags,
+            cwd=cwd,
+            text=False,
+            target=target,
+            pathspec=pathspec,
+            timeout=timeout,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    return hashlib.sha256(completed.stdout).hexdigest()
+
+
 def _git_diff_hash(
     extra_flags,
     cwd: Path | None,
@@ -101,25 +130,14 @@ def _git_diff_hash(
     caller must never treat that value as a valid subject-hash match.
 
     `pathspec` (#2270) is forwarded to `run_safe_git_diff` unchanged.
+
+    A git launch failure (git not installed) or a non-zero exit (`git diff`
+    outside a repo, or against an unresolvable ref, prints to stderr with empty
+    stdout) hashes as the empty input, as the retired `.sh` did by piping that
+    empty stdout into shasum.
     """
-    try:
-        completed = run_safe_git_diff(
-            extra_flags, cwd=cwd, text=False, target=target, pathspec=pathspec
-        )
-    except (FileNotFoundError, OSError):
-        # git not installed; the .sh would have `command not found` on stderr
-        # and an empty stdout piped through shasum → sha256 of empty input.
-        # We return the same empty-input digest to keep byte-parity.
-        return EMPTY_DIGEST
-
-    if completed.returncode != 0:
-        # `git diff` outside a repo (or against an unresolvable ref) prints
-        # to stderr and exits non-0 with empty stdout; the .sh pipes that
-        # empty stdout into shasum, yielding the sha256 of empty input.
-        # Mirror that.
-        return EMPTY_DIGEST
-
-    return hashlib.sha256(completed.stdout).hexdigest()
+    digest = _git_diff_hash_or_none(extra_flags, cwd, target, pathspec)
+    return EMPTY_DIGEST if digest is None else digest
 
 
 _DIFF_RENDER_FLAGS = ("--no-color", "--no-ext-diff", "--no-textconv")
@@ -173,16 +191,37 @@ def branch_diff_gate_hash(
     both exist to prevent.
 
     `exclude` (#2270): repo-root-relative paths left out of the hashed diff,
-    passed to git as `:(top,exclude)<path>` pathspecs. Empty (the default)
+    passed to git as `:(top,exclude,literal)<path>` pathspecs; `literal` keeps
+    a `*`, `?` or `[` in a path from matching other files. Empty (the default)
     hashes the whole diff, as before.
     """
-    pathspec = [f":(top,exclude){p}" for p in exclude]
-    return _git_diff_hash(
-        _DIFF_RENDER_FLAGS, cwd, f"{base_ref}...HEAD", pathspec=pathspec
+    digest = branch_diff_gate_hash_or_none(base_ref, cwd, exclude)
+    return EMPTY_DIGEST if digest is None else digest
+
+
+def branch_diff_gate_hash_or_none(
+    base_ref: str,
+    cwd: Path | None = None,
+    exclude: Sequence[str] = (),
+    timeout: float | None = None,
+) -> str | None:
+    """`branch_diff_gate_hash()`, but `None` where it would return
+    `EMPTY_DIGEST` because git failed (launch failure, non-zero exit or
+    `timeout` seconds elapsed). A genuinely empty diff still returns
+    `EMPTY_DIGEST`, so a caller can tell the two apart (#2270)."""
+    pathspec = [f":(top,exclude,literal){p}" for p in exclude]
+    return _git_diff_hash_or_none(
+        _DIFF_RENDER_FLAGS,
+        cwd,
+        f"{base_ref}...HEAD",
+        pathspec=pathspec,
+        timeout=timeout,
     )
 
 
-def default_base_ref(cwd: Path | None = None) -> str | None:
+def default_base_ref(
+    cwd: Path | None = None, timeout: float | None = None
+) -> str | None:
     """Best-effort resolution of the branch's base ref for
     `branch_diff_gate_hash()` (#1886): the remote's default branch, e.g.
     `"origin/main"`.
@@ -193,6 +232,9 @@ def default_base_ref(cwd: Path | None = None) -> str | None:
     `origin/main`, `origin/master`, `main`, `master` — verified with `git
     rev-parse --verify` so the returned ref actually resolves to a commit in
     THIS repo, never a guess passed through unchecked.
+
+    `timeout` (#2270): seconds each git probe may take; the first probe that
+    exceeds it ends the search with `None`.
 
     Never raises. On total failure (no git, no candidate resolves) returns
     `None` (issue #1904 Bug 1) — NOT `"HEAD"`. A caller that fell back to
@@ -212,9 +254,12 @@ def default_base_ref(cwd: Path | None = None) -> str | None:
             capture_output=True,
             check=False,
             text=True,
+            timeout=timeout,
         )
         if completed.returncode == 0 and completed.stdout.strip():
             return completed.stdout.strip()
+    except subprocess.TimeoutExpired:
+        return None
     except (FileNotFoundError, OSError):
         pass
 
@@ -226,7 +271,10 @@ def default_base_ref(cwd: Path | None = None) -> str | None:
                 capture_output=True,
                 check=False,
                 text=True,
+                timeout=timeout,
             )
+        except subprocess.TimeoutExpired:
+            return None
         except (FileNotFoundError, OSError):
             break
         if completed.returncode == 0:
@@ -266,6 +314,7 @@ if __name__ == "__main__":
 __all__ = (
     "EMPTY_DIGEST",
     "branch_diff_gate_hash",
+    "branch_diff_gate_hash_or_none",
     "default_base_ref",
     "review_gate_hash",
 )

@@ -157,7 +157,7 @@ def test_pathspec_is_appended_last_after_ignore_submodules(
 
     monkeypatch.setattr(subprocess, "run", _fake_run)
     gsd.run_safe_git_diff(
-        ["--no-color"], target="main...HEAD", pathspec=[":(top,exclude)plans/x.md"]
+        ["--no-color"], target="main...HEAD", pathspec=[":(top,exclude,literal)plans/x.md"]
     )
     assert captured["argv"] == [
         "git",
@@ -168,7 +168,7 @@ def test_pathspec_is_appended_last_after_ignore_submodules(
         "--no-color",
         "--ignore-submodules=none",
         "--",
-        ":(top,exclude)plans/x.md",
+        ":(top,exclude,literal)plans/x.md",
     ]
 
 

@@ -20,6 +20,12 @@ from __future__ import annotations
 import re
 from collections import Counter
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+from examination_inputs import CRITERION_ID
+
+if TYPE_CHECKING:
+    from examination_store import Binding
 
 MET = "met"
 NOT_MET = "not-met"
@@ -35,19 +41,33 @@ PROBLEM_UNKNOWN = "unknown"
 PROBLEM_INCOMPLETE_ROW = "incomplete-row"
 PROBLEM_INVALID_VERDICT = "invalid-verdict"
 PROBLEM_COMMAND_NOT_RUN = "command-not-run"
+PROBLEM_UNPARSEABLE = "unparseable-result"
+#: The branch binding could not be computed: the base ref did not resolve or
+#: git failed (the store's `BASE_UNRESOLVABLE` sentinel).
+PROBLEM_BASE_UNRESOLVABLE = "binding-hash-unavailable"
 
 _COMMAND_VERDICTS = (MET, NOT_MET)
 RECORD_SCHEMA = 1
 
+#: The record's keys, once: `build_record` writes them, the store validates
+#: them, the gate and CLI read them. Optional keys may be absent on read.
+RECORD_REQUIRED_KEYS = ("plan", "overall", "criteria", "binding_hash", "inputs_digest")
+RECORD_OPTIONAL_KEYS = ("agent_id", "audit_findings", "problems", "recorded_at")
+RECORD_KEYS = ("schema", *RECORD_REQUIRED_KEYS, *RECORD_OPTIONAL_KEYS)
+#: Keys whose value must be a list.
+RECORD_LIST_KEYS = ("criteria", "audit_findings", "problems")
+
 _FINDING_KEYS = ("kind", "target", "command")
-_FD_DUPLICATION = re.compile(r"(?<!\S)\d*>&\d+(?!\S)")
-_SEGMENT_SEPARATORS = re.compile(r"&&|\|\||;|\|")
+# `2>&1`, `>&2`, `1>&2`: the optional fd digits count only after whitespace, so
+# `pytest2>&1` keeps its `2`. No whitespace is needed on either side.
+_FD_DUPLICATION = re.compile(r"(?:(?<!\S)\d+)?>&\d+")
+_SEGMENT_SEPARATORS = re.compile(r"&&|\|\||;|\||\n")
 _LEADING_CD = re.compile(r"^cd\s+\S+$")
 
 
-def normalize_command(s: str) -> str:
+def normalize_command(command: str) -> str:
     """Collapse runs of whitespace to single spaces and strip the ends."""
-    return " ".join(s.split())
+    return " ".join(command.split())
 
 
 def _segments(command: str) -> list[str]:
@@ -98,7 +118,8 @@ def _well_formed_rows(result: object) -> list[dict] | None:
     for row in rows:
         if not isinstance(row, dict):
             return None
-        if not isinstance(row.get("criterion"), str):
+        criterion = row.get("criterion")
+        if not isinstance(criterion, str) or not CRITERION_ID.fullmatch(criterion):
             return None
         if not isinstance(row.get("verdict"), str):
             return None
@@ -174,8 +195,7 @@ def build_record(
     rows: list[dict],
     audit_findings: list[dict],
     problems: list[str],
-    binding_hash: str,
-    inputs_digest: str,
+    binding: Binding,
     agent_id: str,
 ) -> dict:
     """The examination record the SubagentStop hook persists."""
@@ -190,7 +210,7 @@ def build_record(
             for finding in audit_findings
         ],
         "problems": list(problems),
-        "binding_hash": binding_hash,
-        "inputs_digest": inputs_digest,
+        "binding_hash": binding.hash,
+        "inputs_digest": binding.inputs_digest,
         "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }

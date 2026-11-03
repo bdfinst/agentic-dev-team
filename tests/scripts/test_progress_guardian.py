@@ -61,6 +61,13 @@ def make_plan(path: Path, content: str) -> None:
     path.write_text(content + "\n")
 
 
+def assert_pre_pr_clean(data: dict) -> None:
+    """A passing --pre-pr result: nothing but the exemption notice `run_pg`'s
+    ad-hoc repositories may carry (info issues never fail or warn)."""
+    assert data["status"] == "pass", data
+    assert all(i["severity"] == "info" for i in data["issues"]), data
+
+
 def run_pg(plan: Path, *args: str) -> subprocess.CompletedProcess:
     if "--pre-pr" in args:
         give_current_met_record(plan)
@@ -477,7 +484,7 @@ def test_4_3_mirror_ac_mirror_inside_build_progress_is_skipped(tmp_path: Path) -
     result = run_pg(plan, "--pre-pr", "--skip-llm")
     assert result.returncode == 0
     data = json.loads(result.stdout)
-    assert data["issues"] == [], data
+    assert_pre_pr_clean(data)
 
 
 def test_4_3a_build_progress_done_plus_ac_undone_pre_pr_exits_0_acs_ignored(
@@ -498,7 +505,7 @@ def test_4_3a_build_progress_done_plus_ac_undone_pre_pr_exits_0_acs_ignored(
     result = run_pg(plan, "--pre-pr", "--skip-llm")
     assert result.returncode == 0
     data = json.loads(result.stdout)
-    assert data["issues"] == [], data
+    assert_pre_pr_clean(data)
 
 
 def test_4_3b_build_progress_undone_plus_ac_undone_pre_pr_exits_1_naming_slice_not_acs(
@@ -791,7 +798,7 @@ def test_6b_pre_pr_with_runtime_file_and_matching_verify_log_entry_exits_0(
     result = run_pg(plan, "--pre-pr", "--skip-llm")
     assert result.returncode == 0
     data = json.loads(result.stdout)
-    assert data["issues"] == [], data
+    assert_pre_pr_clean(data)
 
 
 def test_6c_pre_pr_with_verify_log_for_a_different_branch_still_fails(
@@ -826,7 +833,7 @@ def test_6d_pre_pr_with_test_only_changes_skips_the_verify_log_check(
     result = run_pg(plan, "--pre-pr", "--skip-llm")
     assert result.returncode == 0
     data = json.loads(result.stdout)
-    assert data["issues"] == [], data
+    assert_pre_pr_clean(data)
 
 
 def test_6e_pre_pr_with_docs_only_changes_skips_the_verify_log_check(
@@ -843,7 +850,7 @@ def test_6e_pre_pr_with_docs_only_changes_skips_the_verify_log_check(
     result = run_pg(plan, "--pre-pr", "--skip-llm")
     assert result.returncode == 0
     data = json.loads(result.stdout)
-    assert data["issues"] == [], data
+    assert_pre_pr_clean(data)
 
 
 def test_865_1_pre_pr_with_matching_declared_scope_emits_no_warning(

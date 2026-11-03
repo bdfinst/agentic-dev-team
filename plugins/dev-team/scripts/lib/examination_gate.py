@@ -1,8 +1,8 @@
 """Pre-PR acceptance-examination gate (#2270).
 
 `check_acceptance_examination` is the one pure status function: given a record
-(or its absence), the current branch binding, and the current plan-inputs
-digest, it returns zero or one issue. `progress_guardian --pre-pr` calls it
+(or its absence) and the current `Binding` (branch hash and plan-inputs
+digest), it returns zero or one issue; `is_stale` is the one staleness rule. `progress_guardian --pre-pr` calls it
 through `load_and_check`; the `acceptance_examination.py status` CLI reuses it,
 so every caller shows the same text.
 
@@ -26,19 +26,16 @@ for _entry in (_SCRIPTS_DIR, _HOOKS_LIB_DIR):
     if str(_entry) not in sys.path:
         sys.path.insert(0, str(_entry))
 
-from examination_inputs import (  # type: ignore[import-not-found]
-    inputs_digest,
-    is_exempt,
-    plan_examination_inputs,
-)
+from examination_inputs import is_exempt  # type: ignore[import-not-found]
 from examination_store import (  # type: ignore[import-not-found]
     BASE_UNRESOLVABLE,
     EMPTY_DIFF,
+    Binding,
     NotARepository,
     RecordUnreadable,
+    binding_for_plan,
     canonical_plan_id,
-    current_binding,
-    read_record,
+    load_record,
     record_path,
     repo_root,
 )
@@ -46,6 +43,7 @@ from examination_verdict import (  # type: ignore[import-not-found]
     INDETERMINATE,
     MET,
     NOT_MET,
+    PROBLEM_BASE_UNRESOLVABLE,
     PROBLEM_COMMAND_NOT_RUN,
     PROBLEM_DUPLICATE,
     PROBLEM_INCOMPLETE_ROW,
@@ -54,12 +52,16 @@ from examination_verdict import (  # type: ignore[import-not-found]
     PROBLEM_MISSING,
     PROBLEM_NO_CRITERIA,
     PROBLEM_UNKNOWN,
+    PROBLEM_UNPARSEABLE,
     TAINTED,
 )
 from lib.review_result import make_issue
 
-PROBLEM_BINDING_UNAVAILABLE = "binding-hash-unavailable"
-PROBLEM_UNPARSEABLE = "unparseable-result"
+SEVERITY_ERROR = "error"
+SEVERITY_INFO = "info"
+#: Longest observation line shown in a refusal message or the rendered section.
+OBSERVATION_CHAR_LIMIT = 500
+_CLIP_MARKER = "…"
 
 RULE_MISSING = "examination-missing"
 RULE_UNREADABLE = "examination-unreadable"
@@ -81,7 +83,7 @@ _MALFORMED_REMEDY_AGAIN = "Run: /build {plan} again without changing the plan."
 _MALFORMED_REMEDY_NO_CRITERIA = (
     "Add acceptance criteria to the plan, then run: /build {plan}."
 )
-_MALFORMED_REMEDY_FETCH = (
+_REMEDY_FETCH = (
     "Fetch the default branch (git fetch origin && git remote set-head origin -a), "
     "then run: /build {plan}."
 )
@@ -108,7 +110,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
             "Acceptance examination cannot be verified: "
             "the branch base could not be resolved."
         ),
-        _MALFORMED_REMEDY_FETCH,
+        _REMEDY_FETCH,
     ),
     RULE_EMPTY_DIFF: (
         (
@@ -185,7 +187,7 @@ _GLOSSES: dict[str, str] = {
     PROBLEM_INVALID_SHAPE: "the result did not have the expected shape",
     PROBLEM_UNPARSEABLE: "the result could not be parsed",
     PROBLEM_NO_CRITERIA: "the plan lists no acceptance criteria",
-    PROBLEM_BINDING_UNAVAILABLE: "the branch base could not be resolved",
+    PROBLEM_BASE_UNRESOLVABLE: "the branch base could not be resolved",
 }
 
 _BINDING_RULES = {
@@ -196,21 +198,38 @@ _MAX_LISTED_COMMANDS = 3
 _NO_OBSERVATION = "(no observation recorded)"
 
 
-def _issue(rule: str, plan_id: str, severity: str = "error", **fields: object) -> dict:
-    text, remedy = _MESSAGES[rule]
-    values = {"plan": plan_id, **fields}
+def refusal_message(rule: str, plan_id: str, **fields: object) -> str:
+    """The message text for `rule` from the one message table."""
+    return _MESSAGES[rule][0].format(plan=plan_id, **fields)
+
+
+def _issue(
+    rule: str, plan_id: str, severity: str = SEVERITY_ERROR, **fields: object
+) -> dict:
     return make_issue(
         severity=severity,
         file=plan_id,
-        message=text.format(**values),
-        suggested_fix=remedy.format(**values),
+        message=refusal_message(rule, plan_id, **fields),
+        suggested_fix=_MESSAGES[rule][1].format(plan=plan_id, **fields),
         rule_id=rule,
     )
 
 
+def blocking_issues(issues: list[dict]) -> list[dict]:
+    """The issues that refuse the gate; `info` issues never do."""
+    return [issue for issue in issues if issue["severity"] == SEVERITY_ERROR]
+
+
+def clip_line(text: str) -> str:
+    """`text` cut to `OBSERVATION_CHAR_LIMIT` characters, marked when cut."""
+    if len(text) <= OBSERVATION_CHAR_LIMIT:
+        return text
+    return text[:OBSERVATION_CHAR_LIMIT] + _CLIP_MARKER
+
+
 def _first_line(value: object) -> str:
     lines = str(value or "").strip().splitlines()
-    return lines[0].strip() if lines else _NO_OBSERVATION
+    return clip_line(lines[0].strip()) if lines else _NO_OBSERVATION
 
 
 def _rows_with_verdict(record: dict, verdict: str) -> list[dict]:
@@ -219,11 +238,13 @@ def _rows_with_verdict(record: dict, verdict: str) -> list[dict]:
 
 
 def _row_fields(rows: list[dict]) -> dict:
-    ids = [str(row.get("criterion")) for row in rows]
-    details = ". ".join(
-        f"{cid}: {_first_line(row.get('observation'))}" for cid, row in zip(ids, rows)
-    )
-    return {"ids": ", ".join(ids), "details": details}
+    pairs = [
+        (str(row.get("criterion")), _first_line(row.get("observation"))) for row in rows
+    ]
+    return {
+        "ids": ", ".join(cid for cid, _ in pairs),
+        "details": ". ".join(f"{cid}: {line}" for cid, line in pairs),
+    }
 
 
 def _gloss(problem: str) -> str:
@@ -239,8 +260,8 @@ def _malformed_fields(problems: list, plan_id: str) -> dict:
     kinds = {str(p).partition(" ")[0] for p in problems}
     if PROBLEM_NO_CRITERIA in kinds:
         remedy = _MALFORMED_REMEDY_NO_CRITERIA
-    elif PROBLEM_BINDING_UNAVAILABLE in kinds:
-        remedy = _MALFORMED_REMEDY_FETCH
+    elif PROBLEM_BASE_UNRESOLVABLE in kinds:
+        remedy = _REMEDY_FETCH
     else:
         remedy = _MALFORMED_REMEDY_AGAIN
     return {
@@ -273,12 +294,29 @@ def _verdict_refusal(record: dict, plan_id: str) -> tuple[str, dict] | None:
     return RULE_UNOBSERVABLE, _row_fields(_rows_with_verdict(record, INDETERMINATE))
 
 
+def stale_rule(record: dict, binding: Binding) -> str | None:
+    """The staleness rule `record` trips against `binding`, or `None`.
+
+    A sentinel binding (`BASE_UNRESOLVABLE`, `EMPTY_DIFF`) never equals a
+    stored hash, so it is always stale.
+    """
+    if record.get("binding_hash") != binding.hash:
+        return RULE_STALE_DIFF
+    if record.get("inputs_digest") != binding.inputs_digest:
+        return RULE_STALE_INPUTS
+    return None
+
+
+def is_stale(record: dict, binding: Binding) -> bool:
+    """True when the branch diff or the plan's inputs moved since `record`."""
+    return stale_rule(record, binding) is not None
+
+
 def _refusal(
     plan_id: str,
     record: dict | RecordUnreadable | None,
     path: Path | str,
-    binding: str,
-    inputs_digest_now: str,
+    binding: Binding,
 ) -> tuple[str, dict] | None:
     if record is None:
         return RULE_MISSING, {"path": path}
@@ -286,31 +324,28 @@ def _refusal(
         return RULE_UNREADABLE, {"path": path, "problem": record.problem}
     if record.get("plan") != plan_id:
         return RULE_OTHER_PLAN, {"path": path, "other": record.get("plan")}
-    if binding in _BINDING_RULES:
-        return _BINDING_RULES[binding], {}
-    if record.get("binding_hash") != binding:
-        return RULE_STALE_DIFF, {}
-    if record.get("inputs_digest") != inputs_digest_now:
-        return RULE_STALE_INPUTS, {}
+    if binding.hash in _BINDING_RULES:
+        return _BINDING_RULES[binding.hash], {}
+    if stale := stale_rule(record, binding):
+        return stale, {}
     return _verdict_refusal(record, plan_id)
 
 
 def check_acceptance_examination(
     plan_id: str,
     record: dict | RecordUnreadable | None,
-    record_path: Path | str,
-    binding: str,
-    current_inputs_digest: str,
+    path: Path | str,
+    binding: Binding,
     exempt: bool,
 ) -> list[dict]:
     """Zero or one issue for `plan_id`; see the module docstring for precedence.
 
-    `binding` is the current branch hash, or `BASE_UNRESOLVABLE` / `EMPTY_DIFF`.
-    An exempt plan yields one non-blocking `info` issue.
+    `binding.hash` is the current branch hash, or `BASE_UNRESOLVABLE` /
+    `EMPTY_DIFF`. An exempt plan yields one non-blocking `info` issue.
     """
     if exempt:
-        return [_issue(RULE_NOT_APPLICABLE, plan_id, severity="info")]
-    refusal = _refusal(plan_id, record, record_path, binding, current_inputs_digest)
+        return [_issue(RULE_NOT_APPLICABLE, plan_id, severity=SEVERITY_INFO)]
+    refusal = _refusal(plan_id, record, path, binding)
     if refusal is None:
         return []
     rule, fields = refusal
@@ -319,17 +354,6 @@ def check_acceptance_examination(
 
 def _cannot_check(plan_path: Path | str, problem: str) -> list[dict]:
     return [_issue(RULE_CANNOT_CHECK, str(plan_path), problem=problem)]
-
-
-def _read_record_or_none(path: Path) -> dict | RecordUnreadable | None:
-    try:
-        return read_record(path)
-    except FileNotFoundError:
-        return None
-    except RecordUnreadable as exc:
-        return exc
-    except OSError:
-        return RecordUnreadable("file could not be read")
 
 
 def load_and_check(plan_path: Path | str) -> list[dict]:
@@ -348,9 +372,8 @@ def load_and_check(plan_path: Path | str) -> list[dict]:
     path = record_path(root, plan_id)
     return check_acceptance_examination(
         plan_id,
-        _read_record_or_none(path),
+        load_record(path),
         path,
-        current_binding(root, plan_id),
-        inputs_digest(plan_examination_inputs(plan_text)),
+        binding_for_plan(root, plan_id, plan_text),
         is_exempt(plan_text),
     )

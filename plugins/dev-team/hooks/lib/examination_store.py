@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
@@ -14,8 +14,19 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths
 import atomic_state
-from examination_verdict import RECORD_SCHEMA, TAINTED, VERDICTS
-from review_gate_hash import EMPTY_DIGEST, branch_diff_gate_hash, default_base_ref
+from examination_inputs import inputs_digest, plan_examination_inputs
+from examination_verdict import (
+    RECORD_LIST_KEYS,
+    RECORD_REQUIRED_KEYS,
+    RECORD_SCHEMA,
+    TAINTED,
+    VERDICTS,
+)
+from review_gate_hash import (
+    EMPTY_DIGEST,
+    branch_diff_gate_hash_or_none,
+    default_base_ref,
+)
 
 BASE_UNRESOLVABLE = "base-unresolvable"
 EMPTY_DIFF = "empty-diff"
@@ -23,9 +34,17 @@ RECORD_FILENAME_PREFIX = "acceptance-examination-"
 RECORD_FILENAME_SUFFIX = ".json"
 _PATH_SEPARATOR_ESCAPE = "__"
 _GIT_TIMEOUT_SECONDS = 30
+UNREADABLE_FILE = "file could not be read"
 _BINDING_HASH = re.compile(r"[0-9a-f]{64}")
-_REQUIRED_KEYS = ("plan", "overall", "criteria", "binding_hash", "inputs_digest")
 _OVERALL_VALUES = (*VERDICTS, TAINTED)
+
+
+class Binding(NamedTuple):
+    """What a record is bound to: the branch diff hash (or a sentinel) and the
+    digest of the plan's examination inputs."""
+
+    hash: str
+    inputs_digest: str
 
 
 class NotARepository(Exception):
@@ -48,21 +67,10 @@ def repo_root(path: Path | str) -> Path:
     """
     start = Path(path)
     directory = start if start.is_dir() else start.parent
-    try:
-        completed = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=str(directory),
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise NotARepository(f"cannot run git in {directory}: {exc}") from exc
-    toplevel = completed.stdout.strip()
-    if completed.returncode != 0 or not toplevel:
+    toplevel = artifact_paths.git_toplevel(directory, timeout=_GIT_TIMEOUT_SECONDS)
+    if toplevel is None:
         raise NotARepository(f"not a git repository: {directory}")
-    return Path(toplevel).resolve()
+    return toplevel.resolve()
 
 
 def canonical_plan_id(plan_path: Path | str, root: Path | str) -> str:
@@ -89,15 +97,25 @@ def record_path(root: Path | str, plan_id: str) -> Path:
 def current_binding(root: Path | str, plan_id: str) -> str:
     """sha256 of the branch diff against its base, leaving out the plan file.
 
-    Returns `BASE_UNRESOLVABLE` when no base ref resolves and `EMPTY_DIFF` when
-    the diff is empty (or git failed), so a caller can never match either
-    against a stored hash.
+    Returns `BASE_UNRESOLVABLE` when no base ref resolves or git fails or times
+    out, and `EMPTY_DIFF` when git succeeded with an empty diff, so a caller
+    can never match either against a stored hash.
     """
-    base_ref = default_base_ref(Path(root))
+    base_ref = default_base_ref(Path(root), timeout=_GIT_TIMEOUT_SECONDS)
     if base_ref is None:
         return BASE_UNRESOLVABLE
-    digest = branch_diff_gate_hash(base_ref, Path(root), exclude=(plan_id,))
+    digest = branch_diff_gate_hash_or_none(
+        base_ref, Path(root), exclude=(plan_id,), timeout=_GIT_TIMEOUT_SECONDS
+    )
+    if digest is None:
+        return BASE_UNRESOLVABLE
     return EMPTY_DIFF if digest == EMPTY_DIGEST else digest
+
+
+def binding_for_plan(root: Path | str, plan_id: str, plan_text: str) -> Binding:
+    """The current `Binding`: the branch hash and the plan's inputs digest."""
+    digest = inputs_digest(plan_examination_inputs(plan_text))
+    return Binding(current_binding(root, plan_id), digest)
 
 
 def is_binding_hash(value: object) -> bool:
@@ -122,15 +140,20 @@ def _check_record(data: dict) -> None:
     schema = data.get("schema")
     if isinstance(schema, bool) or schema != RECORD_SCHEMA:
         raise RecordUnreadable("unsupported schema")
-    for key in _REQUIRED_KEYS:
+    for key in RECORD_REQUIRED_KEYS:
         if key not in data:
             raise RecordUnreadable(f"missing key {key}")
-    if not isinstance(data["criteria"], list):
+    for key in RECORD_LIST_KEYS:
+        if key in data and not isinstance(data[key], list):
+            raise RecordUnreadable(f"invalid {key}")
+    if not all(isinstance(row, dict) for row in data["criteria"]):
         raise RecordUnreadable("invalid criteria")
     if not isinstance(data["plan"], str):
         raise RecordUnreadable("invalid plan")
     if data["overall"] not in _OVERALL_VALUES:
         raise RecordUnreadable("invalid overall")
+    if not is_binding_hash(data["binding_hash"]):
+        raise RecordUnreadable("invalid binding_hash")
 
 
 def read_record(path: Path | str) -> dict:
@@ -148,6 +171,19 @@ def read_record(path: Path | str) -> dict:
     return data
 
 
+def load_record(path: Path | str) -> dict | RecordUnreadable | None:
+    """`read_record` without exceptions: the record, `None` when the file is
+    absent, or the `RecordUnreadable` (an I/O error included) to report."""
+    try:
+        return read_record(path)
+    except FileNotFoundError:
+        return None
+    except RecordUnreadable as exc:
+        return exc
+    except OSError:
+        return RecordUnreadable(UNREADABLE_FILE)
+
+
 def write_record(path: Path | str, record: dict) -> None:
     """Persist `record` atomically under an exclusive lock.
 
@@ -162,11 +198,15 @@ def write_record(path: Path | str, record: dict) -> None:
 __all__ = (
     "BASE_UNRESOLVABLE",
     "EMPTY_DIFF",
+    "UNREADABLE_FILE",
+    "Binding",
     "NotARepository",
     "RecordUnreadable",
+    "binding_for_plan",
     "canonical_plan_id",
     "current_binding",
     "is_binding_hash",
+    "load_record",
     "read_record",
     "record_path",
     "repo_root",
