@@ -169,6 +169,42 @@ def test_status_without_wait_reports_missing_and_does_not_announce_waiting(
     assert "Waiting" not in result.stderr
 
 
+def test_status_after_a_later_time_reports_an_old_met_record_missing(
+    repo: Path,
+) -> None:
+    write_met_record(repo)
+
+    result = run_cli(
+        repo, "status", "--plan", PLAN_ID, "--after", "2999-01-01T00:00:00Z"
+    )
+
+    assert result.returncode == 1
+    assert MISSING_MESSAGE in result.stdout
+
+
+def test_status_after_an_earlier_time_keeps_the_met_verdict(repo: Path) -> None:
+    write_met_record(repo)
+
+    result = run_cli(
+        repo, "status", "--plan", PLAN_ID, "--after", "2000-01-01T00:00:00Z"
+    )
+
+    assert result.returncode == 0
+
+
+def test_status_wait_with_after_does_not_accept_an_old_record(repo: Path) -> None:
+    write_met_record(repo)
+
+    result = run_cli(
+        repo,
+        *("status", "--plan", PLAN_ID, "--after", "2999-01-01T00:00:00Z"),
+        *("--wait", "1", "--poll-interval", "0.1"),
+    )
+
+    assert result.returncode == 1
+    assert MISSING_MESSAGE in result.stdout
+
+
 LINE_TIMEOUT = 30
 
 
@@ -227,8 +263,18 @@ def test_status_gives_up_after_the_wait_window(repo: Path) -> None:
 
 @pytest.mark.parametrize(
     "extra",
-    [("--wait", "abc"), ("--wait", "-1"), ("--poll-interval", "x")],
-    ids=["wait-not-a-number", "wait-negative", "poll-interval-not-a-number"],
+    [
+        ("--wait", "abc"),
+        ("--wait", "-1"),
+        ("--poll-interval", "x"),
+        ("--after", "soon"),
+    ],
+    ids=[
+        "wait-not-a-number",
+        "wait-negative",
+        "poll-interval-not-a-number",
+        "after-not-a-time",
+    ],
 )
 def test_status_bad_numeric_option_is_one_line_exit_two(
     repo: Path, extra: tuple[str, str]

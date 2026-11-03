@@ -7,10 +7,13 @@ through `load_and_check`; the `acceptance_examination.py status` CLI reuses it,
 so every caller shows the same text.
 
 Precedence when several conditions hold: exempt, absent, unreadable, other
-plan, base unresolvable, empty diff, stale diff, stale inputs, then the
-record's verdict (not-met, indeterminate, tainted). Exactly one issue is
-returned. Message text lives in `_MESSAGES`, keyed by condition id, and is
-copied from the plan's `## Refusal messages` table.
+plan, older than `after`, base unresolvable, empty diff, stale diff, stale
+inputs, then the record's verdict (not-met, indeterminate, tainted). Exactly
+one issue is returned. A caller passes `after` (an ISO 8601 time) to say "only
+a record written after this moment counts": a record whose `recorded_at` is
+missing, unparsable, or not strictly newer is reported absent. Message text
+lives in `_MESSAGES`, keyed by condition id, and is copied from the plan's
+`## Refusal messages` table.
 
 `info` issues are non-blocking; callers keep only `error` rows as failures.
 """
@@ -18,6 +21,7 @@ copied from the plan's `## Refusal messages` table.
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
@@ -198,6 +202,28 @@ _MAX_LISTED_COMMANDS = 3
 _NO_OBSERVATION = "(no observation recorded)"
 
 
+def parse_timestamp(text: object) -> datetime | None:
+    """`text` as a timezone-aware time, or `None` when it is not ISO 8601.
+
+    Python 3.10's `fromisoformat` rejects a trailing `Z`, so it is read as
+    `+00:00`. A time without an offset is read as UTC.
+    """
+    if not isinstance(text, str):
+        return None
+    normalised = text[:-1] + "+00:00" if text.endswith("Z") else text
+    try:
+        parsed = datetime.fromisoformat(normalised)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _is_newer_than(record: dict, after: datetime) -> bool:
+    """True when `record["recorded_at"]` parses and is strictly after `after`."""
+    recorded = parse_timestamp(record.get("recorded_at"))
+    return recorded is not None and recorded > after
+
+
 def refusal_message(rule: str, plan_id: str, **fields: object) -> str:
     """The message text for `rule` from the one message table."""
     return _MESSAGES[rule][0].format(plan=plan_id, **fields)
@@ -321,6 +347,7 @@ def _refusal(
     record: dict | RecordUnreadable | None,
     path: Path | str,
     binding: Binding,
+    after: datetime | None = None,
 ) -> tuple[str, dict] | None:
     if record is None:
         return RULE_MISSING, {"path": path}
@@ -328,6 +355,8 @@ def _refusal(
         return RULE_UNREADABLE, {"path": path, "problem": record.problem}
     if record.get("plan") != plan_id:
         return RULE_OTHER_PLAN, {"path": path, "other": record.get("plan")}
+    if after is not None and not _is_newer_than(record, after):
+        return RULE_MISSING, {"path": path}
     stored = record.get("binding_hash")
     if stored in _BINDING_RULES:
         return _BINDING_RULES[stored], {}
@@ -344,15 +373,17 @@ def check_acceptance_examination(
     path: Path | str,
     binding: Binding,
     exempt: bool,
+    after: datetime | None = None,
 ) -> list[dict]:
     """Zero or one issue for `plan_id`; see the module docstring for precedence.
 
     `binding.hash` is the current branch hash, or `BASE_UNRESOLVABLE` /
-    `EMPTY_DIFF`. An exempt plan yields one non-blocking `info` issue.
+    `EMPTY_DIFF`. An exempt plan yields one non-blocking `info` issue. With
+    `after`, a record not written strictly after it counts as absent.
     """
     if exempt:
         return [_issue(RULE_NOT_APPLICABLE, plan_id, severity=SEVERITY_INFO)]
-    refusal = _refusal(plan_id, record, path, binding)
+    refusal = _refusal(plan_id, record, path, binding, after)
     if refusal is None:
         return []
     rule, fields = refusal
@@ -363,11 +394,18 @@ def _cannot_check(plan_path: Path | str, problem: str) -> list[dict]:
     return [_issue(RULE_CANNOT_CHECK, str(plan_path), problem=problem)]
 
 
-def load_and_check(plan_path: Path | str) -> list[dict]:
+def load_and_check(plan_path: Path | str, *, after: str | None = None) -> list[dict]:
     """Check the plan at `plan_path` against its record in the plan's repo.
 
-    Never raises: an unusable environment becomes one error issue.
+    `after` is an ISO 8601 time; see the module docstring. A value that does
+    not parse is a caller bug and raises `ValueError`; every other failure
+    becomes one error issue, never an exception.
     """
+    after_time = None
+    if after is not None:
+        after_time = parse_timestamp(after)
+        if after_time is None:
+            raise ValueError(f"not an ISO 8601 time: {after!r}")
     try:
         root = repo_root(plan_path)
         plan_id = canonical_plan_id(plan_path, root)
@@ -383,4 +421,5 @@ def load_and_check(plan_path: Path | str) -> list[dict]:
         path,
         binding_for_plan(root, plan_id, plan_text),
         is_exempt(plan_text),
+        after_time,
     )

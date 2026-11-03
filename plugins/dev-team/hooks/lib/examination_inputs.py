@@ -208,24 +208,29 @@ def render_inputs(inputs: ExaminationInputs, plan_id: str) -> str:
 
 
 def parse_plan_marker(text: str) -> str | None:
-    """The plan path named by the first `PLAN_MARKER_PREFIX` line, or `None`.
+    """The plan path named by the last marker line in `text`, or `None`.
+
+    A marker line starts at column zero with `PLAN_MARKER_PREFIX`. A line that
+    only contains the prefix (a Gherkin table row, an indented copy, a quoted
+    mention) is not a marker. `render_inputs` ends its block with the marker,
+    so the last marker line is the one `/build` appended after any plan text
+    that quotes the prefix.
 
     Differs from `hooks/lib/review_verdicts.py::parse_scope_marker` on
-    purpose: that marker carries a comma-separated file list and skips a
-    prose line that quotes the prefix without one. This marker names exactly
-    one plan, so the first line containing the prefix decides: an empty path
-    or any `..` segment yields `None` rather than falling through to a later
+    purpose: that marker carries a comma-separated file list. This marker
+    names exactly one plan, and the chosen line decides: an empty path or any
+    `..` segment yields `None` rather than falling through to an earlier
     marker, because the path is later resolved against the repo root.
     """
-    for line in text.splitlines():
-        start = line.find(PLAN_MARKER_PREFIX)
-        if start == -1:
-            continue
-        path = line[start + len(PLAN_MARKER_PREFIX) :].strip()
-        if not path or _PARENT_SEGMENT in _PATH_SEPARATORS.split(path):
-            return None
-        return path
-    return None
+    markers = [
+        line for line in text.splitlines() if line.startswith(PLAN_MARKER_PREFIX)
+    ]
+    if not markers:
+        return None
+    path = markers[-1][len(PLAN_MARKER_PREFIX) :].strip()
+    if not path or _PARENT_SEGMENT in _PATH_SEPARATORS.split(path):
+        return None
+    return path
 
 
 def is_exempt(plan_text: str) -> bool:

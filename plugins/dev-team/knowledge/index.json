@@ -713,7 +713,7 @@
       "anchor": "line-budget"
     },
     "Assembly is per-command, not handed off": {
-      "summary": "`/build` assembles its bundle from its own run's Step 5/6/7 outputs at Step 8.",
+      "summary": "`/build` assembles its bundle from its own run's Step 5, 6, 7, and 7.6 outputs at Step 8.",
       "anchor": "assembly-is-per-command-not-handed-off"
     },
     "Boundaries": {
@@ -2691,7 +2691,7 @@
   },
   "plugins/dev-team/skills/build/SKILL.md": {
     "Orchestrator constraints": {
-      "summary": "**MUST — confirm agent-dispatch capability before any review-agent dispatch (issue #1461).** This skill dispatches review agents at three points: Step 3 (`spec-compliance-review` acceptance-criteria gate), sub-step 4 (per-step review checkpoint for `complex` steps), and sub-step 6 (slice review checkpoint).",
+      "summary": "**MUST — confirm agent-dispatch capability before any review-agent dispatch (issue #1461).** This skill dispatches review agents at four points: Step 3 (`spec-compliance-review` acceptance-criteria gate), sub-step 4 (per-step review checkpoint for `complex` steps), sub-step 6 (slice review checkpoint), and Step 7.6 (`acceptance-examiner` dispatch).",
       "anchor": "orchestrator-constraints"
     },
     "Parse Arguments": {

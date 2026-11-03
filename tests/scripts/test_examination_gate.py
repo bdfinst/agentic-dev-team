@@ -52,10 +52,16 @@ def _check(
     binding: str = HASH,
     digest: str = DIGEST,
     exempt: bool = False,
+    after: str | None = None,
 ) -> list[dict]:
     record = make_record() if record == "default" else record
     return gate.check_acceptance_examination(
-        PLAN_ID, record, PATH, Binding(binding, digest), exempt
+        PLAN_ID,
+        record,
+        PATH,
+        Binding(binding, digest),
+        exempt,
+        gate.parse_timestamp(after) if after else None,
     )
 
 
@@ -223,6 +229,93 @@ def test_record_for_another_plan_names_it() -> None:
     assert PATH in issue["message"]
 
 
+RECORDED_AT = "2026-11-03T10:00:00+00:00"
+
+
+@pytest.mark.parametrize(
+    "after",
+    [
+        "2026-11-03T10:00:01+00:00",
+        "2026-11-03T10:00:00Z",
+        "2026-11-03T10:00:00",
+        "2026-11-03T12:00:00+01:00",
+    ],
+    ids=[
+        "one-second-later",
+        "same-instant-z",
+        "same-instant-naive",
+        "same-instant-offset",
+    ],
+)
+def test_record_not_newer_than_after_counts_as_absent(after: str) -> None:
+    issue = _only_error(_check(after=after))
+    assert issue["rule_id"] == gate.RULE_MISSING
+    assert issue["message"] == gate.refusal_message(
+        gate.RULE_MISSING, PLAN_ID, path=PATH
+    )
+
+
+@pytest.mark.parametrize(
+    "after",
+    ["2026-11-03T09:59:59+00:00", "2026-11-03T09:59:59Z", "2026-11-03T11:00:00+02:00"],
+    ids=["second-earlier", "second-earlier-z", "earlier-in-offset"],
+)
+def test_record_newer_than_after_keeps_its_verdict(after: str) -> None:
+    assert _check(after=after) == []
+    not_met = make_record(overall="not-met", rows=[make_row("AC1", verdict="not-met")])
+    assert _only_error(_check(not_met, after=after))["rule_id"] == gate.RULE_NOT_MET
+
+
+@pytest.mark.parametrize(
+    "recorded_at",
+    [None, "", "yesterday", 20261103],
+    ids=["absent", "empty", "unparsable", "not-a-string"],
+)
+def test_record_without_a_usable_time_counts_as_absent_under_after(
+    recorded_at: object,
+) -> None:
+    record = make_record()
+    if recorded_at is None:
+        del record["recorded_at"]
+    else:
+        record["recorded_at"] = recorded_at
+    issue = _only_error(_check(record, after="2020-01-01T00:00:00Z"))
+    assert issue["rule_id"] == gate.RULE_MISSING
+
+
+def test_without_after_an_old_record_is_judged_on_its_verdict() -> None:
+    assert _check(make_record(recorded_at="1999-01-01T00:00:00+00:00")) == []
+
+
+@pytest.mark.parametrize(
+    ("record", "rule"),
+    [
+        (RecordUnreadable("bad"), gate.RULE_UNREADABLE),
+        (make_record(plan="plans/y.md"), gate.RULE_OTHER_PLAN),
+    ],
+    ids=["unreadable", "other-plan"],
+)
+def test_after_does_not_outrank_unreadable_or_other_plan(
+    record: object, rule: str
+) -> None:
+    assert _only_error(_check(record, after="2030-01-01T00:00:00Z"))["rule_id"] == rule
+
+
+def test_after_outranks_a_sentinel_binding() -> None:
+    issue = _only_error(_check(binding=EMPTY_DIFF, after="2030-01-01T00:00:00Z"))
+    assert issue["rule_id"] == gate.RULE_MISSING
+
+
+def test_exempt_plan_ignores_after() -> None:
+    issues = _check(record=None, exempt=True, after="2030-01-01T00:00:00Z")
+    assert [i["rule_id"] for i in issues] == [gate.RULE_NOT_APPLICABLE]
+
+
+@pytest.mark.parametrize("text", ["", "now", "2026-13-01T00:00:00Z"])
+def test_parse_timestamp_rejects_what_is_not_iso_8601(text: str) -> None:
+    assert gate.parse_timestamp(text) is None
+
+
 @pytest.mark.parametrize(
     ("binding", "text"),
     [
@@ -366,6 +459,28 @@ def _tick_all_and_render_section(root: Path) -> None:
 def test_real_met_record_is_current_per_load_and_check(repo: Path) -> None:
     write_met_record(repo)
     assert gate.load_and_check(repo / PLAN_ID) == []
+
+
+def test_load_and_check_after_a_later_time_reports_the_record_absent(
+    repo: Path,
+) -> None:
+    write_met_record(repo)
+    issue = _only_error(
+        gate.load_and_check(repo / PLAN_ID, after="2999-01-01T00:00:00Z")
+    )
+    assert issue["rule_id"] == gate.RULE_MISSING
+
+
+def test_load_and_check_after_an_earlier_time_keeps_the_met_verdict(
+    repo: Path,
+) -> None:
+    write_met_record(repo)
+    assert gate.load_and_check(repo / PLAN_ID, after="2000-01-01T00:00:00Z") == []
+
+
+def test_load_and_check_rejects_an_after_that_is_not_a_time(repo: Path) -> None:
+    with pytest.raises(ValueError, match="not an ISO 8601 time"):
+        gate.load_and_check(repo / PLAN_ID, after="soon")
 
 
 def test_real_met_record_stays_current_through_builds_own_edits(repo: Path) -> None:

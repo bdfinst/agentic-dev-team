@@ -204,8 +204,32 @@ def test_digest_distinguishes_list_membership():
         pytest.param(
             "Acceptance-examination plan: plans/a.md\n"
             "Acceptance-examination plan: plans/b.md",
-            "plans/a.md",
-            id="first-marker-wins",
+            "plans/b.md",
+            id="last-marker-wins",
+        ),
+        pytest.param(
+            "| Acceptance-examination plan: plans/quoted.md |\n"
+            "Quoted: Acceptance-examination plan: plans/quoted.md\n"
+            "Acceptance-examination plan: plans/real.md",
+            "plans/real.md",
+            id="quoted-mention-before-the-marker-is-ignored",
+        ),
+        pytest.param(
+            "Acceptance-examination plan: plans/real.md\n"
+            "  Acceptance-examination plan: plans/indented.md",
+            "plans/real.md",
+            id="indented-copy-after-the-marker-is-ignored",
+        ),
+        pytest.param(
+            "  Acceptance-examination plan: plans/indented.md",
+            None,
+            id="only-an-indented-copy",
+        ),
+        pytest.param(
+            "Acceptance-examination plan: plans/a.md\n"
+            "Acceptance-examination plan: ../x.md",
+            None,
+            id="rejected-last-marker-does-not-fall-back",
         ),
         pytest.param(
             "Acceptance-examination plan: ../outside/x.md", None, id="parent-segment"
@@ -243,6 +267,17 @@ def test_render_inputs_lists_numbered_criteria_gherkin_commands_and_marker():
     assert "Feature: One" in lines and "Feature: Two" in lines
     assert "- pytest -q" in lines and "- ruff check ." in lines
     assert lines[-1] == "Acceptance-examination plan: plans/x.md"
+
+
+_OWN_PLAN = _REPO_ROOT / "plans" / "2270-acceptance-examiner.md"
+
+
+@pytest.mark.skipif(not _OWN_PLAN.is_file(), reason="gitignored plan file is absent")
+def test_rendered_block_of_the_slice_plan_round_trips_to_its_own_id():
+    plan_id = "plans/2270-acceptance-examiner.md"
+    inputs = ei.plan_examination_inputs(_OWN_PLAN.read_text(encoding="utf-8"))
+    rendered = ei.render_inputs(inputs, plan_id)
+    assert ei.parse_plan_marker(rendered) == plan_id
 
 
 def test_rendered_block_round_trips_through_marker_parser():

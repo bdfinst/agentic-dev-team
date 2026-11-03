@@ -40,27 +40,41 @@ Acceptance-examination plan: <plan>
 
 ## Status handling
 
+In this file, `acceptance_examination.py status` means the subcommand, not
+the plan's **Status** line.
+
 ### Before dispatch
 
 Run `acceptance_examination.py status --plan <plan>`.
 
 | `status` result | Action |
 |---|---|
-| exit 0 | The record is current and `met`, or the plan declares `Examination: not-applicable`. Skip dispatch. For a `met` record, run `render` and continue to Step 7.5. For the exemption, do not run `render` (there is no record) and continue to Step 7.5. |
-| exit 1 for any reason → dispatch once | The record is absent, stale, or failing. Run the clean-tree check, print the progress line, and dispatch the examiner once with the template above. |
+| exit 0, met record | Skip dispatch. Run `render` and continue to Step 7.5. The record certifies committed state only. A later commit makes it stale. |
+| exit 0, plan declares `**Examination**: not-applicable` | Skip dispatch. Do not run `render` (there is no record). Continue to Step 7.5. The evidence bundle lists the exemption. |
+| exit 1, message starts `Acceptance examination cannot be verified` or `Acceptance examination cannot run` | The branch base is unresolvable, or there are no commits ahead of the base. Print the message and stop. Do not dispatch. There is nothing to examine. |
+| exit 1 for any other reason | The record is absent, stale, or failing. Dispatch once (steps 2 to 5 of Step 7.6): run the clean-tree check, run `inputs`, then dispatch the examiner once with the template above. |
+| exit 2 | Usage error, or the plan is not in a git repository. Print stderr and stop. No dispatch, no `render`. |
+
+If `inputs` exits non-zero (for example the plan has no
+`## Acceptance Criteria` section), print its stderr and stop. Do not
+dispatch. Otherwise print `Examining N criteria with run commands only; this
+can take several minutes.` and record
+`DISPATCHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)` just before the dispatch.
 
 ### After dispatch
 
-Run `acceptance_examination.py status --wait 15 --plan <plan>`. The wait
-covers the delay between the examiner stopping and the hook writing the
-record. Do not dispatch again.
+Run `acceptance_examination.py status --wait 15 --after $DISPATCHED_AT --plan <plan>`.
+The wait covers the delay between the examiner stopping and the hook writing
+the record. A record older than the dispatch counts as absent. Do not
+dispatch again.
 
 | `status --wait 15` result | Action |
 |---|---|
 | exit 0 | Run `render` and continue to Step 7.5. |
 | exit 1 with a readable record | Run `render`, print the status message, and stop. |
 | exit 1, record unreadable or for another plan | Do not run `render`. Print the status message and stop. |
-| exit 1, no record (absent) | Print the absent-after-dispatch text below, verbatim, and stop. |
+| exit 1, no record (absent) | Recognised by the message prefix `Acceptance examination missing`. Print the absent-after-dispatch text below, verbatim, and stop. |
+| exit 2 | Usage error, or the plan is not in a git repository. Print stderr and stop. No `render`. |
 
 If `render` exits non-zero, print its stderr and stop.
 
@@ -71,9 +85,13 @@ Absent-after-dispatch text:
 ## Hard stop
 
 Every stop above leaves the plan's **Status** line unchanged. Step 8 is not
-reached. The status message names the remedy for each case.
+reached. The `acceptance_examination.py status` message names the case.
 
-- `not-met`: a criterion failed its run command. Fix the delivered behavior, commit, then run `/build <plan>`. Do not proceed to /pr. In short, do not proceed to /pr.
-- `indeterminate`: the examiner could not observe a criterion, or its result was incomplete. Make the criterion observable in the plan, then run `/build <plan>`. In short, do not proceed to /pr.
-- `tainted`: the examiner ran a command it must not. Detection is by pattern and can be a false positive. Name a run command for each criterion, then run `/build <plan>`. In short, do not proceed to /pr.
-- `missing`: no record exists for this plan. Fix the cause the status message names, then run `/build <plan>`. In short, do not proceed to /pr.
+- `not-met`: a criterion failed its run command. Fix the delivered behavior, commit, then run `/build <plan>`. Do not proceed to /pr.
+- `indeterminate`: the examiner could not observe a criterion, or its result was incomplete or malformed. The `acceptance_examination.py status` message names which. Unobservable: make the criterion observable in the plan. Incomplete result: run `/build <plan>` again without changing the plan. Do not proceed to /pr.
+- `tainted`: the examiner ran a command it must not. Detection is by pattern and can be a false positive. Name a run command for each criterion, then run `/build <plan>`. Do not proceed to /pr.
+- `missing` (status absent): no record exists for this plan. Fix the cause in the absent-after-dispatch text above (the recorder is not installed, or the marker line is missing), then run `/build <plan>`. Do not proceed to /pr.
+
+The `**Examination**: not-applicable` header and any criterion edit belong to
+the human plan author at the plan gate. `/build` and `/fix` never add,
+remove, or reword them to clear a stop.

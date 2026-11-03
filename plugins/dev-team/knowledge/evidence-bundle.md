@@ -3,7 +3,7 @@
 A structured "what was checked, and what wasn't" statement carried by `/build`'s
 final output and `/pr`'s PR body. Verification here is a stack of scoped
 verifiers — unit suite, type check, lint, review agents, coverage delta,
-runtime verification (sub-step 4.9), Farley score — not one boolean. A green checkmark alone
+runtime verification (sub-step 4.9), Farley score, acceptance examination (Step 7.6) — not one boolean. A green checkmark alone
 over-claims: it says checks passed but not what each one actually verified,
 what it structurally cannot verify for this diff, which regions remain
 untested, or what risk was consciously accepted. The bundle closes that gap.
@@ -25,10 +25,10 @@ a run with nothing to report in one of them.
 
 | Section | Content | Data source (already produced) |
 |---|---|---|
-| Checks run | One row per verifier: exact command executed + result summary | `/pr` Step 2 gate commands/output; `/build` Step 5 suite output, Step 6 review status, Step 7 Farley score, Step 7.6 acceptance examination (the examination record, read via `acceptance_examination.py status`: its overall verdict) |
+| Checks run | One row per verifier: exact command executed + result summary | `/pr` Step 2 gate commands/output; `/build` Step 5 suite output, Step 6 review status, Step 7 Farley score, Step 7.6 acceptance examination (the pass or refusal line from `acceptance_examination.py status`, and the record's overall verdict from `acceptance_examination.py show --plan <plan>`, its `overall` field) |
 | Scope notes | What the executed suite does NOT verify for this diff | Review agents dispatched vs. skipped; gate steps reported "not applicable"; `metrics/verify-log.jsonl` `skipped` reasons; absent tools (coverage, mutation) |
 | Untested regions | Coverage-derived statement of what the diff leaves unexercised | `baseline-coverage.json` + `coverage-history.json` line/branch % and delta; diff-scoped uncovered files from a coverage report artifact when one exists; "not measured" when none exists |
-| Residual risks | Consciously accepted risk, derived-first | Deferred/escalated findings (`.claude/metrics/review-value.jsonl`), gate-bypass audit lines, structural-review waivers, negative coverage-delta warnings, `tainted` examination records, plans declaring `Examination: not-applicable`; author-judged prose may be appended but never substitutes for the derived rows |
+| Residual risks | Consciously accepted risk, derived-first | Deferred/escalated findings (`.claude/metrics/review-value.jsonl`), gate-bypass audit lines, structural-review waivers, negative coverage-delta warnings, plans declaring `**Examination**: not-applicable`; author-judged prose may be appended but never substitutes for the derived rows |
 
 ## Skeleton
 
@@ -69,7 +69,7 @@ instead of listing all 12 rows.
 
 ## Assembly is per-command, not handed off
 
-`/build` assembles its bundle from its own run's Step 5/6/7 outputs at Step 8.
+`/build` assembles its bundle from its own run's Step 5, 6, 7, and 7.6 outputs at Step 8.
 `/pr` assembles its bundle from its own Step 2 quality-gate results plus
 on-disk pipeline data (metrics files, coverage files) at its own runtime —
 never from a handoff file written by `/build`. Running `/pr` standalone (no

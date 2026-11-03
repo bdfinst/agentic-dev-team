@@ -4,9 +4,12 @@
 - `inputs --plan <file>` prints the numbered criteria, Gherkin, run commands
   and the plan marker line that `/build` Step 7.6 pastes into the examiner
   prompt.
-- `status --plan <file> [--wait N]` runs the same gate as
+- `status --plan <file> [--wait N] [--after <ISO8601>]` runs the same gate as
   `progress_guardian --pre-pr`; exit 0 when the examination is current and
   `met` (or the plan is exempt), exit 1 with exactly one refusal message.
+  With `--after`, a record whose `recorded_at` is missing or not strictly
+  newer than that time counts as absent, so a record left from before a
+  dispatch cannot pass for the dispatch's result. A trailing `Z` means UTC.
 - `show --plan <file>` prints the examination record JSON.
 - `render --plan <file>` writes the record into the plan's
   `## Acceptance Examination` section (replace in place, else after
@@ -262,22 +265,30 @@ def _non_negative_seconds(text: str) -> float:
     return seconds
 
 
-def _poll_gate(plan: str, wait: float, interval: float) -> list[dict]:
+def _iso_time(text: str) -> str:
+    if examination_gate.parse_timestamp(text) is None:
+        raise argparse.ArgumentTypeError(f"invalid ISO 8601 time: {text!r}")
+    return text
+
+
+def _poll_gate(
+    plan: str, wait: float, interval: float, after: str | None = None
+) -> list[dict]:
     """Check the gate; while it refuses, re-check until `wait` seconds pass."""
-    issues = examination_gate.load_and_check(plan)
+    issues = examination_gate.load_and_check(plan, after=after)
     if wait <= 0 or not examination_gate.blocking_issues(issues):
         return issues
     print(WAITING_LINE.format(wait=wait), file=sys.stderr)
     deadline = time.monotonic() + wait
     while examination_gate.blocking_issues(issues) and time.monotonic() < deadline:
         time.sleep(interval)  # 0 yields the CPU rather than busy-waiting
-        issues = examination_gate.load_and_check(plan)
+        issues = examination_gate.load_and_check(plan, after=after)
     return issues
 
 
 def cmd_status(args: argparse.Namespace) -> int:
     loaded = _load(args.plan)
-    issues = _poll_gate(args.plan, args.wait, args.poll_interval)
+    issues = _poll_gate(args.plan, args.wait, args.poll_interval, args.after)
     blocking = examination_gate.blocking_issues(issues)
     if blocking:
         print(blocking[0]["message"])
@@ -364,6 +375,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=_non_negative_seconds,
         default=DEFAULT_POLL_INTERVAL,
         help=f"seconds between checks (default {DEFAULT_POLL_INTERVAL})",
+    )
+    status.add_argument(
+        "--after",
+        type=_iso_time,
+        default=None,
+        help="count only a record written after this ISO 8601 time",
     )
     status.set_defaults(handler=cmd_status)
     show = commands.add_parser("show", help="print the examination record")
