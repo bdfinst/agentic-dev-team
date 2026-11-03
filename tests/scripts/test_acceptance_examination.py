@@ -7,6 +7,8 @@ import stat
 import subprocess
 import sys
 import threading
+import time
+import types
 from pathlib import Path
 
 import pytest
@@ -1046,6 +1048,16 @@ def test_render_does_not_rewrite_a_plan_that_already_has_the_section(
     assert cli.main(["render", "--plan", PLAN_ID]) == 0
 
 
+def _patch_poll_sleep(monkeypatch: pytest.MonkeyPatch, sleep) -> None:
+    """Replace only the CLI's view of `time.sleep`, leaving the real module alone.
+
+    Patching `time.sleep` itself would also fire inside `subprocess`'s
+    `wait(timeout=...)` loop, so the binding's git calls would trigger the
+    fake sleep before the first poll."""
+    fake = types.SimpleNamespace(monotonic=time.monotonic, sleep=sleep)
+    monkeypatch.setattr(cli, "time", fake)
+
+
 def _land_record_on_first_sleep(
     monkeypatch: pytest.MonkeyPatch, root: Path, *, commit_after: bool = False
 ) -> None:
@@ -1061,9 +1073,9 @@ def _land_record_on_first_sleep(
                 check=True,
                 capture_output=True,
             )
-        monkeypatch.setattr(cli.time, "sleep", lambda _s: None)
+        _patch_poll_sleep(monkeypatch, lambda _s: None)
 
-    monkeypatch.setattr(cli.time, "sleep", _sleep)
+    _patch_poll_sleep(monkeypatch, _sleep)
 
 
 def test_status_polling_computes_the_binding_up_front_and_once_more_on_arrival(
@@ -1088,12 +1100,66 @@ def test_status_polling_computes_the_binding_up_front_and_once_more_on_arrival(
         land(seconds)
         counting["on"] = True
 
-    monkeypatch.setattr(cli.time, "sleep", _land_uncounted)
+    _patch_poll_sleep(monkeypatch, _land_uncounted)
 
-    code = cli.main(["status", "--plan", PLAN_ID, "--wait", "30", "--poll-interval", "0"])
+    code = cli.main(
+        ["status", "--plan", PLAN_ID, "--wait", "30", "--poll-interval", "0"]
+    )
 
     assert code == 0
     assert len(calls) == 2  # once up front, once fresh when the record arrived
+
+
+def test_status_wait_rebinds_when_the_record_is_already_present(
+    in_process: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The precomputed binding serves only the missing-record polls: a record
+    present at the first poll still gets one fresh check."""
+    write_met_record(in_process)
+    calls: list[str] = []
+    real = gate.binding_for_plan
+
+    def _count(*args, **kwargs):
+        calls.append(args[1])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(gate, "binding_for_plan", _count)
+    monkeypatch.setattr(store, "binding_for_plan", _count)
+
+    code = cli.main(
+        ["status", "--plan", PLAN_ID, "--wait", "30", "--poll-interval", "0"]
+    )
+
+    assert code == 0
+    assert len(calls) == 2  # once up front, once fresh for the present record
+
+
+def test_status_wait_catches_a_commit_that_lands_before_the_first_poll(
+    in_process: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    write_met_record(in_process)
+    real = store.binding_for_plan
+
+    def _commit_after_binding(*args, **kwargs):
+        binding = real(*args, **kwargs)
+        monkeypatch.setattr(store, "binding_for_plan", real)
+        (in_process / SOURCE_FILE).write_text("changed\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "commit", "-q", "-am", "fix: change"],
+            cwd=in_process,
+            check=True,
+            capture_output=True,
+        )
+        return binding
+
+    monkeypatch.setattr(store, "binding_for_plan", _commit_after_binding)
+
+    code = cli.main(
+        ["status", "--plan", PLAN_ID, "--wait", "30", "--poll-interval", "0"]
+    )
+
+    assert code == 1
+    assert "commits landed after it ran" in capsys.readouterr().out
 
 
 def test_status_polling_without_a_record_computes_the_binding_once(
@@ -1122,7 +1188,9 @@ def test_status_wait_catches_a_commit_that_lands_with_the_record(
 ) -> None:
     _land_record_on_first_sleep(monkeypatch, in_process, commit_after=True)
 
-    code = cli.main(["status", "--plan", PLAN_ID, "--wait", "30", "--poll-interval", "0"])
+    code = cli.main(
+        ["status", "--plan", PLAN_ID, "--wait", "30", "--poll-interval", "0"]
+    )
 
     out = capsys.readouterr().out
     assert code == 1

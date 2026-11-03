@@ -284,32 +284,39 @@ def _poll_gate(
     wait: float,
     interval: float,
     after: str | None,
-    binding: store.Binding,
+    binding: store.Binding | None,
 ) -> list[dict]:
     """Check the gate; while the record is missing, re-check until `wait` seconds pass.
 
-    The polls reuse the caller's `binding`, which holds the branch-diff hash
-    computed once; the root, plan id and plan text are still resolved on each
-    call. When a poll sees a record that is not missing, the loop stops and one
-    final check runs with no precomputed binding, so a commit or plan edit made
-    during the wait is caught.
+    With no wait there is one plain check. Otherwise the polls reuse the
+    caller's precomputed `binding` (branch-diff hash and inputs digest, both
+    from when `status` started) and only ask whether the record is missing;
+    the root, plan id and plan text are still resolved on each call. As soon
+    as a record is present, before or during the wait, one final check runs
+    with a fresh binding, so a commit or plan edit made since `status`
+    started is caught.
     """
+    if wait <= 0:
+        return examination_gate.load_and_check(plan, after=after)
     issues = examination_gate.load_and_check(plan, after=after, binding=binding)
-    if wait <= 0 or not _is_missing(issues):
-        return issues
-    print(WAITING_LINE.format(wait=wait), file=sys.stderr)
-    deadline = time.monotonic() + wait
-    while _is_missing(issues) and time.monotonic() < deadline:
-        time.sleep(interval)  # 0 yields the CPU rather than busy-waiting
-        issues = examination_gate.load_and_check(plan, after=after, binding=binding)
     if _is_missing(issues):
-        return issues
+        print(WAITING_LINE.format(wait=wait), file=sys.stderr)
+        deadline = time.monotonic() + wait
+        while _is_missing(issues) and time.monotonic() < deadline:
+            time.sleep(interval)  # 0 yields the CPU rather than busy-waiting
+            issues = examination_gate.load_and_check(plan, after=after, binding=binding)
+        if _is_missing(issues):
+            return issues
     return examination_gate.load_and_check(plan, after=after)
 
 
 def cmd_status(args: argparse.Namespace) -> int:
     loaded = _load(args.plan)
-    binding = store.binding_for_plan(loaded.root, loaded.plan_id, loaded.plan_text)
+    binding = (
+        store.binding_for_plan(loaded.root, loaded.plan_id, loaded.plan_text)
+        if args.wait > 0
+        else None
+    )
     issues = _poll_gate(args.plan, args.wait, args.poll_interval, args.after, binding)
     blocking = examination_gate.blocking_issues(issues)
     if blocking:
