@@ -4773,11 +4773,11 @@
       "anchor": "arguments"
     },
     "Steps": {
-      "summary": "This creates a worktree beside the primary checkout (`<repo>-lane-<name>`) and a branch at the trunk tip.",
+      "summary": "This creates a worktree beside the primary checkout (`<checkout>-lane-<name>`, with `/` in the name replaced by `-`) and a branch at the trunk tip.",
       "anchor": "steps"
     },
     "1. Open a lane": {
-      "summary": "This creates a worktree beside the primary checkout (`<repo>-lane-<name>`) and a branch at the trunk tip.",
+      "summary": "This creates a worktree beside the primary checkout (`<checkout>-lane-<name>`, with `/` in the name replaced by `-`) and a branch at the trunk tip.",
       "anchor": "1-open-a-lane"
     },
     "2. Compose": {
