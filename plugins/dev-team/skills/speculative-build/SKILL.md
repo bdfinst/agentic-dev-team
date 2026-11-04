@@ -107,7 +107,7 @@ Hash the parent's plan file in the build worktree just before the batch dispatch
 git hash-object '<plan>'
 ```
 
-If the two hashes differ, a candidate wrote the parent's plan file. Halt with the reason `plan file changed during batch <b>`.
+If the two hashes differ, a candidate wrote the parent's plan file. Halt with the reason `plan file changed during batch <b>`. A non-zero exit from either hash is a script failure. Halt.
 
 Pair each returned result with the dispatch that produced it. Candidate `<i>` is that dispatch's id.
 
@@ -234,7 +234,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" rank --candidates-js
 
 ## Record
 
-Write the table rows to a file as `{"rows": [...]}`, one row per candidate id. Each row is the candidate dict plus `rank`, `outcome`, and `reason`. Take `rank[<i>]` from the output of `rank`. Give a plan-file-edited candidate a rank after the last ranked one, in id order. A `not dispatched` row carries only `id`, `outcome`, and `reason`.
+Write the table rows to a file as `{"rows": [...]}`, one row per candidate id. Each row is the candidate dict plus `rank`, `outcome`, and `reason`. Take `rank[<i>]` from the output of `rank`. Give a plan-file-edited candidate a rank after the last ranked one, in id order. With no ranked candidate, those ranks start at 1. A `not dispatched` row carries only `id`, `outcome`, and `reason`.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_summary_record.py" record --plan '<plan>' --step <step> --attempt <k> --result <rows-json>
@@ -246,7 +246,7 @@ Set the provisional outcomes this way:
 - Every other non-disqualified ranked candidate is `removed`. `removed` means the candidate is not kept. Its branch stays until Cleanup.
 - A disqualified candidate is `disqualified`. Its reason is `reasons[<i>]` from the output of `rank`.
 - A no-commits candidate and a plan-file-edited candidate are `disqualified`.
-- Write the reason yourself for a no-commits candidate (`no commits`) and for a plan-file-edited candidate (`plan file edited`).
+- Write the reason yourself for a no-commits candidate (`no commits`) and for a plan-file-edited candidate (`plan file edited`). This reason replaces `reasons[<i>]`.
 - An undispatched candidate is `not dispatched`, with the reason `cost cap`.
 
 `record` runs before Keep. Run it again with the same attempt after Keep, to write the final outcomes. Do not run two `record` calls at the same time on one plan file.
@@ -262,11 +262,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" reconcile --repo '<b
 Handle its exit code:
 
 - Exit 0: the winner is merged.
-- Exit 1 with `"merged": false` in the JSON on stdout: the winner becomes `disqualified`, with the reason `reconcile failed`. Try the next non-disqualified id in `order`, from the restored branch. If none remains, halt (see Failure modes).
+- Exit 1 with `"merged": false` in the JSON on stdout: the winner becomes `disqualified`, with the reason `reconcile failed`. Try the next non-disqualified id in `order`, from the restored branch. If none remains, halt (see Failure modes). The last candidate keeps the reason `reconcile failed`. The halt reason goes in the template only.
 - Exit 2 with the pre-merge SHA named on stderr: the restore failed. Halt (see Failure modes) and name the SHA in the reason.
 - Exit 1 without that JSON, exit 2 without that SHA, or any other non-zero exit: the script failed. Halt (see Failure modes).
 
-When Keep halts, the candidate whose merge was in progress is `disqualified`, with the reason `reconcile halted: <halt reason>`. The halt template names its branch to merge by hand.
+When `reconcile` exits non-zero and Keep halts, the candidate being merged is `disqualified`. Its reason is `reconcile halted: <halt reason>`. The halt template names its branch to merge by hand. A halt after exit 0 leaves the merged winner `kept`, with an empty reason.
 
 After Keep, `winner` means the candidate that `reconcile` merged.
 
@@ -278,10 +278,10 @@ Fill `test_files_staged` with the step's test files, as `/build`'s TEST → REFA
 git diff --name-only <base>..HEAD
 ```
 
-Keep the test files. Run `git add` on them. Record their paths:
+Keep the test files. Stage them without placing their names in a shell line. Record their paths:
 
 ```bash
-git add -- '<test file>'
+git diff -z --name-only <base>..HEAD -- '<test pathspecs>' | xargs -0 git add --
 ```
 
 ```json

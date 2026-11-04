@@ -398,6 +398,7 @@ FACTS = [
         literal_required=(
             "If the two hashes differ, a candidate wrote the parent's plan file.",
             "Halt with the reason `plan file changed during batch <b>`.",
+            "A non-zero exit from either hash is a script failure. Halt.",
         ),
     ),
     Fact(
@@ -422,6 +423,7 @@ FACTS = [
         literal_required=(
             "`<cost>` to its cost",
             '"cost_usd": <cost>',
+            '"branch": "<name or empty>"',
         ),
     ),
     # Suite and diff, Screening
@@ -663,6 +665,7 @@ FACTS = [
                 "Give a plan-file-edited candidate a rank after the last ranked one, "
                 "in id order."
             ),
+            "With no ranked candidate, those ranks start at 1.",
         ),
     ),
     Fact(
@@ -690,6 +693,7 @@ FACTS = [
             "Its reason is `reasons[<i>]` from the output of `rank`.",
             "(`no commits`)",
             "(`plan file edited`)",
+            "This reason replaces `reasons[<i>]`.",
         ),
     ),
     Fact(
@@ -740,10 +744,13 @@ FACTS = [
         "Keep",
         literal_required=(
             (
-                "When Keep halts, the candidate whose merge was in progress "
-                "is `disqualified`, with the reason `reconcile halted: <halt reason>`."
+                "When `reconcile` exits non-zero and Keep halts, the candidate "
+                "being merged is `disqualified`. "
+                "Its reason is `reconcile halted: <halt reason>`."
             ),
             "The halt template names its branch to merge by hand.",
+            "A halt after exit 0 leaves the merged winner `kept`, with an empty reason.",
+            "The last candidate keeps the reason `reconcile failed`.",
         ),
     ),
     Fact(
@@ -755,8 +762,8 @@ FACTS = [
                 "as `/build`'s TEST → REFACTOR transition does."
             ),
             "git diff --name-only <base>..HEAD",
-            "Keep the test files. Run `git add` on them.",
-            "git add -- '<test file>'",
+            "Keep the test files. Stage them without placing their names in a shell line.",
+            "git diff -z --name-only <base>..HEAD -- '<test pathspecs>' | xargs -0 git add --",
             '"test_files_staged": ["<test file>", "..."]',
         ),
     ),
@@ -781,7 +788,9 @@ FACTS = [
         literal_required=(
             "The merged candidate is `kept`, with an empty reason.",
             "Each candidate that failed to reconcile is `disqualified`",
+            "Every other row is unchanged.",
             "A halt's record carries these final outcomes for every row.",
+            "No provisional row survives a halt.",
         ),
     ),
     Fact(
