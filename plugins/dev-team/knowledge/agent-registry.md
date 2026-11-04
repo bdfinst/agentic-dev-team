@@ -137,6 +137,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 1,035 | Architect, Software Engineer |
 | Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | 2,900 | Orchestrator, Product Manager |
 | Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~3,243 | `/test-improve` (Phase 4), QA Engineer |
+| Lane | `skills/lane/SKILL.md` | ~1,808 | `/lane` command, Software Engineer |
 | Legacy Code | `skills/legacy-code/SKILL.md` | 2,326 | Software Engineer, QA Engineer, Architect |
 | Long Eval | `skills/long-eval/SKILL.md` | ~1,543 | QA Engineer, `/long-eval` command, standalone |
 | Mermaid Diagramming | `skills/mermaid-diagramming/SKILL.md` | ~1,557 | Architect, Software Engineer, Tech Writer |
