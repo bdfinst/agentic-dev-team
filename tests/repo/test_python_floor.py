@@ -246,6 +246,17 @@ SLICE_EXCLUSIONS = {
         "zipfile/pathlib only; no floor-sensitive runtime API"
     ),
     "issue_deps.py": "stdlib json/os/subprocess/pathlib only; no floor-sensitive runtime API",
+    "lane.py": (
+        "stdlib argparse/pathlib/sys and lane_core only; the floor gate "
+        "byte-compiles and imports it under the oldest interpreter but does "
+        "not run its tests there (A6); an AST test pins the import whitelist"
+    ),
+    "lane_core.py": (
+        "stdlib re/shlex/subprocess/dataclasses/pathlib and review_gate_hash "
+        "only; the floor gate byte-compiles and imports it under the oldest "
+        "interpreter but does not run its tests there (A6); an AST test pins "
+        "the import whitelist"
+    ),
     "mutation_stack_sections.py": (
         "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"
     ),
