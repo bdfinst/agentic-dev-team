@@ -31,6 +31,11 @@ _DOC_STRING_FENCE = '"""'
 # record's Build Progress items are exactly the lines the guardian parses.
 _PROGRESS_ITEM_RE = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
 _PROGRESS_STEP_PREFIX_RE = re.compile(r"^-\s+\[[ xX]\]\s+Step\s+(\d+(?:\.\d+)*):")
+# One grammar for both blocker lines: `**Open blocker**: Slice 2 - text` and
+# `**Resolved blocker**: Slice 2 - text`, optionally behind a list marker.
+_BLOCKER_RE = re.compile(
+    r"^(?:[-*]\s+)?\*\*(Open|Resolved) blocker\*\*\s*:\s*Slice\s+(\d+)\s+-\s+(.+?)\s*$"
+)
 _PROGRESS_SLICE_RE = re.compile(r"^[Ss]lice\s+(\d[^:\s]*)")
 
 
@@ -196,3 +201,21 @@ def _progress_item(line: str, flag: str, header: str) -> dict[str, object]:
     else:
         kind, item_id = "step", step_match.group(1) if step_match else header
     return {"kind": kind, "id": item_id, "header": header, "done": flag.lower() == "x"}
+
+
+def parse_blockers(text: str) -> dict[str, list[dict[str, str]]]:
+    """Return `{"open": [...], "resolved": [...]}` of `{"slice", "text"}` from
+    the blocker lines under `## Plan Review Summary`.
+
+    Reads the lines only; a resolved blocker does not cancel an open one here
+    (the check does that). Lines outside the section, or inside a fence, are
+    ignored.
+    """
+    blockers: dict[str, list[dict[str, str]]] = {"open": [], "resolved": []}
+    for line in _section_lines(text, "## Plan Review Summary"):
+        match = _BLOCKER_RE.match(line.strip())
+        if match:
+            blockers[match.group(1).lower()].append(
+                {"slice": match.group(2), "text": match.group(3)}
+            )
+    return blockers

@@ -444,3 +444,110 @@ def test_the_nested_real_shape_plan_yields_only_unindented_items():
         "Slice 2: The record",
         "after the mirror",
     ]
+
+
+# ---------------------------------------------------------------------------
+# parse_blockers
+# ---------------------------------------------------------------------------
+
+_REVIEW = """## Plan Review Summary
+
+Plan tier: standard
+
+**Open blocker**: Slice 2 - missing error path
+- **Open blocker**: Slice 3 - second  finding
+**Resolved blocker**: Slice 2 - earlier problem
+"""
+
+
+def test_open_and_resolved_blocker_lines_are_read():
+    assert plan_record_parse.parse_blockers(_REVIEW) == {
+        "open": [
+            {"slice": "2", "text": "missing error path"},
+            {"slice": "3", "text": "second  finding"},
+        ],
+        "resolved": [{"slice": "2", "text": "earlier problem"}],
+    }
+
+
+def test_a_resolved_blocker_does_not_cancel_an_open_one_in_the_parser():
+    text = (
+        "## Plan Review Summary\n"
+        "**Open blocker**: Slice 1 - same\n"
+        "**Resolved blocker**: Slice 1 - same\n"
+    )
+    result = plan_record_parse.parse_blockers(text)
+    assert len(result["open"]) == 1
+    assert len(result["resolved"]) == 1
+
+
+def test_blocker_lines_outside_the_summary_section_are_ignored():
+    text = (
+        "**Open blocker**: Slice 1 - before\n"
+        "## Plan Review Summary\n"
+        "## Risks\n"
+        "**Open blocker**: Slice 1 - after the section ends\n"
+    )
+    assert plan_record_parse.parse_blockers(text) == {"open": [], "resolved": []}
+
+
+def test_a_blocker_line_inside_a_fence_is_ignored():
+    text = "## Plan Review Summary\n```text\n**Open blocker**: Slice 1 - fenced\n```\n"
+    assert plan_record_parse.parse_blockers(text) == {"open": [], "resolved": []}
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "**Open blocker**: Slice two - not a number",
+        "**Open blocker**: Slice 2 -",
+        "**Open blocker**: Slice 2 - ",
+        "**Blocker**: Slice 2 - wrong label",
+        "Open blocker: Slice 2 - no bold",
+        "**Open blocker**: Slice <n> - <text>",
+    ],
+)
+def test_malformed_blocker_lines_are_not_blockers(line):
+    text = f"## Plan Review Summary\n{line}\n"
+    assert plan_record_parse.parse_blockers(text) == {"open": [], "resolved": []}
+
+
+@pytest.mark.parametrize(
+    "text", ["", "# Plan: only a title\n", "## Plan Review Summary\n"]
+)
+def test_a_plan_with_no_blockers_reads_as_none_open_and_none_resolved(text):
+    assert plan_record_parse.parse_blockers(text) == {"open": [], "resolved": []}
+
+
+# --- the template documents the conventions ---------------------------------
+
+_TEMPLATE = (
+    _REPO_ROOT
+    / "plugins"
+    / "dev-team"
+    / "skills"
+    / "plan"
+    / "references"
+    / "plan-template.md"
+)
+
+
+def _template_as_a_plan() -> str:
+    """The template body between its outer four-backtick fence."""
+    lines = _TEMPLATE.read_text().splitlines()
+    start = lines.index("````markdown") + 1
+    end = len(lines) - 1 - lines[::-1].index("````")
+    return "\n".join(lines[start:end])
+
+
+@pytest.mark.parametrize(
+    "producer", ["**Covers**:", "**Open blocker**:", "**Resolved blocker**:"]
+)
+def test_the_plan_template_shows_each_convention_line(producer):
+    assert producer in _TEMPLATE.read_text()
+
+
+def test_the_template_placeholders_do_not_opt_a_new_plan_in():
+    plan = _template_as_a_plan()
+    assert plan_record_parse.parse_covers(plan) == {}
+    assert plan_record_parse.parse_blockers(plan) == {"open": [], "resolved": []}
