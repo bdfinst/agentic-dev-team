@@ -1210,3 +1210,75 @@ def test_3_1_pin_orphan_head_with_a_subject_that_matches_nothing_fails(
             "Expected a commit whose subject contains: 'add the parser'"
         )
     ]
+
+
+# ---------------------------------------------------------------------------
+# #2275 — the steps come from the feature record's Build Progress view
+# ---------------------------------------------------------------------------
+
+
+def _clean_repo_with_plan(tmp_path: Path, content: str) -> Path:
+    plan = tmp_path / "plan.md"
+    make_plan(plan, content)
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "initial commit")
+    return plan
+
+
+def _messages(result: subprocess.CompletedProcess) -> list[str]:
+    return [i["message"] for i in json.loads(result.stdout)["issues"]]
+
+
+def test_2275_acceptance_criteria_mirror_is_not_read_as_steps(tmp_path: Path) -> None:
+    plan = _clean_repo_with_plan(
+        tmp_path,
+        "## Build Progress\n\n"
+        "### Acceptance Criteria\n"
+        "- [x] AC1 mirrored criterion\n\n"
+        "### Slices\n"
+        "- [ ] Slice 1: the real work\n",
+    )
+
+    result = run_pg(plan, "--skip-llm", "--pre-pr")
+
+    messages = _messages(result)
+    assert not any("mirrored criterion" in m for m in messages), messages
+    assert any("Slice 1: the real work" in m for m in messages), messages
+
+
+def test_2275_legacy_plan_without_build_progress_heading_is_read_whole(
+    tmp_path: Path,
+) -> None:
+    plan = _clean_repo_with_plan(
+        tmp_path,
+        "## Acceptance Criteria\n"
+        "- [ ] AC1 a criterion\n\n"
+        "- [ ] Step 1.1: first legacy step\n",
+    )
+
+    result = run_pg(plan, "--skip-llm", "--pre-pr")
+
+    messages = _messages(result)
+    assert any("AC1 a criterion" in m for m in messages), messages
+    assert any("first legacy step" in m for m in messages), messages
+
+
+def test_2275_build_progress_with_only_a_mirror_is_the_no_checkbox_error(
+    tmp_path: Path,
+) -> None:
+    plan = _clean_repo_with_plan(
+        tmp_path,
+        "## Build Progress\n\n### Acceptance Criteria\n- [ ] AC1 only the mirror\n",
+    )
+
+    result = run_pg(plan, "--skip-llm")
+
+    assert result.returncode == 1
+    issues = json.loads(result.stdout)["issues"]
+    assert [(i["severity"], i["message"], i["file"]) for i in issues] == [
+        (
+            "error",
+            "No checkbox steps found in plan file: plan.md",
+            str(plan.resolve()),
+        )
+    ]

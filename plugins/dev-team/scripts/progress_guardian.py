@@ -31,7 +31,8 @@ if _LIB not in sys.path:
     sys.path.insert(0, _LIB)
 
 import commit_evidence
-from commit_evidence import STEP_PATTERN, run_git
+import feature_record
+from commit_evidence import STEP_PATTERN, run_git  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Data model
@@ -57,71 +58,21 @@ class Step:
 def parse_plan(path: Path) -> tuple[list[Step], list[dict]]:
     """Parse plan file and return (steps, errors).
 
-    Scopes checkbox parsing with two flags when a Build Progress section
-    exists (issue #525):
-
-    - `in_build_progress` (outer scope) — when the plan contains a
-      `## Build Progress` heading, only lines between that heading and the
-      next `## ` H2 are eligible for step parsing. This prevents the
-      top-level `## Acceptance Criteria` section's checkboxes from being
-      treated as Build Progress steps.
-    - `in_acceptance` (inner skip) — within the Build Progress section,
-      the `/plan` skill renders a documentation mirror of the top-level
-      AC list under a `### Acceptance Criteria` H3 sub-heading. Those
-      mirror items lack work-tracking semantics (no `### Slice` heading,
-      no `**Files:**` line, no commit subject anchor). They are skipped
-      so the pre-PR gate doesn't demand a commit for each one. The
-      structural problem behind the workaround is tracked in #526.
-
-    When no `## Build Progress` heading is present (legacy/minimal plans),
-    falls back to whole-file scanning — preserves backward compatibility
-    with the pre-existing bats fixtures that construct minimal plans.
+    The steps are the feature record's `build_progress.items`
+    (`feature_record.build_record`), so the guardian and the record share one
+    reading of `## Build Progress`: only lines inside that section are steps
+    (issue #525), and the `### Acceptance Criteria` documentation mirror under
+    it is skipped (issue #526; the skip lives in `plan_record_parse`). A plan
+    with no `## Build Progress` heading is legacy and is scanned whole.
 
     Returns an error finding (naming the file) if no checkboxes found.
     """
     text = path.read_text(encoding="utf-8")
-
-    # First, see whether the plan has a `## Build Progress` heading. If it
-    # does, narrow the scan to that section only. Otherwise, scan the whole
-    # file (preserves backward compatibility with plans that don't carry
-    # the section structure).
-    lines = text.splitlines()
-    has_build_progress = any(
-        line.rstrip().startswith("## Build Progress") for line in lines
-    )
-
-    steps: list[Step] = []
-    in_build_progress = not has_build_progress  # legacy plans: scan everything
-    in_acceptance = False
-    for raw in lines:
-        line = raw.rstrip()
-        if has_build_progress:
-            if line.startswith("## Build Progress"):
-                in_build_progress = True
-                in_acceptance = False
-                continue
-            # Any other H2 closes the section.
-            if in_build_progress and line.startswith("## "):
-                in_build_progress = False
-                continue
-            # The `### Acceptance Criteria` subheading inside Build Progress
-            # is a documentation mirror — the same items appear in the
-            # top-level `## Acceptance Criteria`. Skip its checkboxes so
-            # they don't demand commits of their own. The structural
-            # redesign of where ACs live is tracked in #526; this PR
-            # ships the workaround so the gate stops false-positiving.
-            if in_build_progress and line.startswith("### Acceptance Criteria"):
-                in_acceptance = True
-                continue
-            # Any other H3 within Build Progress exits the AC subsection.
-            if in_acceptance and line.startswith("### "):
-                in_acceptance = False
-        if not in_build_progress or in_acceptance:
-            continue
-        m = STEP_PATTERN.match(line)
-        if m:
-            flag, header = m.group(1), m.group(2).strip()
-            steps.append(Step(done=(flag.lower() == "x"), header=header))
+    record = feature_record.build_record(text, spec_text=None)
+    steps = [
+        Step(done=item["done"], header=item["header"])
+        for item in record["build_progress"]["items"]
+    ]
 
     if not steps:
         return [], [
@@ -742,9 +693,7 @@ def main(argv: list[str] | None = None) -> int:
             # only, never a gate failure — freeze (when engaged) is the
             # real enforcement mechanism.
             warnings.extend(
-                check_declared_scope_adherence(
-                    steps, plan_path, repo_root, plan_text
-                )
+                check_declared_scope_adherence(steps, plan_path, repo_root, plan_text)
             )
 
     result = build_result(errors, warnings)
