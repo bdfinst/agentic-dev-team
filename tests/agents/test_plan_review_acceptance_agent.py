@@ -184,9 +184,13 @@ def test_report_instruction_covers_plan_and_slice_scopes() -> None:
     assert has_sentence_with_all(_falsifier_item(), "scenario_issues[]", "slice <id>")
 
 
-def test_scenario_field_is_the_scripts_slice_join_key() -> None:
+def test_scenario_field_is_the_title_and_the_issue_names_the_slice() -> None:
     assert has_sentence_with_all(
-        _falsifier_item(), "scenario_issues[]", "slice <id>: <title>", ISSUE_PREFIX
+        _falsifier_item(),
+        "scenario_issues[]",
+        "scenario title",
+        "`Falsifier: slice <id>: ...`",
+        "`slice` and `scenario` fields",
     )
 
 
