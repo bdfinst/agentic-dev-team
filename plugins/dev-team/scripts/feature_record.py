@@ -21,6 +21,7 @@ import posixpath
 import re
 import sys
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 
 # Bare sibling imports, as `plan_waves.py` does: `scripts/lib` is not a package.
@@ -32,6 +33,11 @@ import plan_parse
 import plan_record_parse
 
 SCHEMA = 1
+
+# Decides whether a commit backs one ticked Build Progress item: True backed,
+# False not backed, None cannot be established. The library never runs git; the
+# CLI supplies a callback built on `commit_evidence`.
+CommitEvidence = Callable[[dict[str, object]], "bool | None"]
 
 # Same grammar as `plan_parse._SLICE_HEADING_RE` / `_HEADING_RE`; a test pins
 # that both agree on the slice ids of the fixtures.
@@ -127,20 +133,52 @@ def _spec_part(
     return {"source": source, "loaded": False, "reason": reason, "sections": []}
 
 
+def _commit_backed(
+    commit_evidence: CommitEvidence, item: dict[str, object]
+) -> bool | None:
+    """Ask the callback about one ticked item. Anything but a bool, or a
+    callback that raises, is "cannot be established"."""
+    try:
+        answer = commit_evidence(dict(item))
+    except Exception:  # noqa: BLE001 - build_record is total; evidence is advisory
+        return None
+    return answer if isinstance(answer, bool) else None
+
+
+def _progress_items(
+    items: list[dict[str, object]], commit_evidence: CommitEvidence | None
+) -> list[dict[str, object]]:
+    """Copy the parsed items and fill `commit_backed` for each ticked one.
+
+    An unticked item, and every item when no callback was given, stays None.
+    """
+    return [
+        dict(
+            item,
+            commit_backed=(
+                _commit_backed(commit_evidence, item)
+                if commit_evidence is not None and item["done"]
+                else None
+            ),
+        )
+        for item in items
+    ]
+
+
 def build_record(
     plan_text: str,
     spec_text: str | None = None,
     plan_path: str | None = None,
-    commit_evidence: object = None,
+    commit_evidence: CommitEvidence | None = None,
     spec_source: str | None = None,
 ) -> dict[str, object]:
     """Return the schema-1 feature record for `plan_text`.
 
     Pure and total: text in, dict out. `spec_source` names the spec when the
     caller chose it (the `--spec` override); otherwise the plan's `**Spec**:`
-    line is the source. `commit_evidence` is accepted for the commit
-    invariant and not read yet, so every item's `commit_backed` is None and
-    `applicability.commit_evidence` is `not-evaluated`.
+    line is the source. `commit_evidence` is the optional callback for the
+    commit invariant: it is asked about each ticked item, and
+    `applicability.commit_evidence` is `evaluated` only when one was given.
     """
     criteria = plan_record_parse.parse_criteria(plan_text)
     covers_by_step = plan_record_parse.parse_covers(plan_text)
@@ -168,12 +206,14 @@ def build_record(
         "spec": _spec_part(plan_text, spec_text, spec_source),
         "build_progress": {
             "legacy": progress["legacy"],
-            "items": [dict(item, commit_backed=None) for item in progress["items"]],
+            "items": _progress_items(progress["items"], commit_evidence),
         },
         "applicability": {
             "criterion_coverage": "applies" if has_covers else "not-applicable",
             "reason": None if has_covers else "plan has no Covers line",
-            "commit_evidence": "not-evaluated",
+            "commit_evidence": (
+                "evaluated" if commit_evidence is not None else "not-evaluated"
+            ),
         },
     }
 
@@ -326,6 +366,24 @@ def _closed_slice_violations(plan: dict, progress: dict) -> list[dict[str, str]]
     return found
 
 
+def _commit_violations(progress: dict) -> list[dict[str, str]]:
+    """`tick-without-commit` for each ticked item the evidence says no commit
+    backs. An item with no answer (None) is unverifiable, not a violation."""
+    found = []
+    for item in progress["items"]:
+        if not (item["done"] and item["commit_backed"] is False):
+            continue
+        label = "Slice" if item["kind"] == "slice" else "Step"
+        fields = {"id": item["id"]}
+        declared = item.get("declared_files")
+        if declared:
+            fields["files"] = ", ".join(declared)
+        found.append(
+            make_violation("tick-without-commit", f"{label} {item['id']}", **fields)
+        )
+    return found
+
+
 def violation_key(violation: dict[str, str]) -> tuple[str, str]:
     """Identity of a violation: its invariant id and subject."""
     return violation["id"], violation["subject"]
@@ -348,6 +406,7 @@ def violations(record: dict) -> list[dict[str, str]]:
         _coverage_violations(plan, record["applicability"])
         + _scenario_step_violations(plan)
         + _closed_slice_violations(plan, record["build_progress"])
+        + _commit_violations(record["build_progress"])
     )
 
 
