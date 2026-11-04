@@ -113,8 +113,8 @@ It measures whether the extra candidates earn their cost.
   hold:
   - Its acceptance pass rate (the Quality metric) exceeds N = 1's by at
     least 20 points.
-  - Its median cost is at most 3× N = 1's median, plus the median screening
-    spend of the N = 3 runs.
+  - Its median step cost is at most 3× N = 1's median step cost, plus the
+    median screening spend of the N = 3 runs.
 - **Noise and ties.** A difference under 20 points is noise at five runs. At
   five runs, a difference of exactly 20 points (one run) is inconclusive.
   Extend the case to 10 runs, then apply the rule as written.

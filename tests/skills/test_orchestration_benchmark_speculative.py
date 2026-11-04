@@ -180,7 +180,7 @@ FACTS = [
         literal_required=(
             "N = 3 earns its cost only when both conditions hold",
             "Its acceptance pass rate (the Quality metric) exceeds N = 1's",
-            "Its median cost is at most",
+            "Its median step cost is at most",
         ),
     ),
     Fact(
@@ -271,7 +271,7 @@ FACTS = [
         required=(
             (
                 (
-                    rf"at most {COST_MULTIPLE}{TIMES} N = 1's median, "
+                    rf"at most {COST_MULTIPLE}{TIMES} N = 1's median step cost, "
                     r"plus the median screening spend"
                 ),
                 False,

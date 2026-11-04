@@ -64,7 +64,7 @@ _INVOCATION_RE = re.compile(r'python3 "\$\{CLAUDE_PLUGIN_ROOT\}/([^"]+)"(.*)$')
 def _max_candidates() -> int:
     """The script's own cap on N, so the bullet is checked against the code."""
     match = re.search(
-        r"^MAX_CANDIDATES = (\d+)$",
+        r"^MAX_CANDIDATES\b[^=]*=\s*(\d+)",
         CANDIDATES_SCRIPT.read_text(encoding="utf-8"),
         re.MULTILINE,
     )
@@ -295,8 +295,9 @@ FACTS = [
         "validation",
         literal_required=(
             (
-                "If a raw value contains a single quote, stop with the "
-                "validator's usage message and run nothing."
+                "If a raw value contains a single quote, stop before running "
+                "the validator and print `--candidates, --max-cost-usd and "
+                "--jobs values must not contain a single quote`."
             ),
         ),
     ),
@@ -315,7 +316,7 @@ FACTS = [
         "validation",
         literal_required=(
             "so a value that begins with `-` reaches the validator instead of argparse.",
-            "Omit a flag the user did not pass.",
+            "Omit a flag the user did not pass from the command below.",
         ),
     ),
     Fact(

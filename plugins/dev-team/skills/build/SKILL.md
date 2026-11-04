@@ -40,13 +40,11 @@ Arguments: $ARGUMENTS
 - `--candidates N`: **experimental**. Applies only to steps whose `**Complexity**` is `complex`; N is between 1 and 8, and 1 is the unchanged build. The `--max-cost-usd` cap bounds candidate dispatch spend, not screening, and the skill checks it between batches, so one batch may overrun it. The cap bounds one step; a wave of W speculative steps may spend up to W times the cap, where W is their count. With N ≥ 2, `--jobs` greater than 1 is rejected (exit 2); set `DEV_TEAM_MAX_PARALLEL_BUILDS` for wave fan-out. The procedure is in [`skills/speculative-build/SKILL.md`](../speculative-build/SKILL.md).
 - `--max-cost-usd X`: Required with N ≥ 2, and rejected otherwise (exit 2). The step's cost cap in dollars.
 
-Validate the speculative flags before Step 0. Pass each raw value with the `=` form, so a value that begins with `-` reaches the validator instead of argparse. Omit a flag the user did not pass. Single-quote each raw value. Before Step 0, also confirm the `Agent` (or `Task`) tool is available, as the Orchestrator constraints require.
+Validate the speculative flags before Step 0. Pass each raw value with the `=` form, so a value that begins with `-` reaches the validator instead of argparse. Omit a flag the user did not pass from the command below. Single-quote each raw value. If a raw value contains a single quote, stop before running the validator and print `--candidates, --max-cost-usd and --jobs values must not contain a single quote`. Before Step 0, also confirm the `Agent` (or `Task`) tool is available, as the Orchestrator constraints require.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" validate-flags --candidates='<raw>' --max-cost-usd='<raw>' --jobs='<raw>'
 ```
-
-If a raw value contains a single quote, stop with the validator's usage message and run nothing.
 
 On exit 2, print its stderr and stop. When the printed JSON has `"speculative": true`, locate the session transcript as [`/cost-report`](../cost-report/SKILL.md) does. Then run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_worktree_baseref.py" detect`, which must print `head`. If the transcript is not located or baseRef is not `head`, stop before Step 0 with the matching message below.
 
