@@ -304,6 +304,16 @@ def test_integrate_runs_all_the_checks_and_reports_each_failing_one(
     )
 
 
+def test_integrate_says_a_failed_git_command_stops_the_remaining_checks(
+    lane_text: str,
+) -> None:
+    assert (
+        "A git command that fails stops the remaining checks, and their blocks "
+        "are not printed: a missing block after a `git command failed` block "
+        "does not mean that check passed."
+    ) in step(lane_text, 3)
+
+
 @pytest.mark.parametrize(
     "fact",
     [

@@ -22,6 +22,7 @@ import importlib.util
 import os
 import re
 import shlex
+import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -52,8 +53,9 @@ NAME_GIT_PROBLEM = "git does not accept it as a branch name"
 
 #: Fast-forward when possible whatever `merge.ff` says, else a merge commit.
 #: `--no-overwrite-ignore` guards only the fast-forward case: git's `ort` merge
-#: ignores it. A true merge is guarded by `_merge_attempt`, which refuses first
-#: when the merge would write a tracked file over an ignored local file.
+#: ignores it (checked at runtime against git 2.43). A true merge is guarded by
+#: `_merge_attempt`, which refuses first when the merge would write a tracked
+#: file over an ignored local file.
 MERGE_ARGS = ("merge", "--ff", "--no-edit", "--no-overwrite-ignore")
 
 #: Appended to git's message when the unmerged paths could not be listed.
@@ -429,7 +431,7 @@ def _merge_attempt(target: MergeTarget, lane_path: Path) -> lane_core.GitAttempt
     if not in_the_way:
         return lane_core.git_attempt(args, lane_path)
     detail = (
-        f"it would overwrite ignored local files: {lane_core.listed_paths(in_the_way)}"
+        f"it would overwrite ignored local files: {lane_core.listed_items(in_the_way)}"
     )
     return lane_core.GitAttempt(False, shlex.join(["git", *args]), detail, "")
 
@@ -486,32 +488,38 @@ def _merge_and_read(
     except lane_core.RefusalError as failure:
         if not _head_moved(snapshot, lane_path):
             raise
-        step = lane_core.compose_failure_step_after([target.ref for target in merged])
         raise SettledRefusal(
             _settled(
                 snapshot,
                 lane_path,
-                step,
+                _failure_step(merged),
                 failure.refusal.why,
                 lane_core.compose_restored_refusal(failure.refusal),
             )
         ) from failure
     except BaseException as interruption:
-        if not _restore_verified(snapshot, lane_path):
+        try:
+            verified = _restore_verified(snapshot, lane_path)
+        except BaseException:  # noqa: BLE001 - a second interrupt: not verified
+            verified = False
+        if not verified:
             # Say so before the interrupt propagates: a lane left half merged
-            # must not look restored.
+            # must not look restored. The bare `raise` re-raises the original.
             lane_core.emit_refusals(
                 [
                     lane_core.compose_restore_unverified_refusal(
-                        lane_core.compose_failure_step_after(
-                            [target.ref for target in merged]
-                        ),
+                        _failure_step(merged),
                         snapshot.head,
                         type(interruption).__name__,
                     )
                 ]
             )
         raise
+
+
+def _failure_step(merged: Sequence[MergeTarget]) -> str:
+    """The step a compose failure is reported at: after the merges done so far."""
+    return lane_core.compose_failure_step_after([target.ref for target in merged])
 
 
 def cmd_compose(args: argparse.Namespace, cwd: Path) -> int:
@@ -638,17 +646,31 @@ def _gate_rejection_why(matched_rule: str) -> str:
 
 
 def _changed_files(lane_path: Path, trunk_ref: str) -> list[str]:
-    """The paths of the lane's diff against trunk; raises when git cannot say."""
-    completed = git_safe_diff.run_safe_git_diff(
-        ["--name-only"],
-        cwd=lane_path,
-        text=True,
-        target=f"{trunk_ref}...HEAD",
-        timeout=lane_core.GIT_TIMEOUT_SECONDS,
-    )
+    """The paths of the lane's diff against trunk.
+
+    Raises `RefusalError` (`git command failed`) when git cannot say: a
+    timeout, a launch failure or a non-zero exit.
+    """
+    command = f"git diff --name-only {trunk_ref}...HEAD"
+    try:
+        completed = git_safe_diff.run_safe_git_diff(
+            ["--name-only"],
+            cwd=lane_path,
+            text=True,
+            target=f"{trunk_ref}...HEAD",
+            timeout=lane_core.GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as failure:
+        raise _git_failed(command, lane_core.GIT_TIMED_OUT_DETAIL) from failure
+    except OSError as failure:
+        raise _git_failed(command, str(failure)) from failure
     if completed.returncode != 0:
-        raise OSError(f"git diff exited {completed.returncode}")
+        raise _git_failed(command, lane_core.git_message(completed))
     return [line for line in completed.stdout.splitlines() if line]
+
+
+def _git_failed(command: str, detail: str) -> lane_core.RefusalError:
+    return lane_core.RefusalError(lane_core.git_command_failed_refusal(command, detail))
 
 
 def _gate_file(lane_path: Path) -> Path:
@@ -666,7 +688,7 @@ def _gate_file(lane_path: Path) -> Path:
 
 
 def _review_gate_refusal(lane_path: Path, trunk_ref: str) -> lane_core.Refusal | None:
-    """The refusal when the PR review gate would reject this lane, else None.
+    """The refusal when the review gate would reject this lane, else None.
 
     The same decision as `pre_pr_review`'s `main()` for the lane's diff against
     `trunk_ref`: `_evaluate_gate` is the hook's own, loaded by path. This is the
@@ -675,8 +697,10 @@ def _review_gate_refusal(lane_path: Path, trunk_ref: str) -> lane_core.Refusal |
     A hook whose gate file name is not `GATE_FILE_NAME` is refused: the check
     and the apply would then work on different files.
 
-    Fail closed: an unloadable or degraded hook, a diff that cannot be read, an
-    empty diff, and any exception are all this one refusal, never a traceback.
+    Fail closed: an unloadable or degraded hook, an empty diff, and any
+    exception are all this one refusal, never a traceback. A git call that
+    fails or times out while the changed files are read is the exception: it is
+    the `git command failed` block, so `check_lane` stops on it.
     Reading only: the gate path is resolved with `migrate=False` and nothing is
     unlinked (the hook's `main()` does that on success; `integrate` does it at
     apply time). `PR_GATE_BYPASS_REASON` lives in the hook's `main()`, which is
@@ -719,6 +743,9 @@ def _review_gate_refusal(lane_path: Path, trunk_ref: str) -> lane_core.Refusal |
             if verdict.passed:
                 return None
             return _refuse(_gate_rejection_why(verdict.matched_rule))
+    except lane_core.RefusalError as failure:
+        # A git failure keeps its own block, so `check_lane` stops on it.
+        return failure.refusal
     except Exception as failure:  # noqa: BLE001 - fail closed: nothing here may escape
         return _refuse(
             f"the review gate could not be evaluated ({type(failure).__name__}: {failure})"
@@ -866,14 +893,16 @@ def check_lane(
     cwd: Path,
     allow_local_integration: bool = False,
 ) -> CheckedLane:
-    """Enter the lane once, read its HEAD once, and run every check. Changes nothing.
+    """Enter the lane once, read its HEAD once, and run the checks. Changes nothing.
 
     Not a git work tree, an unresolvable trunk and not being in a lane are the
     early stops: every check needs all three, so they are a single block. Past
     them every check runs, whatever an earlier one found, except after a `git
-    command failed` block: git itself is failing or stalled (up to
-    `GIT_TIMEOUT_SECONDS` per call), so the checks stop there and report the
-    blocks collected so far.
+    command failed` block: git itself is failing or stalled (each lane git call
+    waits up to `GIT_TIMEOUT_SECONDS`; the delegated gate calls carry no
+    timeout, see the module docstring), so the checks stop there and report the
+    blocks collected so far. The blocks of the checks that did not run are not
+    printed: a missing block after a `git command failed` block is not a pass.
     """
     try:
         entered = _enter_lane(trunk_arg, cwd)
@@ -917,6 +946,7 @@ def _configure_integrate(parser: argparse.ArgumentParser) -> None:
     _add_trunk_argument(parser)
     parser.add_argument(
         "--local-trunk",
+        dest="allow_local_integration",
         action="store_true",
         help="integrate locally even when origin is on GitHub (a PR repository)",
     )
@@ -1405,8 +1435,8 @@ def _print_integrated(plan: IntegratePlan) -> None:
 def cmd_integrate(args: argparse.Namespace, cwd: Path) -> int:
     """Fast-forward the local trunk branch to the lane, then remove the lane.
 
-    Every check runs first and changes nothing; the apply steps run only when
-    none refuses. The apply is bound to the lane HEAD and trunk commit the
+    The checks run first and change nothing (a git command that fails stops the
+    remaining checks); the apply steps run only when none refuses. The apply is bound to the lane HEAD and trunk commit the
     checks saw.
 
     Removing the lane worktree also deletes the ignored files inside it
@@ -1419,7 +1449,11 @@ def cmd_integrate(args: argparse.Namespace, cwd: Path) -> int:
             lane_core.invalid_identity_argument_refusal(invalid)
         )
     checked = check_lane(
-        args.trunk, args.expected_trunk, args.expected_tree, cwd, args.local_trunk
+        args.trunk,
+        args.expected_trunk,
+        args.expected_tree,
+        cwd,
+        args.allow_local_integration,
     )
     if checked.refusals:
         return emit_integrate_refusals(checked.refusals)

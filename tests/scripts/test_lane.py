@@ -16,7 +16,6 @@ import argparse
 import ast
 import dataclasses
 import re
-import sys
 from pathlib import Path
 
 import pytest

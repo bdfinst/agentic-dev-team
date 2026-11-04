@@ -74,6 +74,9 @@ EXIT_USAGE = 2
 #: Seconds before a git call is abandoned. Nothing here waits on a person.
 GIT_TIMEOUT_SECONDS = 120
 
+#: The `git command failed` detail for a call that hit `GIT_TIMEOUT_SECONDS`.
+GIT_TIMED_OUT_DETAIL = f"timed out after {GIT_TIMEOUT_SECONDS} s"
+
 #: What a `git status -z` entry looks like: two status letters, a space, the
 #: path. A rename or copy entry (`R`, `C`) is followed by a second entry that
 #: names its origin.
@@ -229,11 +232,11 @@ GIT_ANSWER_NO = 1
 DISPLAY_ESCAPED_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
 
 #: The largest code point `display_text` shows as `\\xNN`, and as `\\uNNNN`.
-MAX_SINGLE_BYTE_CODE = 0xFF
-MAX_BMP_CODE = 0xFFFF
+MAX_LATIN1_CODE_POINT = 0xFF
+MAX_BMP_CODE_POINT = 0xFFFF
 
 #: Paths named in a dirty-tree refusal before it says "and N more".
-MAX_LISTED_PATHS = 10
+MAX_LISTED_ITEMS = 10
 
 
 @dataclass(frozen=True)
@@ -385,18 +388,18 @@ def not_in_a_lane_refusal(cwd: Path, trunk_ref: str) -> Refusal:
     )
 
 
-def listed_paths(paths: Sequence[str], separator: str = ", ") -> str:
-    """The first `MAX_LISTED_PATHS` items joined by `separator`, then "and N more"."""
-    extra = len(paths) - MAX_LISTED_PATHS
+def listed_items(items: Sequence[str], separator: str = ", ") -> str:
+    """The first `MAX_LISTED_ITEMS` items joined by `separator`, then "and N more"."""
+    extra = len(items) - MAX_LISTED_ITEMS
     more = f" and {extra} more" if extra > 0 else ""
-    return f"{separator.join(paths[:MAX_LISTED_PATHS])}{more}"
+    return f"{separator.join(items[:MAX_LISTED_ITEMS])}{more}"
 
 
 @_registered(WHAT_LANE_HAS_UNCOMMITTED_CHANGES)
 def lane_has_uncommitted_changes_refusal(paths: Sequence[str]) -> Refusal:
     return Refusal(
         what=WHAT_LANE_HAS_UNCOMMITTED_CHANGES,
-        why=f"the lane has uncommitted changes: {listed_paths(paths)}",
+        why=f"the lane has uncommitted changes: {listed_items(paths)}",
         how=(
             "commit or stash the listed paths; if they are .claude/ files, "
             "add .claude/ to .gitignore (run /setup)"
@@ -407,7 +410,7 @@ def lane_has_uncommitted_changes_refusal(paths: Sequence[str]) -> Refusal:
 @_building(WHAT_LANE_HAS_UNCOMMITTED_CHANGES)
 def unfinished_merge_refusal(paths: Sequence[str] = ()) -> Refusal:
     """A merge begun and not concluded; `paths` are the lane's uncommitted paths."""
-    changes = f"; uncommitted paths: {listed_paths(paths)}" if paths else ""
+    changes = f"; uncommitted paths: {listed_items(paths)}" if paths else ""
     return Refusal(
         what=WHAT_LANE_HAS_UNCOMMITTED_CHANGES,
         why=f"the lane has a merge in progress ({MERGE_HEAD} exists){changes}",
@@ -431,7 +434,7 @@ def compose_failure_step_after(merged_labels: Sequence[str]) -> str:
 
 
 def compose_conflict_cause(paths: Sequence[str]) -> str:
-    return f"conflicts in {listed_paths(paths)}"
+    return f"conflicts in {listed_items(paths)}"
 
 
 def compose_merge_failed_cause(command: str, detail: str) -> str:
@@ -650,7 +653,7 @@ def trunk_worktree_dirty_refusal(
 ) -> Refusal:
     """The worktree that has the trunk branch holds uncommitted changes, an
     unfinished merge, or both."""
-    found = [listed_paths(paths)] if paths else []
+    found = [listed_items(paths)] if paths else []
     if merge_in_progress:
         found.append(f"a merge is in progress ({MERGE_HEAD} exists)")
     return Refusal(
@@ -722,7 +725,7 @@ def display_text(value: str) -> str:
     U+2028 or bidi control (U+202E) in it could forge a `why:` line, rewrite the
     terminal or reorder what the reader sees. Newline becomes `\\x0a`, ESC
     `\\x1b`, U+2028 `\\u2028`, U+202E `\\u202e`, and a code point
-    above U+FFFF `\\U` plus eight digits (the `\\u` form would be ambiguous there).
+    above U+FFFF `\\U` plus eight digits (a four-digit `\\u` escape cannot hold it).
     Nothing else changes.
     """
     return "".join(_visible(char) for char in value)
@@ -732,9 +735,9 @@ def _visible(char: str) -> str:
     if unicodedata.category(char) not in DISPLAY_ESCAPED_CATEGORIES:
         return char
     code = ord(char)
-    if code <= MAX_SINGLE_BYTE_CODE:
+    if code <= MAX_LATIN1_CODE_POINT:
         return f"\\x{code:02x}"
-    if code <= MAX_BMP_CODE:
+    if code <= MAX_BMP_CODE_POINT:
         return f"\\u{code:04x}"
     return f"\\U{code:08x}"
 
@@ -762,12 +765,21 @@ def _last_line(text: str) -> str:
     return lines[-1] if lines else ""
 
 
+def last_lines(lines: Sequence[str], separator: str = "; ") -> str:
+    """The last `MAX_LISTED_ITEMS` lines joined by `separator`, led by "N earlier
+    lines omitted" when there are more. For output whose explaining line is last."""
+    omitted = len(lines) - MAX_LISTED_ITEMS
+    lead = f"{omitted} earlier lines omitted{separator}" if omitted > 0 else ""
+    return f"{lead}{separator.join(lines[-MAX_LISTED_ITEMS:])}"
+
+
 def git_message(completed: subprocess.CompletedProcess[str]) -> str:
     """What git said about a failed call: the non-empty stderr lines joined with
-    `; ` (the first `MAX_LISTED_PATHS`, then "and N more"), else the last stdout
-    line (git prints some failures there)."""
+    `; ` (the last `MAX_LISTED_ITEMS`, led by "N earlier lines omitted": git's
+    explanation is usually the last line), else the last stdout line (git prints
+    some failures there)."""
     lines = [line.strip() for line in completed.stderr.splitlines() if line.strip()]
-    return listed_paths(lines, "; ") or _last_line(completed.stdout)
+    return last_lines(lines) or _last_line(completed.stdout)
 
 
 def _failure(argv: Sequence[str], detail: str) -> RefusalError:
@@ -838,8 +850,7 @@ def _run(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
             timeout=GIT_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
-        detail = f"timed out after {GIT_TIMEOUT_SECONDS} s"
-        raise _failure(argv, detail) from exc
+        raise _failure(argv, GIT_TIMED_OUT_DETAIL) from exc
     except OSError as exc:
         raise _failure(argv, str(exc)) from exc
 
@@ -1090,7 +1101,8 @@ def local_files_a_merge_would_overwrite(commit: str, cwd: Path) -> list[str]:
 
     Run in a lane with no uncommitted change, such a file can only be one git
     ignores. A merge writes the tracked file over it without a word: `ort`
-    does not honor `--no-overwrite-ignore`, which guards only a fast-forward.
+    does not honor `--no-overwrite-ignore`, which guards only a fast-forward
+    (checked at runtime against git 2.43).
     """
     args = ["diff-tree", "-r", "--name-only", "--no-renames", "--diff-filter=A", "-z"]
     added = _git_checked([*args, "HEAD", commit], cwd).stdout.split(NUL)

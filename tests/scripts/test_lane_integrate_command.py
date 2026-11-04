@@ -332,6 +332,7 @@ class Fault:
     inject: Callable[[ComposedLane], list[str]]
     what: str
     pinned: dict[str, tuple[str, ...]]
+    gate_kept: bool = True
 
 
 SINGLE_FAULTS = {
@@ -344,6 +345,7 @@ SINGLE_FAULTS = {
         fault_gate_deleted,
         WHAT_REVIEW_GATE,
         {"why": ("(rule: pre-pr-review)",), "how": ("/code-review --since",)},
+        gate_kept=False,
     ),
     "trunk moved": Fault(
         fault_trunk_moved,
@@ -399,7 +401,7 @@ def test_integrate_each_fault_refuses_alone_and_changes_nothing(
 
     assert_refused_unchanged(composed, capsys, fault.what, fault.pinned, *extra)
 
-    assert_lane_kept(composed, gate_kept=fault_id != "gate deleted")
+    assert_lane_kept(composed, gate_kept=fault.gate_kept)
 
 
 def test_integrate_a_fault_with_no_remote_reports_trunk_moved_then_fast_forward(

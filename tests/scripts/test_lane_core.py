@@ -18,7 +18,6 @@ import ast
 import dataclasses
 import os
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -579,14 +578,14 @@ def test_git_message_falls_back_to_the_last_stdout_line():
     assert lane_core.git_message(completed) == "CONFLICT (content)"
 
 
-def test_git_message_names_the_first_ten_lines_and_counts_the_rest():
+def test_git_message_keeps_the_last_ten_lines_and_counts_the_earlier_ones():
     completed = _completed(stderr="".join(f"line {n}\n" for n in range(1, 14)))
 
     message = lane_core.git_message(completed)
 
     assert message == (
-        "line 1; line 2; line 3; line 4; line 5; line 6; line 7; line 8; line 9; "
-        "line 10 and 3 more"
+        "3 earlier lines omitted; line 4; line 5; line 6; line 7; line 8; line 9; "
+        "line 10; line 11; line 12; line 13"
     )
 
 
@@ -1401,12 +1400,12 @@ def test_dirty_paths_outside_a_repository_is_a_git_command_failed_refusal(
 
 
 def test_the_dirty_tree_refusal_caps_the_paths_it_lists():
-    paths = [f"f{number}.txt" for number in range(lane_core.MAX_LISTED_PATHS + 3)]
+    paths = [f"f{number}.txt" for number in range(lane_core.MAX_LISTED_ITEMS + 3)]
 
     refusal = lane_core.lane_has_uncommitted_changes_refusal(paths)
 
     assert "f0.txt" in refusal.why
-    assert f"f{lane_core.MAX_LISTED_PATHS}.txt" not in refusal.why
+    assert f"f{lane_core.MAX_LISTED_ITEMS}.txt" not in refusal.why
     assert "and 3 more" in refusal.why
 
 

@@ -68,7 +68,8 @@ import lane_core
 
 #: The `merge` arguments before the target: a fast-forward is wanted, and an
 #: editor is never opened.
-#: `--no-overwrite-ignore`: a tracked file never arrives over an ignored local file.
+#: `--no-overwrite-ignore` guards only a fast-forward; `_merge_attempt` guards a
+#: true merge against writing over an ignored local file.
 MERGE_ARGS = ["git", "merge", "--ff", "--no-edit", "--no-overwrite-ignore"]
 
 
@@ -811,27 +812,25 @@ def test_a_failed_origin_lookup_with_nothing_to_merge_prints_no_next_line(
     assert unchanged_state(lane_path) == before
 
 
+def interrupt_the_second_merge(monkeypatch) -> GitFailure:
+    """`KeyboardInterrupt` at the second compose merge (not `merge --abort`)."""
+    # double-waiver: B1 - `GitFailure` patches `lane_core._run`, the one seam to
+    # the git child process; an interrupt at a chosen call cannot be sent any
+    # other way.
+    return GitFailure(monkeypatch, MERGE_ARGS[1:4], nth=2, raises=KeyboardInterrupt())
+
+
 def test_an_interrupt_during_the_second_merge_restores_the_lane_and_propagates(
     repo_with_origin, capsys, monkeypatch
 ):
     lane_path = lane_needing_two_merges(repo_with_origin)
     before = unchanged_state(lane_path)
-    real_attempt = lane_core.git_attempt
-    merges: list[list[str]] = []
-
-    def interrupted(args, cwd):
-        if args[:1] == ["merge"] and "--abort" not in args:
-            merges.append(list(args))
-            if len(merges) == 2:
-                raise KeyboardInterrupt
-        return real_attempt(args, cwd)
-
-    monkeypatch.setattr(lane_core, "git_attempt", interrupted)
+    interrupted = interrupt_the_second_merge(monkeypatch)
 
     with pytest.raises(KeyboardInterrupt):
         lane.main(["compose"], cwd=lane_path)
 
-    assert len(merges) == 2
+    assert len(interrupted.matching) == 2
     captured = capsys.readouterr()
     assert (captured.out, captured.err) == ("", "")
     assert unchanged_state(lane_path) == before
@@ -843,17 +842,7 @@ def test_an_interrupt_whose_restore_is_unverified_says_so_and_propagates(
 ):
     lane_path = lane_needing_two_merges(repo_with_origin)
     before_head = git(lane_path, "rev-parse", "HEAD")
-    real_attempt = lane_core.git_attempt
-    merges: list[list[str]] = []
-
-    def interrupted(args, cwd):
-        if args[:1] == ["merge"] and "--abort" not in args:
-            merges.append(list(args))
-            if len(merges) == 2:
-                raise KeyboardInterrupt
-        return real_attempt(args, cwd)
-
-    monkeypatch.setattr(lane_core, "git_attempt", interrupted)
+    interrupt_the_second_merge(monkeypatch)
     GitFailure(monkeypatch, ["reset"], nth=None, stderr="fatal: boom\n")
 
     with pytest.raises(KeyboardInterrupt):
@@ -865,6 +854,27 @@ def test_an_interrupt_whose_restore_is_unverified_says_so_and_propagates(
     assert block["refused"] == "compose restore unverified"
     assert "KeyboardInterrupt" in block["why"]
     assert "restored to its state" not in block["why"]
+    assert f"git reset --hard {before_head}" in block["how"]
+
+
+@covers("compose restore unverified")
+def test_a_second_interrupt_during_the_restore_counts_as_unverified_and_the_first_propagates(
+    repo_with_origin, capsys, monkeypatch
+):
+    lane_path = lane_needing_two_merges(repo_with_origin)
+    before_head = git(lane_path, "rev-parse", "HEAD")
+    interrupt_the_second_merge(monkeypatch)
+    # double-waiver: B1 - the same seam: a second interrupt at the restore.
+    GitFailure(monkeypatch, ["reset"], nth=None, raises=KeyboardInterrupt())
+
+    with pytest.raises(KeyboardInterrupt):
+        lane.main(["compose"], cwd=lane_path)
+
+    captured = capsys.readouterr()
+    (block,) = parse_blocks(captured.err)
+    assert captured.out == ""
+    assert block["refused"] == "compose restore unverified"
+    assert "KeyboardInterrupt" in block["why"]
     assert f"git reset --hard {before_head}" in block["how"]
 
 

@@ -19,6 +19,7 @@ tested in `test_lane_integrate_command.py`, and the source-text pins in
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -1039,7 +1040,7 @@ def test_refusals_for_a_repository_that_does_not_ignore_claude_names_setup(
 
 @covers("git command failed")
 def test_refusals_for_a_git_failure_in_a_check_is_its_block_and_the_later_checks_do_not_run(
-    composed_without_remote, monkeypatch, capsys
+    composed_without_remote, monkeypatch, capsys, argv_spy
 ):
     composed = composed_without_remote
     # Check 4 would report this file if it ran.
@@ -1053,11 +1054,51 @@ def test_refusals_for_a_git_failure_in_a_check_is_its_block_and_the_later_checks
         exit_code=128,
         stderr="fatal: boom\n",
     )
-    # `nth=0` never matches: this only records the calls of check 4 (`status`).
-    later_check = GitFailure(monkeypatch, ["status"], nth=0)
+    calls_before = len(argv_spy.records)
 
     (block,) = printed_blocks(refusals_for(composed), capsys)
 
     assert block["refused"] == WHAT_GIT_FAILED
     assert "fatal: boom" in block["why"]
-    assert later_check.matching == []
+    assert not git_calls_since(argv_spy, calls_before, "status")
+
+
+def git_calls_since(argv_spy, count: int, subcommand: str) -> list[list[str]]:
+    """The argv of the git calls recorded after the first `count` that ran `subcommand`."""
+    return [list(argv) for argv in argv_spy.records[count:] if subcommand in argv[:6]]
+
+
+@covers("git command failed")
+@pytest.mark.parametrize(
+    ("failure", "expected_detail"),
+    [
+        (
+            subprocess.TimeoutExpired(["git", "diff"], lane_core.GIT_TIMEOUT_SECONDS),
+            lane_core.GIT_TIMED_OUT_DETAIL,
+        ),
+        (OSError("git vanished"), "git vanished"),
+    ],
+    ids=["timeout", "launch failure"],
+)
+def test_refusals_for_a_git_failure_in_the_review_gate_changed_files_stops_the_checks(
+    composed_without_remote, monkeypatch, capsys, argv_spy, failure, expected_detail
+):
+    composed = composed_without_remote
+    # Check 4 would report this file if it ran.
+    leave_untracked_file(composed.path)
+
+    def failing_diff(*_args, **_kwargs):
+        raise failure
+
+    # double-waiver: B1 - `git_safe_diff.run_safe_git_diff` is the seam to the
+    # git child process; a timeout or a launch failure of it cannot be caused
+    # for real at a chosen call.
+    monkeypatch.setattr(lane.git_safe_diff, "run_safe_git_diff", failing_diff)
+    calls_before = len(argv_spy.records)
+
+    (block,) = printed_blocks(refusals_for(composed), capsys)
+
+    assert block["refused"] == WHAT_GIT_FAILED
+    assert expected_detail in block["why"]
+    assert "git diff --name-only" in block["why"]
+    assert not git_calls_since(argv_spy, calls_before, "status")

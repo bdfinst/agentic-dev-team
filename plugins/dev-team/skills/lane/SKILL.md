@@ -73,7 +73,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lane.py" integrate \
 
 The `next:` line that `compose` printed holds the `integrate` command with both identities, and `--trunk` when you gave one. Run it as `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lane.py" <next: arguments>`, where `<next: arguments>` is the text after `lane.py` in that line. Or pass the same values to the command above, with the same `--trunk` that you gave to `compose`.
 
-`integrate` runs all six checks and reports each failing one. It changes nothing until all pass. It then:
+`integrate` runs all six checks and reports each failing one. A git command that fails stops the remaining checks, and their blocks are not printed: a missing block after a `git command failed` block does not mean that check passed. It changes nothing until all pass. It then:
 
 1. Fast-forwards local trunk to the lane HEAD.
 2. Removes the lane's review gate file.
