@@ -144,7 +144,7 @@ def test_validate_flags_rejects_non_ascii_digits_in_candidates() -> None:
     assert r.stderr.startswith("--candidates must be an integer")
 
 
-@pytest.mark.parametrize("cap", ["1_0", " 5", "5 "])
+@pytest.mark.parametrize("cap", ["1_0", " 5", "5 ", "1e999"])
 def test_validate_flags_rejects_cap_spellings_float_would_tolerate(cap) -> None:
     r = _run("validate-flags", "--candidates", "2", "--max-cost-usd", cap)
     assert (r.returncode, r.stdout) == (2, "")
@@ -431,6 +431,106 @@ def test_sort_key_ignores_cost_usd() -> None:
     from_dict = build_candidates.Candidate.from_dict
     cheap, dear = from_dict(_cand(1, cost_usd=0.1)), from_dict(_cand(1, cost_usd=99))
     assert build_candidates.sort_key(cheap) == build_candidates.sort_key(dear)
+
+
+# --- project ----------------------------------------------------------------
+
+
+def _project(cap, spent, completed, remaining, delta):
+    return _run(
+        "project",
+        "--cap",
+        str(cap),
+        "--spent",
+        str(spent),
+        "--completed",
+        str(completed),
+        "--remaining",
+        str(remaining),
+        "--last-batch-delta",
+        str(delta),
+    )
+
+
+def test_project_continues_when_the_projection_equals_the_cap() -> None:
+    r = _project(10, 4, 2, 3, 2)
+    out = json.loads(r.stdout)
+    assert (r.returncode, out["decision"], out["projected"], out["reason"]) == (
+        0,
+        "continue",
+        10,
+        "",
+    )
+
+
+def test_project_stops_when_the_projection_exceeds_the_cap() -> None:
+    out = json.loads(_project(10, 4.5, 2, 3, 2.25).stdout)
+    assert (out["decision"], out["projected"], out["reason"]) == (
+        "stop",
+        11.25,
+        "projected spend exceeds the cap",
+    )
+
+
+def test_project_stops_once_spend_reaches_the_cap() -> None:
+    out = json.loads(_project(10, 10, 3, 1, 3).stdout)
+    assert (out["decision"], out["reason"]) == ("stop", "spent has reached the cap")
+
+
+def test_project_halts_when_the_meter_saw_no_spend() -> None:
+    out = json.loads(_project(10, 0, 1, 2, 0).stdout)
+    assert out["decision"] == "halt"
+    assert "cost meter recorded no spend for the last batch" in out["reason"]
+
+
+def test_project_halts_on_zero_delta_even_when_spend_has_reached_the_cap() -> None:
+    assert json.loads(_project(10, 12, 2, 1, 0).stdout)["decision"] == "halt"
+
+
+def test_project_output_has_exactly_the_documented_keys_on_one_line() -> None:
+    r = _project(10, 4, 2, 3, 2)
+    assert list(json.loads(r.stdout)) == [
+        "cap",
+        "completed",
+        "decision",
+        "last_batch_delta",
+        "projected",
+        "reason",
+        "remaining",
+        "spent",
+    ]
+    assert r.stdout.count("\n") == 1
+
+
+def test_project_rounds_projected_to_four_decimals() -> None:
+    out = json.loads(_project(100, 1, 3, 1, 1).stdout)
+    assert out["projected"] == 1.3333
+
+
+_BAD_PROJECT_ARGS = [
+    ("0", "1", "1", "1", "1"),
+    ("10", "-1", "1", "1", "1"),
+    ("10", "1", "1.5", "1", "1"),
+    ("10", "1", "0", "1", "1"),
+    ("10", "1", "1", "0", "1"),
+    ("inf", "1", "1", "1", "1"),
+    ("10", "nan", "1", "1", "1"),
+    ("10", "1", "1", "1", "-1"),
+]
+
+
+@pytest.mark.parametrize("cap,spent,completed,remaining,delta", _BAD_PROJECT_ARGS)
+def test_project_rejects_out_of_range_arguments_with_exit_two(
+    cap, spent, completed, remaining, delta
+) -> None:
+    r = _project(cap, spent, completed, remaining, delta)
+    assert (r.returncode, r.stdout) == (2, "")
+    assert "usage" in r.stderr
+
+
+def test_project_requires_every_argument() -> None:
+    r = _run("project", "--cap", "10")
+    assert (r.returncode, r.stdout) == (2, "")
 
 
 # --- floor slice exemption (the module's own pass is run alongside this file) -

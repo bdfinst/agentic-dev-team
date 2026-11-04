@@ -34,6 +34,11 @@ _ASCII_INT_RE = re.compile(r"-?[0-9]+")
 _ASCII_NUMBER_RE = re.compile(r"(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 
 
+PROJECTED_DECIMALS = 4
+HALT_REASON_NO_SPEND = (
+    "cost meter recorded no spend for the last batch; --max-cost-usd cannot be enforced"
+)
+
 SCREENING_OK = "ok"
 SCREENING_UNPARSEABLE_PREFIX = "unparseable: "
 
@@ -70,9 +75,16 @@ def _parse_candidates(raw: str) -> int:
     return value
 
 
-def _parse_cost_cap(raw: str) -> float:
+def _parse_finite_number(raw: str) -> float:
+    """Parse a plain ASCII decimal; NaN when the spelling or magnitude is not
+    a finite number."""
     value = float(raw) if _ASCII_NUMBER_RE.fullmatch(raw) else math.nan
-    if not (math.isfinite(value) and value > 0):
+    return value if math.isfinite(value) else math.nan
+
+
+def _parse_cost_cap(raw: str) -> float:
+    value = _parse_finite_number(raw)
+    if not value > 0:
         raise FlagError(f"--max-cost-usd must be a number greater than 0; got '{raw}'")
     return value
 
@@ -270,6 +282,64 @@ def _load_candidates(path: str) -> list[Candidate]:
     return candidates
 
 
+def project(
+    cap: float, spent: float, completed: int, remaining: int, last_batch_delta: float
+) -> dict:
+    """Decide whether to dispatch the next batch: halt when the meter saw no
+    spend, stop when spent has reached the cap or the linear projection
+    exceeds it, else continue."""
+    per_candidate = spent / completed if completed > 0 else 0.0
+    projected = spent + remaining * per_candidate
+    if last_batch_delta == 0:
+        decision, reason = "halt", HALT_REASON_NO_SPEND
+    elif spent >= cap:
+        decision, reason = "stop", "spent has reached the cap"
+    elif projected > cap:
+        decision, reason = "stop", "projected spend exceeds the cap"
+    else:
+        decision, reason = "continue", ""
+    return {
+        "cap": cap,
+        "completed": completed,
+        "decision": decision,
+        "last_batch_delta": last_batch_delta,
+        "projected": round(projected, PROJECTED_DECIMALS),
+        "reason": reason,
+        "remaining": remaining,
+        "spent": spent,
+    }
+
+
+def _finite_non_negative(raw: str) -> float:
+    value = _parse_finite_number(raw)
+    if not value >= 0:
+        raise argparse.ArgumentTypeError(f"must be a finite number >= 0; got '{raw}'")
+    return value
+
+
+def _positive_cap(raw: str) -> float:
+    value = _parse_finite_number(raw)
+    if not value > 0:
+        raise argparse.ArgumentTypeError(f"must be a finite number > 0; got '{raw}'")
+    return value
+
+
+def _positive_int(raw: str) -> int:
+    value = _parse_ascii_int(raw)
+    if value is None or value < 1:
+        raise argparse.ArgumentTypeError(f"must be an integer >= 1; got '{raw}'")
+    return value
+
+
+def _cmd_project(args: argparse.Namespace) -> int:
+    _emit(
+        project(
+            args.cap, args.spent, args.completed, args.remaining, args.last_batch_delta
+        )
+    )
+    return EXIT_OK
+
+
 def _cmd_validate_flags(args: argparse.Namespace) -> int:
     try:
         result = validate_flags(args.candidates, args.max_cost_usd, args.jobs)
@@ -303,6 +373,18 @@ def _build_parser() -> argparse.ArgumentParser:
     ranking = sub.add_parser("rank", help="rank candidates and pick a winner")
     ranking.add_argument("--candidates", required=True, help="candidates JSON file")
     ranking.set_defaults(handler=_cmd_rank)
+
+    projection = sub.add_parser(
+        "project", help="decide whether to dispatch another batch"
+    )
+    projection.add_argument("--cap", required=True, type=_positive_cap)
+    projection.add_argument("--spent", required=True, type=_finite_non_negative)
+    projection.add_argument("--completed", required=True, type=_positive_int)
+    projection.add_argument("--remaining", required=True, type=_positive_int)
+    projection.add_argument(
+        "--last-batch-delta", required=True, type=_finite_non_negative
+    )
+    projection.set_defaults(handler=_cmd_project)
     return parser
 
 
