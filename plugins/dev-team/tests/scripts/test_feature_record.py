@@ -39,6 +39,16 @@ def _swap(text: str, old: str, new: str) -> str:
     return result
 
 
+@pytest.fixture(autouse=True)
+def _no_enclosing_repository(monkeypatch):
+    """The fixtures sit inside this repository. `check` and `view` read git for
+    the commit invariant, so stop git's upward search at the repository root:
+    these tests are about the structural invariants, whatever branch the suite
+    runs on. The commit invariant is tested in test_feature_record_commits.py
+    against repositories built for the purpose."""
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(_REPO_ROOT))
+
+
 def _run(argv: list[str], capsys) -> tuple[int, str, str]:
     code = feature_record.main(argv)
     out, err = capsys.readouterr()
@@ -509,7 +519,9 @@ def test_a_plan_with_every_invariant_met_has_no_violation(capsys):
     code, out, err = _run(["check", str(FIXTURES / "plan_complete.md")], capsys)
     assert code == 0
     assert json.loads(out)["violations"] == []
-    assert err.strip() == "0 violations, 0 unverifiable"
+    # Slice 1 is ticked and no repository is in reach: unverifiable, not a violation.
+    assert json.loads(out)["unverifiable"] == ["1"]
+    assert err.strip() == "0 violations, 1 unverifiable"
 
 
 def test_a_criterion_no_covers_line_names_is_a_violation(capsys):
@@ -518,7 +530,7 @@ def test_a_criterion_no_covers_line_names_is_a_violation(capsys):
     code, out, err = _run(["check", str(plan)], capsys)
     assert code == 1
     assert [v["subject"] for v in json.loads(out)["violations"]] == ["AC2"]
-    assert err.strip() == "1 violations, 0 unverifiable"
+    assert err.strip() == "1 violations, 1 unverifiable"
 
 
 def test_a_criterion_whose_covering_slice_has_no_scenario_is_a_violation():

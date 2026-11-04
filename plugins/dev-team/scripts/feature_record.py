@@ -565,6 +565,56 @@ def _load_referenced_spec(plan_path: str, plan_text: str) -> str | None:
     return None
 
 
+def _commit_evidence_callback(plan_path: str, plan_text: str) -> CommitEvidence:
+    """Return the callback that backs ticked items with git history.
+
+    Imported here, not at module level: only the CLI runs git. The callback
+    answers None (unverifiable) whenever the evidence cannot be established:
+    no git or no repository, no resolvable branch base (an orphan or detached
+    HEAD with no trunk ref), a git error, or no commit past the base. The
+    progress guardian keeps its own policy for those cases. History is read
+    once, on the first ticked item.
+    """
+    import commit_evidence
+
+    history: list[tuple[list[str], set[str]] | None] = []
+
+    def load() -> tuple[list[str], set[str]] | None:
+        plan_dir = str(Path(plan_path).resolve().parent)
+        root = commit_evidence.run_git(
+            ["rev-parse", "--show-toplevel"], plan_dir
+        ).strip()
+        base = commit_evidence.branch_base_sha(root) if root else None
+        if base is None:
+            return None
+        subjects, files = commit_evidence.commits_since(root, base)
+        return (subjects, files) if subjects else None
+
+    def backed(item: dict[str, object]) -> bool | None:
+        if not history:
+            history.append(load())
+        evidence = history[0]
+        if evidence is None:
+            return None
+        return commit_evidence.item_backed(
+            str(item["header"]), plan_text, evidence[0], evidence[1]
+        )
+
+    return backed
+
+
+def _name_declared_files(record: dict, plan_text: str) -> None:
+    """Add `declared_files` to each unbacked ticked item that has any, so the
+    violation can say which files a commit should touch."""
+    import commit_evidence
+
+    for item in record["build_progress"]["items"]:
+        if item["done"] and item["commit_backed"] is False:
+            declared = commit_evidence.parse_slice_files(plan_text, item["header"])
+            if declared:
+                item["declared_files"] = declared
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="feature_record.py", description="Derive and check the feature record."
@@ -594,8 +644,13 @@ def main(argv: list[str] | None = None) -> int:
         print(exc, file=sys.stderr)
         return 2
     record = build_record(
-        plan_text, spec_text, plan_path=args.plan, spec_source=args.spec
+        plan_text,
+        spec_text,
+        plan_path=args.plan,
+        commit_evidence=_commit_evidence_callback(args.plan, plan_text),
+        spec_source=args.spec,
     )
+    _name_declared_files(record, plan_text)
     if args.command == "view":
         print(json.dumps(record, indent=2))
         return 0
