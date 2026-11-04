@@ -5,7 +5,7 @@ description: >-
   and rank the candidates, and merge the winner. Reached only through
   /build --candidates N. Not user-invocable: do not run it directly.
 role: orchestrator
-allowed-tools: Bash
+allowed-tools: Bash, Agent, Read, Write
 ---
 
 # Speculative build
@@ -17,9 +17,11 @@ Role: orchestrator. This procedure implements one `complex` step N times, ranks 
 `/build` runs these checks before it follows this skill:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" validate-flags --candidates=<raw> --max-cost-usd=<raw> --jobs=<raw>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" validate-flags --candidates='<raw>' --max-cost-usd='<raw>' --jobs='<raw>'
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_worktree_baseref.py" detect
 ```
+
+Pass only the flags the user gave to /build; omit the others, as /build does.
 
 This skill assumes four results:
 
@@ -64,14 +66,14 @@ git rev-parse HEAD
 
 Then derive the run:
 
-- Set attempt `k` to 1 plus the highest attempt number the plan's table records for the step. Use 0 when it records none.
+- Set attempt `k` to 1 plus the highest attempt number the plan's table records for the step. Treat that highest number as 0 when the table records none, so the first attempt is 1.
 - Number the candidates 1 to N.
 - Print `speculative dispatch: step <step>, <N> candidates, cost cap $<X>, attempt <k>`. `<step>` is the plan step id. `<N>` is the candidate count.
 - Read the Branch column of the table's earlier-attempt rows for this step, before any spend.
 - If any of those branches still exists, print `candidate branches from attempt(s) <ks> still exist: <branches>; discard them with the cleanup command or merge one by hand`. Then continue.
 - Stale branches take disk space only. Dispatch never creates a branch with one of these names.
 
-Make batch 1 candidate 1 alone, so the cost cap is checked before any second candidate. `build_jobs.py`'s wave is this skill's batch. Size each later batch with `--wave-width`. Do not pass `--jobs`. The batches are sequential unless `DEV_TEAM_MAX_PARALLEL_BUILDS` is set.
+Make batch 1 candidate 1 alone, so the cost cap is checked before any second candidate. `build_jobs.py`'s wave is this skill's batch. Size each later batch with `--wave-width`. Each later batch dispatches the integer that command prints, which is 1 when `DEV_TEAM_MAX_PARALLEL_BUILDS` is unset. Do not pass `--jobs`. The batches are sequential unless `DEV_TEAM_MAX_PARALLEL_BUILDS` is set.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py" --wave-width <N-1>
@@ -88,6 +90,8 @@ Candidate <i> of <N>; commit every green on your worktree branch
 Do not write the plan file
 Before your first edit run: python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py" engage '<plan>' --slice <slice-id> --hooks-dir '<your worktree>/.claude/hooks'
 ```
+
+`<plan>` in these lines is the absolute path of the parent's plan file, never a path inside the candidate worktree.
 
 Add the third line only when `/build`'s Slice dispatch bookkeeping step 1 would engage freeze. That is when this check exits 0 and the slice declares `**Files:**`:
 
@@ -108,6 +112,8 @@ Hash the parent's plan file in the build worktree immediately before the batch d
 ```bash
 git hash-object -w '<plan>'
 ```
+
+Before the batch dispatches, also save the output of `git worktree list --porcelain` as the pre-batch snapshot.
 
 Hash it again when the batch returns:
 
@@ -140,10 +146,12 @@ Read the `branch:` line of the dispatch result. Do not infer the name from a pat
 git worktree list --porcelain
 ```
 
-Accept the name only when it meets both rules:
+Accept the name only when it meets all four rules:
 
 - It exactly matches a `branch refs/heads/<name>` entry of `git worktree list --porcelain`.
 - It matches `^[A-Za-z0-9._/][A-Za-z0-9._/-]*$`.
+- Its entry is absent from the pre-batch snapshot.
+- No other candidate in this run has claimed it.
 
 Take `<worktree>` from the `worktree <path>` line of that same porcelain entry. Never take it from the dispatch result.
 
@@ -224,7 +232,7 @@ Use `totals.cost_usd` from its output. Take these readings:
 - `<D>` is the last batch's `delta`.
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" project --cap <X> --spent <S> --completed <C> --remaining <R> --last-batch-delta <D>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" project --cap <X> --spent <S> --dispatched <C> --remaining <R> --last-batch-delta <D>
 ```
 
 Act on the `decision` it prints:
@@ -272,7 +280,7 @@ Set the provisional outcomes this way:
 - Write the reason yourself for a no-commits candidate (`no commits`) and for a plan-file-edited candidate (`plan file edited`). This reason replaces `reasons[<i>]`.
 - An undispatched candidate is `not dispatched`. Its reason is `cost cap` after a `stop` and `halted before dispatch` after a halt.
 
-`record` runs before Keep. Run it again with the same attempt after Keep, to write the final outcomes. Do not run two `record` calls at the same time on one plan file.
+`record` runs before Keep. Run it again with the same attempt after Keep, to write the final outcomes. Do not run two `record` calls at the same time on one plan file. Speculative steps within one wave run one at a time.
 
 ## Keep
 
@@ -298,13 +306,15 @@ After exit 0, rewrite the parent's `.claude/memory/build-phase.json` for the ste
 Fill `test_files_staged` with the step's test files, as `/build`'s TEST → REFACTOR transition does. List the files the merge changed in the build worktree:
 
 ```bash
-git diff --name-only <base>..HEAD
+git diff --name-only --diff-filter=d <base>..HEAD
 ```
+
+Both commands pass `--diff-filter=d`. It leaves out deleted paths, which `git add` rejects.
 
 Keep the test files. Stage them without placing their names in a shell line. Record their paths:
 
 ```bash
-git diff -z --name-only <base>..HEAD -- '<test pathspecs>' | xargs -0 git add --
+git diff -z --name-only --diff-filter=d <base>..HEAD -- '<test pathspecs>' | xargs -0 git add --
 ```
 
 ```json
@@ -335,7 +345,7 @@ List every accepted candidate branch, including the kept one. Its commits are al
 
 ## Resume
 
-The step continues at `/build` sub-step 4's inline checkpoint on the merged winner. That is the `complex` checkpoint. `/build` ticks Build Progress as usual.
+The step continues at `/build` sub-step 3's self-verification on the merged winner, then sub-step 4's inline checkpoint. That is the `complex` checkpoint. `/build` ticks Build Progress as usual.
 
 ## Failure modes
 
@@ -356,7 +366,7 @@ Fill `<suite>` with the same `'\''` escape that Keep uses.
 Apply this rule to any halt before Rank:
 
 - A dispatched candidate keeps its `collect` dict or its no-commits dict.
-- A candidate the halt interrupted before `collect` takes the no-commits dict shape. It has `suite_green` false, every scenario unmet, and zero counts.
+- A candidate the halt interrupted before `collect` takes the no-commits dict shape. It has `suite_green` false, every scenario unmet, and zero counts. It is still a dispatched candidate, not a no-commits one, so its row is `removed`.
 - Its `cost_usd` is `delta / width`, or 0 when `now` was not read. Its branch is the accepted one, or empty.
 - Assign ranks in id order.
 - A dispatched candidate is `removed` with the reason `halted before rank`. A no-commits or plan-file-edited candidate keeps `disqualified` with its own reason.

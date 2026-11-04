@@ -17,22 +17,21 @@ pinned verbatim by `fixtures/build_skill_untouched_passages.md`.
 
 from __future__ import annotations
 
-import functools
-import os
 import re
-import subprocess
-import sys
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from skill_doc_helpers import (
+    INVOCATION_RE,
     PLUGIN_ROOT,
     Fact,
     assert_fact,
     collapsed,
+    flag_listed_in_help,
     frontmatter,
     grep,
+    help_text,
     parse_arguments_section,
     section,
     section_outside_code,
@@ -42,7 +41,6 @@ SKILL = PLUGIN_ROOT / "skills" / "build" / "SKILL.md"
 SKILLS_DOC = PLUGIN_ROOT / "docs" / "skills.md"
 CANDIDATES_SCRIPT = PLUGIN_ROOT / "scripts" / "build_candidates.py"
 
-HELP_TIMEOUT_SECONDS = 60
 HELP_CHECKED_SCRIPT = "scripts/build_candidates.py"
 HELP_CHECKED_SUBCOMMAND = "validate-flags"
 EXPECTED_INVOCATIONS = {
@@ -55,10 +53,6 @@ MAX_COST_BULLET_START = r"^- `--max-cost-usd X`:"
 BULLET_BOUNDARY = r"^(- |$)"
 VALIDATION_START = r"^Validate the speculative flags"
 VALIDATION_BOUNDARY = r"^\*\*Interactivity\.\*\*"
-
-#: A shipped-script call: the script path under the plugin root, then the rest
-#: of the line (subcommand and flags).
-_INVOCATION_RE = re.compile(r'python3 "\$\{CLAUDE_PLUGIN_ROOT\}/([^"]+)"(.*)$')
 
 
 def _max_candidates() -> int:
@@ -458,7 +452,7 @@ def _invocations(text: str) -> list[tuple[str, str, tuple[str, ...]]]:
     `python3 "${CLAUDE_PLUGIN_ROOT}/..."` call in Parse Arguments."""
     found = []
     for line in parse_arguments_section(text).splitlines():
-        for script, rest in _INVOCATION_RE.findall(line):
+        for script, rest in INVOCATION_RE.findall(line):
             words = rest.split()
             first = words[0] if words else ""
             subcommand = "" if first.startswith(("-", "<", "`")) else first.strip("`.,")
@@ -468,23 +462,6 @@ def _invocations(text: str) -> list[tuple[str, str, tuple[str, ...]]]:
 
 
 INVOCATIONS = _invocations(SKILL.read_text(encoding="utf-8"))
-
-
-@functools.cache
-def _help_text(script: str, subcommand: str) -> str:
-    # Python 3.14 argparse colours its help output; plain text is what we match.
-    env = {k: v for k, v in os.environ.items() if k != "FORCE_COLOR"}
-    env["NO_COLOR"] = "1"
-    result = subprocess.run(
-        [sys.executable, str(PLUGIN_ROOT / script), subcommand, "--help"],
-        capture_output=True,
-        text=True,
-        timeout=HELP_TIMEOUT_SECONDS,
-        check=False,
-        env=env,
-    )
-    assert result.returncode == 0, f"{script} {subcommand} --help: {result.stderr}"
-    return result.stdout
 
 
 def _invocation_id(invocation: tuple[str, str, tuple[str, ...]]) -> str:
@@ -513,12 +490,8 @@ def test_every_script_parse_arguments_invokes_exists_under_the_plugin_root(invoc
 def test_every_flag_named_for_validate_flags_is_listed_by_its_help(invocation):
     script, subcommand, flags = invocation
     assert flags, f"{script} {subcommand} names no flags"
-    help_text = _help_text(script, subcommand)
-    missing = [
-        flag
-        for flag in flags
-        if not re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", help_text)
-    ]
+    listed = help_text(script, subcommand)
+    missing = [flag for flag in flags if not flag_listed_in_help(flag, listed)]
     assert not missing, f"{script} {subcommand} --help does not list {missing}"
 
 

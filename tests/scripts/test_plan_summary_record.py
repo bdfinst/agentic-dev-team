@@ -19,9 +19,9 @@ from pathlib import Path
 
 import pytest
 from _build_candidates_test_helpers import (
-    CLI_TIMEOUT_SECONDS,
     SCRIPTS_DIR,
     make_candidate,
+    run_script,
 )
 
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -102,6 +102,13 @@ def test_the_metric_columns_are_the_six_cells_between_branch_and_outcome() -> No
         "Diff lines",
         "Cost (USD)",
     )
+
+
+def test_the_metric_columns_sit_between_the_branch_and_outcome_columns() -> None:
+    columns, metrics = plan_summary_record.COLUMNS, plan_summary_record.METRIC_COLUMNS
+    assert columns[columns.index("Branch") + 1] == metrics[0]
+    assert columns[columns.index("Outcome") - 1] == metrics[-1]
+    assert len(metrics) == columns.index("Outcome") - columns.index("Branch") - 1
 
 
 # --- insertion: no Plan Review Summary yet ------------------------------------
@@ -470,17 +477,7 @@ def test_record_gives_replacement_rows_the_crlf_ending() -> None:
 
 
 def _run(*args: str, python_flags: tuple[str, ...] = ()) -> subprocess.CompletedProcess:
-    argv = [sys.executable, *python_flags, str(SCRIPT_PY), *args]
-    try:
-        return subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=CLI_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired:
-        pytest.fail(f"timed out after {CLI_TIMEOUT_SECONDS}s: {argv}")
+    return run_script(SCRIPT_PY, *args, python_flags=python_flags)
 
 
 def _run_record(
@@ -673,7 +670,8 @@ def test_record_updates_the_target_of_a_symlinked_plan(tmp_path) -> None:
     target.write_bytes(PLAN_WITHOUT_SUMMARY.encode("utf-8"))
     link = tmp_path / "plan.md"
     os.symlink(target, link)
-    _run_record(link, _write_result(tmp_path, one_kept_row()))
+    process = _run_record(link, _write_result(tmp_path, one_kept_row()))
+    assert process.returncode == 0, process.stderr
     assert target.read_bytes() == EXPECTED_AFTER_RECORD
 
 
@@ -691,16 +689,6 @@ def test_record_keeps_a_symlinked_plan_a_symlink(tmp_path) -> None:
 # --- replacement and appending in an existing table ---------------------------
 
 
-def existing_row_line(step: str, attempt: int, candidate_id: int) -> str:
-    """A row already in the plan's table."""
-    return kept_row_line(step, attempt, candidate_id)
-
-
-def new_row_line(step: str, attempt: int, candidate_id: int) -> str:
-    """A row `record` writes for `make_row(candidate_id)`."""
-    return kept_row_line(step, attempt, candidate_id)
-
-
 def plan_with_table(*row_lines: str) -> str:
     return (
         PLAN_HEAD
@@ -712,17 +700,17 @@ def plan_with_table(*row_lines: str) -> str:
     )
 
 
-EXISTING_ROW_LINE_1 = existing_row_line("2.1", 1, 1)
-EXISTING_ROW_LINE_2 = existing_row_line("2.1", 1, 2)
-OTHER_STEP_ROW_LINE = existing_row_line("2.10", 1, 1)
-SECOND_ATTEMPT_ROW_LINE = existing_row_line("2.1", 2, 1)
+EXISTING_ROW_LINE_1 = kept_row_line("2.1", 1, 1)
+EXISTING_ROW_LINE_2 = kept_row_line("2.1", 1, 2)
+OTHER_STEP_ROW_LINE = kept_row_line("2.10", 1, 1)
+SECOND_ATTEMPT_ROW_LINE = kept_row_line("2.1", 2, 1)
 PLAN_WITH_FOUR_ROWS = plan_with_table(
     EXISTING_ROW_LINE_1,
     EXISTING_ROW_LINE_2,
     OTHER_STEP_ROW_LINE,
     SECOND_ATTEMPT_ROW_LINE,
 )
-REPLACEMENT_ROW_LINE = new_row_line("2.1", 1, 7)
+REPLACEMENT_ROW_LINE = kept_row_line("2.1", 1, 7)
 
 
 @pytest.fixture(scope="module")
@@ -761,30 +749,28 @@ def test_record_changes_no_byte_outside_the_replaced_rows(replaced_attempt) -> N
 
 
 def test_record_replaces_rows_of_one_attempt_that_are_not_adjacent() -> None:
-    other_step = existing_row_line("2.2", 1, 1)
+    other_step = kept_row_line("2.2", 1, 1)
     plan = plan_with_table(EXISTING_ROW_LINE_1, other_step, EXISTING_ROW_LINE_2)
     recorded = plan_summary_record.record(plan, "2.1", 1, [make_row(7)])
     assert data_row_lines(recorded) == [REPLACEMENT_ROW_LINE, other_step]
 
 
 def test_record_matches_the_attempt_cell_exactly() -> None:
-    attempt_10 = existing_row_line("2.1", 10, 1)
+    attempt_10 = kept_row_line("2.1", 10, 1)
     plan = plan_with_table(attempt_10)
     recorded = plan_summary_record.record(plan, "2.1", 1, [make_row(7)])
     assert data_row_lines(recorded) == [attempt_10, REPLACEMENT_ROW_LINE]
 
 
-NEW_STEP_PLAN = plan_with_table(
-    existing_row_line("1.1", 1, 1), existing_row_line("1.1", 1, 2)
-)
+NEW_STEP_PLAN = plan_with_table(kept_row_line("1.1", 1, 1), kept_row_line("1.1", 1, 2))
 
 
 def test_record_appends_a_new_steps_rows_after_the_existing_rows() -> None:
     recorded = plan_summary_record.record(NEW_STEP_PLAN, "2.1", 1, [make_row(1)])
     assert data_row_lines(recorded) == [
-        existing_row_line("1.1", 1, 1),
-        existing_row_line("1.1", 1, 2),
-        new_row_line("2.1", 1, 1),
+        kept_row_line("1.1", 1, 1),
+        kept_row_line("1.1", 1, 2),
+        kept_row_line("2.1", 1, 1),
     ]
 
 
@@ -800,13 +786,13 @@ def test_record_keeps_the_table_header_once_when_appending_a_new_step() -> None:
 
 def test_record_changes_no_byte_outside_the_appended_row() -> None:
     recorded = plan_summary_record.record(NEW_STEP_PLAN, "2.1", 1, [make_row(1)])
-    assert recorded.replace(new_row_line("2.1", 1, 1), "", 1) == NEW_STEP_PLAN
+    assert recorded.replace(kept_row_line("2.1", 1, 1), "", 1) == NEW_STEP_PLAN
 
 
 def test_record_appends_a_second_attempt_after_the_first() -> None:
     plan = plan_with_table(EXISTING_ROW_LINE_1)
     recorded = plan_summary_record.record(plan, "2.1", 2, [make_row(1)])
-    assert data_row_lines(recorded) == [EXISTING_ROW_LINE_1, new_row_line("2.1", 2, 1)]
+    assert data_row_lines(recorded) == [EXISTING_ROW_LINE_1, kept_row_line("2.1", 2, 1)]
 
 
 def test_record_appends_in_call_order_not_attempt_order() -> None:
@@ -814,7 +800,7 @@ def test_record_appends_in_call_order_not_attempt_order() -> None:
     recorded = plan_summary_record.record(plan, "2.1", 1, [make_row(1)])
     assert data_row_lines(recorded) == [
         SECOND_ATTEMPT_ROW_LINE,
-        new_row_line("2.1", 1, 1),
+        kept_row_line("2.1", 1, 1),
     ]
 
 
@@ -847,7 +833,7 @@ def test_record_completes_a_last_table_row_that_lacks_its_newline() -> None:
         + subsection(EXISTING_ROW_LINE_1.rstrip("\n"))
     )
     recorded = plan_summary_record.record(plan, "2.2", 1, [make_row(1)])
-    assert data_row_lines(recorded) == [EXISTING_ROW_LINE_1, new_row_line("2.2", 1, 1)]
+    assert data_row_lines(recorded) == [EXISTING_ROW_LINE_1, kept_row_line("2.2", 1, 1)]
 
 
 def test_record_adds_the_table_to_a_subsection_that_has_none() -> None:
@@ -994,6 +980,19 @@ _BAD_ROWS = [
         "candidate-field-invalid",
         [make_row(1, suite_green=1)],
         "candidate 1: suite_green must be a boolean",
+    ),
+    (
+        "kept-with-a-red-suite",
+        [make_row(1, suite_green=False)],
+        "candidate 1: kept but disqualified (red suite)",
+    ),
+    (
+        "kept-with-an-unparseable-lens",
+        [make_row(1, screening="unparseable: correctness-review")],
+        (
+            "candidate 1: kept but disqualified "
+            "(screening: correctness-review unparseable)"
+        ),
     ),
     (
         "duplicate-id",

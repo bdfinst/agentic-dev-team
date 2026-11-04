@@ -36,6 +36,17 @@ if _HERE not in sys.path:  # sibling imports under -I / -P / PYTHONSAFEPATH
     sys.path.insert(0, _HERE)
 
 from build_candidates_model import STEP_ID_RE, Candidate, DataError, load_json_object
+from plan_markdown import (
+    Heading,
+    Section,
+    blank_line_before,
+    content_end,
+    find_headings,
+    find_section,
+    line_ending,
+    splice,
+    split_lines,
+)
 
 EXIT_OK = 0
 EXIT_INVALID_INPUT = 1
@@ -62,16 +73,15 @@ COLUMNS = (
     "Reason",
 )
 EM_DASH = "—"
-METRIC_COLUMNS = COLUMNS[5:11]  # Suite .. Cost (USD): the cells a candidate fills
+METRIC_COLUMNS = COLUMNS[
+    COLUMNS.index("Suite") : COLUMNS.index("Cost (USD)") + 1
+]  # Suite .. Cost (USD): the cells a candidate fills
 COST_DECIMALS = 4
 
 OUTCOME_KEPT = "kept"
 OUTCOME_NOT_DISPATCHED = "not dispatched"
 OUTCOMES = (OUTCOME_KEPT, "removed", "disqualified", OUTCOME_NOT_DISPATCHED)
 
-_FENCE_RE = re.compile(r"\s*(`{3,}|~{3,})(.*)")
-_HEADING_RE = re.compile(r"(#{1,6}) +(.*?) *")
-_LINE_RE = re.compile(r"[^\n]*\n|[^\n]+")
 RESULT_SHAPE_HINT = "expected an object with a 'rows' list"
 
 
@@ -120,6 +130,11 @@ def _parse_row(position: int, raw: object) -> _Row:
     rank = raw.get("rank")
     if not _is_positive_int(rank):
         _reject(f"candidate {candidate.id}: rank must be an int >= 1")
+    if outcome == OUTCOME_KEPT and candidate.is_disqualified:
+        _reject(
+            f"candidate {candidate.id}: kept but disqualified "
+            f"({candidate.disqualification_reason})"
+        )
     return _Row(candidate.id, outcome, reason, candidate, rank)
 
 
@@ -196,129 +211,6 @@ def _join_cells(cells: list[str], eol: str) -> str:
 # --- document structure -----------------------------------------------------
 
 
-@dataclass(frozen=True)
-class _Heading:
-    index: int
-    level: int
-    title: str
-
-
-@dataclass(frozen=True)
-class _Section:
-    """Lines `start` (the heading) up to but excluding `end`."""
-
-    start: int
-    end: int
-
-
-def _split_lines(text: str) -> list[str]:
-    """Lines with their line ending kept; unlike str.splitlines, only "\\n"
-    splits."""
-    return _LINE_RE.findall(text)
-
-
-def _line_ending(lines: list[str]) -> str:
-    """The plan's line ending, taken from its first line: "\\r\\n" when that
-    line ends in it, else "\\n"."""
-    return "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
-
-
-def _fence_after(open_fence: str | None, text: str) -> str | None:
-    """The fence marker still open after `text`, given `open_fence` before.
-
-    A backtick fence's info string may not contain a backtick, so a line like
-    "```x```" is inline code, not an opener. This grammar (``` and ~~~, up to
-    any indent, closed by a marker at least as long) is deliberately stricter
-    than `lib/plan_parse._FenceState` (backtick-only, column 0); the two are
-    not shared on purpose.
-    """
-    fence = _FENCE_RE.fullmatch(text)
-    if fence is None:
-        return open_fence
-    marker, info = fence.groups()
-    if open_fence is None:
-        is_inline_code = marker[0] == "`" and "`" in info
-        return None if is_inline_code else marker
-    closes = (
-        marker[0] == open_fence[0]
-        and len(marker) >= len(open_fence)
-        and not info.strip()
-    )
-    return None if closes else open_fence
-
-
-def _headings(lines: list[str]) -> list[_Heading]:
-    """Every ATX heading at column 0 with a space after the hashes, outside a
-    fence; a `# ` heading ends a `## ` section too. A fence that is never
-    closed would hide every later heading (CommonMark runs it to the end of
-    the file), and a summary appended inside it would be invisible to the
-    next run, which would append another: such a plan is rejected."""
-    found = []
-    open_fence = None
-    for index, line in enumerate(lines):
-        text = line.rstrip("\r\n")
-        was_open = open_fence is not None
-        open_fence = _fence_after(open_fence, text)
-        if was_open or open_fence is not None:
-            continue
-        heading = _HEADING_RE.fullmatch(text)
-        if heading:
-            found.append(_Heading(index, len(heading.group(1)), heading.group(2)))
-    if open_fence is not None:
-        _reject("plan has a code fence that is never closed")
-    return found
-
-
-def _find_section(
-    headings: list[_Heading],
-    line_count: int,
-    level: int,
-    title: str,
-    within: _Section | None = None,
-) -> _Section | None:
-    """The first `level` heading titled `title` (inside `within` when given)
-    and the lines up to the next heading of the same or a higher level."""
-    first, last = (within.start + 1, within.end) if within else (0, line_count)
-    for position, heading in enumerate(headings):
-        if first <= heading.index < last and (heading.level, heading.title) == (
-            level,
-            title,
-        ):
-            end = next(
-                (h.index for h in headings[position + 1 :] if h.level <= level),
-                line_count,
-            )
-            return _Section(heading.index, end)
-    return None
-
-
-def _content_end(lines: list[str], section: _Section) -> int:
-    """Index just after the section's last non-blank line."""
-    end = section.end
-    while end > section.start + 1 and not lines[end - 1].strip():
-        end -= 1
-    return end
-
-
-def _splice(lines: list[str], start: int, end: int, new: list[str], eol: str) -> str:
-    """`lines` with `lines[start:end]` replaced by `new`. A line left without
-    its line ending gets `eol`; when only blank lines follow, they are dropped
-    so the file ends with exactly one line ending."""
-    head = lines[:start]
-    if head and not head[-1].endswith("\n"):
-        head[-1] += eol
-    tail = lines[end:]
-    if not any(line.strip() for line in tail):
-        tail = []
-    return "".join(head + new + tail)
-
-
-def _blank_line_before(lines: list[str], index: int, eol: str) -> list[str]:
-    """A blank line to put between `lines[index - 1]` and a block inserted at
-    `index`, unless one is already there."""
-    return [eol] if index > 0 and lines[index - 1].strip() else []
-
-
 def _table_lines(row_lines: list[str], eol: str) -> list[str]:
     header = _join_cells(list(COLUMNS), eol)
     separator = _join_cells(["---"] * len(COLUMNS), eol)
@@ -330,7 +222,7 @@ def _subsection_lines(table: list[str], eol: str) -> list[str]:
 
 
 def _insert_summary(
-    lines: list[str], headings: list[_Heading], table: list[str], eol: str
+    lines: list[str], headings: list[Heading], table: list[str], eol: str
 ) -> str:
     """No summary yet: a whole section before Build Progress, else at the end
     of the file."""
@@ -339,19 +231,19 @@ def _insert_summary(
         eol,
         *_subsection_lines(table, eol),
     ]
-    build_progress = _find_section(
+    build_progress = find_section(
         headings, len(lines), SUMMARY_LEVEL, BUILD_PROGRESS_TITLE
     )
     if build_progress is None:
         index = len(lines)
-        block = _blank_line_before(lines, index, eol) + summary
-        return _splice(lines, index, index, block, eol)
+        block = blank_line_before(lines, index, eol) + summary
+        return splice(lines, index, index, block, eol)
     index = build_progress.start
-    block = _blank_line_before(lines, index, eol) + summary + [eol]
-    return _splice(lines, index, index, block, eol)
+    block = blank_line_before(lines, index, eol) + summary + [eol]
+    return splice(lines, index, index, block, eol)
 
 
-def _table_span(lines: list[str], section: _Section) -> tuple[int, int] | None:
+def _table_span(lines: list[str], section: Section) -> tuple[int, int] | None:
     """`(start, end)` of the first run of table lines inside `section`."""
     start = next(
         (
@@ -396,7 +288,7 @@ def _merge_rows(
 
 def _merge_into_subsection(
     lines: list[str],
-    subsection: _Section,
+    subsection: Section,
     step: str,
     attempt: int,
     new_row_lines: list[str],
@@ -404,12 +296,12 @@ def _merge_into_subsection(
 ) -> str:
     span = _table_span(lines, subsection)
     if span is None:  # a hand-made subsection with no table yet
-        end = _content_end(lines, subsection)
+        end = content_end(lines, subsection)
         block = [eol, *_table_lines(new_row_lines, eol)]
-        return _splice(lines, end, end, block, eol)
+        return splice(lines, end, end, block, eol)
     start, end = span  # the header and separator never match a step N.M
     merged = _merge_rows(lines[start:end], step, attempt, new_row_lines, eol)
-    return _splice(lines, start, end, merged, eol)
+    return splice(lines, start, end, merged, eol)
 
 
 def _check_step_and_attempt(step: object, attempt: object) -> None:
@@ -426,23 +318,23 @@ def record(plan_text: str, step: str, attempt: int, rows: list[dict]) -> str:
     own line ending. Not safe for concurrent runs on the same plan file; the
     caller serializes record calls."""
     _check_step_and_attempt(step, attempt)
-    lines = _split_lines(plan_text)
-    eol = _line_ending(lines)
+    lines = split_lines(plan_text)
+    eol = line_ending(lines)
     new_row_lines = [
         _render_row_line(step, attempt, row, eol) for row in _parse_rows(rows)
     ]
     table = _table_lines(new_row_lines, eol)
-    headings = _headings(lines)
-    summary = _find_section(headings, len(lines), SUMMARY_LEVEL, SUMMARY_TITLE)
+    headings = find_headings(lines)
+    summary = find_section(headings, len(lines), SUMMARY_LEVEL, SUMMARY_TITLE)
     if summary is None:
         return _insert_summary(lines, headings, table, eol)
-    subsection = _find_section(
+    subsection = find_section(
         headings, len(lines), SUBSECTION_LEVEL, SUBSECTION_TITLE, within=summary
     )
     if subsection is None:
-        end = _content_end(lines, summary)
+        end = content_end(lines, summary)
         block = [eol, *_subsection_lines(table, eol)]
-        return _splice(lines, end, end, block, eol)
+        return splice(lines, end, end, block, eol)
     return _merge_into_subsection(lines, subsection, step, attempt, new_row_lines, eol)
 
 

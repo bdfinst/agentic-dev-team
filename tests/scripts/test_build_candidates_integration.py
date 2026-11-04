@@ -7,8 +7,11 @@ for real through the `reconcile` subcommand.
 from __future__ import annotations
 
 import json
+import os
+import shlex
 import subprocess
 import sys
+import time
 
 import pytest
 from _build_candidates_test_helpers import (
@@ -25,6 +28,7 @@ from _build_candidates_test_helpers import (
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import build_candidates
+import build_candidates_git
 
 BUILD = "build"
 SUITE_PASSES = python_command("pass")
@@ -211,6 +215,98 @@ def test_reconcile_keeps_a_local_edit_the_merge_would_overwrite(build_repo) -> N
     )
 
 
+def _process_is_gone(pid: int) -> bool:
+    """True when `pid` no longer runs. A zombie still answers signal 0 until
+    its parent reaps it, so where /proc exists its state is read too."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as stat_file:
+            return stat_file.read().rpartition(") ")[2][:1] == "Z"
+    except OSError:
+        return False
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX")
+def test_reconcile_kills_a_suite_descendant_that_outlives_the_script(
+    build_repo, tmp_path
+) -> None:
+    """A suite that timed out inside build_wave_reconcile.py leaves its
+    descendants behind (the script kills only its shell child); they must not
+    outlive the wrapper, or they keep writing to the worktree."""
+    repo = build_repo["repo"]
+    _candidate_branch(repo, "c1", build_repo["base"], {"c1.txt": "c1\n"})
+    pid_file = tmp_path / "descendant.pid"
+    suite = (
+        f"sleep 300 >/dev/null 2>&1 & echo $! > {shlex.quote(str(pid_file))}; exit 1"
+    )
+    r = _reconcile(build_repo, "c1", suite)
+    pid = int(pid_file.read_text(encoding="utf-8"))
+    try:
+        deadline = time.monotonic() + 2.0
+        while not _process_is_gone(pid) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        gone = _process_is_gone(pid)
+    finally:
+        if not _process_is_gone(pid):
+            os.kill(pid, 9)
+    assert (r.returncode, json.loads(r.stdout)["merged"]) == (1, False)
+    assert gone, f"suite descendant {pid} outlived the reconcile wrapper"
+
+
+STUB_SCRIPT = """\
+import subprocess, sys, time
+subprocess.run(["git", "merge", "--no-ff", "--no-commit", sys.argv[-1]], check=True)
+time.sleep(300)
+"""
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX")
+def test_reconcile_restores_the_branch_when_the_script_outlives_its_timeout(
+    build_repo, tmp_path, monkeypatch, capfd
+) -> None:
+    """The wrapper bound is the suite bound plus a 300 s margin; -298 leaves
+    2 s. The stub leaves a merge in progress and then hangs."""
+    repo = build_repo["repo"]
+    _candidate_branch(repo, "c1", build_repo["base"], {"c1.txt": "c1\n"})
+    stub = tmp_path / "stub_reconcile.py"
+    stub.write_text(STUB_SCRIPT, encoding="utf-8")
+    monkeypatch.setenv("BUILD_WAVE_RECONCILE_TEST_CMD_TIMEOUT", "-298")
+    monkeypatch.setattr(build_candidates_git, "_RECONCILE_SCRIPT", stub)
+    out = build_candidates.reconcile(
+        repo=str(repo), into=BUILD, base=build_repo["base"], test_cmd="x", branch="c1"
+    )
+    assert out["merged"] is False
+    assert out["head"] == build_repo["pre"]
+    assert not _merge_head(repo).exists()
+    assert "timed out" in capfd.readouterr().err
+
+
+def test_reconcile_restores_the_branch_and_re_raises_an_interrupt(
+    build_repo, monkeypatch
+) -> None:
+    repo = build_repo["repo"]
+    _candidate_branch(repo, "c1", build_repo["base"], {"c1.txt": "c1\n"})
+
+    def interrupted(repo_path, *_args) -> bool:
+        git_output(repo_path, "merge", "--no-ff", "--no-commit", "c1")
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(build_candidates_git, "_run_reconcile_script", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        build_candidates.reconcile(
+            repo=str(repo),
+            into=BUILD,
+            base=build_repo["base"],
+            test_cmd="x",
+            branch="c1",
+        )
+    assert not _merge_head(repo).exists()
+    assert _head(repo) == build_repo["pre"]
+
+
 # --- restore_branch (the public seam of reconcile's recovery) ---------------
 
 
@@ -267,6 +363,26 @@ def test_restore_fails_when_unmerged_paths_remain_without_a_merge_in_progress(
     assert git_output(repo, "diff", "--name-only", "--diff-filter=U") == "tracked.txt"
     with pytest.raises(build_candidates.RestoreFailedError):
         build_candidates.restore_branch(str(repo), build_repo["pre"])
+
+
+def test_restore_names_a_stale_index_lock_in_the_failure_message(build_repo) -> None:
+    repo = build_repo["repo"]
+    _start_conflicting_merge(build_repo)
+    lock = repo / ".git" / "index.lock"
+    lock.write_text("", encoding="utf-8")
+    with pytest.raises(build_candidates.RestoreFailedError) as raised:
+        build_candidates.restore_branch(str(repo), build_repo["pre"])
+    assert f"a stale {lock} is present" in str(raised.value)
+
+
+def test_restore_does_not_mention_an_index_lock_when_there_is_none(build_repo) -> None:
+    repo = build_repo["repo"]
+    blob = git_output(repo, "rev-parse", "HEAD:tracked.txt")
+    stages = "".join(f"100644 {blob} {stage}\ttracked.txt\n" for stage in (1, 2, 3))
+    git_output(repo, "update-index", "--index-info", stdin=stages)
+    with pytest.raises(build_candidates.RestoreFailedError) as raised:
+        build_candidates.restore_branch(str(repo), build_repo["pre"])
+    assert "index.lock" not in str(raised.value)
 
 
 def test_restore_names_the_pre_merge_sha_in_the_failure_message(build_repo) -> None:

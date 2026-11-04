@@ -611,18 +611,98 @@ def test_no_commits_factory_rejects_an_invalid_id() -> None:
         build_candidates.Candidate.no_commits(0, "", 4, 1.5)
 
 
+# --- Candidate.from_screening (pure) ----------------------------------------
+
+SPEC_UNMET = [{"category": "uncovered-scenario"}, {"category": "unmet-criterion"}]
+CORRECTNESS_FINDINGS = [
+    {"severity": "error"},
+    {"severity": "error"},
+    {"severity": "warning"},
+    {"severity": "suggestion"},
+]
+
+
+def _screened(**overrides):
+    args = {
+        "candidate_id": 2,
+        "branch": "cand",
+        "suite_exit": 0,
+        "scenarios_total": 4,
+        "diff_lines": 15,
+        "cost_usd": 1.25,
+        "spec_issues": SPEC_UNMET,
+        "correctness_issues": CORRECTNESS_FINDINGS,
+    }
+    args.update(overrides)
+    return build_candidates.Candidate.from_screening(**args)
+
+
+def test_from_screening_counts_unmet_findings_and_severities() -> None:
+    assert _screened() == build_candidates.Candidate(
+        id=2,
+        branch="cand",
+        suite_green=True,
+        scenarios_total=4,
+        scenarios_unmet=2,
+        errors=2,
+        warnings=1,
+        diff_lines=15,
+        cost_usd=1.25,
+        screening="ok",
+    )
+
+
+def test_from_screening_ignores_spec_findings_in_other_categories() -> None:
+    candidate = _screened(spec_issues=[{"category": "scope-violation"}])
+    assert candidate.scenarios_unmet == 0
+
+
+def test_from_screening_clamps_unmet_findings_to_the_scenario_total() -> None:
+    candidate = _screened(spec_issues=SPEC_UNMET * 3, scenarios_total=4)
+    assert candidate.scenarios_unmet == 4
+
+
+@pytest.mark.parametrize(
+    "suite_exit,green", [(0, True), (1, False), (-1, False)], ids=["0", "1", "-1"]
+)
+def test_from_screening_is_green_only_for_suite_exit_zero(suite_exit, green) -> None:
+    assert _screened(suite_exit=suite_exit).suite_green is green
+
+
+def test_from_screening_names_an_unparseable_correctness_lens() -> None:
+    candidate = _screened(correctness_issues=None)
+    assert candidate.screening == "unparseable: correctness-review"
+    assert (candidate.errors, candidate.warnings) == (0, 0)
+
+
+def test_from_screening_names_an_unparseable_spec_lens_and_zeroes_its_unmet() -> None:
+    candidate = _screened(spec_issues=None)
+    assert candidate.screening == "unparseable: spec-compliance-review"
+    assert candidate.scenarios_unmet == 0
+
+
+def test_from_screening_names_the_spec_lens_first_when_both_are_unparseable() -> None:
+    candidate = _screened(spec_issues=None, correctness_issues=None)
+    assert candidate.screening == "unparseable: spec-compliance-review"
+
+
+def test_from_screening_rejects_a_green_candidate_without_a_branch() -> None:
+    with pytest.raises(ValueError, match="branch may be empty only when"):
+        _screened(branch="")
+
+
 # --- project ----------------------------------------------------------------
 
 
-def _project(cap, spent, completed, remaining, delta):
+def _project(cap, spent, dispatched, remaining, delta):
     return run_cli(
         "project",
         "--cap",
         str(cap),
         "--spent",
         str(spent),
-        "--completed",
-        str(completed),
+        "--dispatched",
+        str(dispatched),
         "--remaining",
         str(remaining),
         "--last-batch-delta",
@@ -669,8 +749,8 @@ def test_project_output_has_exactly_the_documented_keys_on_one_line() -> None:
     r = _project(10, 4, 2, 3, 2)
     assert list(json.loads(r.stdout)) == [
         "cap",
-        "completed",
         "decision",
+        "dispatched",
         "last_batch_delta",
         "projected",
         "reason",
@@ -688,7 +768,7 @@ def test_project_rounds_projected_to_four_decimals() -> None:
 _VALID_PROJECT_ARGS = {
     "--cap": "10",
     "--spent": "1",
-    "--completed": "1",
+    "--dispatched": "1",
     "--remaining": "1",
     "--last-batch-delta": "1",
 }
@@ -698,9 +778,9 @@ _BAD_PROJECT_ARGS = [
     ("--cap", "inf"),
     ("--spent", "-1"),
     ("--spent", "nan"),
-    ("--completed", "1.5"),
-    ("--completed", "0"),
-    ("--completed", "9"),
+    ("--dispatched", "1.5"),
+    ("--dispatched", "0"),
+    ("--dispatched", "9"),
     ("--remaining", "0"),
     ("--remaining", "8"),
     ("--last-batch-delta", "-1"),
@@ -719,7 +799,7 @@ def test_project_rejects_out_of_range_arguments_with_exit_two(flag, bad_value) -
     assert f"argument {flag}:" in r.stderr
 
 
-def test_project_accepts_the_largest_completed_and_remaining_counts() -> None:
+def test_project_accepts_the_largest_dispatched_and_remaining_counts() -> None:
     r = _project(10, 1, 8, 7, 1)
     assert r.returncode == 0
 

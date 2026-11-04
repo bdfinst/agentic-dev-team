@@ -6,7 +6,9 @@ scenarios live in test_build_candidates_integration.py.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 from _build_candidates_test_helpers import (
@@ -19,6 +21,7 @@ from _build_candidates_test_helpers import (
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+import build_candidates
 import build_candidates_git
 
 # --- reconcile timeout ------------------------------------------------------
@@ -140,13 +143,21 @@ def _correctness_issues() -> list:
     return [{"severity": s} for s in ("error", "error", "warning", "suggestion")]
 
 
-def _collect(fx, *, suite_exit="0", spec=None, correctness=None, step="2.1", plan=None):
+def _collect(
+    fx,
+    *,
+    suite_exit="0",
+    spec=None,
+    correctness=None,
+    step="2.1",
+    plan=None,
+    branch="cand",
+):
     return run_cli(
         "collect",
         "--id",
         "2",
-        "--branch",
-        "cand",
+        f"--branch={branch}",
         "--worktree",
         str(fx["repo"]),
         f"--base={fx['base']}",
@@ -196,8 +207,18 @@ def test_collect_clamps_unmet_findings_to_the_scenario_count(candidate_repo) -> 
 
 def test_collect_keeps_a_clamped_candidate_rankable(candidate_repo) -> None:
     spec = _lens(candidate_repo["tmp"], "spec6.json", _spec_issues(6))
-    out = json.loads(_collect(candidate_repo, spec=spec).stdout)
-    assert out["screening"] == "ok"
+    r = _collect(candidate_repo, spec=spec)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["scenarios_unmet"] <= out["scenarios_total"]
+    build_candidates.Candidate.from_dict(out)
+
+
+def test_collect_rejects_an_empty_branch_for_a_green_suite(candidate_repo) -> None:
+    r = _collect(candidate_repo, branch="")
+    assert (r.returncode, r.stdout) == (1, "")
+    assert r.stderr.startswith("collect:")
+    assert "branch may be empty only when suite_green is false" in r.stderr
 
 
 def test_collect_marks_an_unparseable_lens_and_zeroes_its_counts(
@@ -460,6 +481,21 @@ def test_cleanup_names_the_branch_and_command_when_git_cannot_remove_a_worktree(
     assert "worktree remove" in r.stderr
 
 
+def test_cleanup_keeps_the_earlier_removals_when_a_later_branch_fails(
+    cleanup_repo,
+) -> None:
+    git_output(
+        cleanup_repo["repo"], "worktree", "lock", str(cleanup_repo["paths"]["c2"])
+    )
+    r = _cleanup(cleanup_repo, "c1", "c2")
+    branches = _branches(cleanup_repo["repo"])
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "'c2'" in r.stderr
+    assert "worktree remove" in r.stderr
+    assert "c1" not in branches
+    assert "c2" in branches
+
+
 def test_cleanup_leaves_the_branch_in_place_when_its_worktree_cannot_be_removed(
     cleanup_repo,
 ) -> None:
@@ -480,3 +516,72 @@ def test_cleanup_on_a_path_that_is_not_a_repository_exits_one(tmp_path) -> None:
     r = run_cli("cleanup", "--repo", str(tmp_path), "--remove", "c1")
     assert (r.returncode, r.stdout) == (1, "")
     assert r.stderr.startswith("cleanup:")
+
+
+# --- _git and restore_branch failure paths (in-process) -----------------------
+
+
+def _raising(exc):
+    def run(*_args, **_kwargs):
+        raise exc
+
+    return run
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [OSError("no git"), subprocess.TimeoutExpired(cmd="git", timeout=1)],
+    ids=["oserror", "timeout"],
+)
+def test_git_turns_a_failure_to_run_into_a_git_error(monkeypatch, exc) -> None:
+    monkeypatch.setattr(build_candidates_git.subprocess, "run", _raising(exc))
+    with pytest.raises(build_candidates_git.GitError, match="could not run in /repo"):
+        build_candidates_git._git("/repo", "status")
+
+
+def test_restore_branch_names_the_pre_merge_sha_when_git_cannot_run(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        build_candidates_git, "_git", _raising(build_candidates_git.GitError("down"))
+    )
+    with pytest.raises(
+        build_candidates_git.RestoreFailedError, match="git reset --keep abc123"
+    ):
+        build_candidates_git.restore_branch("/repo", "abc123")
+
+
+def test_git_path_raises_when_rev_parse_fails(monkeypatch) -> None:
+    failed = SimpleNamespace(returncode=1, stdout="", stderr="fatal: not a repo")
+    monkeypatch.setattr(build_candidates_git, "_git", lambda *_a: failed)
+    with pytest.raises(build_candidates_git.GitError, match="fatal: not a repo"):
+        build_candidates_git._git_path("/repo", "MERGE_HEAD")
+
+
+class _Pipe:
+    closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _StuckProcess:
+    """A killed process whose pipes a descendant outside the group still holds."""
+
+    def __init__(self) -> None:
+        self.stdout, self.stderr = _Pipe(), _Pipe()
+        self.drain_timeouts: list[float | None] = []
+
+    def communicate(self, timeout=None):
+        self.drain_timeouts.append(timeout)
+        raise subprocess.TimeoutExpired(cmd="stuck", timeout=timeout)
+
+
+def test_kill_process_group_gives_up_on_pipes_an_escaped_descendant_holds(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(build_candidates_git, "_signal_process_group", lambda _p: None)
+    process = _StuckProcess()
+    build_candidates_git._kill_process_group(process)
+    assert process.drain_timeouts == [build_candidates_git._KILL_DRAIN_SECONDS]
+    assert (process.stdout.closed, process.stderr.closed) == (True, True)

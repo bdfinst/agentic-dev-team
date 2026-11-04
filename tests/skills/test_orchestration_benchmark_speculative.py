@@ -14,6 +14,7 @@ threshold, so the arm fact still pins it.
 
 from __future__ import annotations
 
+import functools
 import re
 from collections.abc import Callable
 
@@ -23,6 +24,7 @@ from skill_doc_helpers import (
     Fact,
     assert_fact,
     collapsed,
+    h2_section,
     headings_outside_code,
     section_outside_code,
 )
@@ -56,18 +58,13 @@ def _case(text: str) -> str:
     )
 
 
-def _h2(name: str) -> Callable[[str], str]:
-    """The H2 section whose heading matches the regex `name`, in full."""
-    return lambda text: section_outside_code(
-        text, rf"^## {name}$", boundary_pattern=r"^## "
-    )
-
-
 SECTIONS: dict[str, Callable[[str], str]] = {
     "case": _case,
-    "task_matrix": _h2(TASK_MATRIX),
-    "decision_rule": _h2(r"Decision rule \(pre-registered.*"),
-    "report": _h2("Report"),
+    "task_matrix": functools.partial(h2_section, name=TASK_MATRIX),
+    "decision_rule": functools.partial(
+        h2_section, name=r"Decision rule \(pre-registered.*"
+    ),
+    "report": functools.partial(h2_section, name="Report"),
 }
 
 
@@ -264,6 +261,16 @@ FACTS = [
         "thresholds_pass_rate_margin",
         "case",
         literal_required=(f"by at least {PASS_RATE_MARGIN} points",),
+    ),
+    Fact(
+        "thresholds_pass_rate_condition_sends_an_exact_margin_at_five_runs_to_noise",
+        "case",
+        literal_required=(
+            (
+                f"A difference of exactly {PASS_RATE_MARGIN} points at "
+                f"{NOISE_RUNS_WORD} runs follows Noise and ties."
+            ),
+        ),
     ),
     Fact(
         "thresholds_cost_multiple_groups_the_screening_spend_outside_the_multiple",

@@ -38,6 +38,8 @@ if _HERE not in sys.path:  # sibling imports under -I / -P / PYTHONSAFEPATH
     sys.path.insert(0, _HERE)
 
 from build_candidates_git import (
+    GitError,
+    RestoreFailedError,
     cleanup,
     collect,
     reconcile,
@@ -50,8 +52,6 @@ from build_candidates_model import (
     Candidate,
     DataError,
     FlagError,
-    GitError,
-    RestoreFailedError,
     disqualified,
     load_candidates,
     load_json_object,
@@ -203,12 +203,12 @@ def validate_flags(
 
 
 def project(
-    cap: float, spent: float, completed: int, remaining: int, last_batch_delta: float
+    cap: float, spent: float, dispatched: int, remaining: int, last_batch_delta: float
 ) -> dict:
     """Decide whether to dispatch the next batch: halt when the meter saw no
     spend, stop when spent has reached the cap or the linear projection
     exceeds it, else continue."""
-    per_candidate = spent / completed if completed > 0 else 0.0
+    per_candidate = spent / dispatched if dispatched > 0 else 0.0
     projected = spent + remaining * per_candidate
     if last_batch_delta == 0:
         decision, reason = _DECISION_HALT, _HALT_REASON_NO_SPEND
@@ -220,7 +220,7 @@ def project(
         decision, reason = _DECISION_CONTINUE, ""
     return {
         "cap": cap,
-        "completed": completed,
+        "dispatched": dispatched,
         "decision": decision,
         "last_batch_delta": last_batch_delta,
         "projected": round(projected, _PROJECTED_DECIMALS),
@@ -292,7 +292,7 @@ def _cmd_validate_flags(args: argparse.Namespace) -> int:
 def _cmd_project(args: argparse.Namespace) -> int:
     return _emit_or_fail(
         lambda: project(
-            args.cap, args.spent, args.completed, args.remaining, args.last_batch_delta
+            args.cap, args.spent, args.dispatched, args.remaining, args.last_batch_delta
         ),
         {},
     )
@@ -453,7 +453,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="dollars spent so far",
     )
     projection.add_argument(
-        "--completed",
+        "--dispatched",
         required=True,
         type=_argparse_int_between(1, MAX_CANDIDATES),
         help=f"candidates dispatched so far (1..{MAX_CANDIDATES})",

@@ -1,8 +1,10 @@
 """build_candidates_model.py — candidate data model and ranking.
 
-The pure half of the candidate lifecycle: the error types every
-`build_candidates` module shares, JSON input loading, the `Candidate` record
-with its field validation, and `rank`. No git, no subprocess.
+The pure half of the candidate lifecycle: the `FlagError` and `DataError`
+types every `build_candidates` module shares, JSON input loading, the
+`Candidate` record with its field validation and its screening rule, and
+`rank`. No git, no subprocess. The git-facing errors, `GitError` and
+`RestoreFailedError`, live in `build_candidates_git`, which raises them.
 
 Stdlib only (ADR 0014, ADR 0015, ADR 0031).
 """
@@ -20,6 +22,10 @@ from typing import NoReturn
 SCREENING_OK = "ok"
 SCREENING_UNPARSEABLE_PREFIX = "unparseable: "
 
+LENS_SPEC_COMPLIANCE = "spec-compliance-review"
+LENS_CORRECTNESS = "correctness-review"
+_UNMET_SCENARIO_CATEGORIES = frozenset({"uncovered-scenario", "unmet-criterion"})
+
 _REASON_RED_SUITE = "red suite"
 
 #: A plan step id, `N.M`: digits, a dot, digits.
@@ -32,14 +38,6 @@ class FlagError(ValueError):
 
 class DataError(ValueError):
     """Input data a subcommand rejects (exit 1)."""
-
-
-class GitError(DataError):
-    """A git or subprocess invocation that failed (exit 1)."""
-
-
-class RestoreFailedError(RuntimeError):
-    """The build branch could not be returned to its pre-merge SHA (exit 2)."""
 
 
 def load_json_object(path: str, label: str) -> dict:
@@ -184,6 +182,62 @@ class Candidate:
                 "diff_lines": 0,
                 "cost_usd": cost_usd,
                 "screening": SCREENING_OK,
+            }
+        )
+
+    @classmethod
+    def from_screening(
+        cls,
+        candidate_id: int,
+        branch: str,
+        suite_exit: int,
+        scenarios_total: int,
+        diff_lines: int,
+        cost_usd: float,
+        spec_issues: Sequence[dict] | None,
+        correctness_issues: Sequence[dict] | None,
+    ) -> Candidate:
+        """Build a candidate from a suite exit code, measurements and the two
+        review-lens issue lists (None marks an unparseable lens). Unmet
+        findings are clamped to `scenarios_total`; the first unparseable lens
+        in (spec-compliance, correctness) order names the screening."""
+        unparseable = [
+            lens
+            for lens, issues in (
+                (LENS_SPEC_COMPLIANCE, spec_issues),
+                (LENS_CORRECTNESS, correctness_issues),
+            )
+            if issues is None
+        ]
+        unmet = sum(
+            1
+            for issue in spec_issues or []
+            if issue.get("category") in _UNMET_SCENARIO_CATEGORIES
+        )
+
+        def severity_count(severity: str) -> int:
+            return sum(
+                1
+                for issue in correctness_issues or []
+                if issue.get("severity") == severity
+            )
+
+        return cls.from_dict(
+            {
+                "id": candidate_id,
+                "branch": branch,
+                "suite_green": suite_exit == 0,
+                "scenarios_total": scenarios_total,
+                "scenarios_unmet": min(scenarios_total, unmet),
+                "errors": severity_count("error"),
+                "warnings": severity_count("warning"),
+                "diff_lines": diff_lines,
+                "cost_usd": cost_usd,
+                "screening": (
+                    f"{SCREENING_UNPARSEABLE_PREFIX}{unparseable[0]}"
+                    if unparseable
+                    else SCREENING_OK
+                ),
             }
         )
 

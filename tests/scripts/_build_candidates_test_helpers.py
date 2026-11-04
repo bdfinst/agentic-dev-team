@@ -17,6 +17,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -61,10 +62,18 @@ def apply_hermetic_env(monkeypatch) -> None:
             monkeypatch.setenv(key, value)
 
 
-def run_cli(*args: str, timeout: int = CLI_TIMEOUT_SECONDS):
-    """Run build_candidates.py with `args`; fail the test, naming the argv,
-    when it does not finish within `timeout` seconds."""
-    argv = [sys.executable, str(SCRIPT_PY), *args]
+def run_script(
+    script: Path,
+    *args: str,
+    python_flags: Sequence[str] = (),
+    timeout: int = CLI_TIMEOUT_SECONDS,
+    env: dict[str, str] | None = None,
+):
+    """Run `script` with `args` under this interpreter (`python_flags` go
+    before the script path), in the hermetic environment unless `env` is
+    given; fail the test, naming the argv, when it does not finish within
+    `timeout` seconds."""
+    argv = [sys.executable, *python_flags, str(script), *args]
     try:
         return subprocess.run(
             argv,
@@ -72,10 +81,15 @@ def run_cli(*args: str, timeout: int = CLI_TIMEOUT_SECONDS):
             text=True,
             check=False,
             timeout=timeout,
-            env=hermetic_env(),
+            env=hermetic_env() if env is None else env,
         )
     except subprocess.TimeoutExpired:
         pytest.fail(f"timed out after {timeout}s: {argv}")
+
+
+def run_cli(*args: str, timeout: int = CLI_TIMEOUT_SECONDS):
+    """Run build_candidates.py with `args` (see `run_script`)."""
+    return run_script(SCRIPT_PY, *args, timeout=timeout)
 
 
 def git_output(repo, *args: str, stdin: str | None = None) -> str:

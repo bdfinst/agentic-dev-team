@@ -15,23 +15,23 @@ by `tests/repo/test_registry_sync.py` and `tests/repo/test_skills_index_current.
 from __future__ import annotations
 
 import functools
-import os
 import re
-import subprocess
-import sys
 from collections.abc import Callable
 
 import pytest
 from skill_doc_helpers import (
+    INVOCATION_RE,
     PLUGIN_ROOT,
     Fact,
     assert_fact,
     collapsed,
+    flag_listed_in_help,
     frontmatter,
     grep,
+    h2_section,
     headings_outside_code,
+    help_text,
     section,
-    section_outside_code,
 )
 
 SKILL = PLUGIN_ROOT / "skills" / "speculative-build" / "SKILL.md"
@@ -67,9 +67,6 @@ QUOTED_PLACEHOLDERS = (
 )
 
 
-#: A shipped-script call in the skill: the script path under the plugin root,
-#: then the rest of the line (subcommand and flags).
-_INVOCATION_RE = re.compile(r'python3 "\$\{CLAUDE_PLUGIN_ROOT\}/([^"]+)"(.*)$')
 #: Argparse scripts whose subcommands and flags are checked against their real
 #: `--help`. `build_jobs.py` prints a hand-written usage line on stderr with
 #: exit 2, and `build_worktree_baseref.py` has no `--help`, so both get the
@@ -84,7 +81,6 @@ SOURCE_CHECKED_SCRIPTS = (
     "scripts/build_jobs.py",
     "scripts/build_worktree_baseref.py",
 )
-HELP_TIMEOUT_SECONDS = 60
 HALT_TEMPLATE_LINE_COUNT = 7
 BUILD_CANDIDATES_SUBCOMMANDS = {
     "validate-flags",
@@ -109,7 +105,7 @@ def _invocations(text: str) -> list[tuple[str, str, tuple[str, ...]]]:
     `python3 "${CLAUDE_PLUGIN_ROOT}/..."` call in a fenced bash or text block."""
     found = []
     for line in _fenced_command_lines(text):
-        match = _INVOCATION_RE.search(line)
+        match = INVOCATION_RE.search(line)
         if not match:
             continue
         script, rest = match.groups()
@@ -124,41 +120,14 @@ def _invocations(text: str) -> list[tuple[str, str, tuple[str, ...]]]:
 INVOCATIONS = _invocations(SKILL.read_text(encoding="utf-8"))
 
 
-@functools.cache
-def _help_text(script: str, subcommand: str) -> str:
-    # Python 3.14 argparse colours its help output; plain text is what we match.
-    env = {k: v for k, v in os.environ.items() if k != "FORCE_COLOR"}
-    env["NO_COLOR"] = "1"
-    command = [sys.executable, str(PLUGIN_ROOT / script)]
-    command += [subcommand] if subcommand else []
-    result = subprocess.run(
-        [*command, "--help"],
-        capture_output=True,
-        text=True,
-        timeout=HELP_TIMEOUT_SECONDS,
-        check=False,
-        env=env,
-    )
-    assert result.returncode == 0, f"{script} {subcommand} --help: {result.stderr}"
-    return result.stdout
-
-
 @pytest.fixture(scope="module")
 def skill_text() -> str:
     return SKILL.read_text(encoding="utf-8")
 
 
-def _h2(name: str) -> Callable[[str], str]:
-    """Resolve a `## <name>` section of the skill, up to the next `## ` outside
-    a fenced block."""
-    return lambda text: section_outside_code(
-        text, rf"^## {name}$", boundary_pattern=r"^## "
-    )
-
-
 SECTIONS: dict[str, Callable[[str], str]] = {
     "frontmatter": frontmatter,
-    **{name: _h2(name) for name in SECTION_ORDER},
+    **{name: functools.partial(h2_section, name=name) for name in SECTION_ORDER},
 }
 
 
@@ -172,8 +141,10 @@ def test_skill_frontmatter_declares_name_and_orchestrator_role(skill_text):
     assert grep(r"^role: orchestrator$", fm)
 
 
-def test_skill_frontmatter_grants_bare_bash(skill_text):
-    assert grep(r"^allowed-tools: Bash$", frontmatter(skill_text))
+def test_skill_frontmatter_grants_the_tools_the_procedure_uses(skill_text):
+    """The procedure runs scripts (Bash), dispatches the candidate agent
+    (Agent), and reads and writes the plan and JSON result files."""
+    assert grep(r"^allowed-tools: Bash, Agent, Read, Write$", frontmatter(skill_text))
 
 
 def test_skill_frontmatter_has_no_user_invocable_or_argument_hint(skill_text):
@@ -244,33 +215,12 @@ def test_skill_bash_blocks_single_quote_branch_and_worktree_placeholders(
             r"^```text\n(.*?)^```", skill_text, flags=re.DOTALL | re.MULTILINE
         )
         for line in block.splitlines()
-        if _INVOCATION_RE.search(line)
+        if INVOCATION_RE.search(line)
     ]
     command_lines = bash_lines + text_invocations
     bare = re.compile(rf"(?<!'){re.escape(placeholder)}|{re.escape(placeholder)}(?!')")
     offenders = [line for line in command_lines if bare.search(line)]
     assert not offenders, f"{placeholder} is not single-quoted in: {offenders}"
-
-
-@pytest.mark.parametrize(
-    ("text", "level", "expected"),
-    [
-        ("# a\n```\n## fake\n```\n## y\n", 2, ["y"]),
-        ("# a\n```\n# fake\n```\n## y\n", 1, ["a"]),
-        ("```text\n## fake\n```\n", 2, []),
-    ],
-    ids=["fenced_h2_ignored", "fenced_h1_ignored", "only_fenced"],
-)
-def test_headings_outside_code_skips_fenced_lines(text, level, expected):
-    assert headings_outside_code(text, level) == expected
-
-
-def test_section_stays_open_across_a_fenced_h2_line():
-    text = "## A\nbody\n```\n## fake\ninside\n```\ntail\n## B\nother\n"
-    body = _h2("A")(text)
-    assert "inside" in body
-    assert "tail" in body
-    assert "other" not in body
 
 
 def _invocation_id(invocation: tuple[str, str, tuple[str, ...]]) -> str:
@@ -291,12 +241,8 @@ def test_every_script_the_skill_invokes_exists_under_the_plugin_root(invocation)
 def test_every_flag_the_skill_names_is_listed_by_the_subcommand_help(invocation):
     script, subcommand, flags = invocation
     assert subcommand, f"{script} is called without a subcommand"
-    help_text = _help_text(script, subcommand)
-    missing = [
-        flag
-        for flag in flags
-        if not re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", help_text)
-    ]
+    listed = help_text(script, subcommand)
+    missing = [flag for flag in flags if not flag_listed_in_help(flag, listed)]
     assert not missing, f"{script} {subcommand} --help does not list {missing}"
 
 
@@ -324,7 +270,8 @@ def test_skill_invokes_every_build_candidates_subcommand_and_record(skill_text):
         ("scripts/build_candidates.py", sub) for sub in BUILD_CANDIDATES_SUBCOMMANDS
     }
     expected.add(("scripts/plan_summary_record.py", "record"))
-    assert expected <= seen
+    missing = expected - seen
+    assert not missing, f"skill never invokes: {sorted(missing)}"
 
 
 FACTS = [
@@ -367,6 +314,24 @@ FACTS = [
             "A Preconditions halt writes no record and prints only its own message.",
         ),
     ),
+    Fact(
+        "preconditions_single_quote_the_raw_flag_values_as_build_does",
+        "Preconditions",
+        literal_required=(
+            (
+                "validate-flags --candidates='<raw>' --max-cost-usd='<raw>' "
+                "--jobs='<raw>'"
+            ),
+        ),
+        forbidden=((r"--(candidates|max-cost-usd|jobs)=<raw>", False),),
+    ),
+    Fact(
+        "preconditions_pass_only_the_flags_the_user_gave",
+        "Preconditions",
+        literal_required=(
+            "Pass only the flags the user gave to /build; omit the others, as /build does.",
+        ),
+    ),
     # Base and batches
     Fact(
         "base_and_batches_open_with_the_six_step_batch_loop",
@@ -389,7 +354,8 @@ FACTS = [
         literal_required=(
             (
                 "Set attempt `k` to 1 plus the highest attempt number "
-                "the plan's table records for the step. Use 0 when it records none."
+                "the plan's table records for the step. Treat that highest number "
+                "as 0 when the table records none, so the first attempt is 1."
             ),
         ),
     ),
@@ -435,6 +401,16 @@ FACTS = [
             "Do not pass `--jobs`.",
         ),
     ),
+    Fact(
+        "base_and_batches_a_later_batch_dispatches_the_wave_width_which_is_1_by_default",
+        "Base and batches",
+        literal_required=(
+            (
+                "Each later batch dispatches the integer that command prints, "
+                "which is 1 when `DEV_TEAM_MAX_PARALLEL_BUILDS` is unset."
+            ),
+        ),
+    ),
     # Dispatch
     Fact(
         "dispatch_states_agent_isolation_frontmatter_and_prompt",
@@ -468,6 +444,16 @@ FACTS = [
                 "step 1 would engage freeze."
             ),
             "this check exits 0 and the slice declares `**Files:**`",
+        ),
+    ),
+    Fact(
+        "dispatch_prompt_plan_placeholder_is_the_parents_absolute_plan_path",
+        "Dispatch",
+        literal_required=(
+            (
+                "`<plan>` in these lines is the absolute path of the parent's "
+                "plan file, never a path inside the candidate worktree."
+            ),
         ),
     ),
     Fact(
@@ -539,6 +525,26 @@ FACTS = [
                 "of that same porcelain entry."
             ),
             "Never take it from the dispatch result.",
+        ),
+    ),
+    Fact(
+        "dispatch_snapshots_the_worktree_list_before_each_batch",
+        "Dispatch",
+        literal_required=(
+            (
+                "Before the batch dispatches, also save the output of "
+                "`git worktree list --porcelain` as the pre-batch snapshot."
+            ),
+        ),
+    ),
+    Fact(
+        "dispatch_accepts_only_a_branch_new_since_the_snapshot_and_unclaimed",
+        "Dispatch",
+        literal_required=(
+            "Accept the name only when it meets all four rules:",
+            "- Its entry is absent from the pre-batch snapshot.",
+            "- No other candidate in this run has claimed it.",
+            "Otherwise, treat the dispatch as a no-commits candidate.",
         ),
     ),
     Fact(
@@ -835,6 +841,14 @@ FACTS = [
         ),
     ),
     Fact(
+        "record_calls_are_never_concurrent_and_speculative_steps_in_a_wave_run_serially",
+        "Record",
+        literal_required=(
+            "Do not run two `record` calls at the same time on one plan file.",
+            "Speculative steps within one wave run one at a time.",
+        ),
+    ),
+    Fact(
         "record_row_schema_is_the_candidate_dict_plus_rank_outcome_and_reason",
         "Record",
         literal_required=(
@@ -965,9 +979,14 @@ FACTS = [
                 "Fill `test_files_staged` with the step's test files, "
                 "as `/build`'s TEST → REFACTOR transition does."
             ),
-            "git diff --name-only <base>..HEAD",
+            "git diff --name-only --diff-filter=d <base>..HEAD",
+            "Both commands pass `--diff-filter=d`.",
+            "It leaves out deleted paths, which `git add` rejects.",
             "Keep the test files. Stage them without placing their names in a shell line.",
-            "git diff -z --name-only <base>..HEAD -- '<test pathspecs>' | xargs -0 git add --",
+            (
+                "git diff -z --name-only --diff-filter=d <base>..HEAD "
+                "-- '<test pathspecs>' | xargs -0 git add --"
+            ),
             '"test_files_staged": ["<test file>", "..."]',
         ),
     ),
@@ -1000,7 +1019,22 @@ FACTS = [
     Fact(
         "resume_continues_at_the_inline_checkpoint_on_the_merged_winner",
         "Resume",
-        literal_required=("sub-step 4's inline checkpoint on the merged winner",),
+        literal_required=(
+            "then sub-step 4's inline checkpoint. That is the `complex` checkpoint.",
+        ),
+    ),
+    Fact(
+        "resume_runs_self_verification_on_the_merged_winner_before_the_checkpoint",
+        "Resume",
+        literal_required=(
+            "`/build` sub-step 3's self-verification on the merged winner,",
+        ),
+        required=(
+            (
+                r"sub-step 3's self-verification.*sub-step 4's inline checkpoint",
+                False,
+            ),
+        ),
     ),
     Fact(
         "cleanup_runs_after_the_inline_checkpoint_and_is_idempotent",
@@ -1105,6 +1139,10 @@ FACTS = [
                 "no-commits dict shape."
             ),
             "It has `suite_green` false, every scenario unmet, and zero counts.",
+            (
+                "It is still a dispatched candidate, not a no-commits one, "
+                "so its row is `removed`."
+            ),
             (
                 "Its `cost_usd` is `delta / width`, or 0 when `now` was not read. "
                 "Its branch is the accepted one, or empty."

@@ -6111,7 +6111,7 @@
       "anchor": "cleanup"
     },
     "Resume": {
-      "summary": "The step continues at `/build` sub-step 4's inline checkpoint on the merged winner.",
+      "summary": "The step continues at `/build` sub-step 3's self-verification on the merged winner, then sub-step 4's inline checkpoint.",
       "anchor": "resume"
     },
     "Failure modes": {

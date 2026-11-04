@@ -20,17 +20,28 @@ from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
 
+_HERE = Path(__file__).resolve().parent
+for _path in (_HERE, _HERE / "lib"):  # sibling imports under -I / -P / PYTHONSAFEPATH
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+import plan_parse
 from build_candidates_model import (
-    SCREENING_OK,
-    SCREENING_UNPARSEABLE_PREFIX,
+    LENS_CORRECTNESS,
+    LENS_SPEC_COMPLIANCE,
     Candidate,
     DataError,
-    GitError,
-    RestoreFailedError,
     load_json_object,
 )
 
-_HERE = Path(__file__).resolve().parent
+
+class GitError(DataError):
+    """A git or subprocess invocation that failed (exit 1)."""
+
+
+class RestoreFailedError(RuntimeError):
+    """The build branch could not be returned to its pre-merge SHA (exit 2)."""
+
 
 _GIT_TIMEOUT_SECONDS = 120
 # build_wave_reconcile.py bounds its own suite run with this variable; the
@@ -39,10 +50,9 @@ _RECONCILE_TIMEOUT_ENV = "BUILD_WAVE_RECONCILE_TEST_CMD_TIMEOUT"
 _RECONCILE_DEFAULT_SUITE_TIMEOUT_SECONDS = 1800.0
 _RECONCILE_MARGIN_SECONDS = 300.0
 _RECONCILE_SCRIPT = _HERE / "build_wave_reconcile.py"
-
-_LENS_SPEC_COMPLIANCE = "spec-compliance-review"
-_LENS_CORRECTNESS = "correctness-review"
-_UNMET_SCENARIO_CATEGORIES = frozenset({"uncovered-scenario", "unmet-criterion"})
+# How long to drain a killed script's pipes: a descendant that left the process
+# group can hold them open.
+_KILL_DRAIN_SECONDS = 5.0
 
 _SCENARIO_LINE_RE = re.compile(r"^\s*Scenario( Outline)?:")
 
@@ -95,11 +105,6 @@ def _require_commit(worktree: str, base: str) -> None:
 def _count_scenarios_in_slice(plan_path: str, step: str) -> int:
     """Scenario and Scenario Outline lines in the first Gherkin block of the
     slice that owns `step`."""
-    lib_dir = str(_HERE / "lib")
-    if lib_dir not in sys.path:
-        sys.path.insert(0, lib_dir)
-    import plan_parse
-
     try:
         text = Path(plan_path).read_text(encoding="utf-8")
     except OSError as exc:
@@ -154,45 +159,22 @@ def collect(
     _require_commit(worktree, base)
     total = _count_scenarios_in_slice(plan, step)
     diff_lines = _diff_line_count(worktree, base)
-    spec_issues = _lens_issues(spec_json, _LENS_SPEC_COMPLIANCE)
-    correctness_issues = _lens_issues(correctness_json, _LENS_CORRECTNESS)
-    unparseable_lenses = [
-        lens
-        for lens, issues in (
-            (_LENS_SPEC_COMPLIANCE, spec_issues),
-            (_LENS_CORRECTNESS, correctness_issues),
-        )
-        if issues is None
-    ]
-    unmet = sum(
-        1
-        for issue in spec_issues or []
-        if issue.get("category") in _UNMET_SCENARIO_CATEGORIES
-    )
-
-    def severity_count(severity: str) -> int:
-        return sum(1 for i in correctness_issues or [] if i.get("severity") == severity)
-
-    candidate = {
-        "id": candidate_id,
-        "branch": branch,
-        "suite_green": suite_exit == 0,
-        "scenarios_total": total,
-        "scenarios_unmet": min(total, unmet),
-        "errors": severity_count("error"),
-        "warnings": severity_count("warning"),
-        "diff_lines": diff_lines,
-        "cost_usd": cost_usd,
-        "screening": (
-            f"{SCREENING_UNPARSEABLE_PREFIX}{unparseable_lenses[0]}"
-            if unparseable_lenses
-            else SCREENING_OK
-        ),
-    }
+    spec_issues = _lens_issues(spec_json, LENS_SPEC_COMPLIANCE)
+    correctness_issues = _lens_issues(correctness_json, LENS_CORRECTNESS)
     try:
-        return asdict(Candidate.from_dict(candidate))
+        candidate = Candidate.from_screening(
+            candidate_id,
+            branch,
+            suite_exit,
+            total,
+            diff_lines,
+            cost_usd,
+            spec_issues,
+            correctness_issues,
+        )
     except ValueError as exc:
         raise DataError(f"collect: {exc}") from None
+    return asdict(candidate)
 
 
 def _head_sha(repo: str) -> str:
@@ -209,8 +191,10 @@ def _current_branch(repo: str) -> str:
 
 
 def reconcile_timeout_seconds() -> float:
-    """The suite bound build_wave_reconcile.py applies (same parsing rule as
-    that script) plus the margin for the merge and checkout around it."""
+    """The suite bound build_wave_reconcile.py applies plus the margin for the
+    merge and checkout around it. A non-finite value (`nan`, `inf`) falls back
+    to the default here; build_wave_reconcile.py treats it differently. The
+    divergence is intentional: the wrapper must stay bounded."""
     suite = _RECONCILE_DEFAULT_SUITE_TIMEOUT_SECONDS
     raw = os.environ.get(_RECONCILE_TIMEOUT_ENV)
     if raw:
@@ -223,8 +207,8 @@ def reconcile_timeout_seconds() -> float:
     return suite + _RECONCILE_MARGIN_SECONDS
 
 
-def _kill_process_group(process: subprocess.Popen) -> None:
-    """Kill `process` and, where the platform has process groups, everything
+def _signal_process_group(process: subprocess.Popen) -> None:
+    """SIGKILL `process` and, where the platform has process groups, everything
     it started (it runs as a session leader). Gone already is fine."""
     try:
         if hasattr(os, "killpg"):
@@ -233,7 +217,18 @@ def _kill_process_group(process: subprocess.Popen) -> None:
             process.kill()
     except ProcessLookupError:
         pass
-    process.communicate()
+
+
+def _kill_process_group(process: subprocess.Popen) -> None:
+    """Kill the group, then drain the pipes for at most _KILL_DRAIN_SECONDS;
+    close them if a descendant outside the group still holds them open."""
+    _signal_process_group(process)
+    try:
+        process.communicate(timeout=_KILL_DRAIN_SECONDS)
+    except subprocess.TimeoutExpired:
+        for pipe in (process.stdout, process.stderr):
+            if pipe is not None:
+                pipe.close()
 
 
 def _run_reconcile_script(
@@ -241,9 +236,10 @@ def _run_reconcile_script(
 ) -> bool:
     """Run build_wave_reconcile.py in `repo`; True when it exits 0. Its stderr
     is passed through; its stdout is dropped. The script runs as its own
-    session leader; on timeout, and on any exception reaching this frame
-    (an interrupt included), its whole process group is killed, so a hung
-    suite does not outlive the wrapper."""
+    session leader. On every exit path the group is killed: after a normal
+    return too, because build_wave_reconcile.py kills only its shell child
+    when the suite times out, and a descendant must not keep writing to the
+    worktree."""
     command = [
         sys.executable,
         str(_RECONCILE_SCRIPT),
@@ -276,13 +272,39 @@ def _run_reconcile_script(
         except BaseException:
             _kill_process_group(process)
             raise
+        _signal_process_group(process)
     sys.stderr.write(stderr)
     return process.returncode == 0
 
 
-def _merge_head_path(repo: str) -> Path:
-    relative = _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip()
-    return Path(repo) / relative
+def _git_path(repo: str, name: str) -> Path:
+    """The path of `name` inside the git directory of `repo`."""
+    result = _git(repo, "rev-parse", "--git-path", name)
+    if result.returncode != 0:
+        raise GitError(
+            f"reconcile: cannot resolve the git path {name} in {repo}: "
+            f"{result.stderr.strip()}"
+        )
+    return Path(repo) / result.stdout.strip()
+
+
+def _restore_failure(repo: str, pre_merge_sha: str) -> RestoreFailedError:
+    """The error for a failed restore; it names a stale index.lock when one
+    is present, because that lock makes both merge --abort and reset fail."""
+    message = (
+        f"reconcile: could not restore the build branch to {pre_merge_sha}; "
+        f"save your uncommitted edits, then run: git reset --keep {pre_merge_sha}"
+    )
+    try:
+        lock = _git_path(repo, "index.lock")
+    except GitError:
+        return RestoreFailedError(message)
+    if lock.exists():
+        message += (
+            f"; a stale {lock} is present \u2014 remove it only after "
+            "confirming no git process is running"
+        )
+    return RestoreFailedError(message)
 
 
 def restore_branch(repo: str, pre_merge_sha: str) -> None:
@@ -290,17 +312,13 @@ def restore_branch(repo: str, pre_merge_sha: str) -> None:
     `reset --keep` (never --hard: the worktree holds uncommitted plan edits).
     Raise RestoreFailedError unless HEAD is `pre_merge_sha`, no merge is in
     progress and no path is unmerged afterwards."""
-    failure = RestoreFailedError(
-        f"reconcile: could not restore the build branch to {pre_merge_sha}; "
-        f"save your uncommitted edits, then run: git reset --keep {pre_merge_sha}"
-    )
     try:
-        merge_head = _merge_head_path(repo)
+        merge_head = _git_path(repo, "MERGE_HEAD")
         if merge_head.exists():
             abort = _git(repo, "merge", "--abort")
             if abort.returncode != 0 and merge_head.exists():
                 sys.stderr.write(abort.stderr)
-                raise failure
+                raise _restore_failure(repo, pre_merge_sha)
         reset = _git(repo, "reset", "--keep", pre_merge_sha)
         if reset.returncode != 0:
             sys.stderr.write(reset.stderr)
@@ -312,9 +330,9 @@ def restore_branch(repo: str, pre_merge_sha: str) -> None:
             and unmerged.stdout.strip() == ""
         )
     except GitError:
-        raise failure from None
+        raise _restore_failure(repo, pre_merge_sha) from None
     if not restored:
-        raise failure
+        raise _restore_failure(repo, pre_merge_sha)
 
 
 def reconcile(*, repo: str, into: str, base: str, test_cmd: str, branch: str) -> dict:
