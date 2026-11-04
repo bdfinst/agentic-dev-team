@@ -14,8 +14,8 @@ every command shares:
 - `resolve_trunk_commit`, `local_branch_of` and `lane_context`: which ref is
   the trunk, which local branch it maps to (None for a tag or SHA), and
   whether the working directory is a lane.
-- `worktrees`, `branch_exists`, `branch_commit`, `branch_checked_out` and
-  `primary_checkout`: the one worktree-listing parser and the questions built
+- `worktrees`, `branch_exists`, `branch_commit`, `branch_worktree`,
+  `branch_checked_out` and `primary_checkout`: the one worktree-listing parser and the questions built
   on it.
 - `dirty_paths`: the one reader of `git status`; `origin_url`: the one reader
   of the `origin` remote.
@@ -166,6 +166,9 @@ WHAT_LANE_HAS_UNCOMMITTED_CHANGES = "lane has uncommitted changes"
 WHAT_COMPOSE_CONFLICT = "compose conflict"
 WHAT_COMPOSE_MERGE_FAILED = "compose merge failed"
 WHAT_COMPOSE_RESTORE_UNVERIFIED = "compose restore unverified"
+WHAT_TREE_MISMATCH = "tree mismatch"
+WHAT_TRUNK_MOVED = "trunk moved"
+WHAT_TRUNK_CANNOT_FAST_FORWARD = "trunk cannot fast-forward"
 
 #: Unicode categories `display_text` escapes: control (C0, DEL, C1), line
 #: separator (U+2028) and paragraph separator (U+2029).
@@ -441,6 +444,100 @@ def compose_restored_refusal(cause: Refusal) -> Refusal:
         what=cause.what,
         why=f"{cause.why}; {RESTORED_CLAUSE}",
         how="fix the cause named in why, then run compose again",
+    )
+
+
+def _review_again(trunk_ref: str) -> str:
+    """The fix for an identity that no longer holds: the reviewer starts over."""
+    return (
+        f"run compose again, run /code-review --since {trunk_ref} inside the "
+        "lane, then pass the new identities"
+    )
+
+
+@_registered(WHAT_TREE_MISMATCH)
+def tree_mismatch_refusal(expected: str, live: str, trunk_ref: str) -> Refusal:
+    """The lane's tree is not the one `compose` printed and the reviewer saw."""
+    return Refusal(
+        what=WHAT_TREE_MISMATCH,
+        why=(
+            "the lane's tree is not the tree that was reviewed "
+            f"(expected: {expected}, live: {live})"
+        ),
+        how=_review_again(trunk_ref),
+    )
+
+
+@_registered(WHAT_TRUNK_MOVED)
+def trunk_moved_refusal(trunk_ref: str, expected: str, live: str) -> Refusal:
+    """The trunk ref names another commit than the one `compose` printed."""
+    return Refusal(
+        what=WHAT_TRUNK_MOVED,
+        why=(
+            f"trunk {trunk_ref} moved since compose "
+            f"(expected: {expected}, live: {live})"
+        ),
+        how=_review_again(trunk_ref),
+    )
+
+
+@_registered(WHAT_TRUNK_CANNOT_FAST_FORWARD)
+def trunk_branch_missing_refusal(trunk_ref: str, branch: str | None) -> Refusal:
+    """The trunk has no local branch to fast-forward: `branch` is its name, or
+    None for a tag or SHA."""
+    if branch is None:
+        why = (
+            f"trunk {trunk_ref} is not a branch, so the trunk branch to "
+            "fast-forward does not exist"
+        )
+    else:
+        why = f"the local trunk branch {branch} (for {trunk_ref}) does not exist"
+    return Refusal(
+        what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
+        why=why,
+        how="pass --trunk <branch> naming the local branch to fast-forward",
+    )
+
+
+@_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
+def trunk_not_an_ancestor_refusal(branch: str, trunk_ref: str) -> Refusal:
+    """The local trunk branch holds commits the lane lacks."""
+    return Refusal(
+        what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
+        why=f"the trunk branch {branch} is not an ancestor of the lane HEAD",
+        how=(
+            "run compose, which merges the local trunk branch, then run "
+            f"/code-review --since {trunk_ref} inside the lane and pass the new "
+            "identities, because compose changes the tree"
+        ),
+    )
+
+
+@_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
+def trunk_checked_out_nowhere_refusal(branch: str) -> Refusal:
+    """No worktree has the trunk branch, so there is nowhere to fast-forward it."""
+    return Refusal(
+        what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
+        why=f"the trunk branch {branch} is checked out nowhere",
+        how=(
+            f"check out {branch} in a worktree (git switch {branch} in the "
+            "primary checkout), then run integrate again"
+        ),
+    )
+
+
+@_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
+def trunk_worktree_dirty_refusal(
+    branch: str, worktree: Path, paths: Sequence[str]
+) -> Refusal:
+    """The worktree that has the trunk branch holds uncommitted changes."""
+    return Refusal(
+        what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
+        why=(
+            f"the trunk worktree {worktree} (on {branch}) has uncommitted "
+            f"changes: {listed_paths(paths)}"
+        ),
+        how="clean the trunk worktree (commit or stash the listed paths), then run integrate again",
     )
 
 
@@ -861,9 +958,14 @@ def branch_exists(name: str, cwd: Path) -> bool:
     return git_ok(["show-ref", "--verify", "--quiet", f"{HEAD_REFS_PREFIX}{name}"], cwd)
 
 
+def branch_worktree(name: str, cwd: Path) -> Path | None:
+    """The worktree that has local branch `name` checked out, or None."""
+    return next((path for path, branch in worktrees(cwd) if branch == name), None)
+
+
 def branch_checked_out(name: str, cwd: Path) -> bool:
     """True when a worktree has local branch `name` checked out."""
-    return any(branch == name for _, branch in worktrees(cwd))
+    return branch_worktree(name, cwd) is not None
 
 
 def _rev_parse_paths(flags: Sequence[str], cwd: Path) -> list[Path]:

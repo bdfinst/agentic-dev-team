@@ -17,6 +17,7 @@ a plain importable module, like `_mutation_test_helpers.py`.
 from __future__ import annotations
 
 import ast
+import json
 import os
 import re
 import shlex
@@ -26,6 +27,7 @@ import sys
 import tempfile
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -38,6 +40,12 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 import lane
 import lane_core
+
+_HOOKS_LIB_DIR = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB_DIR))
+
+from review_gate_hash import branch_diff_gate_hash
 
 _HERMETIC_DIR = REPO_ROOT / "plugins" / "dev-team" / "tests" / "lib"
 if str(_HERMETIC_DIR) not in sys.path:
@@ -596,3 +604,85 @@ def stub_git_call(
 def fail_git_ok_for(monkeypatch, *prefixes: Sequence[str]) -> None:
     """`lane_core.git_ok` reports failure, and runs nothing, for these argument prefixes."""
     stub_git_call(monkeypatch, "git_ok", prefixes, lambda: False)
+
+
+# --- builders for the integrate tests ---------------------------------------
+
+GATE_RELATIVE_PATH = Path(".claude") / "memory" / ".pr-review-passed"
+LEDGER_RELATIVE_PATH = Path(".claude") / "metrics" / "boundary-events.jsonl"
+#: Two distinct registered review agents: the PR hook counts distinct names.
+GATE_DISPATCH_AGENTS = ("security-review", "structure-review")
+GATE_DISPATCH_AGE_SECONDS = 60
+
+
+def seed_gate(lane_path: Path, trunk_ref: str) -> str:
+    """Write the PR review gate for the lane's current state; return its hash.
+
+    The hash is the real `branch_diff_gate_hash("<trunk_ref>")` of the lane, in
+    the gate file, and the ledger holds two distinct review-agent dispatches
+    bound to it, stamped `GATE_DISPATCH_AGE_SECONDS` before now (inside the hook's
+    window). Writes only inside the lane's `.claude/`.
+    """
+    gate_hash = branch_diff_gate_hash(trunk_ref, cwd=lane_path)
+    gate = lane_path / GATE_RELATIVE_PATH
+    gate.parent.mkdir(parents=True, exist_ok=True)
+    gate.write_text(gate_hash, encoding="utf-8")
+    stamp = (
+        datetime.now(timezone.utc) - timedelta(seconds=GATE_DISPATCH_AGE_SECONDS)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ledger = lane_path / LEDGER_RELATIVE_PATH
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    with ledger.open("a", encoding="utf-8") as stream:
+        for agent in GATE_DISPATCH_AGENTS:
+            row = {
+                "ts": stamp,
+                "hook": "agent_dispatch_ledger",
+                "tool": "Agent",
+                "decision": "record",
+                "matched_rule": agent,
+                "plugin_version": "0.0.0",
+                "subject_hash": gate_hash,
+            }
+            stream.write(json.dumps(row) + "\n")
+    return gate_hash
+
+
+@dataclass(frozen=True)
+class ComposedLane:
+    """A lane after `compose`, with its gate seeded and the identities printed."""
+
+    repo: Repo
+    path: Path
+    name: str
+    trunk_ref: str
+    expected_trunk: str
+    expected_tree: str
+
+
+def composed_gated_lane(
+    repo: Repo, capsys, name: str = "feature", gate: bool = True
+) -> ComposedLane:
+    """`main(open)`, one lane commit, `main(compose)`, then `seed_gate`.
+
+    The lane and its identities come from the tool's own stdout, as a user
+    gets them. `gate=False` leaves the lane without a gate file (and without
+    the `.claude/` directory the gate would create).
+    """
+    code, out, _ = run_main(["open", name], repo.path, capsys)
+    assert code == 0
+    path = Path(parse_output(out)["worktree"])
+    commit_file(path, "lane.txt", "lane\n", "lane work")
+    code, out, _ = run_main(["compose"], path, capsys)
+    assert code == 0
+    printed = parse_output(out)
+    trunk_ref = printed["trunk"]
+    if gate:
+        seed_gate(path, trunk_ref)
+    return ComposedLane(
+        repo=repo,
+        path=path,
+        name=name,
+        trunk_ref=trunk_ref,
+        expected_trunk=printed["expected-trunk"],
+        expected_tree=printed["expected-tree"],
+    )

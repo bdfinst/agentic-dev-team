@@ -71,6 +71,7 @@ TEST_SOURCES = [
     TEST_DIR / "test_lane.py",
     TEST_DIR / "test_lane_compose.py",
     TEST_DIR / "test_lane_core.py",
+    TEST_DIR / "test_lane_integrate.py",
 ]
 
 #: Every `what` the finished tool can print. A `covers` literal outside this
@@ -114,6 +115,9 @@ SAMPLE_ARGUMENTS = {
         "a" * 40,
         "a conflict",
     ),
+    "tree mismatch": ("a" * 40, "b" * 40, "origin/main"),
+    "trunk moved": ("origin/main", "a" * 40, "b" * 40),
+    "trunk cannot fast-forward": ("v1", None),
 }
 
 #: Every argv the guard rejects: id -> (args, text the reason must contain).
@@ -1215,6 +1219,18 @@ def test_branch_checked_out_is_true_only_while_a_worktree_holds_the_branch(
     add_linked_worktree(repo_without_remote, "held")
 
     assert lane_core.branch_checked_out(name, repo_without_remote.path) is held
+
+
+def test_branch_worktree_is_the_path_that_holds_the_branch_or_none(
+    repo_without_remote,
+):
+    lane_path = add_linked_worktree(repo_without_remote, "held")
+    git(repo_without_remote.path, "branch", "idle")
+    cwd = repo_without_remote.path
+
+    assert lane_core.branch_worktree("main", cwd) == cwd.resolve()
+    assert lane_core.branch_worktree("held", cwd) == lane_path
+    assert lane_core.branch_worktree("idle", cwd) is None
 
 
 @pytest.fixture

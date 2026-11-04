@@ -447,6 +447,118 @@ def cmd_compose(args: argparse.Namespace, cwd: Path) -> int:
     return lane_core.EXIT_OK
 
 
+# --- integrate: the check engine ----------------------------------------------
+
+
+@dataclass(frozen=True)
+class CheckContext:
+    """What every integrate check reads: the lane entered, and the identities
+    the reviewer holds (`expected-trunk`, `expected-tree` as `compose` printed them)."""
+
+    entered: EnteredLane
+    expected_trunk: str
+    expected_tree: str
+
+
+@dataclass(frozen=True)
+class Check:
+    """One integrate check. `run` returns its refusal, or None when it holds."""
+
+    order: int
+    name: str
+    run: Callable[[CheckContext], lane_core.Refusal | None]
+
+
+def _check_tree_matches(ctx: CheckContext) -> lane_core.Refusal | None:
+    context = ctx.entered.context
+    live = lane_core.head_tree(context.lane_path)
+    if live == ctx.expected_tree:
+        return None
+    return lane_core.tree_mismatch_refusal(ctx.expected_tree, live, context.trunk_ref)
+
+
+def _check_trunk_has_not_moved(ctx: CheckContext) -> lane_core.Refusal | None:
+    """Guards the trunk ref only; the local trunk branch is check 5's concern."""
+    entered = ctx.entered
+    if entered.trunk_commit == ctx.expected_trunk:
+        return None
+    return lane_core.trunk_moved_refusal(
+        entered.context.trunk_ref, ctx.expected_trunk, entered.trunk_commit
+    )
+
+
+def _check_trunk_fast_forwards(ctx: CheckContext) -> lane_core.Refusal | None:
+    """The local trunk branch can be fast-forwarded to the lane, else why not.
+
+    One refusal per run, the first sub-condition that fails, in the order a
+    person fixes them: the branch exists, the lane contains it, a worktree has
+    it, and that worktree is clean.
+    """
+    context = ctx.entered.context
+    lane_path = context.lane_path
+    branch = context.trunk_branch
+    if branch is None:
+        return lane_core.trunk_branch_missing_refusal(context.trunk_ref, None)
+    branch_commit = lane_core.branch_commit(branch, lane_path)
+    if branch_commit is None:
+        return lane_core.trunk_branch_missing_refusal(context.trunk_ref, branch)
+    if not lane_core.is_ancestor(branch_commit, "HEAD", lane_path):
+        return lane_core.trunk_not_an_ancestor_refusal(branch, context.trunk_ref)
+    worktree = lane_core.branch_worktree(branch, lane_path)
+    if worktree is None:
+        return lane_core.trunk_checked_out_nowhere_refusal(branch)
+    dirty = lane_core.dirty_paths(worktree)
+    if dirty:
+        return lane_core.trunk_worktree_dirty_refusal(branch, worktree, dirty)
+    return None
+
+
+def _check_lane_is_clean(ctx: CheckContext) -> lane_core.Refusal | None:
+    return _dirty_refusal(ctx.entered.context.lane_path)
+
+
+#: The integrate checks, in the order their blocks are printed. `order` is the
+#: slot number from the plan; a gap is a check a later step registers, so that
+#: step adds one entry and moves nothing:
+#:   2 review gate (Step 3.2), 6 PR repository (Step 3.3).
+#:
+#: A check that hits a git failure: `collect_refusals` turns the
+#: `RefusalError` it raises into that check's refusal (the `git command
+#: failed` block) and runs the rest. A check never needs to catch git errors
+#: itself, and one broken git call cannot hide the other checks' findings.
+CHECKS: tuple[Check, ...] = (
+    Check(1, "tree matches", _check_tree_matches),
+    Check(3, "trunk has not moved", _check_trunk_has_not_moved),
+    Check(4, "lane is clean", _check_lane_is_clean),
+    Check(5, "trunk can fast-forward", _check_trunk_fast_forwards),
+)
+
+
+def _run_check(check: Check, ctx: CheckContext) -> lane_core.Refusal | None:
+    try:
+        return check.run(ctx)
+    except lane_core.RefusalError as failure:
+        return failure.refusal
+
+
+def collect_refusals(
+    trunk_arg: str | None, expected_trunk: str, expected_tree: str, cwd: Path
+) -> list[lane_core.Refusal]:
+    """Every refusal `integrate` would print, in check order. Changes nothing.
+
+    Not a git work tree, an unresolvable trunk and not being in a lane are the
+    only early stops: every check needs all three, so they are a single block.
+    Past them every check runs, whatever an earlier one found.
+    """
+    try:
+        entered = _enter_lane(trunk_arg, cwd)
+    except lane_core.RefusalError as stop:
+        return [stop.refusal]
+    ctx = CheckContext(entered, expected_trunk, expected_tree)
+    outcomes = (_run_check(check, ctx) for check in CHECKS)
+    return [refusal for refusal in outcomes if refusal is not None]
+
+
 #: Every registered command, keyed by its own `name`.
 COMMANDS: dict[str, Command] = {
     command.name: command
