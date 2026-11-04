@@ -308,6 +308,36 @@ def test_scenario_text_inside_a_doc_string_is_not_a_scenario():
     assert out["missing"] == []
 
 
+def test_other_delimiter_inside_a_doc_string_does_not_close_it():
+    gherkin = (
+        "  Scenario: Real one\n"
+        f"    {_FALSIFIER_COMMENT_PREFIX} the doc string changes\n"
+        "    Given a payload\n"
+        '      """\n'
+        "      ```\n"
+        "      Scenario: embedded\n"
+        '      """\n'
+    )
+    out = _report_for_gherkins(gherkin)
+
+    assert [row["scenario"] for row in out["scenarios"]] == ["Real one"]
+
+
+def test_unclosed_doc_string_does_not_hide_a_later_scenario():
+    gherkin = (
+        "  Scenario: Real one\n"
+        f"    {_FALSIFIER_COMMENT_PREFIX} the stray delimiter is text\n"
+        '    Given a stray """ delimiter\n'
+        '      """\n'
+        "  Scenario: later\n"
+    )
+    out = _report_for_gherkins(gherkin)
+
+    assert [row["scenario"] for row in out["scenarios"]] == ["Real one", "later"]
+    assert out["scenarios"][1]["falsifier"] is None
+    assert out["missing"] == [{"slice": "1", "scenario": "later"}]
+
+
 def _assert_unreadable(result: subprocess.CompletedProcess, path: Path) -> None:
     out = json.loads(result.stdout)
     assert result.returncode == 2
