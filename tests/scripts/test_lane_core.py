@@ -3,7 +3,8 @@
 The refusal registry and renderer, the git seam and its guard, the argv
 oracle that watches every git call, trunk resolution, and lane detection.
 Every test runs in-process against real git repositories built by
-`lane_fixtures`. The command line itself is tested in `test_lane.py`.
+`lane_fixtures`. The command line and `open` are tested in `test_lane.py`, `compose` in
+`test_lane_compose.py`.
 """
 
 # Fixtures from lane_fixtures are imported by name so pytest finds them; a
@@ -32,14 +33,17 @@ from lane_fixtures import (
     enforce_covers,
     forbidden_hits,
     git,
+    git_succeeds,
     hermetic_process_env,
     imported_modules,
     non_stdlib,
+    plain_directory,
     repo_with_origin,
     repo_without_default_branch,
     repo_without_remote,
     skipped_covers,
     skipped_covers_in,
+    stub_git_call,
 )
 
 from _repo_root import REPO_ROOT
@@ -51,7 +55,11 @@ if str(SCRIPTS_DIR) not in sys.path:
 import lane_core
 
 TEST_DIR = Path(__file__).resolve().parent
-TEST_SOURCES = [TEST_DIR / "test_lane.py", TEST_DIR / "test_lane_core.py"]
+TEST_SOURCES = [
+    TEST_DIR / "test_lane.py",
+    TEST_DIR / "test_lane_compose.py",
+    TEST_DIR / "test_lane_core.py",
+]
 
 #: Every `what` the finished tool can print. A `covers` literal outside this
 #: set is a typo; every key registered so far must be covered.
@@ -386,6 +394,21 @@ def test_the_guard_allows_the_one_permitted_config_override(repo_without_remote)
     assert head == git(repo_without_remote.path, "rev-parse", "HEAD")
 
 
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["merge", "--ff", "--no-edit", "abc123"],
+        ["merge", "--abort"],
+        ["merge-base", "--is-ancestor", "a", "b"],
+        ["reset", "--hard", "abc123"],
+        ["diff", "--name-only", "--diff-filter=U", "-z"],
+    ],
+    ids=lambda args: " ".join(args[:2]),
+)
+def test_the_guard_allows_the_commands_compose_runs(args):
+    assert lane_core._guard_reason(args) is None
+
+
 def test_the_guard_reads_the_subcommand_not_a_substring(repo_without_remote):
     repo = repo_without_remote.path
 
@@ -638,6 +661,7 @@ def test_the_oracle_flags_a_forbidden_call(argv):
         ["git", "switch", "-q", "-c", "x"],
         ["git", "commit", "-q", "-m", "fix: format"],
         ["git", "merge", "--no-ff", "x"],
+        ["git", "merge", "--ff", "--no-edit", "x"],
         ["git", "-c", "diff.relative=false", "diff", "--name-only"],
         ["git", "format-patch", "--format=short"],
     ],
@@ -689,12 +713,12 @@ def test_inside_a_work_tree_is_accepted(repo_without_remote):
     lane_core.require_work_tree(repo_without_remote.path)
 
 
-def test_a_plain_directory_is_not_a_work_tree(tmp_path):
+def test_a_plain_directory_is_not_a_work_tree(plain_directory):
     with pytest.raises(lane_core.RefusalError) as caught:
-        lane_core.require_work_tree(tmp_path)
+        lane_core.require_work_tree(plain_directory)
 
     assert caught.value.refusal.what == "not a git repository"
-    assert str(tmp_path) in caught.value.refusal.why
+    assert str(plain_directory) in caught.value.refusal.why
 
 
 def test_the_git_directory_itself_is_not_a_work_tree(repo_without_remote):
@@ -1053,38 +1077,39 @@ def test_worktrees_keeps_a_slash_in_the_branch_name(repo_without_remote):
     assert lane_core.worktrees(lane_path)[1] == (lane_path.resolve(), "feat/x")
 
 
-def test_branch_exists_sees_a_local_branch_and_not_a_tag(repo_without_remote):
+@pytest.mark.parametrize(
+    ("name", "exists"),
+    [("there", True), ("only-a-tag", False), ("missing", False)],
+    ids=["local-branch", "tag", "missing"],
+)
+def test_branch_exists_sees_a_local_branch_and_not_a_tag(
+    name, exists, repo_without_remote
+):
     repo = repo_without_remote.path
     git(repo, "branch", "there")
     git(repo, "tag", "only-a-tag")
 
-    assert lane_core.branch_exists("there", repo)
-    assert not lane_core.branch_exists("only-a-tag", repo)
-    assert not lane_core.branch_exists("missing", repo)
+    assert lane_core.branch_exists(name, repo) is exists
 
 
+@pytest.mark.parametrize(
+    ("name", "held"),
+    [("main", True), ("held", True), ("idle", False), ("hel", False)],
+    ids=["primary", "linked", "no-worktree", "prefix-of-a-held-name"],
+)
 def test_branch_checked_out_is_true_only_while_a_worktree_holds_the_branch(
-    repo_without_remote,
+    name, held, repo_without_remote
 ):
-    repo = repo_without_remote.path
-    git(repo, "branch", "idle")
+    git(repo_without_remote.path, "branch", "idle")
     add_linked_worktree(repo_without_remote, "held")
 
-    assert lane_core.branch_checked_out("main", repo)
-    assert lane_core.branch_checked_out("held", repo)
-    assert not lane_core.branch_checked_out("idle", repo)
-    assert not lane_core.branch_checked_out("hel", repo)
+    assert lane_core.branch_checked_out(name, repo_without_remote.path) is held
 
 
 @pytest.fixture
 def without_worktree_listing(monkeypatch):
     """`git worktree list` gives nothing, so only the common directory is left."""
-    real = lane_core.git_text
-
-    def silent(args, cwd):
-        return "" if list(args[:2]) == ["worktree", "list"] else real(args, cwd)
-
-    monkeypatch.setattr(lane_core, "git_text", silent)
+    stub_git_call(monkeypatch, "git_text", [["worktree", "list"]], lambda: "")
 
 
 def test_without_a_listing_a_dot_git_directory_gives_its_parent(
@@ -1146,9 +1171,11 @@ def test_dirty_paths_keeps_the_first_entry_whole_and_skips_a_rename_origin(
     assert lane_core.dirty_paths(repo) == ["renamed.txt"]
 
 
-def test_dirty_paths_outside_a_repository_is_a_git_command_failed_refusal(tmp_path):
+def test_dirty_paths_outside_a_repository_is_a_git_command_failed_refusal(
+    plain_directory,
+):
     with pytest.raises(lane_core.RefusalError) as caught:
-        lane_core.dirty_paths(tmp_path)
+        lane_core.dirty_paths(plain_directory)
 
     assert caught.value.refusal.what == GIT_FAILED
 
@@ -1168,6 +1195,116 @@ def test_the_dirty_tree_refusal_does_not_say_more_for_a_short_list():
 
     assert "a.txt, b.txt" in refusal.why
     assert "more" not in refusal.why
+
+
+def test_the_unfinished_merge_refusal_names_the_merge_and_how_to_end_it():
+    refusal = lane_core.lane_has_uncommitted_changes_refusal([], merge_unfinished=True)
+
+    assert refusal.what == "lane has uncommitted changes"
+    assert "merge in progress" in refusal.why
+    assert "uncommitted paths" not in refusal.why
+    assert "git merge --abort" in refusal.how
+    assert "git commit" in refusal.how
+
+
+def test_the_unfinished_merge_refusal_also_lists_the_dirty_paths():
+    refusal = lane_core.lane_has_uncommitted_changes_refusal(
+        ["a.txt", "b.txt"], merge_unfinished=True
+    )
+
+    assert "merge in progress" in refusal.why
+    assert "uncommitted paths: a.txt, b.txt" in refusal.why
+
+
+def test_the_restore_unverified_refusal_makes_no_claim_about_the_lane_state():
+    refusal = lane_core.compose_restore_unverified_refusal("main", "a" * 40, "a cause")
+
+    assert "a cause" in refusal.why
+    assert "restored to its state" not in refusal.why
+    assert f"git reset --hard {'a' * 40}" in refusal.how
+
+
+# --- history and merge queries ----------------------------------------------
+
+
+def test_head_commit_and_head_tree_name_what_git_names(repo_without_remote):
+    repo = repo_without_remote.path
+
+    assert lane_core.head_commit(repo) == git(repo, "rev-parse", "HEAD")
+    assert lane_core.head_tree(repo) == git(repo, "rev-parse", "HEAD^{tree}")
+
+
+def test_commit_tree_names_the_tree_of_the_given_commit_not_of_head(
+    repo_without_remote,
+):
+    repo = repo_without_remote.path
+    first = git(repo, "rev-parse", "HEAD")
+    commit_file(repo, "later.txt", "later\n", "later")
+
+    assert lane_core.commit_tree(first, repo) == git(
+        repo, "rev-parse", f"{first}^{{tree}}"
+    )
+    assert lane_core.commit_tree(first, repo) != lane_core.head_tree(repo)
+
+
+def test_is_ancestor_is_true_for_history_and_the_commit_itself_and_false_otherwise(
+    repo_without_remote,
+):
+    repo = repo_without_remote.path
+    older = git(repo, "rev-parse", "HEAD")
+    newer = commit_file(repo, "later.txt", "later\n", "later")
+
+    assert lane_core.is_ancestor(older, newer, repo)
+    assert lane_core.is_ancestor(newer, newer, repo)
+    assert not lane_core.is_ancestor(newer, older, repo)
+
+
+def test_unmerged_paths_lists_the_conflicted_paths_of_a_merge_in_progress(
+    repo_without_remote,
+):
+    repo = repo_without_remote.path
+    git(repo, "switch", "-q", "-c", "other")
+    commit_file(repo, "base.txt", "other\n", "other edits base")
+    git(repo, "switch", "-q", "main")
+    commit_file(repo, "base.txt", "main\n", "main edits base")
+    assert lane_core.unmerged_paths(repo) == []
+
+    assert not git_succeeds(repo, "merge", "--no-edit", "other")
+
+    assert lane_core.unmerged_paths(repo) == ["base.txt"]
+
+
+def test_merge_in_progress_is_true_only_between_a_merge_and_its_conclusion(
+    repo_without_remote,
+):
+    repo = repo_without_remote.path
+    git(repo, "switch", "-q", "-c", "other")
+    commit_file(repo, "other.txt", "other\n", "other")
+    git(repo, "switch", "-q", "main")
+    commit_file(repo, "main.txt", "main\n", "main")
+    assert not lane_core.merge_in_progress(repo)
+
+    git(repo, "merge", "--no-commit", "--no-ff", "other")
+    assert lane_core.merge_in_progress(repo)
+
+    git(repo, "merge", "--abort")
+    assert not lane_core.merge_in_progress(repo)
+
+
+def test_branch_commit_names_a_local_branch_tip_and_not_a_tag(repo_without_remote):
+    repo = repo_without_remote.path
+    git(repo, "tag", "only-a-tag")
+
+    assert lane_core.branch_commit("main", repo) == git(repo, "rev-parse", "main")
+    assert lane_core.branch_commit("only-a-tag", repo) is None
+    assert lane_core.branch_commit("missing", repo) is None
+
+
+def test_a_failing_query_raises_a_git_command_failed_refusal(plain_directory):
+    with pytest.raises(lane_core.RefusalError) as caught:
+        lane_core.head_commit(plain_directory)
+
+    assert caught.value.refusal.what == GIT_FAILED
 
 
 # --- git_attempt and origin_url ---------------------------------------------

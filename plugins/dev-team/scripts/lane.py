@@ -4,8 +4,8 @@
 `open` and `compose` are registered so far. Usage errors exit 2, refusals exit 1
 (blocks on stderr), success 0.
 
-Import whitelist (pinned by an AST test): the standard library and
-`lane_core`. Stdlib only otherwise. See ADR 0014 and ADR 0031.
+Import whitelist (pinned by an AST test): the standard library, `lane_core`
+and `git_origin_host`. Stdlib only otherwise. See ADR 0014 and ADR 0031.
 """
 
 from __future__ import annotations
@@ -30,12 +30,17 @@ NAME_PATTERN_PROBLEM = (
 )
 NAME_GIT_PROBLEM = "git does not accept it as a branch name"
 
+#: Fast-forward when possible whatever `merge.ff` says, else a merge commit.
+MERGE_ARGS = ("merge", "--ff", "--no-edit")
+
+#: Appended to git's message when the unmerged paths could not be listed.
+UNMERGED_UNREADABLE = "could not list the unmerged paths"
+
 #: What `compose` suggests in a PR repository, instead of an `integrate` line.
 PR_NEXT_STEP = "open a PR with /pr (or pass --local-trunk to integrate locally)"
 ORIGIN_HOST_GITHUB = "github"
 
-#: Exists in the git directory only while a merge is unfinished.
-MERGE_HEAD = "MERGE_HEAD"
+TRUNK_HELP = "trunk ref (default: origin's default branch, else main or master)"
 
 OPEN_COMMAND = "open"
 COMPOSE_COMMAND = "compose"
@@ -57,15 +62,16 @@ class Command:
     handler: Callable[[argparse.Namespace, Path], int]
 
 
+def _add_trunk_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--trunk", help=TRUNK_HELP)
+
+
 def _configure_open(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("name", help="branch name for the lane")
     parser.add_argument(
         "--path", help="worktree directory (default: beside the primary checkout)"
     )
-    parser.add_argument(
-        "--trunk",
-        help="trunk ref (default: origin's default branch, else main or master)",
-    )
+    _add_trunk_argument(parser)
 
 
 def _name_problem(name: str, cwd: Path) -> str | None:
@@ -117,62 +123,118 @@ def cmd_open(args: argparse.Namespace, cwd: Path) -> int:
         # A concurrent open may have taken the path or the branch since the
         # checks. A failed `worktree add -b` can leave its own new branch
         # behind, so a branch counts as taken only when a worktree holds it.
-        _require_free_path(path)
         if lane_core.branch_checked_out(name, cwd):
             raise lane_core.RefusalError(lane_core.branch_exists_refusal(name))
+        _require_free_path(path)
         raise
     print(f"worktree: {path}")
     print(f"branch: {name}")
     return lane_core.EXIT_OK
 
 
+# --- shared by lane commands ------------------------------------------------
+
+
+@dataclass(frozen=True)
+class EnteredLane:
+    """The lane a command runs in, and what `--trunk` resolved to."""
+
+    context: lane_core.LaneContext
+    trunk_arg: str | None
+    trunk_commit: str
+
+
+def _enter_lane(trunk_arg: str | None, cwd: Path) -> EnteredLane:
+    """The lane `cwd` is in and the trunk commit, or a refusal.
+
+    Shared by every command that works inside a lane: a repository, a
+    resolvable trunk and a lane, checked in that order.
+    """
+    lane_core.require_work_tree(cwd)
+    trunk_ref, trunk_commit = lane_core.resolve_trunk_commit(trunk_arg, cwd)
+    context = lane_core.lane_context(trunk_ref, cwd)
+    if context is None:
+        raise lane_core.RefusalError(lane_core.not_in_a_lane_refusal(cwd, trunk_ref))
+    return EnteredLane(context, trunk_arg, trunk_commit)
+
+
+def _dirty_refusal(lane_path: Path) -> lane_core.Refusal | None:
+    """Why the lane is not clean: uncommitted changes or an unfinished merge."""
+    dirty = lane_core.dirty_paths(lane_path)
+    unfinished = lane_core.merge_in_progress(lane_path)
+    if not dirty and not unfinished:
+        return None
+    return lane_core.lane_has_uncommitted_changes_refusal(dirty, unfinished)
+
+
+def _require_clean(lane_path: Path) -> None:
+    refusal = _dirty_refusal(lane_path)
+    if refusal is not None:
+        raise lane_core.RefusalError(refusal)
+
+
+def _is_pr_repository(lane_path: Path) -> bool:
+    """True when the `origin` remote is on GitHub: work lands through a PR."""
+    host = git_origin_host.classify(lane_core.origin_url(lane_path))
+    return host == ORIGIN_HOST_GITHUB
+
+
+# --- compose ----------------------------------------------------------------
+
+
 def _configure_compose(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--trunk",
-        help="trunk ref (default: origin's default branch, else main or master)",
-    )
+    _add_trunk_argument(parser)
 
 
-def _integrate_command(trunk_arg: str | None, trunk_commit: str, tree: str) -> str:
+def _integrate_command(entered: EnteredLane, tree: str) -> str:
     """The `integrate` line a reviewer runs next; `--trunk` only when it was given."""
     command = (
-        f"lane.py integrate --expected-trunk {trunk_commit} --expected-tree {tree}"
+        f"lane.py integrate --expected-trunk {entered.trunk_commit} "
+        f"--expected-tree {tree}"
     )
-    return command if trunk_arg is None else f"{command} --trunk {trunk_arg}"
+    if entered.trunk_arg is None:
+        return command
+    return f"{command} --trunk {entered.trunk_arg}"
+
+
+def _next_step(entered: EnteredLane, tree: str) -> str:
+    """`integrate` for a local-trunk lane; `/pr` in a PR repository."""
+    if _is_pr_repository(entered.context.lane_path):
+        return PR_NEXT_STEP
+    return _integrate_command(entered, tree)
 
 
 @dataclass(frozen=True)
 class MergeTarget:
-    """What `compose` merges: `label` for messages, `ref` for git."""
+    """What `compose` merges: `label` for messages, `ref` (a commit SHA) for git."""
 
     label: str
     ref: str
 
 
-def _contains(ancestor: str, descendant: str, lane_path: Path) -> bool:
-    return lane_core.git_ok(
-        ["merge-base", "--is-ancestor", ancestor, descendant], lane_path
-    )
+def _merge_targets(entered: EnteredLane) -> list[MergeTarget]:
+    """The trunk commit, plus the local trunk branch when it holds work the trunk lacks.
 
-
-def _merge_targets(context: lane_core.LaneContext) -> list[MergeTarget]:
-    """The trunk ref, plus the local trunk branch when it holds work the ref lacks.
-
-    The local branch (`main` for `origin/main`) joins only when it exists and
-    is not contained in the trunk ref. When it contains the trunk ref, it is
-    the only target: merging it brings the trunk ref along.
+    Both targets are commit SHAs read once here, so what is checked and merged
+    is what `expected-trunk` names. The local branch (`main` for `origin/main`)
+    joins only when it exists and is not contained in the trunk commit. When it
+    contains the trunk commit, it is the only target: merging it brings the
+    trunk commit along.
     """
+    context = entered.context
     lane_path = context.lane_path
-    trunk = MergeTarget(context.trunk_ref, context.trunk_ref)
-    local = context.trunk_branch
-    if local is None or not lane_core.branch_exists(local, lane_path):
-        return [trunk]
-    local_target = MergeTarget(local, f"{lane_core.HEAD_REFS_PREFIX}{local}")
-    if _contains(local_target.ref, trunk.ref, lane_path):
-        return [trunk]
-    if _contains(trunk.ref, local_target.ref, lane_path):
-        return [local_target]
-    return [trunk, local_target]
+    trunk_ref_target = MergeTarget(context.trunk_ref, entered.trunk_commit)
+    if context.trunk_branch is None:
+        return [trunk_ref_target]
+    trunk_branch_commit = lane_core.branch_commit(context.trunk_branch, lane_path)
+    if trunk_branch_commit is None:
+        return [trunk_ref_target]
+    trunk_branch_target = MergeTarget(context.trunk_branch, trunk_branch_commit)
+    if lane_core.is_ancestor(trunk_branch_target.ref, trunk_ref_target.ref, lane_path):
+        return [trunk_ref_target]
+    if lane_core.is_ancestor(trunk_ref_target.ref, trunk_branch_target.ref, lane_path):
+        return [trunk_branch_target]
+    return [trunk_ref_target, trunk_branch_target]
 
 
 @dataclass(frozen=True)
@@ -184,33 +246,16 @@ class Snapshot:
 
 
 def _snapshot(lane_path: Path) -> Snapshot:
-    return Snapshot(
-        head=lane_core.git_text(["rev-parse", "--verify", "HEAD^{commit}"], lane_path),
-        tree=lane_core.git_text(["rev-parse", "HEAD^{tree}"], lane_path),
-    )
+    head = lane_core.head_commit(lane_path)
+    return Snapshot(head=head, tree=lane_core.commit_tree(head, lane_path))
 
 
-def _unmerged_paths(lane_path: Path) -> list[str]:
-    listed = lane_core.git_text(
-        ["diff", "--name-only", "--diff-filter=U", "-z"], lane_path
-    )
-    return [path for path in listed.split("\0") if path]
+class SettledRefusal(lane_core.RefusalError):
+    """A refusal raised once the lane's final state is known.
 
-
-def _merge_refusal(
-    target: MergeTarget, attempt: lane_core.GitAttempt, lane_path: Path
-) -> lane_core.Refusal:
-    """Why the merge failed. Read before the restore: it erases the evidence."""
-    unmerged = _unmerged_paths(lane_path)
-    if unmerged:
-        return lane_core.compose_conflict_refusal(target.label, unmerged)
-    return lane_core.compose_merge_failed_refusal(
-        target.label, attempt.command, attempt.detail
-    )
-
-
-def _merge_in_progress(lane_path: Path) -> bool:
-    return lane_core.git_ok(["rev-parse", "--verify", "--quiet", MERGE_HEAD], lane_path)
+    The lane was restored, or the refusal says it could not be verified as
+    restored. Nothing more is undone for it.
+    """
 
 
 def _restore_verified(snapshot: Snapshot, lane_path: Path) -> bool:
@@ -219,85 +264,126 @@ def _restore_verified(snapshot: Snapshot, lane_path: Path) -> bool:
     `reset --hard` also undoes an earlier successful merge and a rejected merge
     that left a merged index without `MERGE_HEAD`. True only when HEAD and its
     tree match, no path is unmerged or dirty and no merge is in progress.
+
+    The unmerged-index and tree checks are deliberate defence in depth: each
+    is implied by the dirty-tree and HEAD checks today, and costs one git call
+    to stay true if either of those readers changes.
     """
     try:
-        if _merge_in_progress(lane_path):
+        if lane_core.merge_in_progress(lane_path):
             lane_core.git_ok(["merge", "--abort"], lane_path)
         lane_core.git_ok(["reset", "--hard", snapshot.head], lane_path)
         return (
             _snapshot(lane_path) == snapshot
             and not lane_core.git_text(["ls-files", "-u"], lane_path)
-            and not _merge_in_progress(lane_path)
+            and not lane_core.merge_in_progress(lane_path)
             and not lane_core.dirty_paths(lane_path)
         )
     except lane_core.RefusalError:
         return False
 
 
+def _failed_merge_refusal(
+    target: MergeTarget,
+    attempt: lane_core.GitAttempt,
+    snapshot: Snapshot,
+    lane_path: Path,
+) -> lane_core.Refusal:
+    """Read why the merge failed, restore the lane, and say which of the two happened.
+
+    The evidence is read before the restore: the restore erases it. The
+    "restored" claim in the refusal is made only after the restore is verified.
+    """
+    detail = attempt.detail
+    try:
+        unmerged = lane_core.unmerged_paths(lane_path)
+    except lane_core.RefusalError as unreadable:
+        unmerged = []
+        detail = f"{detail}; {UNMERGED_UNREADABLE}: {unreadable.refusal.why}"
+    cause = (
+        lane_core.compose_conflict_cause(unmerged)
+        if unmerged
+        else lane_core.compose_merge_failed_cause(attempt.command, detail)
+    )
+    if not _restore_verified(snapshot, lane_path):
+        return lane_core.compose_restore_unverified_refusal(
+            target.label, snapshot.head, cause
+        )
+    if unmerged:
+        return lane_core.compose_conflict_refusal(target.label, unmerged)
+    return lane_core.compose_merge_failed_refusal(target.label, attempt.command, detail)
+
+
 def _merge_all(
     targets: Sequence[MergeTarget], snapshot: Snapshot, lane_path: Path
 ) -> None:
-    """Merge each target the lane lacks; on a failure, restore and refuse."""
+    """Merge each target the lane lacks; on a failed merge, restore and refuse."""
     for target in targets:
-        if _contains(target.ref, "HEAD", lane_path):
+        if lane_core.is_ancestor(target.ref, "HEAD", lane_path):
             continue
-        attempt = lane_core.git_attempt(["merge", "--no-edit", target.ref], lane_path)
+        attempt = lane_core.git_attempt([*MERGE_ARGS, target.ref], lane_path)
         if not attempt.ok:
-            try:
-                refusal = _merge_refusal(target, attempt, lane_path)
-            except lane_core.RefusalError as unreadable:
-                # Still restore: the lane must not stay half merged.
-                refusal = unreadable.refusal
-            if not _restore_verified(snapshot, lane_path):
-                refusal = lane_core.compose_restore_unverified_refusal(
-                    target.label, snapshot.head, refusal.why
-                )
-            raise lane_core.RefusalError(refusal)
+            raise SettledRefusal(
+                _failed_merge_refusal(target, attempt, snapshot, lane_path)
+            )
 
 
-def _enter_lane(trunk_arg: str | None, cwd: Path) -> tuple[lane_core.LaneContext, str]:
-    """The lane `cwd` is in and the trunk commit, or a refusal.
+def _head_moved(snapshot: Snapshot, lane_path: Path) -> bool:
+    """True when HEAD is not `snapshot.head`, or cannot be read."""
+    try:
+        return lane_core.head_commit(lane_path) != snapshot.head
+    except lane_core.RefusalError:
+        return True
 
-    Shared by every command that works inside a lane: a repository, a
-    resolvable trunk and a lane, checked in that order.
+
+def _merge_and_read(
+    entered: EnteredLane, targets: Sequence[MergeTarget], snapshot: Snapshot
+) -> tuple[str, str]:
+    """Merge, then read the `(tree, next step)` to print; restore on any failure.
+
+    Everything between the snapshot and the reads sits in one envelope, so a
+    failure between two merges or while reading leaves the lane as it was.
     """
-    lane_core.require_work_tree(cwd)
-    trunk_ref, trunk_commit = lane_core.resolve_trunk_commit(trunk_arg, cwd)
-    context = lane_core.lane_context(trunk_ref, cwd)
-    if context is None:
-        raise lane_core.RefusalError(lane_core.not_in_a_lane_refusal(cwd, trunk_ref))
-    return context, trunk_commit
-
-
-def _require_clean(lane_path: Path) -> None:
-    dirty = lane_core.dirty_paths(lane_path)
-    if dirty:
-        raise lane_core.RefusalError(
-            lane_core.lane_has_uncommitted_changes_refusal(dirty)
-        )
-
-
-def _next_step(
-    trunk_arg: str | None, trunk_commit: str, tree: str, lane_path: Path
-) -> str:
-    """`integrate` for a local-trunk lane; `/pr` when the origin is on GitHub."""
-    host = git_origin_host.classify(lane_core.origin_url(lane_path))
-    if host == ORIGIN_HOST_GITHUB:
-        return PR_NEXT_STEP
-    return _integrate_command(trunk_arg, trunk_commit, tree)
+    lane_path = entered.context.lane_path
+    try:
+        _merge_all(targets, snapshot, lane_path)
+        tree = lane_core.head_tree(lane_path)
+        return tree, _next_step(entered, tree)
+    except SettledRefusal:
+        raise
+    except lane_core.RefusalError as failure:
+        if _head_moved(snapshot, lane_path) and not _restore_verified(
+            snapshot, lane_path
+        ):
+            labels = " and ".join(target.label for target in targets)
+            raise SettledRefusal(
+                lane_core.compose_restore_unverified_refusal(
+                    labels, snapshot.head, failure.refusal.why
+                )
+            ) from failure
+        raise
+    except BaseException:
+        _restore_verified(snapshot, lane_path)
+        raise
 
 
 def cmd_compose(args: argparse.Namespace, cwd: Path) -> int:
-    context, trunk_commit = _enter_lane(args.trunk, cwd)
-    _require_clean(context.lane_path)
-    snapshot = _snapshot(context.lane_path)
-    _merge_all(_merge_targets(context), snapshot, context.lane_path)
-    tree = lane_core.git_text(["rev-parse", "HEAD^{tree}"], context.lane_path)
-    print(f"lane: {context.branch}")
-    print(f"trunk: {context.trunk_ref}")
-    print(f"expected-trunk: {trunk_commit}")
+    """Merge trunk into the lane; print the identities a reviewer checks.
+
+    Compose assumes it is the only git process in the lane for the duration of
+    the call: it does not lock the lane, and its restore (`reset --hard`)
+    discards an edit made to the lane while the merge runs.
+    """
+    entered = _enter_lane(args.trunk, cwd)
+    lane_path = entered.context.lane_path
+    _require_clean(lane_path)
+    snapshot = _snapshot(lane_path)
+    tree, next_step = _merge_and_read(entered, _merge_targets(entered), snapshot)
+    print(f"lane: {entered.context.branch}")
+    print(f"trunk: {entered.context.trunk_ref}")
+    print(f"expected-trunk: {entered.trunk_commit}")
     print(f"expected-tree: {tree}")
-    print(f"next: {_next_step(args.trunk, trunk_commit, tree, context.lane_path)}")
+    print(f"next: {next_step}")
     return lane_core.EXIT_OK
 
 

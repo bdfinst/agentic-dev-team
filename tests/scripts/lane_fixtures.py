@@ -1,4 +1,4 @@
-"""Fixtures and recorders for tests/scripts/test_lane.py and test_lane_core.py.
+"""Fixtures and recorders for tests/scripts/test_lane*.py.
 
 `repo_without_remote`: a repository with no remote, trunk `main`.
 `repo_with_origin`: a repository with a non-github bare `origin` (built with
@@ -19,9 +19,12 @@ from __future__ import annotations
 import ast
 import os
 import re
+import shlex
+import stat
 import subprocess
 import sys
-from collections.abc import Iterable, Sequence
+import tempfile
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,6 +36,7 @@ _SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
+import lane
 import lane_core
 
 _HERMETIC_DIR = REPO_ROOT / "plugins" / "dev-team" / "tests" / "lib"
@@ -87,9 +91,33 @@ _IDENTITY = {
 }
 
 
+#: Written out here, not read from lane_core: a hermetic test environment must
+#: not depend on the code under test to say what reconfigures git. Together
+#: with the five variables `hermetic_git_env` drops.
+EXTRA_DROPPED_GIT_VARIABLES = frozenset(
+    {
+        "GIT_CONFIG_COUNT",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_COMMON_DIR",
+        "GIT_NAMESPACE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_EXEC_PATH",
+    }
+)
+DROPPED_GIT_VARIABLE_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+
+
 def git_env(home: Path) -> dict[str, str]:
     """Hermetic git environment with a fixed commit identity."""
-    return {**hermetic_git_env(home=home), **_IDENTITY}
+    base = hermetic_git_env(home=home)
+    kept = {
+        key: value
+        for key, value in base.items()
+        if key not in EXTRA_DROPPED_GIT_VARIABLES
+        and not key.startswith(DROPPED_GIT_VARIABLE_PREFIXES)
+    }
+    return {**kept, **_IDENTITY}
 
 
 def git(cwd: Path, *args: str, home: Path | None = None) -> str:
@@ -103,6 +131,26 @@ def git(cwd: Path, *args: str, home: Path | None = None) -> str:
         check=True,
     )
     return done.stdout.strip()
+
+
+def git_succeeds(cwd: Path, *args: str) -> bool:
+    """Whether a fixture git command exits 0 (hermetic env); never raises on exit 1."""
+    done = subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        env=git_env(cwd),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return done.returncode == 0
+
+
+def run_main(argv, cwd, capsys):
+    """Run `lane.main` in-process; return `(exit code, stdout, stderr)`."""
+    code = lane.main(argv, cwd=cwd)
+    captured = capsys.readouterr()
+    return code, captured.out, captured.err
 
 
 def commit_file(repo: Path, name: str, content: str, message: str) -> str:
@@ -222,16 +270,8 @@ def add_linked_worktree(repo: Repo, branch: str, start: str = TRUNK) -> Path:
     return path
 
 
-def lane_state(cwd: Path) -> tuple[str, str]:
-    """All refs and the worktree list: equal before and after a refused open."""
-    return (
-        git(cwd, "for-each-ref"),
-        git(cwd, "worktree", "list", "--porcelain"),
-    )
-
-
 def unchanged_state(cwd: Path) -> dict[str, str]:
-    """What must be equal before and after a refused command in the worktree `cwd`.
+    """What must be equal before and after a refused command run in `cwd`.
 
     All refs, the worktree list, HEAD and its tree, the index (mode, object and
     stage of every entry) and the working tree (`status`, ignored files too).
@@ -246,17 +286,16 @@ def unchanged_state(cwd: Path) -> dict[str, str]:
     }
 
 
-def merge_in_progress(cwd: Path) -> bool:
+def has_unfinished_merge(cwd: Path) -> bool:
     """True when `cwd` has a merge underway or unmerged index entries."""
-    probe = subprocess.run(
-        ["git", "rev-parse", "--verify", "--quiet", "MERGE_HEAD"],
-        cwd=str(cwd),
-        env=git_env(cwd),
-        capture_output=True,
-        text=True,
-        check=False,
+    return git_succeeds(cwd, "rev-parse", "--verify", "--quiet", "MERGE_HEAD") or (
+        git(cwd, "ls-files", "-u") != ""
     )
-    return probe.returncode == 0 or git(cwd, "ls-files", "-u") != ""
+
+
+def is_ancestor(cwd: Path, ancestor: str, descendant: str) -> bool:
+    """The fixture-level oracle for ancestry, independent of `lane_core`."""
+    return git_succeeds(cwd, "merge-base", "--is-ancestor", ancestor, descendant)
 
 
 def parse_blocks(stderr: str) -> list[dict[str, str]]:
@@ -441,3 +480,120 @@ def repo_without_default_branch(tmp_path) -> Path:
     git(path, "init", "-q", "-b", "elsewhere", home=tmp_path)
     commit_file(path, "a.txt", "a\n", "a")
     return path
+
+
+@pytest.fixture
+def plain_directory(tmp_path, monkeypatch) -> Path:
+    """A directory outside any repository, whatever lies above the temp directory."""
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    return plain
+
+
+# --- builders and probes for the compose tests ------------------------------
+
+
+def lane_with_commit(repo: Repo, name: str = "feature") -> Path:
+    """A lane beside `repo` with one commit of its own."""
+    lane_path = add_linked_worktree(repo, name)
+    commit_file(lane_path, "lane.txt", "lane\n", "lane work")
+    return lane_path
+
+
+def open_origin_lane(repo: Repo, name: str = "feature") -> Path:
+    """A lane in a repository with an origin, branched from origin/main, with a commit."""
+    lane_path = add_linked_worktree(repo, name, start="origin/main")
+    commit_file(lane_path, "lane.txt", "lane\n", "lane work")
+    return lane_path
+
+
+def advance_trunk(repo: Repo, name: str = "trunk.txt", content: str = "trunk\n") -> str:
+    """A new commit on the primary checkout's trunk branch; returns its SHA."""
+    return commit_file(repo.path, name, content, f"trunk writes {name}")
+
+
+def conflicting_lane(repo: Repo, with_origin: bool = False) -> Path:
+    """A lane and the trunk both edit `base.txt`, so merging trunk conflicts.
+
+    With an origin the lane starts at `origin/main`, which also moves ahead (a
+    merge with no conflict), and only local `main` carries the conflicting edit.
+    """
+    lane_path = add_linked_worktree(
+        repo, "feature", start="origin/main" if with_origin else TRUNK
+    )
+    commit_file(lane_path, "base.txt", "lane edit\n", "lane edits base")
+    if with_origin:
+        advance_origin(repo)
+    advance_trunk(repo, "base.txt", "trunk edit\n")
+    return lane_path
+
+
+def advance_origin(repo: Repo, name: str = "remote.txt") -> str:
+    """Move the bare origin's main forward without pushing, then fetch it."""
+    scratch = Path(tempfile.mkdtemp(dir=repo.path.parent, prefix="origin-work-"))
+    git(repo.path.parent, "clone", "-q", str(repo.origin), str(scratch))
+    tip = commit_file(scratch, name, "remote\n", f"origin adds {name}")
+    git(repo.origin, "fetch", "-q", str(scratch), "main:main")
+    git(repo.path, "fetch", "-q", "origin")
+    return tip
+
+
+def install_hook(repo: Repo, name: str, script: str) -> Path:
+    """An executable hook in the common git directory (never `core.hooksPath`)."""
+    common = Path(repo.path, git(repo.path, "rev-parse", "--git-common-dir"))
+    hook = common / "hooks" / name
+    hook.parent.mkdir(exist_ok=True)
+    hook.write_text(script, encoding="utf-8")
+    hook.chmod(hook.stat().st_mode | stat.S_IXUSR)
+    return hook
+
+
+HOOK_SENTINEL = "LANE-HOOK-REJECT"
+REJECT_HOOK = f"#!/bin/sh\necho {HOOK_SENTINEL} >&2\nexit 1\n"
+FAILING_MERGE_NUMBER = 2
+
+
+def rejecting_nth_merge_hook(hook_call_log: Path) -> str:
+    """A hook that logs every call and rejects the `FAILING_MERGE_NUMBER`th."""
+    log = shlex.quote(str(hook_call_log))
+    return (
+        f"#!/bin/sh\necho call >> {log}\n"
+        f'[ "$(grep -c call {log})" -lt {FAILING_MERGE_NUMBER} ] && exit 0\n'
+        f"echo {HOOK_SENTINEL} >&2\nexit 1\n"
+    )
+
+
+def merge_argvs(argv_spy: ArgvSpy, start: int) -> list[list[str]]:
+    """Recorded `git merge <target>` invocations after record index `start`.
+
+    `merge --abort` is a merge command too, but it merges nothing.
+    """
+    return [
+        argv
+        for argv in argv_spy.records[start:]
+        if argv[:2] == ["git", "merge"] and "--abort" not in argv
+    ]
+
+
+def stub_git_call(
+    monkeypatch,
+    name: str,
+    prefixes: Sequence[Sequence[str]],
+    outcome: Callable[[], object],
+) -> None:
+    """Make `lane_core.<name>` return `outcome()` for a call whose arguments start
+    with one of `prefixes`; every other call runs for real."""
+    real = getattr(lane_core, name)
+
+    def stubbed(args, cwd):
+        if any(list(args[: len(prefix)]) == list(prefix) for prefix in prefixes):
+            return outcome()
+        return real(args, cwd)
+
+    monkeypatch.setattr(lane_core, name, stubbed)
+
+
+def fail_git_ok_for(monkeypatch, *prefixes: Sequence[str]) -> None:
+    """`lane_core.git_ok` reports failure, and runs nothing, for these argument prefixes."""
+    stub_git_call(monkeypatch, "git_ok", prefixes, lambda: False)

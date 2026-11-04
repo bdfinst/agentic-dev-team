@@ -15,10 +15,14 @@ every command shares:
   the trunk, which local branch it maps to (None for a tag or SHA), and
   whether the working directory is a lane. `resolve_trunk` is a thin wrapper
   over `resolve_trunk_commit` for tests and probes.
-- `worktrees`, `branch_exists`, `branch_checked_out` and `primary_checkout`:
-  the one worktree-listing parser and the questions built on it.
+- `worktrees`, `branch_exists`, `branch_commit`, `branch_checked_out` and
+  `primary_checkout`: the one worktree-listing parser and the questions built
+  on it.
 - `dirty_paths`: the one reader of `git status`; `origin_url`: the one reader
   of the `origin` remote.
+- `head_commit`, `commit_tree`, `head_tree`, `is_ancestor`, `unmerged_paths`
+  and `merge_in_progress`: one reader per fact about the history and merge
+  state of a work tree.
 - `git_attempt`: a git call whose failure the caller handles itself.
 
 Import whitelist (pinned by an AST test): the standard library and
@@ -50,6 +54,20 @@ EXIT_USAGE = 2
 
 #: Seconds before a git call is abandoned. Nothing here waits on a person.
 GIT_TIMEOUT_SECONDS = 120
+
+#: What a `git status -z` entry looks like: two status letters, a space, the
+#: path. A rename or copy entry (`R`, `C`) is followed by a second entry that
+#: names its origin.
+PORCELAIN_PATH_OFFSET = 3
+PORCELAIN_ORIGIN_FOLLOWS = frozenset("RC")
+
+#: Separates the paths of every `-z` listing.
+NUL = "\0"
+
+#: Exists in the git directory only while a merge is unfinished.
+MERGE_HEAD = "MERGE_HEAD"
+
+NO_GIT_MESSAGE = "git gave no message"
 
 GIT_DIR_NAME = ".git"
 HEAD_REFS_PREFIX = "refs/heads/"
@@ -199,7 +217,7 @@ def git_command_failed_refusal(command: str, detail: str) -> Refusal:
     """`detail` is the last non-empty stderr line of git, or the guard's reason."""
     return Refusal(
         what=WHAT_GIT_COMMAND_FAILED,
-        why=f"{detail.strip() or 'git gave no message'} (command: {command})",
+        why=f"{detail.strip() or NO_GIT_MESSAGE} (command: {command})",
         how=f"fix the cause named in why, then run the failed command again: {command}",
     )
 
@@ -278,10 +296,23 @@ def not_in_a_lane_refusal(cwd: Path, trunk_ref: str) -> Refusal:
 
 
 @_registered(WHAT_LANE_HAS_UNCOMMITTED_CHANGES)
-def lane_has_uncommitted_changes_refusal(paths: Sequence[str]) -> Refusal:
+def lane_has_uncommitted_changes_refusal(
+    paths: Sequence[str], merge_unfinished: bool = False
+) -> Refusal:
+    """`merge_unfinished`: the lane also has a merge begun and not concluded."""
     listed = ", ".join(paths[:MAX_LISTED_PATHS])
     extra = len(paths) - MAX_LISTED_PATHS
     more = f" and {extra} more" if extra > 0 else ""
+    if merge_unfinished:
+        changes = f"; uncommitted paths: {listed}{more}" if paths else ""
+        return Refusal(
+            what=WHAT_LANE_HAS_UNCOMMITTED_CHANGES,
+            why=f"the lane has a merge in progress ({MERGE_HEAD} exists){changes}",
+            how=(
+                "conclude the merge with git commit in the lane, or abort it with "
+                "git merge --abort, then run this command again"
+            ),
+        )
     return Refusal(
         what=WHAT_LANE_HAS_UNCOMMITTED_CHANGES,
         why=f"the lane has uncommitted changes: {listed}{more}",
@@ -292,46 +323,61 @@ def lane_has_uncommitted_changes_refusal(paths: Sequence[str]) -> Refusal:
     )
 
 
+def compose_conflict_cause(paths: Sequence[str]) -> str:
+    return f"conflicts in {', '.join(paths)}"
+
+
+def compose_merge_failed_cause(command: str, detail: str) -> str:
+    """`detail` is git's own message; `command` is the merge that failed."""
+    return f"{detail.strip() or NO_GIT_MESSAGE} (command: {command})"
+
+
 @_registered(WHAT_COMPOSE_CONFLICT)
-def compose_conflict_refusal(ref: str, paths: Sequence[str]) -> Refusal:
+def compose_conflict_refusal(target_label: str, paths: Sequence[str]) -> Refusal:
+    """Raised only after the lane was restored."""
     return Refusal(
         what=WHAT_COMPOSE_CONFLICT,
         why=(
-            f"merging {ref} into the lane conflicts in {', '.join(paths)}; "
+            f"merging {target_label} into the lane {compose_conflict_cause(paths)}; "
             "the lane was restored to its state before compose"
         ),
         how=(
-            f"merge {ref} by hand in the lane, resolve the conflicts, commit, "
-            "then run compose again"
+            f"merge {target_label} by hand in the lane, resolve the conflicts, "
+            "commit, then run compose again"
         ),
     )
 
 
 @_registered(WHAT_COMPOSE_MERGE_FAILED)
-def compose_merge_failed_refusal(ref: str, command: str, detail: str) -> Refusal:
-    """`detail` is git's own message; `command` is the merge that failed."""
+def compose_merge_failed_refusal(
+    target_label: str, command: str, detail: str
+) -> Refusal:
+    """Raised only after the lane was restored."""
     return Refusal(
         what=WHAT_COMPOSE_MERGE_FAILED,
         why=(
-            f"git could not merge {ref}: {detail.strip() or 'git gave no message'} "
-            f"(command: {command}); the lane was restored to its state before compose"
+            f"git could not merge {target_label}: "
+            f"{compose_merge_failed_cause(command, detail)}; "
+            "the lane was restored to its state before compose"
         ),
         how="resolve the cause named in why, then run compose again",
     )
 
 
 @_registered(WHAT_COMPOSE_RESTORE_UNVERIFIED)
-def compose_restore_unverified_refusal(ref: str, sha: str, cause: str) -> Refusal:
-    """`sha` is the lane's HEAD before compose; `cause` is why the merge failed."""
+def compose_restore_unverified_refusal(
+    target_label: str, pre_compose_head: str, cause: str
+) -> Refusal:
+    """`cause` is why the merge failed, without any claim about the lane's state."""
     return Refusal(
         what=WHAT_COMPOSE_RESTORE_UNVERIFIED,
         why=(
-            f"merging {ref} failed ({cause}), and the lane could not be verified "
-            f"as restored to its pre-compose commit {sha}"
+            f"merging {target_label} failed ({cause}), and the lane could not be "
+            f"verified as restored to its pre-compose commit {pre_compose_head}"
         ),
         how=(
             "save any edits you want to keep, then run "
-            f"git reset --hard {sha} in the lane yourself"
+            f"git reset --hard {pre_compose_head} in the lane yourself"
         ),
     )
 
@@ -525,12 +571,17 @@ def git_ok(args: Sequence[str], cwd: Path) -> bool:
     return _git(args, cwd).returncode == 0
 
 
-def git_text(args: Sequence[str], cwd: Path) -> str:
-    """Stripped stdout of a git command that must succeed."""
+def _git_checked(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """`_git`, but a non-zero exit raises the `git command failed` refusal."""
     completed = _git(args, cwd)
     if completed.returncode != 0:
         raise _failure(["git", *args], _last_line(completed.stderr))
-    return completed.stdout.strip()
+    return completed
+
+
+def git_text(args: Sequence[str], cwd: Path) -> str:
+    """Stripped stdout of a git command that must succeed."""
+    return _git_checked(args, cwd).stdout.strip()
 
 
 def dirty_paths(cwd: Path) -> list[str]:
@@ -541,21 +592,54 @@ def dirty_paths(cwd: Path) -> list[str]:
     is skipped. Ignored files are not reported.
     """
     args = ["status", "--porcelain=v1", "-z", "--untracked-files=all"]
-    completed = _git(args, cwd)
-    if completed.returncode != 0:
-        raise _failure(["git", *args], _last_line(completed.stderr))
-    entries = completed.stdout.split("\0")
+    entries = _git_checked(args, cwd).stdout.split(NUL)
     paths: list[str] = []
     index = 0
     while index < len(entries):
         entry = entries[index]
         index += 1
-        if len(entry) < 4:
+        if len(entry) <= PORCELAIN_PATH_OFFSET:
             continue
-        paths.append(entry[3:])
-        if set(entry[:2]) & set("RC"):
+        paths.append(entry[PORCELAIN_PATH_OFFSET:])
+        if set(entry[:2]) & PORCELAIN_ORIGIN_FOLLOWS:
             index += 1
     return paths
+
+
+def head_commit(cwd: Path) -> str:
+    """The commit SHA `HEAD` names."""
+    return git_text(["rev-parse", "--verify", "HEAD^{commit}"], cwd)
+
+
+def commit_tree(commit: str, cwd: Path) -> str:
+    """The tree SHA of `commit`, a SHA read from git."""
+    return git_text(["rev-parse", "--verify", f"{commit}^{{tree}}"], cwd)
+
+
+def head_tree(cwd: Path) -> str:
+    """The tree of `HEAD`, read from the commit `head_commit` names."""
+    return commit_tree(head_commit(cwd), cwd)
+
+
+def is_ancestor(ancestor: str, descendant: str, cwd: Path) -> bool:
+    """True when `ancestor` is `descendant` or in its history."""
+    return git_ok(["merge-base", "--is-ancestor", ancestor, descendant], cwd)
+
+
+def unmerged_paths(cwd: Path) -> list[str]:
+    """Paths with unresolved merge conflicts."""
+    listed = git_text(["diff", "--name-only", "--diff-filter=U", "-z"], cwd)
+    return [path for path in listed.split(NUL) if path]
+
+
+def merge_in_progress(cwd: Path) -> bool:
+    """True while a merge is begun and not concluded or aborted."""
+    return git_ok(["rev-parse", "--verify", "--quiet", MERGE_HEAD], cwd)
+
+
+def branch_commit(name: str, cwd: Path) -> str | None:
+    """The commit local branch `name` points at, or None when it does not exist."""
+    return _commit_of(f"{HEAD_REFS_PREFIX}{name}", cwd)
 
 
 def require_work_tree(cwd: Path) -> None:
