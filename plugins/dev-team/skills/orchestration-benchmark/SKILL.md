@@ -90,29 +90,34 @@ possible; add fixtures only where a class has none.
 This case compares three candidates with one on a `complex` step.
 It measures whether the extra candidates earn their cost.
 
-- **Class.** `complex` only. The fixture step is a `complex` step of a plan
-  built with `/build`.
-- **Pilot.** Run `/build --candidates 1` once on the fixture step. Set the
-  cap at 5× its measured cost (`cost_meter.py report`). Exclude the pilot
-  from the runs.
-- **Arms.** Two arms, both under Arm B's configuration: `--candidates 1`,
-  and `--candidates 3 --max-cost-usd <cap>`.
+- **Class.** `complex` only. The fixture is a plan fixture with one `complex`
+  step and its eval assertions under `evals/fixtures/`. Add it when the case
+  first runs (none exists). Run that step with `/build`.
+- **Pilot.** Run `/build --candidates 1` once on the fixture step. Step cost
+  is the cost-meter delta across the step: `cost_meter.py report` before the
+  step and after its checkpoint passes. Set the cap at 5× the pilot's step
+  cost. Exclude the pilot from the runs.
+- **Arms.** Two variants of Arm B, named by candidate count: N = 1
+  (`--candidates 1`) and N = 3 (`--candidates 3 --max-cost-usd <cap>`).
 - **Repetitions.** The ≥ 5 runs (`--runs`), interleaved order (1, 3, 1, 3,
   …), median + spread, and model-pinning rules apply unchanged. See
-  [Repetitions and isolation](#repetitions-and-isolation).
-- **Metrics.** Use the Metrics table plus the plan's `### Speculative
-  dispatch` rows. These give the kept candidate's rank inputs and the Cost
-  column.
-  Screening spend = the run's measured step cost − the sum of the Cost
+  [Repetitions and isolation](#repetitions-and-isolation). Runs execute one
+  at a time; no run overlaps another run or the pilot.
+- **Metrics.** Use the Metrics table plus the `Speculative dispatch` rows of
+  the plan's `## Plan Review Summary`. Those rows give the kept candidate's
+  rank inputs and the `Cost (USD)` column. Screening spend is all step cost
+  outside the cap: suite runs, screening, and the winner's inline checkpoint.
+  It equals the run's measured step cost − the sum of the `Cost (USD)`
   column.
 - **Pre-registered rule.** N = 3 earns its cost only when both conditions
   hold:
-  - Its acceptance pass rate exceeds N = 1's by at least 20 points.
-  - Its median cost is at most 3× N = 1's median plus the measured
-    screening spend.
-- **Noise and ties.** A difference under 20 points is noise at five runs. A
-  difference of exactly 20 points (one run) is inconclusive. Extend the case
-  to 10 runs before applying the rule.
+  - Its acceptance pass rate (the Quality metric) exceeds N = 1's by at
+    least 20 points.
+  - Its median cost is at most 3× N = 1's median, plus the median screening
+    spend of the N = 3 runs.
+- **Noise and ties.** A difference under 20 points is noise at five runs. At
+  five runs, a difference of exactly 20 points (one run) is inconclusive.
+  Extend the case to 10 runs, then apply the rule as written.
 - **If the rule fails.** The report states that N = 1 is retained. A
   follow-up PR updates the experimental note of the `--candidates` bullet
   (`skills/build/SKILL.md`, Parse Arguments) with the result.
@@ -170,6 +175,8 @@ Apply per task class:
    `/harness-audit` — do not suppress it.
 3. **Crossover output:** report the task-size threshold below which A/B
    beats C. That number feeds the #1093 sweep rule.
+4. **Speculative dispatch case:** apply the rule in
+   [Speculative dispatch case (#2273)](#speculative-dispatch-case-2273).
 
 ## Threats to validity
 
@@ -205,6 +212,8 @@ Body sections, in order:
    C, with the fixture-overfitting caveat attached.
 3. **Decision-rule outcomes** — per class: adopt/retain verdicts against the
    pre-registered rule, including the mechanism-check result.
+   The speculative dispatch case's earn/retain verdict goes in its Per-class
+   `Speculative dispatch` subsection.
 4. **Threats to validity** — all five items above, each with how this run
    addressed it.
 5. **Run log** — each dispatched agent's declared `model:`/`effort:`

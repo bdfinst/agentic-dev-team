@@ -40,6 +40,7 @@ from skill_doc_helpers import (
 
 SKILL = PLUGIN_ROOT / "skills" / "build" / "SKILL.md"
 SKILLS_DOC = PLUGIN_ROOT / "docs" / "skills.md"
+CANDIDATES_SCRIPT = PLUGIN_ROOT / "scripts" / "build_candidates.py"
 
 HELP_TIMEOUT_SECONDS = 60
 HELP_CHECKED_SCRIPT = "scripts/build_candidates.py"
@@ -59,11 +60,27 @@ VALIDATION_BOUNDARY = r"^\*\*Interactivity\.\*\*"
 #: of the line (subcommand and flags).
 _INVOCATION_RE = re.compile(r'python3 "\$\{CLAUDE_PLUGIN_ROOT\}/([^"]+)"(.*)$')
 
+
+def _max_candidates() -> int:
+    """The script's own cap on N, so the bullet is checked against the code."""
+    match = re.search(
+        r"^MAX_CANDIDATES = (\d+)$",
+        CANDIDATES_SCRIPT.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    assert match, "build_candidates.py defines no MAX_CANDIDATES"
+    return int(match.group(1))
+
+
+MAX_CANDIDATES = _max_candidates()
+
 STOP_NO_TRANSCRIPT = (
+    "No transcript located: "
     "`--candidates needs the session transcript to enforce --max-cost-usd; "
     "none located — run without --candidates`"
 )
 STOP_BAD_BASEREF = (
+    "Any value other than `head`: "
     "`--candidates needs worktree.baseRef = head (detected: <value>); "
     "set it in .claude/settings.json or run without --candidates`"
 )
@@ -72,11 +89,18 @@ PRINT_WITH_COMPLEX_STEPS = (
     "under a $<X> cap; other steps run as normal`"
 )
 VALIDATE_FLAGS_CALL = (
-    'build_candidates.py" validate-flags --candidates=<raw> '
-    "--max-cost-usd=<raw> --jobs=<raw>"
+    "build_candidates.py\" validate-flags --candidates='<raw>' "
+    "--max-cost-usd='<raw>' --jobs='<raw>'"
+)
+PRINT_CONDITION = (
+    'When `"speculative": true`, print this line after Step 1 finds the plan:'
 )
 SPECULATIVE_TRANSCRIPT_CHECK = (
     'When the printed JSON has `"speculative": true`, locate the session transcript'
+)
+STEP_1_PRINT_CONDITION = (
+    'When the Parse Arguments validation reported `"speculative": true`, '
+    "print the `speculative dispatch:` line"
 )
 STEP_1_PRINT = (
     "print the `speculative dispatch:` line defined there once the plan is found."
@@ -189,14 +213,13 @@ FACTS = [
     Fact(
         "candidates_bullet_limits_it_to_complex_steps",
         "candidates_bullet",
-        literal_required=(
-            "Applies only to steps whose `**Complexity**` is `complex`.",
-        ),
+        literal_required=("Applies only to steps whose `**Complexity**` is `complex`",),
     ),
     Fact(
-        "candidates_bullet_bounds_n_between_1_and_8",
+        "candidates_bullet_bounds_n_between_1_and_the_scripts_maximum",
         "candidates_bullet",
-        literal_required=("N is between 1 and 8.",),
+        literal_required=(f"N is between 1 and {MAX_CANDIDATES}",),
+        note="The upper bound is read from MAX_CANDIDATES in build_candidates.py.",
     ),
     Fact(
         "candidates_bullet_says_1_is_the_unchanged_build",
@@ -206,13 +229,13 @@ FACTS = [
     Fact(
         "candidates_bullet_says_the_cap_bounds_dispatch_not_screening",
         "candidates_bullet",
-        literal_required=("cap bounds candidate dispatch spend, not screening.",),
+        literal_required=("cap bounds candidate dispatch spend, not screening",),
     ),
     Fact(
         "candidates_bullet_says_the_cap_is_checked_between_batches",
         "candidates_bullet",
         literal_required=(
-            "The skill checks the cap between batches, so one batch may overrun it.",
+            "the skill checks it between batches, so one batch may overrun it.",
         ),
     ),
     Fact(
@@ -221,12 +244,12 @@ FACTS = [
         literal_required=("`skills/speculative-build/SKILL.md`",),
     ),
     Fact(
-        "candidates_bullet_says_batches_follow_the_skills_concurrency_not_jobs",
+        "candidates_bullet_rejects_jobs_above_1_and_names_the_fan_out_variable",
         "candidates_bullet",
         literal_required=(
             (
-                "Candidate batches follow speculative-build's own concurrency "
-                "(`DEV_TEAM_MAX_PARALLEL_BUILDS`, not `--jobs`)."
+                "With N ≥ 2, `--jobs` greater than 1 is rejected (exit 2); "
+                "set `DEV_TEAM_MAX_PARALLEL_BUILDS` for wave fan-out."
             ),
         ),
     ),
@@ -235,8 +258,8 @@ FACTS = [
         "candidates_bullet",
         literal_required=(
             (
-                "The cap bounds one step; a wave with W speculative steps may spend "
-                "W times the cap."
+                "The cap bounds one step; a wave of W speculative steps may spend "
+                "up to W times the cap, where W is their count."
             ),
         ),
     ),
@@ -244,18 +267,48 @@ FACTS = [
     Fact(
         "max_cost_bullet_is_required_with_n_at_least_2",
         "max_cost_bullet",
-        literal_required=("Required with N ≥ 2.",),
+        literal_required=("Required with N ≥ 2,",),
     ),
     Fact(
-        "max_cost_bullet_names_a_dollar_spend_cap",
+        "max_cost_bullet_is_rejected_otherwise_with_exit_2",
         "max_cost_bullet",
-        literal_required=("The step's speculative spend cap in dollars.",),
+        literal_required=("and rejected otherwise (exit 2).",),
+    ),
+    Fact(
+        "max_cost_bullet_names_a_dollar_cost_cap",
+        "max_cost_bullet",
+        literal_required=("The step's cost cap in dollars.",),
     ),
     # validation paragraph
     Fact(
         "validation_runs_validate_flags_with_the_three_equals_flags",
         "validation",
         literal_required=(VALIDATE_FLAGS_CALL,),
+    ),
+    Fact(
+        "validation_single_quotes_each_raw_value",
+        "validation",
+        literal_required=("Single-quote each raw value.",),
+    ),
+    Fact(
+        "validation_stops_on_a_raw_value_with_a_single_quote",
+        "validation",
+        literal_required=(
+            (
+                "If a raw value contains a single quote, stop with the "
+                "validator's usage message and run nothing."
+            ),
+        ),
+    ),
+    Fact(
+        "validation_confirms_the_agent_tool_before_step_0",
+        "validation",
+        literal_required=(
+            (
+                "Before Step 0, also confirm the `Agent` (or `Task`) tool is "
+                "available, as the Orchestrator constraints require."
+            ),
+        ),
     ),
     Fact(
         "validation_explains_the_equals_form_and_omitted_flags",
@@ -284,9 +337,19 @@ FACTS = [
         ),
     ),
     Fact(
+        "validation_stops_before_step_0_when_the_transcript_or_baseref_fails",
+        "validation",
+        literal_required=(
+            (
+                "If the transcript is not located or baseRef is not `head`, "
+                "stop before Step 0 with the matching message below."
+            ),
+        ),
+    ),
+    Fact(
         "validation_stops_before_step_0_with_the_no_transcript_message",
         "validation",
-        literal_required=(STOP_NO_TRANSCRIPT, "stop before Step 0"),
+        literal_required=(STOP_NO_TRANSCRIPT,),
     ),
     Fact(
         "validation_stops_before_step_0_with_the_baseref_message",
@@ -298,9 +361,13 @@ FACTS = [
         "validation",
         literal_required=(
             PRINT_WITH_COMPLEX_STEPS,
-            "after Step 1 finds the plan",
             "Count n as the steps in the plan whose `**Complexity**` is `complex`.",
         ),
+    ),
+    Fact(
+        "validation_prints_the_line_only_when_speculative_after_step_1",
+        "validation",
+        literal_required=(PRINT_CONDITION,),
     ),
     Fact(
         "validation_prints_the_no_effect_line_when_n_is_0",
@@ -320,6 +387,11 @@ FACTS = [
         "step_1_prints_the_speculative_dispatch_line_once_the_plan_is_found",
         "step_1",
         literal_required=(STEP_1_PRINT,),
+    ),
+    Fact(
+        "step_1_prints_only_when_validation_reported_speculative",
+        "step_1",
+        literal_required=(STEP_1_PRINT_CONDITION,),
     ),
 ]
 
@@ -354,22 +426,23 @@ def test_facts_pass_when_the_two_bullets_swap_places(skill_text):
         assert_fact(SECTIONS, swapped, fact)
 
 
-def test_argument_hint_names_both_flags(skill_text):
-    hint = next(
+def _argument_hint(skill_text: str) -> str:
+    """The `argument-hint:` line of the frontmatter."""
+    return next(
         line
         for line in frontmatter(skill_text).splitlines()
         if line.startswith("argument-hint:")
     )
+
+
+def test_argument_hint_names_both_flags(skill_text):
+    hint = _argument_hint(skill_text)
     assert "[--candidates N]" in hint
     assert "[--max-cost-usd X]" in hint
 
 
 def test_skills_doc_build_row_shows_the_argument_hint(skill_text):
-    hint = next(
-        line
-        for line in frontmatter(skill_text).splitlines()
-        if line.startswith("argument-hint:")
-    )
+    hint = _argument_hint(skill_text)
     hint = hint.removeprefix("argument-hint:").strip().strip('"')
     row = next(
         line
