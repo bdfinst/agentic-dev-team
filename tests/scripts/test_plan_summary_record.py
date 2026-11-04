@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import subprocess
 import sys
 
@@ -128,7 +129,7 @@ def created_summary() -> str:
 def test_record_places_a_new_summary_immediately_before_build_progress(
     created_summary,
 ) -> None:
-    assert created_summary.endswith("\n" + BUILD_PROGRESS)
+    assert created_summary.endswith(ROW_4_LINE + "\n" + BUILD_PROGRESS)
     assert created_summary.index(SUMMARY_HEADING) == len(PLAN_HEAD)
 
 
@@ -426,3 +427,476 @@ def _slice_exclusions() -> dict[str, str]:
 
 def test_the_record_script_is_exempt_from_the_floor_slice_with_a_reason() -> None:
     assert _slice_exclusions().get("plan_summary_record.py", "").strip() != ""
+
+
+# --- replacement and appending in an existing table ---------------------------
+
+
+def existing_row(step: str, attempt: int, candidate_id: int) -> str:
+    return (
+        f"| {step} | {attempt} | {candidate_id} | {candidate_id} | b{candidate_id} "
+        "| green | 5/5 | 0 | 0 | 10 | 0.5000 | kept |  |\n"
+    )
+
+
+def plan_with_table(*row_lines: str) -> str:
+    return (
+        PLAN_HEAD
+        + SUMMARY_HEADING
+        + "\n"
+        + subsection(*row_lines)
+        + "\n"
+        + BUILD_PROGRESS
+    )
+
+
+def new_row_line(step: str, attempt: int, candidate_id: int) -> str:
+    return (
+        f"| {step} | {attempt} | {candidate_id} | {candidate_id} "
+        f"| worktree-c{candidate_id} | green | 5/5 | 0 | 0 | 10 | 0.5000 | kept |  |\n"
+    )
+
+
+OLD_ONE = existing_row("2.1", 1, 1)
+OLD_TWO = existing_row("2.1", 1, 2)
+STEP_2_10 = existing_row("2.10", 1, 1)
+SECOND_ATTEMPT = existing_row("2.1", 2, 1)
+PLAN_WITH_FOUR_ROWS = plan_with_table(OLD_ONE, OLD_TWO, STEP_2_10, SECOND_ATTEMPT)
+REPLACEMENT = new_row_line("2.1", 1, 7)
+
+
+@pytest.fixture(scope="module")
+def replaced_attempt() -> str:
+    return plan_summary_record.record(PLAN_WITH_FOUR_ROWS, "2.1", 1, [make_row(7)])
+
+
+def test_record_puts_the_new_row_where_the_replaced_rows_were(replaced_attempt) -> None:
+    assert data_rows(replaced_attempt)[0] == REPLACEMENT
+
+
+def test_record_leaves_other_steps_and_attempts_unchanged_and_in_order(
+    replaced_attempt,
+) -> None:
+    assert data_rows(replaced_attempt)[1:] == [STEP_2_10, SECOND_ATTEMPT]
+
+
+def test_record_never_matches_step_2_10_when_replacing_step_2_1(
+    replaced_attempt,
+) -> None:
+    assert STEP_2_10 in replaced_attempt
+
+
+def test_record_keeps_the_subsection_heading_and_table_header_once(
+    replaced_attempt,
+) -> None:
+    assert (
+        replaced_attempt.count(SUBSECTION_HEADING),
+        replaced_attempt.count(TABLE_HEADER),
+    ) == (1, 1)
+
+
+def test_record_changes_no_byte_outside_the_replaced_rows(replaced_attempt) -> None:
+    assert replaced_attempt.replace(REPLACEMENT, OLD_ONE + OLD_TWO, 1) == (
+        PLAN_WITH_FOUR_ROWS
+    )
+
+
+def test_record_replaces_rows_of_one_attempt_that_are_not_adjacent() -> None:
+    other_step = existing_row("2.2", 1, 1)
+    plan = plan_with_table(OLD_ONE, other_step, OLD_TWO)
+    recorded = plan_summary_record.record(plan, "2.1", 1, [make_row(7)])
+    assert data_rows(recorded) == [REPLACEMENT, other_step]
+
+
+def test_record_matches_the_attempt_cell_exactly() -> None:
+    attempt_10 = existing_row("2.1", 10, 1)
+    plan = plan_with_table(attempt_10)
+    recorded = plan_summary_record.record(plan, "2.1", 1, [make_row(7)])
+    assert data_rows(recorded) == [attempt_10, REPLACEMENT]
+
+
+NEW_STEP_PLAN = plan_with_table(existing_row("1.1", 1, 1), existing_row("1.1", 1, 2))
+
+
+def test_record_appends_a_new_steps_rows_after_the_existing_rows() -> None:
+    recorded = plan_summary_record.record(NEW_STEP_PLAN, "2.1", 1, [make_row(1)])
+    assert data_rows(recorded) == [
+        existing_row("1.1", 1, 1),
+        existing_row("1.1", 1, 2),
+        new_row_line("2.1", 1, 1),
+    ]
+
+
+def test_record_keeps_the_heading_and_header_once_when_appending_a_new_step() -> None:
+    recorded = plan_summary_record.record(NEW_STEP_PLAN, "2.1", 1, [make_row(1)])
+    assert (recorded.count(SUBSECTION_HEADING), recorded.count(TABLE_HEADER)) == (1, 1)
+
+
+def test_record_changes_no_byte_outside_the_appended_row() -> None:
+    recorded = plan_summary_record.record(NEW_STEP_PLAN, "2.1", 1, [make_row(1)])
+    assert recorded.replace(new_row_line("2.1", 1, 1), "", 1) == NEW_STEP_PLAN
+
+
+def test_record_appends_a_second_attempt_after_the_first() -> None:
+    plan = plan_with_table(OLD_ONE)
+    recorded = plan_summary_record.record(plan, "2.1", 2, [make_row(1)])
+    assert data_rows(recorded) == [OLD_ONE, new_row_line("2.1", 2, 1)]
+
+
+def test_record_appends_in_call_order_not_attempt_order() -> None:
+    plan = plan_with_table(SECOND_ATTEMPT)
+    recorded = plan_summary_record.record(plan, "2.1", 1, [make_row(1)])
+    assert data_rows(recorded) == [SECOND_ATTEMPT, new_row_line("2.1", 1, 1)]
+
+
+@pytest.mark.parametrize(
+    "plan",
+    [PLAN_WITHOUT_SUMMARY, NEW_STEP_PLAN, PLAN_WITH_FOUR_ROWS],
+    ids=["no-summary", "new-step", "replacement"],
+)
+def test_record_is_idempotent(plan) -> None:
+    once = plan_summary_record.record(plan, "2.1", 1, one_kept_row())
+    twice = plan_summary_record.record(once, "2.1", 1, one_kept_row())
+    assert twice == once
+
+
+def test_record_ends_a_file_whose_table_is_last_with_exactly_one_newline() -> None:
+    plan = PLAN_HEAD + SUMMARY_HEADING + "\n" + subsection(OLD_ONE) + "\n\n\n"
+    recorded = plan_summary_record.record(plan, "2.1", 1, [make_row(7)])
+    assert recorded == PLAN_HEAD + SUMMARY_HEADING + "\n" + subsection(REPLACEMENT)
+
+
+def test_record_completes_a_last_table_row_that_lacks_its_newline() -> None:
+    plan = PLAN_HEAD + SUMMARY_HEADING + "\n" + subsection(OLD_ONE.rstrip("\n"))
+    recorded = plan_summary_record.record(plan, "2.2", 1, [make_row(1)])
+    assert data_rows(recorded) == [OLD_ONE, new_row_line("2.2", 1, 1)]
+
+
+def test_record_adds_the_table_to_a_subsection_that_has_none() -> None:
+    plan = (
+        PLAN_HEAD + SUMMARY_HEADING + "\n" + SUBSECTION_HEADING + "\n" + BUILD_PROGRESS
+    )
+    recorded = plan_summary_record.record(plan, "2.1", 1, one_kept_row())
+    assert recorded == (
+        PLAN_HEAD
+        + SUMMARY_HEADING
+        + "\n"
+        + subsection(KEPT_ROW_LINE)
+        + "\n"
+        + BUILD_PROGRESS
+    )
+
+
+def test_record_adds_rows_to_a_table_that_has_only_a_header() -> None:
+    plan = (
+        PLAN_HEAD
+        + SUMMARY_HEADING
+        + "\n"
+        + SUBSECTION_HEADING
+        + "\n"
+        + TABLE_HEADER
+        + "\n"
+        + BUILD_PROGRESS
+    )
+    recorded = plan_summary_record.record(plan, "2.1", 1, one_kept_row())
+    assert recorded.endswith(TABLE_HEADER + KEPT_ROW_LINE + "\n" + BUILD_PROGRESS)
+
+
+def test_record_ignores_a_subsection_heading_outside_the_summary() -> None:
+    summary = SUMMARY_HEADING + "\nReviewed.\n\n"
+    elsewhere = "## Notes\n\n" + SUBSECTION_HEADING + "\n" + TABLE_TOP + OLD_ONE + "\n"
+    plan = PLAN_HEAD + summary + elsewhere + BUILD_PROGRESS
+    recorded = plan_summary_record.record(plan, "2.1", 1, [make_row(7)])
+    assert recorded.endswith(elsewhere + BUILD_PROGRESS)
+
+
+def test_record_matches_rows_of_a_table_indented_by_spaces() -> None:
+    plan = plan_with_table("  " + OLD_ONE)
+    recorded = plan_summary_record.record(plan, "2.1", 1, [make_row(7)])
+    assert OLD_ONE not in recorded
+
+
+def test_record_does_not_take_a_deeper_heading_for_the_summary() -> None:
+    deeper = "### Plan Review Summary\n\nNotes.\n\n"
+    recorded = plan_summary_record.record(
+        PLAN_HEAD + deeper + BUILD_PROGRESS, "2.1", 1, one_kept_row()
+    )
+    assert recorded.startswith(PLAN_HEAD + deeper + SUMMARY_HEADING)
+
+
+def test_record_does_not_take_a_higher_heading_for_the_subsection() -> None:
+    summary = SUMMARY_HEADING + "\n## Speculative dispatch\n\nNotes.\n\n"
+    plan = PLAN_HEAD + summary + BUILD_PROGRESS
+    recorded = plan_summary_record.record(plan, "2.1", 1, one_kept_row())
+    assert SUBSECTION_HEADING in recorded
+
+
+def test_record_escapes_a_pipe_in_the_reason() -> None:
+    row = make_row(1, reason="a | b")
+    recorded = plan_summary_record.record(PLAN_WITHOUT_SUMMARY, STEP, 1, [row])
+    assert data_rows(recorded)[0].endswith("| kept | a \\| b |\n")
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [{"reason": "a\n## Build Progress"}, {"branch": "b\r1"}],
+    ids=["newline-in-reason", "carriage-return-in-branch"],
+)
+def test_record_rejects_cell_text_that_would_split_the_row(overrides) -> None:
+    with pytest.raises(ValueError, match="single line"):
+        plan_summary_record.record(
+            PLAN_WITHOUT_SUMMARY, STEP, 1, [make_row(1, **overrides)]
+        )
+
+
+# --- bad input, in-process ----------------------------------------------------
+
+_BAD_ROWS = [
+    ("rows-not-a-list", {"rows": 1}, "rows must be a list"),
+    ("rows-empty", [], "rows must not be empty"),
+    ("row-not-an-object", ["x"], "row 1: not an object"),
+    (
+        "reason-missing",
+        [{"id": 1, "outcome": "not dispatched"}],
+        "row 1: reason must be a string",
+    ),
+    (
+        "reason-not-a-string",
+        [make_row(1, reason=None)],
+        "row 1: reason must be a string",
+    ),
+    (
+        "not-dispatched-id-zero",
+        [not_dispatched_row(0)],
+        "row 1: id must be a positive int",
+    ),
+    (
+        "not-dispatched-id-bool",
+        [not_dispatched_row(True)],
+        "row 1: id must be a positive int",
+    ),
+    (
+        "not-dispatched-id-missing",
+        [{"outcome": "not dispatched", "reason": ""}],
+        "row 1: id must be a positive int",
+    ),
+    (
+        "outcome-unhashable",
+        [make_row(1, outcome=["kept"])],
+        "outcome must be one of",
+    ),
+    ("rank-missing", [{**make_row(1), "rank": None}], "candidate 1: rank must be"),
+    ("rank-zero", [make_row(1, rank=0)], "candidate 1: rank must be"),
+    ("rank-negative", [make_row(1, rank=-1)], "candidate 1: rank must be"),
+    ("rank-float", [make_row(1, rank=1.5)], "candidate 1: rank must be"),
+    ("rank-bool", [make_row(1, rank=True)], "candidate 1: rank must be"),
+    ("rank-string", [make_row(1, rank="1")], "candidate 1: rank must be"),
+    (
+        "candidate-field-invalid",
+        [make_row(1, suite_green=1)],
+        "candidate 1: suite_green must be a boolean",
+    ),
+    (
+        "duplicate-id",
+        [make_row(1, "removed"), make_row(1, "removed")],
+        "duplicate candidate id 1",
+    ),
+    (
+        "two-kept",
+        [make_row(1), make_row(2)],
+        "more than one kept row: candidates 1, 2",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "rows,message",
+    [(rows, message) for _, rows, message in _BAD_ROWS],
+    ids=[case_id for case_id, _, _ in _BAD_ROWS],
+)
+def test_record_rejects_invalid_rows_naming_the_problem(rows, message) -> None:
+    with pytest.raises(ValueError, match=message.replace("|", r"\|")):
+        plan_summary_record.record(PLAN_WITHOUT_SUMMARY, STEP, 1, rows)
+
+
+_BAD_STEPS = ["2", "2.", ".1", "a.b", "2.1.1", " 2.1", "2.1\n", "2,1", "٢.١"]
+
+
+@pytest.mark.parametrize("step", _BAD_STEPS, ids=[repr(s) for s in _BAD_STEPS])
+def test_record_rejects_a_step_that_is_not_n_dot_m(step) -> None:
+    with pytest.raises(ValueError, match="step must be N.M"):
+        plan_summary_record.record(PLAN_WITHOUT_SUMMARY, step, 1, one_kept_row())
+
+
+_BAD_ATTEMPTS = [0, -1, True, 1.0, "1", None]
+
+
+@pytest.mark.parametrize("attempt", _BAD_ATTEMPTS, ids=[repr(a) for a in _BAD_ATTEMPTS])
+def test_record_rejects_an_attempt_that_is_not_a_positive_int(attempt) -> None:
+    with pytest.raises(ValueError, match="attempt must be a positive integer"):
+        plan_summary_record.record(PLAN_WITHOUT_SUMMARY, STEP, attempt, one_kept_row())
+
+
+def test_record_accepts_a_multi_digit_step_and_attempt() -> None:
+    recorded = plan_summary_record.record(
+        PLAN_WITHOUT_SUMMARY, "12.34", 10, one_kept_row()
+    )
+    assert data_rows(recorded)[0].startswith("| 12.34 | 10 | ")
+
+
+# --- bad input on the command line --------------------------------------------
+
+VALID_PLAN = PLAN_WITHOUT_SUMMARY
+MISSING_PLAN = "<no plan file>"
+_ROW_WITHOUT_OUTCOME = {k: v for k, v in make_row(1).items() if k != "outcome"}
+_KEPT_WITHOUT_RANK = {k: v for k, v in make_row(1).items() if k != "rank"}
+
+# (case id, result file text, --step, --attempt, names)
+_BAD_INPUT_CASES = [
+    ("not-json", "{not json", STEP, "1", "not JSON"),
+    ("json-list", json.dumps([]), STEP, "1", "rows"),
+    (
+        "row-without-outcome",
+        json.dumps({"rows": [_ROW_WITHOUT_OUTCOME]}),
+        STEP,
+        "1",
+        "outcome",
+    ),
+    (
+        "outcome-won",
+        json.dumps({"rows": [make_row(1, "won")]}),
+        STEP,
+        "1",
+        "won",
+    ),
+    (
+        "kept-missing-rank",
+        json.dumps({"rows": [_KEPT_WITHOUT_RANK]}),
+        STEP,
+        "1",
+        "rank",
+    ),
+    (
+        "kept-rank-0",
+        json.dumps({"rows": [make_row(1, rank=0)]}),
+        STEP,
+        "1",
+        "rank",
+    ),
+    (
+        "kept-rank-1.5",
+        json.dumps({"rows": [make_row(1, rank=1.5)]}),
+        STEP,
+        "1",
+        "rank",
+    ),
+    (
+        "kept-errors-minus-1",
+        json.dumps({"rows": [make_row(1, errors=-1)]}),
+        STEP,
+        "1",
+        "errors",
+    ),
+    (
+        "two-kept",
+        json.dumps({"rows": [make_row(1), make_row(2)]}),
+        STEP,
+        "1",
+        "kept",
+    ),
+    ("step-2", json.dumps({"rows": [make_row(1)]}), "2", "1", "step"),
+    ("attempt-0", json.dumps({"rows": [make_row(1)]}), STEP, "0", "attempt"),
+    ("attempt-not-a-number", json.dumps({"rows": [make_row(1)]}), STEP, "x", "attempt"),
+    (
+        "attempt-trailing-text",
+        json.dumps({"rows": [make_row(1)]}),
+        STEP,
+        "1x",
+        "attempt",
+    ),
+    ("json-string", json.dumps("rows"), STEP, "1", "rows"),
+    ("result-without-rows", json.dumps({"other": []}), STEP, "1", "rows"),
+    ("plan-missing", json.dumps({"rows": [make_row(1)]}), STEP, "1", "no such file"),
+]
+
+
+class BadInputRun:
+    """One CLI run against a bad request: the plan file's bytes before and
+    after (None for a plan path with no file) and the command's result."""
+
+    def __init__(self, directory, case) -> None:
+        case_id, result_text, step, attempt, _ = case
+        is_plan_missing = case_id == "plan-missing"
+        self.target = directory / ("absent.md" if is_plan_missing else "plan.md")
+        self.before = None if is_plan_missing else VALID_PLAN.encode("utf-8")
+        if self.before is not None:
+            self.target.write_bytes(self.before)
+        result = directory / "result.json"
+        result.write_text(result_text, encoding="utf-8")
+        self.run = _run(
+            "record",
+            "--plan",
+            str(self.target),
+            "--step",
+            step,
+            "--attempt",
+            attempt,
+            "--result",
+            str(result),
+        )
+
+    @property
+    def after(self) -> bytes | None:
+        return self.target.read_bytes() if self.target.exists() else None
+
+
+@pytest.fixture(
+    scope="module",
+    params=_BAD_INPUT_CASES,
+    ids=[case[0] for case in _BAD_INPUT_CASES],
+)
+def bad_input(request, tmp_path_factory):
+    run = BadInputRun(tmp_path_factory.mktemp("bad-input"), request.param)
+    return run, request.param[4]
+
+
+def test_record_exits_one_with_empty_stdout_on_bad_input(bad_input) -> None:
+    run, _ = bad_input
+    assert (run.run.returncode, run.run.stdout) == (1, "")
+
+
+def test_record_reports_bad_input_as_one_record_prefixed_line(bad_input) -> None:
+    run, _ = bad_input
+    assert re.fullmatch(r"record: [^\n]+\n", run.run.stderr) is not None
+
+
+def test_record_names_the_offending_thing_on_stderr(bad_input) -> None:
+    run, names = bad_input
+    assert names in run.run.stderr
+
+
+def test_record_leaves_the_plan_byte_identical_on_bad_input(bad_input) -> None:
+    run, _ = bad_input
+    assert run.after == run.before
+
+
+_RECORD_ARGUMENTS = {
+    "--plan": "plan.md",
+    "--step": STEP,
+    "--attempt": "1",
+    "--result": "result.json",
+}
+
+
+@pytest.mark.parametrize(
+    "missing", list(_RECORD_ARGUMENTS), ids=list(_RECORD_ARGUMENTS)
+)
+def test_record_cli_exits_two_on_a_missing_required_argument(missing) -> None:
+    argv = [
+        part
+        for flag, value in _RECORD_ARGUMENTS.items()
+        if flag != missing
+        for part in (flag, value)
+    ]
+    run = _run("record", *argv)
+    assert (run.returncode, run.stdout) == (2, "")

@@ -63,6 +63,7 @@ OUTCOME_KEPT = "kept"
 OUTCOME_NOT_DISPATCHED = "not dispatched"
 OUTCOMES = (OUTCOME_KEPT, "removed", "disqualified", OUTCOME_NOT_DISPATCHED)
 
+_STEP_RE = re.compile(r"[0-9]+\.[0-9]+")
 _FENCE_RE = re.compile(r"\s*(`{3,}|~{3,})(.*)")
 _HEADING_RE = re.compile(r"(#{1,6}) +(.*?) *")
 _LINE_RE = re.compile(r"[^\n]*\n|[^\n]+")
@@ -112,12 +113,24 @@ def _parse_row(position: int, raw: object) -> _Row:
 
 
 def _parse_rows(raw_rows: object) -> list[_Row]:
+    """Validated rows in candidate-id order; at most one is `kept`."""
     if not isinstance(raw_rows, list):
         _reject("rows must be a list")
-    return sorted(
+    if not raw_rows:
+        _reject("rows must not be empty")
+    rows = sorted(
         (_parse_row(position, raw) for position, raw in enumerate(raw_rows, start=1)),
         key=lambda row: row.id,
     )
+    seen: set[int] = set()
+    for row in rows:
+        if row.id in seen:
+            _reject(f"duplicate candidate id {row.id}")
+        seen.add(row.id)
+    kept = [str(row.id) for row in rows if row.outcome == OUTCOME_KEPT]
+    if len(kept) > 1:
+        _reject(f"more than one kept row: candidates {', '.join(kept)}")
+    return rows
 
 
 def _text_cell(text: str) -> str:
@@ -298,12 +311,79 @@ def _insert_summary(
     return _splice(lines, index, index, block)
 
 
+def _table_span(lines: list[str], section: _Section) -> tuple[int, int] | None:
+    """`(start, end)` of the first run of table lines inside `section`."""
+    start = next(
+        (
+            index
+            for index in range(section.start + 1, section.end)
+            if lines[index].lstrip().startswith("|")
+        ),
+        None,
+    )
+    if start is None:
+        return None
+    end = start
+    while end < section.end and lines[end].lstrip().startswith("|"):
+        end += 1
+    return start, end
+
+
+def _row_key(line: str) -> tuple[str, str]:
+    """The Step and Attempt cells of a table row."""
+    cells = line.strip().strip("|").split("|")
+    return (cells[0].strip(), cells[1].strip()) if len(cells) > 1 else ("", "")
+
+
+def _merge_rows(
+    existing: list[str], step: str, attempt: int, new_rows: list[str]
+) -> list[str]:
+    """`existing` data rows with every row of this step and attempt replaced
+    by `new_rows` at the first such row's position; `new_rows` follow the last
+    row when none matches."""
+    key = (step, str(attempt))
+    complete = [line if line.endswith("\n") else line + "\n" for line in existing]
+    merged: list[str] = []
+    is_placed = False
+    for line in complete:
+        if _row_key(line) != key:
+            merged.append(line)
+        elif not is_placed:
+            merged.extend(new_rows)
+            is_placed = True
+    return merged if is_placed else complete + new_rows
+
+
+def _update_subsection(
+    lines: list[str],
+    subsection: _Section,
+    step: str,
+    attempt: int,
+    new_rows: list[str],
+) -> str:
+    span = _table_span(lines, subsection)
+    if span is None:  # a hand-made subsection with no table yet
+        end = _content_end(lines, subsection)
+        return _splice(lines, end, end, ["\n", *_table_lines(new_rows)])
+    start, end = span  # the header and separator never match a step N.M
+    merged = _merge_rows(lines[start:end], step, attempt, new_rows)
+    return _splice(lines, start, end, merged)
+
+
+def _check_step_and_attempt(step: object, attempt: object) -> None:
+    if not (isinstance(step, str) and _STEP_RE.fullmatch(step)):
+        _reject(f"step must be N.M (digits, a dot, digits); got {step!r}")
+    if not (type(attempt) is int and attempt >= 1):
+        _reject(f"attempt must be a positive integer; got {attempt!r}")
+
+
 def record(plan_text: str, step: str, attempt: int, rows: list[dict]) -> str:
     """`plan_text` with the rows of step `step`, attempt `attempt` recorded
     under `## Plan Review Summary` -> `### Speculative dispatch`; raise
     ValueError for input the plan cannot take."""
-    parsed = _parse_rows(rows)
-    table = _table_lines([_render_row(step, attempt, row) for row in parsed])
+    _check_step_and_attempt(step, attempt)
+    new_rows = [_render_row(step, attempt, row) for row in _parse_rows(rows)]
+    table = _table_lines(new_rows)
     lines = _split_lines(plan_text)
     headings = _headings(lines)
     summary = _find_section(headings, len(lines), SUMMARY_LEVEL, SUMMARY_TITLE)
@@ -315,21 +395,50 @@ def record(plan_text: str, step: str, attempt: int, rows: list[dict]) -> str:
     if subsection is None:
         end = _content_end(lines, summary)
         return _splice(lines, end, end, ["\n", *_subsection_lines(table)])
-    raise ValueError("an existing Speculative dispatch subsection is not handled yet")
+    return _update_subsection(lines, subsection, step, attempt, new_rows)
 
 
 # --- command line -----------------------------------------------------------
 
 
+def _read_text(path: str, label: str) -> str:
+    try:
+        return Path(path).read_bytes().decode("utf-8")
+    except FileNotFoundError:
+        raise ValueError(f"{label} file: no such file: {path}") from None
+    except OSError as exc:
+        raise ValueError(f"{label} file: cannot read {path}: {exc.strerror}") from None
+    except UnicodeDecodeError:
+        raise ValueError(f"{label} file: not valid UTF-8: {path}") from None
+
+
+def _load_rows(path: str) -> object:
+    """The `rows` value of the result file."""
+    text = _read_text(path, "result")
+    try:
+        data = json.loads(text)
+    except (ValueError, RecursionError) as exc:
+        raise ValueError(f"result file is not JSON: {path}: {exc}") from None
+    if not isinstance(data, dict) or "rows" not in data:
+        _reject(f"result file must be an object with a 'rows' list: {path}")
+    return data["rows"]
+
+
+def _attempt_value(raw: str) -> object:
+    """`raw` as an int when it is ASCII digits, else unchanged for `record`
+    to reject."""
+    return int(raw) if re.fullmatch(r"[0-9]+", raw) else raw
+
+
 def _cmd_record(args: argparse.Namespace) -> int:
     try:
-        data = json.loads(Path(args.result).read_text(encoding="utf-8"))
-        plan_text = Path(args.plan).read_bytes().decode("utf-8")
-        updated = record(plan_text, args.step, args.attempt, data["rows"])
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+        rows = _load_rows(args.result)
+        plan_text = _read_text(args.plan, "plan")
+        updated = record(plan_text, args.step, _attempt_value(args.attempt), rows)
+        Path(args.plan).write_bytes(updated.encode("utf-8"))
+    except (OSError, ValueError) as exc:
         print(f"record: {exc}", file=sys.stderr)
         return EXIT_INVALID_INPUT
-    Path(args.plan).write_bytes(updated.encode("utf-8"))
     return EXIT_OK
 
 
@@ -342,7 +451,7 @@ def _build_parser() -> argparse.ArgumentParser:
     recording = sub.add_parser("record", help="record one step attempt's rows")
     recording.add_argument("--plan", required=True, help="plan file to update")
     recording.add_argument("--step", required=True, help="plan step, as N.M")
-    recording.add_argument("--attempt", required=True, type=int, help="attempt number")
+    recording.add_argument("--attempt", required=True, help="attempt number")
     recording.add_argument("--result", required=True, help='JSON file: {"rows": [...]}')
     recording.set_defaults(handler=_cmd_record)
     return parser
