@@ -33,6 +33,7 @@ structurally-unkillable code. Everything else is delegated.
 ```
 /mutation-kill [<repo-path>] [--file <path>] [--all] [--max-rounds <n>]
                [--report <path>] [--concurrency <n>] [--parallel <n>] [--skip-static-mutants]
+               [--falsifiers <plan-path>]
 ```
 
 - `--file <path>` — target a single source file.
@@ -42,6 +43,7 @@ structurally-unkillable code. Everything else is delegated.
 - `--target-honest-score <pct>` — stop a file once its honest score reaches the Phase-0 mutation target Phase 8 gates on; work past that threshold cannot change the verdict (**default off**). `--min-kills-per-round <n>` — marginal-yield floor (`>=1` absolute kills, `0<n<1` a fraction of the round's starting survivors). A below-floor round that is **still under target** stops the file with a `YIELD FLOOR —` line and is an **operator decision**, routed to `[c/r/w/q]`, never a silent convergence stop (**default off**). With both unset the loop behaves exactly as it did before #2030.
 - `--concurrency <n>` — parallel files via git worktrees when using `--all` (**default 1 — sequential**; fan-out is opt-in, bounded by token budget); `--parallel <n>` — Phase 4 sub-agent fan-out via the Agent tool (in-process, no worktrees; see [Sub-agent fan-out within a file](#sub-agent-fan-out-within-a-file---parallel)).
 - `--skip-static-mutants` — opt-in, default OFF; JS/TS (Stryker) path only. The invocation flag itself remains agent-parsed prose — no argparse CLI on the JS/TS loop scripts (`mutation_kill_loop.py`/`mutation_kill_loop_python.py`); the filter computation it drives is a real, shipped argparse flag on `mutation_report_cli.py` (`--survivors-by-mutator --skip-static`). See [Static-mutant skip](../skills/mutation-testing/references/languages/javascript-stryker.md#static-mutant-skip-skip-static-mutants) for the full contract.
+- `--falsifiers <plan-path>` — opt-in, default OFF. The flag is agent-parsed prose. It takes an explicit path only and never infers one. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_falsifiers.py" <plan-path>` once at start. A non-zero exit, an `error`, or an empty `scenarios` list prints one warning line and accepts nothing. When a survivor is the mutation a scenario's falsifier describes, mark it `status: "falsifier-expected"` (a distinct status, never `"accepted"`) with `reason: "plan falsifier: <scenario title> (mutant <id>)"`. A survivor matching no falsifier stays a survivor. Without the flag nothing changes.
 
 ## Deterministic mechanics are scripted — you own generation and exclusion judgment
 
@@ -137,6 +139,8 @@ reason):
 raw_score      = honest_score (unchanged)
 adjusted_score = Killed / (Killed + (Survived - Accepted) + NoCoverage)
 ```
+
+Falsifier-expected survivors are excluded from `Accepted` in the adjusted-score formula and reported on their own `Falsifier-expected: N` line; the raw/adjusted pair is printed only when ordinary accepted survivors exist.
 
 **JS/TS cross-reference.** On a JS/TS (Stryker) run with
 `--skip-static-mutants` active, accepted survivors also include the
