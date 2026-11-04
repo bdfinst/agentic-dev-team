@@ -316,4 +316,34 @@ The step continues at `/build` sub-step 4's inline checkpoint on the merged winn
 
 ## Failure modes
 
-Every halt first writes the record, removes nothing, and prints the halt template.
+Every halt first writes the record, removes nothing, and prints the halt template. Fill `<reason>` with one of the reasons below.
+
+```text
+speculative dispatch halted at step <step>, attempt <k>: <reason>
+candidates preserved:
+  <id>  <branch>  <worktree path>  <outcome> (<reason>)
+merge one by hand:  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" reconcile --repo '<build-worktree>' --into '<build-branch>' --base <base> --test-cmd='<suite>' -- '<branch>'   (restores the branch if the suite fails)
+discard them:       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" cleanup --repo '<build-worktree>' --remove '<branch-1>' '<branch-2>'
+re-running /build starts attempt <k+1> and spends the cap again
+after merging by hand: tick Step <step> in the plan's Build Progress, run the discard line, then re-run /build (it resumes at the first unticked step)
+```
+
+The reasons are:
+
+- `no candidate has a green suite and parseable screening`: `rank` printed a `null` winner. Name the top of `order` as the branch to inspect.
+- `every ranked candidate failed to reconcile`: Keep tried each candidate in `order`.
+- `build branch could not be restored after a failed reconcile (git reset --keep <sha> by hand)`: `reconcile` exited 2.
+- `cost meter recorded no spend for the last batch`: `project` printed `halt`.
+- `cost_meter.py or build_candidates.py exited non-zero`: add the stderr of the failed command.
+- `candidate <i> dispatch failed`: the worktree could not be created, or the agent returned an error.
+- `plan file changed during batch <b>`: every candidate of that batch is `disqualified` with that reason. Candidates of earlier batches are `removed` with the reason `halted before rank`. Because `rank` did not run, assign ranks in id order.
+- `reconcile halted: <halt reason>`: Keep halted. The candidate being merged carries this reason.
+- `Agent tool unavailable`: the Preconditions check failed before batch 1.
+
+When any row is `not dispatched`, add this line after the reason line:
+
+`only <d> of <N> candidates were dispatched (cost cap); raise --max-cost-usd to try more`
+
+A red suite and an unparseable lens are distinguished in the Reason column. A tooling failure is then never read as a bad implementation.
+
+A `cleanup` failure after the checkpoint is not a halt. Report the remaining branches. The failure does not undo the step.

@@ -11,7 +11,10 @@ row. The exit codes of `check_registry_sync.py` and `build_skills_index.py
 
 from __future__ import annotations
 
+import functools
 import re
+import subprocess
+import sys
 from collections.abc import Callable
 
 import pytest
@@ -58,6 +61,61 @@ QUOTED_PLACEHOLDERS = (
     "<build-worktree>",
     "<plan>",
 )
+
+
+#: A shipped-script call in the skill: the script path under the plugin root,
+#: then the rest of the line (subcommand and flags).
+_INVOCATION_RE = re.compile(r'python3 "\$\{CLAUDE_PLUGIN_ROOT\}/([^"]+)"(.*)$')
+#: Scripts whose subcommands and flags are checked against their real `--help`.
+HELP_CHECKED = ("scripts/build_candidates.py", "scripts/plan_summary_record.py")
+BUILD_CANDIDATES_SUBCOMMANDS = {
+    "validate-flags",
+    "collect",
+    "rank",
+    "project",
+    "reconcile",
+    "cleanup",
+}
+
+
+def _fenced_command_lines(text: str) -> list[str]:
+    """Lines of every ```bash and ```text fenced block."""
+    blocks = re.findall(
+        r"^```(?:bash|text)\n(.*?)^```", text, flags=re.DOTALL | re.MULTILINE
+    )
+    return [line for block in blocks for line in block.splitlines()]
+
+
+def _invocations(text: str) -> list[tuple[str, str, tuple[str, ...]]]:
+    """`(script path under the plugin root, subcommand, long flags)` for each
+    `python3 "${CLAUDE_PLUGIN_ROOT}/..."` call in a fenced bash or text block."""
+    found = []
+    for line in _fenced_command_lines(text):
+        match = _INVOCATION_RE.search(line)
+        if not match:
+            continue
+        script, rest = match.groups()
+        words = rest.split()
+        subcommand = next((w for w in words if not w.startswith("-")), "")
+        flags = tuple(re.findall(r"(?<![\w-])(--[a-z][a-z-]*)", rest))
+        found.append((script, subcommand, flags))
+    return found
+
+
+INVOCATIONS = _invocations(SKILL.read_text(encoding="utf-8"))
+
+
+@functools.cache
+def _help_text(script: str, subcommand: str) -> str:
+    result = subprocess.run(
+        [sys.executable, str(PLUGIN_ROOT / script), subcommand, "--help"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, f"{script} {subcommand} --help: {result.stderr}"
+    return result.stdout
 
 
 @pytest.fixture(scope="module")
@@ -116,6 +174,14 @@ def test_skill_body_has_the_twelve_sections_in_order(skill_text):
     assert headings_outside_code(skill_text, 2) == SECTION_ORDER
 
 
+def test_failure_modes_halt_template_is_a_fenced_text_block(skill_text):
+    body = section(skill_text, r"^## Failure modes$", boundary_pattern=r"^## ")
+    blocks = re.findall(r"^```text\n(.*?)^```", body, flags=re.DOTALL | re.MULTILINE)
+    assert len(blocks) == 1
+    assert blocks[0].startswith("speculative dispatch halted at step <step>")
+    assert len(blocks[0].splitlines()) == 7
+
+
 def test_skill_body_opens_with_one_h1_before_the_sections(skill_text):
     assert headings_outside_code(skill_text, 1) == ["Speculative build"]
     assert skill_text.index("\n# Speculative build\n") < skill_text.index(
@@ -166,6 +232,42 @@ def test_section_stays_open_across_a_fenced_h2_line():
     assert "inside" in body
     assert "tail" in body
     assert "other" not in body
+
+
+def _label(invocation: tuple[str, str, tuple[str, ...]]) -> str:
+    script, subcommand, flags = invocation
+    return f"{script.rsplit('/', 1)[-1]}-{subcommand or 'nosub'}-{'-'.join(flags)}"
+
+
+@pytest.mark.parametrize("invocation", INVOCATIONS, ids=_label)
+def test_every_script_the_skill_invokes_exists_under_the_plugin_root(invocation):
+    assert (PLUGIN_ROOT / invocation[0]).is_file()
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [i for i in INVOCATIONS if i[0] in HELP_CHECKED],
+    ids=_label,
+)
+def test_every_flag_the_skill_names_is_listed_by_the_subcommand_help(invocation):
+    script, subcommand, flags = invocation
+    assert subcommand, f"{script} is called without a subcommand"
+    help_text = _help_text(script, subcommand)
+    missing = [
+        flag
+        for flag in flags
+        if not re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", help_text)
+    ]
+    assert not missing, f"{script} {subcommand} --help does not list {missing}"
+
+
+def test_skill_invokes_every_build_candidates_subcommand_and_record():
+    seen = {(script, sub) for script, sub, _ in INVOCATIONS}
+    expected = {
+        ("scripts/build_candidates.py", sub) for sub in BUILD_CANDIDATES_SUBCOMMANDS
+    }
+    expected.add(("scripts/plan_summary_record.py", "record"))
+    assert expected <= seen
 
 
 FACTS = [
@@ -812,6 +914,143 @@ FACTS = [
         "failure_modes_every_halt_writes_the_record_and_removes_nothing",
         "Failure modes",
         literal_required=("writes the record, removes nothing",),
+    ),
+    Fact(
+        "failure_modes_template_names_the_halt_and_the_preserved_candidates",
+        "Failure modes",
+        literal_required=(
+            "speculative dispatch halted at step <step>, attempt <k>: <reason>",
+            "candidates preserved:",
+            "  <id>  <branch>  <worktree path>  <outcome> (<reason>)",
+        ),
+        collapse=False,
+    ),
+    Fact(
+        "failure_modes_template_carries_the_manual_merge_line",
+        "Failure modes",
+        literal_required=(
+            "merge one by hand:  python3",
+            (
+                "build_candidates.py\" reconcile --repo '<build-worktree>' "
+                "--into '<build-branch>' --base <base> --test-cmd='<suite>' "
+                "-- '<branch>'   (restores the branch if the suite fails)"
+            ),
+        ),
+        collapse=False,
+    ),
+    Fact(
+        "failure_modes_template_carries_the_discard_line",
+        "Failure modes",
+        literal_required=(
+            "discard them:       python3",
+            (
+                "build_candidates.py\" cleanup --repo '<build-worktree>' "
+                "--remove '<branch-1>' '<branch-2>'"
+            ),
+        ),
+        collapse=False,
+    ),
+    Fact(
+        "failure_modes_template_carries_the_rerun_line_naming_attempt_k_plus_1",
+        "Failure modes",
+        literal_required=(
+            "re-running /build starts attempt <k+1> and spends the cap again",
+        ),
+    ),
+    Fact(
+        "failure_modes_template_carries_the_after_merging_by_hand_line",
+        "Failure modes",
+        literal_required=(
+            (
+                "after merging by hand: tick Step <step> in the plan's Build Progress, "
+                "run the discard line, then re-run /build "
+                "(it resumes at the first unticked step)"
+            ),
+        ),
+    ),
+    Fact(
+        "failure_modes_null_winner_names_the_top_of_order",
+        "Failure modes",
+        literal_required=(
+            (
+                "`no candidate has a green suite and parseable screening`: "
+                "`rank` printed a `null` winner. "
+                "Name the top of `order` as the branch to inspect."
+            ),
+        ),
+    ),
+    Fact(
+        "failure_modes_lists_the_reconcile_reasons",
+        "Failure modes",
+        literal_required=(
+            "`every ranked candidate failed to reconcile`",
+            (
+                "`build branch could not be restored after a failed reconcile "
+                "(git reset --keep <sha> by hand)`"
+            ),
+            "`reconcile halted: <halt reason>`",
+        ),
+    ),
+    Fact(
+        "failure_modes_lists_the_no_spend_and_script_failure_reasons",
+        "Failure modes",
+        literal_required=(
+            "`cost meter recorded no spend for the last batch`",
+            "`cost_meter.py or build_candidates.py exited non-zero`",
+            "add the stderr of the failed command",
+        ),
+    ),
+    Fact(
+        "failure_modes_lists_the_dispatch_failure_and_agent_unavailable_reasons",
+        "Failure modes",
+        literal_required=(
+            "`candidate <i> dispatch failed`",
+            "the worktree could not be created, or the agent returned an error",
+            "`Agent tool unavailable`",
+            "the Preconditions check failed before batch 1",
+        ),
+    ),
+    Fact(
+        "failure_modes_plan_file_changed_states_the_row_outcomes",
+        "Failure modes",
+        literal_required=(
+            "`plan file changed during batch <b>`",
+            "every candidate of that batch is `disqualified` with that reason",
+            (
+                "Candidates of earlier batches are `removed` "
+                "with the reason `halted before rank`"
+            ),
+            "Because `rank` did not run, assign ranks in id order.",
+        ),
+    ),
+    Fact(
+        "failure_modes_undispatched_rows_add_the_cap_line",
+        "Failure modes",
+        literal_required=(
+            "When any row is `not dispatched`, add this line after the reason line:",
+            (
+                "`only <d> of <N> candidates were dispatched (cost cap); "
+                "raise --max-cost-usd to try more`"
+            ),
+        ),
+    ),
+    Fact(
+        "failure_modes_distinguish_a_red_suite_from_an_unparseable_lens",
+        "Failure modes",
+        literal_required=(
+            (
+                "A red suite and an unparseable lens are distinguished "
+                "in the Reason column."
+            ),
+        ),
+    ),
+    Fact(
+        "failure_modes_cleanup_failure_is_not_a_halt",
+        "Failure modes",
+        literal_required=(
+            "A `cleanup` failure after the checkpoint is not a halt.",
+            "The failure does not undo the step.",
+        ),
     ),
 ]
 
