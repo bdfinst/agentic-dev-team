@@ -72,7 +72,14 @@ def _scenario_block(title: str, *body: str) -> str:
     return f"  Scenario: {title}\n" + "".join(f"    {line}\n" for line in body)
 
 
-_KEY_SET = {"scenarios", "missing", "scanned_slices", "skipped_slices", "error"}
+_KEY_SET = {
+    "scenarios",
+    "missing",
+    "scanned_slices",
+    "skipped_slices",
+    "skipped_with_scenarios",
+    "error",
+}
 
 
 def test_every_scenario_carries_a_falsifier():
@@ -268,6 +275,37 @@ def test_plan_without_gherkin_skips_every_slice():
     assert out["scenarios"] == []
     assert out["missing"] == []
     assert out["skipped_slices"] == ["1", "2"]
+
+
+def test_skipped_slice_with_scenario_lines_in_a_text_fence_is_flagged():
+    unfenced = "### Slice 2: No gherkin fence\n\n```text\nScenario: X\n```\n\n"
+    out = _report_for_plan(_slice_section(1, "Feature: Nothing yet\n"), unfenced)
+
+    assert out["skipped_slices"] == ["2"]
+    assert out["skipped_with_scenarios"] == ["2"]
+    assert out["missing"] == []
+
+
+def test_skipped_slice_without_scenario_lines_is_not_flagged():
+    out = _report_for_plan(_slice_section(1, None))
+
+    assert out["skipped_slices"] == ["1"]
+    assert out["skipped_with_scenarios"] == []
+
+
+def test_scenario_text_inside_a_doc_string_is_not_a_scenario():
+    gherkin = (
+        "  Scenario: Real one\n"
+        f"    {_FALSIFIER_COMMENT_PREFIX} the doc string changes\n"
+        "    Given a payload\n"
+        '      """\n'
+        "      Scenario: embedded\n"
+        '      """\n'
+    )
+    out = _report_for_gherkins(gherkin)
+
+    assert [row["scenario"] for row in out["scenarios"]] == ["Real one"]
+    assert out["missing"] == []
 
 
 def _assert_unreadable(result: subprocess.CompletedProcess, path: Path) -> None:

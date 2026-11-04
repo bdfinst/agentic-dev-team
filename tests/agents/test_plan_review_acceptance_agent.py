@@ -117,7 +117,14 @@ def test_what_you_receive_names_script_output_and_its_fields() -> None:
         _text(), r"^## What you receive$", boundary_pattern=r"^#{1,2} "
     )
     assert SCRIPT in receive
-    for field in ("scenarios", "missing", "scanned_slices", "skipped_slices", "error"):
+    for field in (
+        "scenarios",
+        "missing",
+        "scanned_slices",
+        "skipped_slices",
+        "skipped_with_scenarios",
+        "error",
+    ):
         assert f"`{field}`" in receive, field
 
 
@@ -158,26 +165,40 @@ def test_not_scanned_blocker_names_both_slice_lists() -> None:
     assert "`skipped_slices`" in sentence
 
 
-def test_skipped_slice_blocker_is_conditioned_on_scenarios_in_the_section() -> None:
+def test_skipped_slice_blocker_is_driven_by_the_skipped_with_scenarios_field() -> None:
     sentence = sentence_containing(_falsifier_item(), BLOCKER_SKIPPED_WITH_SCENARIOS)
-    assert "`skipped_slices`" in sentence
-    assert "`Scenario:`" in sentence
-    assert "`Scenario Outline:`" in sentence
+    assert "`skipped_with_scenarios`" in sentence
+
+
+def test_critic_text_names_skipped_with_scenarios() -> None:
+    assert "skipped_with_scenarios" in _text()
 
 
 def test_critic_is_told_it_has_no_bash_tool() -> None:
     assert "no Bash tool" in _falsifier_item()
 
 
-def test_no_sentence_instructs_the_critic_to_run_the_script() -> None:
-    offenders = [
+def _script_run_instructions(text: str) -> list[str]:
+    return [
         s
-        for s in sentences(_text())
+        for s in sentences(text)
         if SCRIPT in s
-        and re.search(r"\b(run|execute|invoke|call|python3)\b", s, re.IGNORECASE)
+        and re.search(
+            r"\b(run\w*|execut\w*|invok\w*|call\w*|python3)\b", s, re.IGNORECASE
+        )
         and "executed by the dispatcher" not in s
     ]
-    assert offenders == []
+
+
+def test_no_sentence_instructs_the_critic_to_run_the_script() -> None:
+    assert _script_run_instructions(_text()) == []
+
+
+def test_run_instruction_guard_flags_a_sentence_telling_the_critic_to_run_it() -> None:
+    text = f"First, the critic runs `{SCRIPT}` itself. Then it reads the output."
+    assert _script_run_instructions(text) == [
+        f"First, the critic runs `{SCRIPT}` itself."
+    ]
 
 
 def test_report_instruction_covers_plan_and_slice_scopes() -> None:
@@ -224,20 +245,31 @@ def test_unavailable_falsifier_list_is_a_blocker_on_one_line() -> None:
     assert "skipped" in line
 
 
-def _pair_is_adjacent(then_text: str, falsifier_text: str) -> bool:
+_EXAMPLE_INDENT = "   "
+
+
+def _assert_indented_adjacent_pair(then_text: str, falsifier_text: str) -> None:
     lines = _falsifier_item().splitlines()
-    for first, second in pairwise(lines):
-        if then_text in first and falsifier_text in second:
-            return first.startswith("   ") and second.startswith("   ")
-    return False
+    pair = next(
+        (
+            (first, second)
+            for first, second in pairwise(lines)
+            if then_text in first and falsifier_text in second
+        ),
+        None,
+    )
+    assert pair, f"no adjacent lines with {then_text!r} then {falsifier_text!r}"
+    assert all(line.startswith(_EXAMPLE_INDENT) for line in pair), (
+        f"pair for {then_text!r} must be indented by {_EXAMPLE_INDENT!r}: {pair}"
+    )
 
 
 def test_killer_example_is_an_indented_then_falsifier_pair() -> None:
-    assert _pair_is_adjacent(KILLER_THEN, KILLER_FALSIFIER)
+    _assert_indented_adjacent_pair(KILLER_THEN, KILLER_FALSIFIER)
 
 
 def test_tautological_example_is_an_indented_then_falsifier_pair() -> None:
-    assert _pair_is_adjacent(TAUTOLOGY_THEN, TAUTOLOGY_FALSIFIER)
+    _assert_indented_adjacent_pair(TAUTOLOGY_THEN, TAUTOLOGY_FALSIFIER)
 
 
 def test_tautological_fix_names_a_sharper_then() -> None:

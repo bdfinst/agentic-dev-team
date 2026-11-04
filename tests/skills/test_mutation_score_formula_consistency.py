@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from _agent_text_helpers import has_sentence_with_all
 
 from _repo_root import REPO_ROOT
 
@@ -252,16 +253,28 @@ def test_field_deleted_from_one_file_fails_naming_missing_field(tmp_path, monkey
 # =============================================================================
 
 
-def test_knowledge_doc_reports_falsifier_expected_apart_from_accepted():
-    text = " ".join(KNOWLEDGE_PATH.read_text().split())
-    sentences = re.split(r"(?<=[.!?])\s+", text)
+def _knowledge_text() -> str:
+    return " ".join(KNOWLEDGE_PATH.read_text().split())
 
-    assert "falsifier-expected" in text
-    assert "`Falsifier-expected: N`" in text
-    assert any(
-        "falsifier-expected" in s and "is not `Accepted` in the formula" in s
-        for s in sentences
+
+def test_knowledge_doc_names_the_falsifier_expected_term():
+    assert "falsifier-expected" in _knowledge_text(), "term 'falsifier-expected' absent"
+
+
+def test_knowledge_doc_reports_a_falsifier_expected_count_line():
+    assert "`Falsifier-expected: N`" in _knowledge_text(), (
+        "'Falsifier-expected: N' line rule absent"
     )
+
+
+def test_knowledge_doc_says_falsifier_expected_is_not_accepted_in_the_formula():
+    assert has_sentence_with_all(
+        _knowledge_text(), "falsifier-expected", "is not `Accepted` in the formula"
+    ), "no sentence says falsifier-expected is not Accepted in the formula"
+
+
+def test_knowledge_doc_lists_falsifier_expected_in_the_deferred_table_status():
     assert re.search(
-        r'"Accepted Survivors \(deferred\)" table \([^)]*\bstatus\b[^)]*\)', text
-    )
+        r'"Accepted Survivors \(deferred\)" table \([^)]*\bstatus\b[^)]*\)',
+        _knowledge_text(),
+    ), "deferred-table status rule for falsifier-expected rows absent"

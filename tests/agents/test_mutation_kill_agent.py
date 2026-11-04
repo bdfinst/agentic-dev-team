@@ -614,7 +614,7 @@ def test_falsifiers_bullet_marks_matching_survivor_falsifier_expected(
     assert (
         'reason: "plan falsifier: <scenario title> (mutant <id>)"' in falsifiers_bullet
     )
-    sentence = sentence_containing(falsifiers_bullet, "falsifier-expected")
+    sentence = sentence_containing(falsifiers_bullet, 'status: "falsifier-expected"')
     assert "never" in sentence
     assert '"accepted"' in sentence
 
@@ -623,7 +623,11 @@ def test_falsifiers_script_error_or_empty_list_warns_and_accepts_nothing(
     falsifiers_bullet: str,
 ) -> None:
     assert has_sentence_with_all(
-        falsifiers_bullet, "non-zero exit", "empty", "warning", "accepts nothing"
+        falsifiers_bullet,
+        "non-zero exit",
+        "empty",
+        "warning",
+        "marks nothing falsifier-expected",
     )
 
 

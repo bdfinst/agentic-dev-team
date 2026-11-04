@@ -358,6 +358,43 @@ def slice_gherkin_blocks(
     return blocks
 
 
+def slice_sections(lines: Iterable[str]) -> list[tuple[str, str, list[str]]]:
+    """Return `(id, title, body_lines)` per `### Slice <id>: <title>` heading.
+
+    `body_lines` runs from the line after the heading to the next level-1..3
+    heading or EOF, fence content included. Same heading grammar as
+    `slice_gherkin_blocks`: headings inside fenced code blocks never split.
+    """
+    sections: list[tuple[str, str, list[str]]] = []
+    current: tuple[str, str, list[str]] | None = None
+    in_fence = False
+
+    for raw in lines:
+        line = raw.rstrip("\n")
+        if in_fence or line.startswith("```"):
+            if line.startswith("```"):
+                in_fence = not in_fence
+            if current is not None:
+                current[2].append(line)
+            continue
+
+        match = _SLICE_HEADING_RE.match(line)
+        if match or _HEADING_RE.match(line):
+            if current is not None:
+                sections.append(current)
+            current = (
+                (match.group(1).strip(), match.group(2).strip(), []) if match else None
+            )
+            continue
+
+        if current is not None:
+            current[2].append(line)
+
+    if current is not None:
+        sections.append(current)
+    return sections
+
+
 def plan_parse(path: Path) -> str:
     """Return the TSV rendering of `parse_slices` on the file at `path`."""
     with open(path, encoding="utf-8") as handle:

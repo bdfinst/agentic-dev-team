@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 import sys
 
-from skill_doc_helpers import section
+from _agent_text_helpers import required_section
 
 from _repo_root import REPO_ROOT
 
@@ -70,19 +70,15 @@ def test_template_states_the_falsifier_rule_after_the_fence():
     assert TEMPLATE_RULE_SENTENCE in after_fence
 
 
-def _step_section(text: str, start_pattern: str, boundary_pattern: str) -> str:
-    body = section(text, start_pattern, boundary_pattern=boundary_pattern)
-    assert body, f"no section matching {start_pattern!r}"
-    return body
-
-
-def _paragraphs(section: str) -> list[str]:
-    return [p for p in section.split("\n\n") if p.strip()]
+def _paragraphs(body: str) -> list[str]:
+    return [p for p in body.split("\n\n") if p.strip()]
 
 
 def test_plan_step2_scenario_independence_paragraph_states_the_falsifier_rule():
-    step2 = _step_section(
-        SKILL_MD.read_text(encoding="utf-8"), r"^### 2\. ", r"^### 3\. "
+    step2 = required_section(
+        SKILL_MD.read_text(encoding="utf-8"),
+        r"^### 2\. ",
+        boundary_pattern=r"^### 3\. ",
     )
     [paragraph] = [
         p
@@ -94,8 +90,10 @@ def test_plan_step2_scenario_independence_paragraph_states_the_falsifier_rule():
 
 
 def test_plan_step5b_passes_falsifier_script_output_to_the_acceptance_test_critic():
-    step5b = _step_section(
-        SKILL_MD.read_text(encoding="utf-8"), r"^#### 5b\. ", r"^### 6\. "
+    step5b = required_section(
+        SKILL_MD.read_text(encoding="utf-8"),
+        r"^#### 5b\. ",
+        boundary_pattern=r"^### 6\. ",
     )
 
     [paragraph] = [

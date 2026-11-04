@@ -24,7 +24,8 @@ Gherkin was authored in this plan, not inherited from the spec, so you are
 its quality gate.
 
 The dispatcher also supplies the `plan_falsifiers.py` output: JSON with
-`scenarios`, `missing`, `scanned_slices`, `skipped_slices`, and `error`.
+`scenarios`, `missing`, `scanned_slices`, `skipped_slices`,
+`skipped_with_scenarios`, and `error`.
 
 ## What you check
 
@@ -68,7 +69,7 @@ For each Gherkin scenario, evaluate:
    - Output not supplied: `Falsifier: list unavailable (plan_falsifiers.py output not supplied)`.
    - `error` set: `Falsifier: list unavailable: <error>`.
    - A `### Slice` heading you read has an id in neither `scanned_slices` nor `skipped_slices`: `Falsifier: slice <id> not scanned`.
-   - A slice id in `skipped_slices` whose section you read contains a `Scenario:` or `Scenario Outline:` line: `Falsifier: slice <id> skipped but contains scenarios`.
+   - A slice id in `skipped_with_scenarios`: `Falsifier: slice <id> skipped but contains scenarios`.
 
 ### Step Traceability
 
