@@ -10,8 +10,10 @@ both are re-exported here, so `build_candidates.collect` and friends work.
 Exit codes:
   0  success.
   1  invalid input data: message on stderr, empty stdout, nothing touched.
-     Exception: `reconcile` exits 1 when the candidate was not merged. Its
-     JSON is then on stdout and the build branch has been restored.
+     Exceptions: `reconcile` exits 1 when the candidate was not merged (its
+     JSON is then on stdout and the build branch has been restored), and a
+     `cleanup` git failure part-way exits 1 with the earlier branches
+     already removed (the message names the branch that failed).
   2  usage error (argparse or validate-flags), or `reconcile` could not
      restore the build branch. That message names the pre-merge SHA and the
      manual `git reset --keep <sha>`.
@@ -29,6 +31,11 @@ import math
 import re
 import sys
 from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
+
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:  # sibling imports under -I / -P / PYTHONSAFEPATH
+    sys.path.insert(0, _HERE)
 
 from build_candidates_git import (
     cleanup,
@@ -130,7 +137,12 @@ def _emit_or_fail(
 
 
 def _parse_ascii_int(raw: str) -> int | None:
-    return int(raw) if _ASCII_INT_RE.fullmatch(raw) else None
+    if not _ASCII_INT_RE.fullmatch(raw):
+        return None
+    try:
+        return int(raw)
+    except ValueError:  # over the interpreter's digit limit
+        return None
 
 
 def _parse_number_or_none(raw: str) -> float | None:
@@ -444,13 +456,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--completed",
         required=True,
         type=_argparse_int_between(1, MAX_CANDIDATES),
-        help="candidates dispatched so far",
+        help=f"candidates dispatched so far (1..{MAX_CANDIDATES})",
     )
     projection.add_argument(
         "--remaining",
         required=True,
         type=_argparse_int_between(1, MAX_CANDIDATES - 1),
-        help="candidates still to dispatch",
+        help=f"candidates still to dispatch (1..{MAX_CANDIDATES - 1})",
     )
     projection.add_argument(
         "--last-batch-delta",

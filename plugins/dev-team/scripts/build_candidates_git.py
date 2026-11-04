@@ -10,6 +10,7 @@ Stdlib only, plus `lib/plan_parse` (ADR 0014, ADR 0015, ADR 0031).
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import signal
@@ -214,18 +215,35 @@ def reconcile_timeout_seconds() -> float:
     raw = os.environ.get(_RECONCILE_TIMEOUT_ENV)
     if raw:
         try:
-            suite = float(raw)
+            parsed = float(raw)
         except ValueError:
-            pass
+            parsed = math.nan
+        if math.isfinite(parsed):
+            suite = parsed
     return suite + _RECONCILE_MARGIN_SECONDS
+
+
+def _kill_process_group(process: subprocess.Popen) -> None:
+    """Kill `process` and, where the platform has process groups, everything
+    it started (it runs as a session leader). Gone already is fine."""
+    try:
+        if hasattr(os, "killpg"):
+            os.killpg(process.pid, signal.SIGKILL)
+        else:  # pragma: no cover - Windows has no process groups
+            process.kill()
+    except ProcessLookupError:
+        pass
+    process.communicate()
 
 
 def _run_reconcile_script(
     repo: str, into: str, base: str, test_cmd: str, branch: str
 ) -> bool:
     """Run build_wave_reconcile.py in `repo`; True when it exits 0. Its stderr
-    is passed through; its stdout is dropped. On timeout the script's whole
-    process group is killed, so a hung suite does not outlive the wrapper."""
+    is passed through; its stdout is dropped. The script runs as its own
+    session leader; on timeout, and on any exception reaching this frame
+    (an interrupt included), its whole process group is killed, so a hung
+    suite does not outlive the wrapper."""
     command = [
         sys.executable,
         str(_RECONCILE_SCRIPT),
@@ -249,13 +267,15 @@ def _run_reconcile_script(
         try:
             _stdout, stderr = process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.communicate()
+            _kill_process_group(process)
             print(
                 f"reconcile: build_wave_reconcile.py timed out after {timeout:g}s",
                 file=sys.stderr,
             )
             return False
+        except BaseException:
+            _kill_process_group(process)
+            raise
     sys.stderr.write(stderr)
     return process.returncode == 0
 
@@ -304,7 +324,11 @@ def reconcile(*, repo: str, into: str, base: str, test_cmd: str, branch: str) ->
     if _current_branch(repo) != into:
         raise DataError(f"reconcile: {repo} is not on build branch '{into}'")
     pre_merge_sha = _head_sha(repo)
-    merged = _run_reconcile_script(repo, into, base, test_cmd, branch)
+    try:
+        merged = _run_reconcile_script(repo, into, base, test_cmd, branch)
+    except BaseException:
+        restore_branch(repo, pre_merge_sha)
+        raise
     if not merged:
         restore_branch(repo, pre_merge_sha)
     return {

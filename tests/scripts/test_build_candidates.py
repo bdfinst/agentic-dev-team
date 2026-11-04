@@ -137,24 +137,37 @@ def test_a_rejected_flag_combination_prints_one_newline_terminated_stderr_line(
 
 
 @pytest.mark.parametrize(
-    "flag,message",
+    "flag,companion,message",
     [
         (
             "--max-cost-usd=-inf",
+            "--candidates=2",
             "--max-cost-usd must be a number greater than 0; got '-inf'",
         ),
         (
             "--candidates=-abc",
+            "--max-cost-usd=5",
             "--candidates must be an integer between 1 and 8; got '-abc'",
         ),
     ],
     ids=["cap-negative-inf", "candidates-negative-word"],
 )
 def test_validate_flags_gives_its_own_message_for_a_value_that_looks_like_a_flag(
-    flag, message
+    flag, companion, message
 ) -> None:
-    others = ["--candidates=2"] if flag.startswith("--max") else ["--max-cost-usd=5"]
-    r = run_cli("validate-flags", flag, *others)
+    r = run_cli("validate-flags", flag, companion)
+    assert (r.returncode, r.stdout, r.stderr) == (2, "", message + "\n")
+
+
+def test_validate_flags_cli_forwards_jobs_to_the_pairing_check() -> None:
+    r = run_cli("validate-flags", "--candidates=2", "--max-cost-usd=5", "--jobs=2")
+    message = "--candidates N with N >= 2 cannot be combined with --jobs greater than 1"
+    assert (r.returncode, r.stdout, r.stderr) == (2, "", message + "\n")
+
+
+def test_validate_flags_cli_treats_an_empty_candidates_value_as_given() -> None:
+    r = run_cli("validate-flags", "--candidates=")
+    message = "--candidates must be an integer between 1 and 8; got ''"
     assert (r.returncode, r.stdout, r.stderr) == (2, "", message + "\n")
 
 
@@ -240,7 +253,9 @@ def test_validate_flags_accepts_the_upper_bound_of_eight_candidates() -> None:
 
 
 def test_unknown_subcommand_is_a_usage_error_with_exit_two() -> None:
-    assert run_cli("frobnicate").returncode == 2
+    r = run_cli("frobnicate")
+    assert (r.returncode, r.stdout) == (2, "")
+    assert "invalid choice: 'frobnicate'" in r.stderr
 
 
 @pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
@@ -704,3 +719,4 @@ def test_project_accepts_the_largest_completed_and_remaining_counts() -> None:
 def test_project_requires_every_argument() -> None:
     r = run_cli("project", "--cap", "10")
     assert (r.returncode, r.stdout) == (2, "")
+    assert "the following arguments are required" in r.stderr

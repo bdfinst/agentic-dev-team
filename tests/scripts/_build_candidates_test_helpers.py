@@ -50,6 +50,17 @@ def hermetic_env() -> dict[str, str]:
     return env
 
 
+def apply_hermetic_env(monkeypatch) -> None:
+    """Give the test process itself the hermetic git environment, for tests
+    that call the production git wrappers in-process (they inherit
+    os.environ rather than going through `run_cli`/`git_output`)."""
+    for key in [k for k in os.environ if k.startswith("GIT_")]:
+        monkeypatch.delenv(key, raising=False)
+    for key, value in hermetic_env().items():
+        if key.startswith("GIT_"):
+            monkeypatch.setenv(key, value)
+
+
 def run_cli(*args: str, timeout: int = CLI_TIMEOUT_SECONDS):
     """Run build_candidates.py with `args`; fail the test, naming the argv,
     when it does not finish within `timeout` seconds."""

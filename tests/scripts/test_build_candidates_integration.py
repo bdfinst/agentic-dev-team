@@ -13,6 +13,7 @@ import sys
 import pytest
 from _build_candidates_test_helpers import (
     SCRIPTS_DIR,
+    apply_hermetic_env,
     commit_all,
     git_output,
     init_repo,
@@ -41,6 +42,13 @@ def _candidate_branch(repo, name: str, base: str, files: dict[str, str | None]) 
             (repo / rel).write_text(content, encoding="utf-8")
     commit_all(repo, f"{name} work")
     git_output(repo, "checkout", "-q", BUILD)
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_git_for_in_process_calls(monkeypatch) -> None:
+    """`restore_branch` is exercised in-process below; its git calls must see
+    the same hermetic environment the subprocess helpers use."""
+    apply_hermetic_env(monkeypatch)
 
 
 @pytest.fixture

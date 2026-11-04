@@ -314,6 +314,7 @@ def test_collect_rejects_a_base_that_would_be_read_as_a_git_option(
 def test_collect_rejects_a_malformed_step_as_a_usage_error(candidate_repo) -> None:
     r = _collect(candidate_repo, step="two")
     assert (r.returncode, r.stdout) == (2, "")
+    assert "argument --step:" in r.stderr
 
 
 def test_collect_ignores_uncommitted_edits_in_the_worktree(candidate_repo) -> None:
@@ -472,6 +473,7 @@ def test_cleanup_leaves_the_branch_in_place_when_its_worktree_cannot_be_removed(
 def test_cleanup_requires_at_least_one_branch(cleanup_repo) -> None:
     r = run_cli("cleanup", "--repo", str(cleanup_repo["repo"]), "--remove")
     assert (r.returncode, r.stdout) == (2, "")
+    assert "argument --remove:" in r.stderr
 
 
 def test_cleanup_on_a_path_that_is_not_a_repository_exits_one(tmp_path) -> None:

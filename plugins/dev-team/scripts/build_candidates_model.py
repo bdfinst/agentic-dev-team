@@ -165,7 +165,9 @@ class Candidate:
         cls, candidate_id: int, branch: str, scenarios_total: int, cost_usd: float
     ) -> Candidate:
         """A candidate whose dispatch left no commit beyond the base: red
-        suite, every scenario unmet, no findings, zero diff."""
+        suite, every scenario unmet, no findings, zero diff. The model gives
+        it the ordinary `red suite` reason; the skill supplies `no commits`
+        when it records the row (plan decision 3)."""
         return cls.from_dict(
             {
                 "id": candidate_id,
