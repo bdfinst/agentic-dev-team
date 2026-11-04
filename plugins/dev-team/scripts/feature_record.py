@@ -5,10 +5,11 @@ The Markdown plan stays the authoring surface. This module reads it (and the
 spec it names) into a single view and reports which stated invariants the
 record breaks. The view is derived on every call and is never stored.
 
-Library: `build_record`. CLI: `view <plan> [--spec <path>]`.
+Library: `build_record`, `violations`, `plan_violations`. CLI:
+`view <plan> [--spec <path>]` and `check <plan> [--spec <path>]`.
 
-`build_record` is pure on `str` input and never raises. Only `main` touches
-files.
+The library functions are pure on `str` input and never raise. Only `main`
+touches files.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import argparse
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 # Bare sibling imports, as `plan_waves.py` does: `scripts/lib` is not a package.
@@ -173,6 +175,194 @@ def build_record(
     }
 
 
+# ---------------------------------------------------------------------------
+# Violation copy: one table for the WHAT / WHY / HOW text, exported so the
+# write guard formats refusals from the same words. Placeholders are filled by
+# `make_violation`; `<title>` and `<text>` in a HOW line stay literal because
+# they tell the author what to write.
+# ---------------------------------------------------------------------------
+
+COPY: dict[str, dict[str, str]] = {
+    "ac-no-scenario": {
+        "what": (
+            '<AC id> "<criterion text, 60 chars>" has no scenario: no step names it, '
+            "or its covering slices have none. [ac-no-scenario]"
+        ),
+        "why": "A criterion with no scenario has no behavior that proves it.",
+        "how": (
+            'Add "**Covers**: <AC id>" to a step, and a Scenario: under '
+            "**Behavior:** in that step's slice."
+        ),
+    },
+    "scenario-no-step": {
+        "what": "Slice <n> has a scenario and no step heading. [scenario-no-step]",
+        "why": "A scenario with no step is behavior nobody is told to build.",
+        "how": 'Add a "#### Step <n>.1: <title>" heading under **Steps:** in Slice <n>.',
+    },
+    "closed-slice-open-blocker": {
+        "what": (
+            "Slice <n> is ticked done while an open blocker names it. "
+            "[closed-slice-open-blocker]"
+        ),
+        "why": "A critic blocker means the slice is not done.",
+        "how": (
+            'Resolve the blocker and add "**Resolved blocker**: Slice <n> - <text>" '
+            "under ## Plan Review Summary, or untick Slice <n> under ## Build Progress."
+        ),
+    },
+    "spec-missing-section": {
+        "what": 'The spec has no "<heading>" section, or it is empty. [spec-missing-section]',
+        "why": (
+            "A plan built on an incomplete spec has no intent or criteria "
+            "to check against."
+        ),
+        "how": 'Add "<heading>" with at least one line of text.',
+    },
+    "tick-without-commit": {
+        "what": (
+            "Step <id> is ticked done and no commit on this branch backs it. "
+            "[tick-without-commit]"
+        ),
+        "why": "A tick with no commit claims work the history does not show.",
+        "how": (
+            "Commit the step (touching <declared files>), or untick it "
+            "under ## Build Progress."
+        ),
+    },
+}
+
+_PLACEHOLDERS = {
+    "ac_id": "<AC id>",
+    "text": "<criterion text, 60 chars>",
+    "n": "<n>",
+    "heading": "<heading>",
+    "id": "<id>",
+    "files": "<declared files>",
+}
+_PLACEHOLDER_RE = re.compile("|".join(re.escape(p) for p in _PLACEHOLDERS.values()))
+_CRITERION_TEXT_LIMIT = 60
+
+
+def make_violation(violation_id: str, subject: str, **fields: str) -> dict[str, str]:
+    """Return `{id, subject, what, why, how}` with the copy filled from `fields`.
+
+    `fields` are the keys of `_PLACEHOLDERS`. The substitution is one pass, so
+    a value that itself contains `<n>` is not expanded again.
+    """
+    values = {_PLACEHOLDERS[k]: v for k, v in fields.items() if k in _PLACEHOLDERS}
+    if "text" in fields:
+        values[_PLACEHOLDERS["text"]] = fields["text"][:_CRITERION_TEXT_LIMIT]
+
+    def fill(template: str) -> str:
+        return _PLACEHOLDER_RE.sub(
+            lambda m: values.get(m.group(0), m.group(0)), template
+        )
+
+    copy = COPY[violation_id]
+    return {
+        "id": violation_id,
+        "subject": subject,
+        "what": fill(copy["what"]),
+        "why": fill(copy["why"]),
+        "how": fill(copy["how"]),
+    }
+
+
+def _coverage_violations(plan: dict, applicability: dict) -> list[dict[str, str]]:
+    if applicability["criterion_coverage"] != "applies":
+        return []
+    names: dict[str, set[str]] = {c["step"]: set(c["criteria"]) for c in plan["covers"]}
+    found = []
+    for criterion in plan["criteria"]:
+        cid = criterion["id"]
+        covering = [
+            s
+            for s in plan["slices"]
+            if any(cid in names.get(step, ()) for step in s["step_ids"])
+        ]
+        # No step names it, or no slice that holds a naming step has a scenario.
+        if not any(s["scenarios"] for s in covering):
+            found.append(
+                make_violation("ac-no-scenario", cid, ac_id=cid, text=criterion["text"])
+            )
+    return found
+
+
+def _scenario_step_violations(plan: dict) -> list[dict[str, str]]:
+    return [
+        make_violation("scenario-no-step", f"Slice {s['number']}", n=s["number"])
+        for s in plan["slices"]
+        if s["scenarios"] and not s["step_ids"]
+    ]
+
+
+def _blocker_key(blocker: dict[str, str]) -> tuple[str, str]:
+    return blocker["slice"], " ".join(blocker["text"].split())
+
+
+def _closed_slice_violations(plan: dict, progress: dict) -> list[dict[str, str]]:
+    closed = {i["id"] for i in progress["items"] if i["kind"] == "slice" and i["done"]}
+    existing = {s["number"] for s in plan["slices"]}
+    # A resolved blocker with the same slice and text cancels exactly one open one.
+    resolved = Counter(_blocker_key(b) for b in plan["blockers"]["resolved"])
+    found = []
+    for blocker in plan["blockers"]["open"]:
+        key = _blocker_key(blocker)
+        if resolved[key] > 0:
+            resolved[key] -= 1
+        elif key[0] in closed and key[0] in existing:
+            found.append(
+                make_violation("closed-slice-open-blocker", f"Slice {key[0]}", n=key[0])
+            )
+    return found
+
+
+def violation_key(violation: dict[str, str]) -> tuple[str, str]:
+    """Identity of a violation: its invariant id and subject."""
+    return violation["id"], violation["subject"]
+
+
+def _unique(found: list[dict[str, str]]) -> list[dict[str, str]]:
+    first: dict[tuple[str, str], dict[str, str]] = {}
+    for violation in found:
+        first.setdefault(violation_key(violation), violation)
+    return list(first.values())
+
+
+def violations(record: dict) -> list[dict[str, str]]:
+    """Return the structural violations of `record`, in invariant order.
+
+    Reads the record only. One violation per (id, subject).
+    """
+    plan = record["plan"]
+    return _unique(
+        _coverage_violations(plan, record["applicability"])
+        + _scenario_step_violations(plan)
+        + _closed_slice_violations(plan, record["build_progress"])
+    )
+
+
+def plan_violations(
+    plan_text: str, spec_text: str | None = None
+) -> list[dict[str, str]]:
+    """Return the violations of the plan in `plan_text`. Pure and total."""
+    return violations(build_record(plan_text, spec_text))
+
+
+def unverifiable(record: dict) -> list[str]:
+    """Ids of ticked items whose commit evidence could not be established.
+
+    Empty unless commit evidence was evaluated for the record.
+    """
+    if record["applicability"]["commit_evidence"] != "evaluated":
+        return []
+    return [
+        i["id"]
+        for i in record["build_progress"]["items"]
+        if i["done"] and i["commit_backed"] is None
+    ]
+
+
 class _InputError(Exception):
     """A path the CLI was told to read cannot be read."""
 
@@ -210,12 +400,18 @@ def _load_referenced_spec(plan_path: str, plan_text: str) -> str | None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="feature_record.py", description="Derive the feature record of a plan."
+        prog="feature_record.py", description="Derive and check the feature record."
     )
     sub = parser.add_subparsers(dest="command", required=True)
-    view = sub.add_parser("view", help="print the record as JSON")
-    view.add_argument("plan", help="path to the plan Markdown file")
-    view.add_argument("--spec", help="spec file; overrides the plan's **Spec**: line")
+    for name, text in (
+        ("view", "print the record as JSON"),
+        ("check", "print the violations as JSON; exit 1 when there are any"),
+    ):
+        command = sub.add_parser(name, help=text)
+        command.add_argument("plan", help="path to the plan Markdown file")
+        command.add_argument(
+            "--spec", help="spec file; overrides the plan's **Spec**: line"
+        )
     return parser
 
 
@@ -233,8 +429,23 @@ def main(argv: list[str] | None = None) -> int:
     record = build_record(
         plan_text, spec_text, plan_path=args.plan, spec_source=args.spec
     )
-    print(json.dumps(record, indent=2))
-    return 0
+    if args.command == "view":
+        print(json.dumps(record, indent=2))
+        return 0
+    found = violations(record)
+    pending = unverifiable(record)
+    print(
+        json.dumps(
+            {
+                "violations": found,
+                "unverifiable": pending,
+                "applicability": record["applicability"],
+            },
+            indent=2,
+        )
+    )
+    print(f"{len(found)} violations, {len(pending)} unverifiable", file=sys.stderr)
+    return 1 if found else 0
 
 
 if __name__ == "__main__":
