@@ -36,6 +36,8 @@ If any other result is missing, halt with this message:
 
 This skill halts when you invoke it outside `/build`.
 
+A Preconditions halt writes no record and prints only its own message.
+
 ## Base and batches
 
 Run the step as a loop of batches. The sections below detail each part. For each batch:
@@ -101,13 +103,34 @@ Each candidate owns this state:
 - Only the parent writes the plan file.
 - The step's rollback point is the one `/build` recorded before the slice's first step, if the slice declares one. This skill records none.
 
-Hash the parent's plan file in the build worktree just before the batch dispatches. Hash it again when the batch returns:
+Hash the parent's plan file in the build worktree just before the batch dispatches. The `-w` flag stores the blob:
+
+```bash
+git hash-object -w '<plan>'
+```
+
+Hash it again when the batch returns:
 
 ```bash
 git hash-object '<plan>'
 ```
 
-If the two hashes differ, a candidate wrote the parent's plan file. Halt with the reason `plan file changed during batch <b>`. A non-zero exit from either hash is a script failure. Halt.
+If the two hashes differ, a candidate wrote the parent's plan file. Halt with the reason `plan file changed during batch <b> (changed file saved as <plan>.batch-<b>)`. Before you write the halt record, do these steps:
+
+1. Copy the changed file aside.
+2. Restore the pre-batch content with `<pre-hash>`, the first hash.
+3. Take `<suite>` for the template from the restored plan.
+4. Leave that batch's candidates out of the merge-by-hand line.
+
+```bash
+cp -- '<plan>' '<plan>'.batch-<b>
+```
+
+```bash
+git cat-file blob <pre-hash> > '<plan>'
+```
+
+A non-zero exit from either hash is a script failure. Halt.
 
 Pair each returned result with the dispatch that produced it. Candidate `<i>` is that dispatch's id.
 
@@ -247,7 +270,7 @@ Set the provisional outcomes this way:
 - A disqualified candidate is `disqualified`. Its reason is `reasons[<i>]` from the output of `rank`.
 - A no-commits candidate and a plan-file-edited candidate are `disqualified`.
 - Write the reason yourself for a no-commits candidate (`no commits`) and for a plan-file-edited candidate (`plan file edited`). This reason replaces `reasons[<i>]`.
-- An undispatched candidate is `not dispatched`, with the reason `cost cap`.
+- An undispatched candidate is `not dispatched`. Its reason is `cost cap` after a `stop` and `halted before dispatch` after a halt.
 
 `record` runs before Keep. Run it again with the same attempt after Keep, to write the final outcomes. Do not run two `record` calls at the same time on one plan file.
 
@@ -316,33 +339,46 @@ The step continues at `/build` sub-step 4's inline checkpoint on the merged winn
 
 ## Failure modes
 
-Every halt first writes the record, removes nothing, and prints the halt template. Fill `<reason>` with one of the reasons below.
+Every halt first writes the record, removes nothing, and prints the halt template. Fill `<halt reason>` with one of the reasons below. Preconditions halts are not template reasons.
 
 ```text
-speculative dispatch halted at step <step>, attempt <k>: <reason>
+speculative dispatch halted at step <step>, attempt <k>: <halt reason>
 candidates preserved:
-  <id>  <branch>  <worktree path>  <outcome> (<reason>)
+  <i>  <branch>  <worktree>  <outcome> (<row reason>)
 merge one by hand:  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" reconcile --repo '<build-worktree>' --into '<build-branch>' --base <base> --test-cmd='<suite>' -- '<branch>'   (restores the branch if the suite fails)
 discard them:       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" cleanup --repo '<build-worktree>' --remove '<branch-1>' '<branch-2>'
 re-running /build starts attempt <k+1> and spends the cap again
 after merging by hand: tick Step <step> in the plan's Build Progress, run the discard line, then re-run /build (it resumes at the first unticked step)
 ```
 
-The reasons are:
+Fill `<suite>` with the same `'\''` escape that Keep uses.
 
-- `no candidate has a green suite and parseable screening`: `rank` printed a `null` winner. Name the top of `order` as the branch to inspect.
+Apply this rule to any halt before Rank:
+
+- A dispatched candidate keeps its `collect` dict or its no-commits dict.
+- A candidate the halt interrupted before `collect` takes the no-commits dict shape. It has `suite_green` false, every scenario unmet, and zero counts.
+- Its `cost_usd` is `delta / width`, or 0 when `now` was not read. Its branch is the accepted one, or empty.
+- Assign ranks in id order.
+- Every undispatched candidate is `not dispatched` with the reason `halted before dispatch`.
+
+The halt reasons are:
+
+- `no candidate has a green suite and parseable screening`: `rank` ran and printed a `null` winner. Name the top of `order` as the branch to inspect.
+- `no candidate was left to rank`: every dispatched candidate edited the plan file. No `order` exists. The template lists the preserved candidates and names no branch.
 - `every ranked candidate failed to reconcile`: Keep tried each candidate in `order`.
 - `build branch could not be restored after a failed reconcile (git reset --keep <sha> by hand)`: `reconcile` exited 2.
 - `cost meter recorded no spend for the last batch`: `project` printed `halt`.
-- `cost_meter.py or build_candidates.py exited non-zero`: add the stderr of the failed command.
+- `<command> exited non-zero`: add the stderr. It covers every script or git command whose non-zero exit halts. These are `cost_meter.py`, `build_candidates.py`, `plan_summary_record.py`, `build_slice_scope.py`, `build_jobs.py`, and git `hash-object`, `diff`, `cat-file`, and `worktree list`.
 - `candidate <i> dispatch failed`: the worktree could not be created, or the agent returned an error.
-- `plan file changed during batch <b>`: every candidate of that batch is `disqualified` with that reason. Candidates of earlier batches are `removed` with the reason `halted before rank`. Because `rank` did not run, assign ranks in id order.
-- `reconcile halted: <halt reason>`: Keep halted. The candidate being merged carries this reason.
-- `Agent tool unavailable`: the Preconditions check failed before batch 1.
+- `plan file changed during batch <b> (changed file saved as <plan>.batch-<b>)`: every candidate of that batch is `disqualified` with that reason. Candidates of earlier batches are `removed` with the reason `halted before rank`. A no-commits or plan-file-edited candidate keeps `disqualified` with its own reason. Because `rank` did not run, assign ranks in id order.
 
-When any row is `not dispatched`, add this line after the reason line:
+On a Keep halt, the template carries the specific reason. The merged candidate's row carries `reconcile halted: <that reason>`.
 
-`only <d> of <N> candidates were dispatched (cost cap); raise --max-cost-usd to try more`
+When `project` printed `stop`, add this line after the first line of the template:
+
+`only <dispatched> of <N> candidates were dispatched (cost cap); raise --max-cost-usd to try more`
+
+When the halt's own `record` call exits non-zero, print the template anyway. Add the line `record not written: <stderr>` after the first line.
 
 A red suite and an unparseable lens are distinguished in the Reason column. A tooling failure is then never read as a bad implementation.
 

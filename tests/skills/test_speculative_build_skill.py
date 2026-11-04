@@ -1,17 +1,21 @@
-"""Doc-shape contract for speculative-build/SKILL.md (plan Slice 3, Step 3.1).
+"""Doc-shape contract for speculative-build/SKILL.md (plan Slice 3).
 
 The skill is a procedure `/build --candidates N` follows for one `complex`
 step. These tests pin the contract the plan's Slice 3 Gherkin names: the
-frontmatter, the twelve sections in order, and the phrases each section must
-carry. Registration is checked last: the registry row and the `docs/skills.md`
-row. The exit codes of `check_registry_sync.py` and `build_skills_index.py
---check` are already gated by `tests/repo/test_registry_sync.py` and
-`tests/repo/test_skills_index_current.py`.
+frontmatter, the twelve sections in order, the phrases each section must carry,
+and the halt template of `## Failure modes`. Script resolution is checked
+mechanically: every `python3 "${CLAUDE_PLUGIN_ROOT}/..."` call in a fenced
+block must name a script that exists, and every flag named for an argparse
+script must appear in that subcommand's real `--help`. Registration is checked
+last: the registry row and the `docs/skills.md` row. The exit codes of
+`check_registry_sync.py` and `build_skills_index.py --check` are already gated
+by `tests/repo/test_registry_sync.py` and `tests/repo/test_skills_index_current.py`.
 """
 
 from __future__ import annotations
 
 import functools
+import os
 import re
 import subprocess
 import sys
@@ -66,8 +70,18 @@ QUOTED_PLACEHOLDERS = (
 #: A shipped-script call in the skill: the script path under the plugin root,
 #: then the rest of the line (subcommand and flags).
 _INVOCATION_RE = re.compile(r'python3 "\$\{CLAUDE_PLUGIN_ROOT\}/([^"]+)"(.*)$')
-#: Scripts whose subcommands and flags are checked against their real `--help`.
-HELP_CHECKED = ("scripts/build_candidates.py", "scripts/plan_summary_record.py")
+#: Argparse scripts whose subcommands and flags are checked against their real
+#: `--help`. `build_jobs.py` prints a hand-written usage line on stderr with
+#: exit 2, and `build_worktree_baseref.py` has no `--help`, so both get the
+#: existence check only.
+HELP_CHECKED_SCRIPTS = (
+    "scripts/build_candidates.py",
+    "scripts/plan_summary_record.py",
+    "scripts/build_slice_scope.py",
+    "hooks/lib/cost_meter.py",
+)
+HELP_TIMEOUT_SECONDS = 60
+HALT_TEMPLATE_LINE_COUNT = 7
 BUILD_CANDIDATES_SUBCOMMANDS = {
     "validate-flags",
     "collect",
@@ -96,7 +110,8 @@ def _invocations(text: str) -> list[tuple[str, str, tuple[str, ...]]]:
             continue
         script, rest = match.groups()
         words = rest.split()
-        subcommand = next((w for w in words if not w.startswith("-")), "")
+        first = words[0] if words else ""
+        subcommand = "" if first.startswith(("-", "<")) else first
         flags = tuple(re.findall(r"(?<![\w-])(--[a-z][a-z-]*)", rest))
         found.append((script, subcommand, flags))
     return found
@@ -107,12 +122,18 @@ INVOCATIONS = _invocations(SKILL.read_text(encoding="utf-8"))
 
 @functools.cache
 def _help_text(script: str, subcommand: str) -> str:
+    # Python 3.14 argparse colours its help output; plain text is what we match.
+    env = {k: v for k, v in os.environ.items() if k != "FORCE_COLOR"}
+    env["NO_COLOR"] = "1"
+    command = [sys.executable, str(PLUGIN_ROOT / script)]
+    command += [subcommand] if subcommand else []
     result = subprocess.run(
-        [sys.executable, str(PLUGIN_ROOT / script), subcommand, "--help"],
+        [*command, "--help"],
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=HELP_TIMEOUT_SECONDS,
         check=False,
+        env=env,
     )
     assert result.returncode == 0, f"{script} {subcommand} --help: {result.stderr}"
     return result.stdout
@@ -179,7 +200,10 @@ def test_failure_modes_halt_template_is_a_fenced_text_block(skill_text):
     blocks = re.findall(r"^```text\n(.*?)^```", body, flags=re.DOTALL | re.MULTILINE)
     assert len(blocks) == 1
     assert blocks[0].startswith("speculative dispatch halted at step <step>")
-    assert len(blocks[0].splitlines()) == 7
+    lines = blocks[0].splitlines()
+    assert len(lines) == HALT_TEMPLATE_LINE_COUNT, (
+        f"halt template has {len(lines)} lines, expected {HALT_TEMPLATE_LINE_COUNT}"
+    )
 
 
 def test_skill_body_opens_with_one_h1_before_the_sections(skill_text):
@@ -205,11 +229,18 @@ def test_skill_names_the_plan_step_as_step_not_n_dot_m(skill_text):
 def test_skill_bash_blocks_single_quote_branch_and_worktree_placeholders(
     skill_text, placeholder
 ):
-    lines = [line for block in _bash_blocks(skill_text) for line in block.splitlines()]
+    bash_lines = [
+        line for block in _bash_blocks(skill_text) for line in block.splitlines()
+    ]
     quoted = f"'{placeholder}'"
-    assert any(quoted in line for line in lines), f"{placeholder} never appears"
+    assert any(quoted in line for line in bash_lines), f"{placeholder} never appears"
+    command_lines = [
+        line
+        for line in _fenced_command_lines(skill_text)
+        if _INVOCATION_RE.search(line)
+    ]
     bare = re.compile(rf"(?<!'){re.escape(placeholder)}|{re.escape(placeholder)}(?!')")
-    offenders = [line for line in lines if bare.search(line)]
+    offenders = [line for line in command_lines if bare.search(line)]
     assert not offenders, f"{placeholder} is not single-quoted in: {offenders}"
 
 
@@ -234,20 +265,20 @@ def test_section_stays_open_across_a_fenced_h2_line():
     assert "other" not in body
 
 
-def _label(invocation: tuple[str, str, tuple[str, ...]]) -> str:
+def _invocation_id(invocation: tuple[str, str, tuple[str, ...]]) -> str:
     script, subcommand, flags = invocation
     return f"{script.rsplit('/', 1)[-1]}-{subcommand or 'nosub'}-{'-'.join(flags)}"
 
 
-@pytest.mark.parametrize("invocation", INVOCATIONS, ids=_label)
+@pytest.mark.parametrize("invocation", INVOCATIONS, ids=_invocation_id)
 def test_every_script_the_skill_invokes_exists_under_the_plugin_root(invocation):
     assert (PLUGIN_ROOT / invocation[0]).is_file()
 
 
 @pytest.mark.parametrize(
     "invocation",
-    [i for i in INVOCATIONS if i[0] in HELP_CHECKED],
-    ids=_label,
+    [i for i in INVOCATIONS if i[0] in HELP_CHECKED_SCRIPTS],
+    ids=_invocation_id,
 )
 def test_every_flag_the_skill_names_is_listed_by_the_subcommand_help(invocation):
     script, subcommand, flags = invocation
@@ -304,6 +335,13 @@ FACTS = [
         ),
     ),
     # Base and batches
+    Fact(
+        "preconditions_halt_writes_no_record_and_prints_only_its_own_message",
+        "Preconditions",
+        literal_required=(
+            "A Preconditions halt writes no record and prints only its own message.",
+        ),
+    ),
     Fact(
         "base_and_batches_open_with_the_six_step_batch_loop",
         "Base and batches",
@@ -483,24 +521,51 @@ FACTS = [
         literal_required=("Use an empty branch when the name was rejected.",),
     ),
     Fact(
-        "dispatch_hashes_the_plan_file_before_and_after_the_batch",
+        "dispatch_hashes_the_plan_file_before_the_batch_and_stores_the_blob",
         "Dispatch",
         literal_required=(
             (
                 "Hash the parent's plan file in the build worktree "
                 "just before the batch dispatches."
             ),
-            "Hash it again when the batch returns:",
-            "git hash-object '<plan>'",
+            "The `-w` flag stores the blob:",
+            "git hash-object -w '<plan>'",
         ),
+    ),
+    Fact(
+        "dispatch_hashes_the_plan_file_again_when_the_batch_returns",
+        "Dispatch",
+        literal_required=("Hash it again when the batch returns:",),
     ),
     Fact(
         "dispatch_halts_when_the_plan_file_hash_changes",
         "Dispatch",
         literal_required=(
             "If the two hashes differ, a candidate wrote the parent's plan file.",
-            "Halt with the reason `plan file changed during batch <b>`.",
+            (
+                "Halt with the reason `plan file changed during batch <b> "
+                "(changed file saved as <plan>.batch-<b>)`."
+            ),
             "A non-zero exit from either hash is a script failure. Halt.",
+        ),
+    ),
+    Fact(
+        "dispatch_saves_the_changed_plan_and_restores_the_pre_batch_content",
+        "Dispatch",
+        literal_required=(
+            "Before you write the halt record, do these steps:",
+            "1. Copy the changed file aside.",
+            "2. Restore the pre-batch content with `<pre-hash>`, the first hash.",
+            "cp -- '<plan>' '<plan>'.batch-<b>",
+            "git cat-file blob <pre-hash> > '<plan>'",
+        ),
+    ),
+    Fact(
+        "dispatch_takes_suite_from_the_restored_plan_and_omits_the_batch_from_merge",
+        "Dispatch",
+        literal_required=(
+            "3. Take `<suite>` for the template from the restored plan.",
+            "4. Leave that batch's candidates out of the merge-by-hand line.",
         ),
     ),
     Fact(
@@ -771,6 +836,17 @@ FACTS = [
         ),
     ),
     Fact(
+        "record_undispatched_reason_depends_on_stop_or_halt",
+        "Record",
+        literal_required=(
+            (
+                "An undispatched candidate is `not dispatched`. "
+                "Its reason is `cost cap` after a `stop` "
+                "and `halted before dispatch` after a halt."
+            ),
+        ),
+    ),
+    Fact(
         "record_defines_removed_as_not_kept_with_the_branch_kept_until_cleanup",
         "Record",
         literal_required=(
@@ -916,39 +992,44 @@ FACTS = [
         literal_required=("writes the record, removes nothing",),
     ),
     Fact(
-        "failure_modes_template_names_the_halt_and_the_preserved_candidates",
+        "failure_modes_template_names_the_halt_reason_and_fills_it_from_the_list",
         "Failure modes",
         literal_required=(
-            "speculative dispatch halted at step <step>, attempt <k>: <reason>",
-            "candidates preserved:",
-            "  <id>  <branch>  <worktree path>  <outcome> (<reason>)",
+            "speculative dispatch halted at step <step>, attempt <k>: <halt reason>",
+            "Fill `<halt reason>` with one of the reasons below.",
+            "Preconditions halts are not template reasons.",
         ),
-        collapse=False,
+    ),
+    Fact(
+        "failure_modes_template_lists_the_preserved_candidates_with_a_row_reason",
+        "Failure modes",
+        literal_required=(
+            "candidates preserved:",
+            "<i> <branch> <worktree> <outcome> (<row reason>)",
+        ),
     ),
     Fact(
         "failure_modes_template_carries_the_manual_merge_line",
         "Failure modes",
         literal_required=(
-            "merge one by hand:  python3",
+            "merge one by hand: python3",
             (
                 "build_candidates.py\" reconcile --repo '<build-worktree>' "
                 "--into '<build-branch>' --base <base> --test-cmd='<suite>' "
-                "-- '<branch>'   (restores the branch if the suite fails)"
+                "-- '<branch>' (restores the branch if the suite fails)"
             ),
         ),
-        collapse=False,
     ),
     Fact(
         "failure_modes_template_carries_the_discard_line",
         "Failure modes",
         literal_required=(
-            "discard them:       python3",
+            "discard them: python3",
             (
                 "build_candidates.py\" cleanup --repo '<build-worktree>' "
                 "--remove '<branch-1>' '<branch-2>'"
             ),
         ),
-        collapse=False,
     ),
     Fact(
         "failure_modes_template_carries_the_rerun_line_naming_attempt_k_plus_1",
@@ -969,14 +1050,64 @@ FACTS = [
         ),
     ),
     Fact(
+        "failure_modes_template_suite_takes_keeps_quote_escape",
+        "Failure modes",
+        literal_required=(
+            "Fill `<suite>` with the same `'\\''` escape that Keep uses.",
+        ),
+    ),
+    Fact(
+        "failure_modes_general_rule_keeps_collected_dicts_for_dispatched_candidates",
+        "Failure modes",
+        literal_required=(
+            "Apply this rule to any halt before Rank:",
+            "A dispatched candidate keeps its `collect` dict or its no-commits dict.",
+        ),
+    ),
+    Fact(
+        "failure_modes_general_rule_gives_an_interrupted_candidate_the_no_commits_shape",
+        "Failure modes",
+        literal_required=(
+            (
+                "A candidate the halt interrupted before `collect` takes the "
+                "no-commits dict shape."
+            ),
+            "It has `suite_green` false, every scenario unmet, and zero counts.",
+            (
+                "Its `cost_usd` is `delta / width`, or 0 when `now` was not read. "
+                "Its branch is the accepted one, or empty."
+            ),
+        ),
+    ),
+    Fact(
+        "failure_modes_general_rule_ranks_in_id_order_and_marks_undispatched",
+        "Failure modes",
+        literal_required=(
+            "- Assign ranks in id order.",
+            (
+                "- Every undispatched candidate is `not dispatched` "
+                "with the reason `halted before dispatch`."
+            ),
+        ),
+    ),
+    Fact(
         "failure_modes_null_winner_names_the_top_of_order",
         "Failure modes",
         literal_required=(
             (
                 "`no candidate has a green suite and parseable screening`: "
-                "`rank` printed a `null` winner. "
+                "`rank` ran and printed a `null` winner. "
                 "Name the top of `order` as the branch to inspect."
             ),
+        ),
+    ),
+    Fact(
+        "failure_modes_nothing_left_to_rank_names_no_branch",
+        "Failure modes",
+        literal_required=(
+            "`no candidate was left to rank`: every dispatched candidate edited the plan file.",
+            "No `order` exists.",
+            "The template lists the preserved candidates and names no branch.",
         ),
     ),
     Fact(
@@ -988,50 +1119,101 @@ FACTS = [
                 "`build branch could not be restored after a failed reconcile "
                 "(git reset --keep <sha> by hand)`"
             ),
-            "`reconcile halted: <halt reason>`",
         ),
     ),
     Fact(
-        "failure_modes_lists_the_no_spend_and_script_failure_reasons",
+        "failure_modes_keep_halt_reason_is_a_row_reason_not_a_template_reason",
         "Failure modes",
         literal_required=(
-            "`cost meter recorded no spend for the last batch`",
-            "`cost_meter.py or build_candidates.py exited non-zero`",
-            "add the stderr of the failed command",
+            (
+                "On a Keep halt, the template carries the specific reason. "
+                "The merged candidate's row carries "
+                "`reconcile halted: <that reason>`."
+            ),
+        ),
+        literal_forbidden=("`reconcile halted: <halt reason>`: Keep halted",),
+    ),
+    Fact(
+        "failure_modes_lists_the_no_spend_reason",
+        "Failure modes",
+        literal_required=(
+            "`cost meter recorded no spend for the last batch`: `project` printed `halt`.",
         ),
     ),
     Fact(
-        "failure_modes_lists_the_dispatch_failure_and_agent_unavailable_reasons",
+        "failure_modes_script_failure_reason_covers_every_halting_command",
+        "Failure modes",
+        literal_required=(
+            "`<command> exited non-zero`: add the stderr.",
+            (
+                "`cost_meter.py`, `build_candidates.py`, `plan_summary_record.py`, "
+                "`build_slice_scope.py`, `build_jobs.py`, and git `hash-object`, "
+                "`diff`, `cat-file`, and `worktree list`."
+            ),
+        ),
+    ),
+    Fact(
+        "failure_modes_lists_the_dispatch_failure_reason",
         "Failure modes",
         literal_required=(
             "`candidate <i> dispatch failed`",
             "the worktree could not be created, or the agent returned an error",
-            "`Agent tool unavailable`",
-            "the Preconditions check failed before batch 1",
         ),
+    ),
+    Fact(
+        "failure_modes_does_not_list_agent_unavailable_as_a_template_reason",
+        "Failure modes",
+        literal_forbidden=("Agent tool unavailable",),
     ),
     Fact(
         "failure_modes_plan_file_changed_states_the_row_outcomes",
         "Failure modes",
         literal_required=(
-            "`plan file changed during batch <b>`",
+            (
+                "`plan file changed during batch <b> "
+                "(changed file saved as <plan>.batch-<b>)`"
+            ),
             "every candidate of that batch is `disqualified` with that reason",
             (
                 "Candidates of earlier batches are `removed` "
-                "with the reason `halted before rank`"
+                "with the reason `halted before rank`."
             ),
             "Because `rank` did not run, assign ranks in id order.",
         ),
     ),
     Fact(
-        "failure_modes_undispatched_rows_add_the_cap_line",
+        "failure_modes_plan_file_changed_keeps_the_own_reason_of_unranked_candidates",
         "Failure modes",
         literal_required=(
-            "When any row is `not dispatched`, add this line after the reason line:",
             (
-                "`only <d> of <N> candidates were dispatched (cost cap); "
+                "A no-commits or plan-file-edited candidate keeps `disqualified` "
+                "with its own reason."
+            ),
+        ),
+    ),
+    Fact(
+        "failure_modes_cap_line_prints_only_after_a_stop_after_the_first_line",
+        "Failure modes",
+        literal_required=(
+            (
+                "When `project` printed `stop`, add this line "
+                "after the first line of the template:"
+            ),
+            (
+                "`only <dispatched> of <N> candidates were dispatched (cost cap); "
                 "raise --max-cost-usd to try more`"
             ),
+        ),
+    ),
+    Fact(
+        "failure_modes_record_failure_prints_the_template_with_the_stderr_line",
+        "Failure modes",
+        literal_required=(
+            (
+                "When the halt's own `record` call exits non-zero, "
+                "print the template anyway."
+            ),
+            "Add the line `record not written: <stderr>` after the first line.",
         ),
     ),
     Fact(
