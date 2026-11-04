@@ -1,51 +1,29 @@
-"""Tests for build_candidates.py (#2273): validate-flags, rank, project,
-collect and cleanup. The reconcile and lifecycle scenarios live in
-test_build_candidates_integration.py.
+"""Pure tests for build_candidates.py (#2273): validate-flags, rank, the
+Candidate model and project. Nothing here touches git. The git-facing
+subcommands are in test_build_candidates_git.py; reconcile and the whole
+lifecycle in test_build_candidates_integration.py.
 """
 
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 
 import pytest
+from _build_candidates_test_helpers import (
+    SCENARIOS_TOTAL,
+    SCRIPTS_DIR,
+    make_candidate,
+    run_cli,
+)
 
-from _repo_root import REPO_ROOT as _REPO_ROOT
-
-_SCRIPTS_DIR = _REPO_ROOT / "plugins" / "dev-team" / "scripts"
-_SCRIPT_PY = _SCRIPTS_DIR / "build_candidates.py"
-_FLOOR_TEST = _REPO_ROOT / "tests" / "repo" / "test_python_floor.py"
-
-sys.path.insert(0, str(_SCRIPTS_DIR))
+sys.path.insert(0, str(SCRIPTS_DIR))
 
 import build_candidates
 
-
-def _run(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, str(_SCRIPT_PY), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-
-def _flag_args(candidates: str, cap: str, jobs: str) -> list[str]:
-    """CLI args for the Scenario Outline convention: an empty value means the
-    flag is absent."""
-    args: list[str] = []
-    for flag, value in (
-        ("--candidates", candidates),
-        ("--max-cost-usd", cap),
-        ("--jobs", jobs),
-    ):
-        if value != "":
-            args += [f"{flag}={value}"]
-    return args
-
-
 # --- validate-flags ---------------------------------------------------------
+
+UNCHANGED_BUILD = {"candidates": 1, "max_cost_usd": None, "speculative": False}
 
 
 @pytest.mark.parametrize(
@@ -54,18 +32,13 @@ def _flag_args(candidates: str, cap: str, jobs: str) -> list[str]:
     ids=["no-flags", "candidates-1-alone"],
 )
 def test_validate_flags_accepts_the_unchanged_build_as_not_speculative(args) -> None:
-    r = _run("validate-flags", *args)
+    r = run_cli("validate-flags", *args)
     assert r.returncode == 0
-    assert json.loads(r.stdout)["speculative"] is False
-
-
-def test_validate_flags_output_has_exactly_the_documented_keys() -> None:
-    r = _run("validate-flags", "--candidates", "1")
-    assert set(json.loads(r.stdout)) == {"candidates", "max_cost_usd", "speculative"}
+    assert json.loads(r.stdout) == UNCHANGED_BUILD
 
 
 def test_validate_flags_accepts_a_speculative_run() -> None:
-    r = _run("validate-flags", "--candidates", "3", "--max-cost-usd", "12.5")
+    r = run_cli("validate-flags", "--candidates", "3", "--max-cost-usd", "12.5")
     assert r.returncode == 0
     assert json.loads(r.stdout) == {
         "candidates": 3,
@@ -75,13 +48,13 @@ def test_validate_flags_accepts_a_speculative_run() -> None:
 
 
 def test_validate_flags_prints_max_cost_as_a_number_not_a_string() -> None:
-    r = _run("validate-flags", "--candidates", "2", "--max-cost-usd", "5")
+    r = run_cli("validate-flags", "--candidates", "2", "--max-cost-usd", "5")
     assert isinstance(json.loads(r.stdout)["max_cost_usd"], float)
 
 
-@pytest.mark.parametrize("jobs", ["abc", "1"])
+@pytest.mark.parametrize("jobs", ["abc", "1"], ids=["not-a-number", "one"])
 def test_validate_flags_leaves_non_parallel_jobs_to_build(jobs) -> None:
-    r = _run(
+    r = run_cli(
         "validate-flags", "--candidates", "2", "--max-cost-usd", "5", "--jobs", jobs
     )
     assert r.returncode == 0
@@ -89,9 +62,9 @@ def test_validate_flags_leaves_non_parallel_jobs_to_build(jobs) -> None:
 
 
 def test_validate_flags_ignores_parallel_jobs_when_candidates_is_one() -> None:
-    r = _run("validate-flags", "--candidates", "1", "--jobs", "4")
+    r = run_cli("validate-flags", "--candidates", "1", "--jobs", "4")
     assert r.returncode == 0
-    assert json.loads(r.stdout)["speculative"] is False
+    assert json.loads(r.stdout) == UNCHANGED_BUILD
 
 
 _REJECTED = [
@@ -118,90 +91,173 @@ _REJECTED = [
 ]
 
 
-@pytest.mark.parametrize("candidates,cap,jobs,message", _REJECTED)
+def _absent_if_empty(value: str) -> str | None:
+    """The Scenario Outline convention: an empty value means the flag is absent."""
+    return value or None
+
+
+@pytest.mark.parametrize(
+    "candidates,cap,jobs,message",
+    _REJECTED,
+    ids=[
+        f"c={c or '-'},cap={cap or '-'},jobs={j or '-'}" for c, cap, j, _ in _REJECTED
+    ],
+)
 def test_validate_flags_rejects_bad_combination_with_the_exact_message(
     candidates, cap, jobs, message
 ) -> None:
-    r = _run("validate-flags", *_flag_args(candidates, cap, jobs))
+    with pytest.raises(build_candidates.FlagError) as raised:
+        build_candidates.validate_flags(
+            _absent_if_empty(candidates), _absent_if_empty(cap), _absent_if_empty(jobs)
+        )
+    assert str(raised.value) == message
+
+
+@pytest.fixture(scope="module")
+def rejected_run():
+    """One real CLI run with a rejected combination, for the three pins."""
+    return run_cli("validate-flags", "--candidates=0", "--max-cost-usd=5")
+
+
+def test_a_rejected_flag_combination_exits_two(rejected_run) -> None:
+    assert rejected_run.returncode == 2
+
+
+def test_a_rejected_flag_combination_prints_nothing_on_stdout(rejected_run) -> None:
+    assert rejected_run.stdout == ""
+
+
+def test_a_rejected_flag_combination_prints_one_newline_terminated_stderr_line(
+    rejected_run,
+) -> None:
+    assert (
+        rejected_run.stderr
+        == "--candidates must be an integer between 1 and 8; got '0'\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "flag,message",
+    [
+        (
+            "--max-cost-usd=-inf",
+            "--max-cost-usd must be a number greater than 0; got '-inf'",
+        ),
+        (
+            "--candidates=-abc",
+            "--candidates must be an integer between 1 and 8; got '-abc'",
+        ),
+    ],
+    ids=["cap-negative-inf", "candidates-negative-word"],
+)
+def test_validate_flags_gives_its_own_message_for_a_value_that_looks_like_a_flag(
+    flag, message
+) -> None:
+    others = ["--candidates=2"] if flag.startswith("--max") else ["--max-cost-usd=5"]
+    r = run_cli("validate-flags", flag, *others)
     assert (r.returncode, r.stdout, r.stderr) == (2, "", message + "\n")
 
 
 def test_validate_flags_rejects_an_explicitly_empty_candidates_value() -> None:
-    r = _run("validate-flags", "--candidates", "")
-    assert r.returncode == 2
-    assert r.stderr == "--candidates must be an integer between 1 and 8; got ''\n"
+    with pytest.raises(build_candidates.FlagError) as raised:
+        build_candidates.validate_flags("", None, None)
+    assert str(raised.value) == (
+        "--candidates must be an integer between 1 and 8; got ''"
+    )
 
 
 def test_validate_flags_rejects_an_explicitly_empty_cap_value() -> None:
-    r = _run("validate-flags", "--candidates", "2", "--max-cost-usd", "")
-    assert r.returncode == 2
-    assert r.stderr == "--max-cost-usd must be a number greater than 0; got ''\n"
+    with pytest.raises(build_candidates.FlagError) as raised:
+        build_candidates.validate_flags("2", "", None)
+    assert str(raised.value) == (
+        "--max-cost-usd must be a number greater than 0; got ''"
+    )
 
 
 def test_validate_flags_rejects_non_ascii_digits_in_candidates() -> None:
-    r = _run("validate-flags", "--candidates", "\u0663", "--max-cost-usd", "5")
-    assert (r.returncode, r.stdout) == (2, "")
-    assert r.stderr.startswith("--candidates must be an integer")
+    with pytest.raises(build_candidates.FlagError, match="--candidates must be an"):
+        build_candidates.validate_flags("٣", "5", None)
 
 
-@pytest.mark.parametrize("cap", ["1_0", " 5", "5 ", "1e999"])
+@pytest.mark.parametrize(
+    "cap",
+    ["1_0", " 5", "5 ", "1e999", "+5"],
+    ids=["underscore", "leading-space", "trailing-space", "overflow", "plus-sign"],
+)
 def test_validate_flags_rejects_cap_spellings_float_would_tolerate(cap) -> None:
-    r = _run("validate-flags", "--candidates", "2", "--max-cost-usd", cap)
-    assert (r.returncode, r.stdout) == (2, "")
-    assert r.stderr == f"--max-cost-usd must be a number greater than 0; got '{cap}'\n"
+    with pytest.raises(build_candidates.FlagError) as raised:
+        build_candidates.validate_flags("2", cap, None)
+    assert str(raised.value) == (
+        f"--max-cost-usd must be a number greater than 0; got '{cap}'"
+    )
+
+
+@pytest.mark.parametrize(
+    "cap,expected",
+    [(".5", 0.5), ("5.", 5.0), ("1e3", 1000.0), ("02", 2.0)],
+    ids=["leading-dot", "trailing-dot", "exponent", "leading-zero"],
+)
+def test_validate_flags_accepts_plain_ascii_decimal_cap_spellings(
+    cap, expected
+) -> None:
+    assert build_candidates.validate_flags("2", cap, None)["max_cost_usd"] == expected
+
+
+@pytest.mark.parametrize(
+    "candidates",
+    ["+5", ".5", "5.", "1e3"],
+    ids=["plus-sign", "leading-dot", "trailing-dot", "exponent"],
+)
+def test_validate_flags_rejects_candidates_spellings_that_are_not_plain_integers(
+    candidates,
+) -> None:
+    with pytest.raises(build_candidates.FlagError, match="--candidates must be an"):
+        build_candidates.validate_flags(candidates, "5", None)
+
+
+def test_validate_flags_accepts_a_leading_zero_candidates_count() -> None:
+    assert build_candidates.validate_flags("02", "5", None)["candidates"] == 2
 
 
 def test_validate_flags_checks_candidates_syntax_before_cap_syntax() -> None:
-    r = _run("validate-flags", "--candidates", "x", "--max-cost-usd", "y")
-    assert r.stderr.startswith("--candidates must be")
+    with pytest.raises(build_candidates.FlagError, match="^--candidates must be"):
+        build_candidates.validate_flags("x", "y", None)
 
 
 def test_validate_flags_checks_cap_syntax_before_pairing() -> None:
-    r = _run("validate-flags", "--candidates", "1", "--max-cost-usd", "y")
-    assert r.stderr.startswith("--max-cost-usd must be a number")
+    with pytest.raises(build_candidates.FlagError, match="^--max-cost-usd must be a"):
+        build_candidates.validate_flags("1", "y", None)
 
 
 def test_validate_flags_checks_pairing_before_jobs() -> None:
-    r = _run("validate-flags", "--candidates", "2", "--jobs", "4")
-    assert r.stderr == "--candidates N with N >= 2 requires --max-cost-usd\n"
+    with pytest.raises(build_candidates.FlagError) as raised:
+        build_candidates.validate_flags("2", None, "4")
+    assert str(raised.value) == "--candidates N with N >= 2 requires --max-cost-usd"
 
 
 def test_validate_flags_accepts_the_upper_bound_of_eight_candidates() -> None:
     assert build_candidates.validate_flags("8", "1", None)["candidates"] == 8
 
 
-def test_validate_flags_raises_flag_error_for_a_pure_call() -> None:
-    with pytest.raises(build_candidates.FlagError, match="got '9'"):
-        build_candidates.validate_flags("9", "5", None)
-
-
 def test_unknown_subcommand_is_a_usage_error_with_exit_two() -> None:
-    assert _run("frobnicate").returncode == 2
+    assert run_cli("frobnicate").returncode == 2
+
+
+@pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
+def test_reconcile_rejects_a_blank_test_command_as_a_usage_error(blank) -> None:
+    r = run_cli(
+        "reconcile",
+        "--repo=.",
+        "--into=build",
+        "--base=HEAD",
+        f"--test-cmd={blank}",
+        "c1",
+    )
+    assert (r.returncode, r.stdout) == (2, "")
+    assert "argument --test-cmd:" in r.stderr
 
 
 # --- rank -------------------------------------------------------------------
-
-
-def _cand(cid: int, **overrides) -> dict:
-    """A green, fully-met, finding-free candidate dict; override per case."""
-    base = {
-        "id": cid,
-        "branch": f"worktree-c{cid}",
-        "suite_green": True,
-        "scenarios_total": 5,
-        "scenarios_unmet": 0,
-        "errors": 0,
-        "warnings": 0,
-        "diff_lines": 10,
-        "cost_usd": 0.5,
-        "screening": "ok",
-    }
-    base.update(overrides)
-    return base
-
-
-def _met(cid: int, met: int, **overrides) -> dict:
-    return _cand(cid, scenarios_unmet=5 - met, **overrides)
 
 
 def _write_candidates(tmp_path, candidates: list, name: str = "c.json") -> str:
@@ -211,11 +267,14 @@ def _write_candidates(tmp_path, candidates: list, name: str = "c.json") -> str:
 
 
 def _rank(tmp_path, candidates: list):
-    return _run("rank", "--candidates", _write_candidates(tmp_path, candidates))
+    return run_cli("rank", "--candidates-json", _write_candidates(tmp_path, candidates))
 
 
 def test_rank_orders_by_scenarios_met_before_review_findings(tmp_path) -> None:
-    r = _rank(tmp_path, [_met(1, 5, errors=1), _met(2, 4), _met(3, 5)])
+    r = _rank(
+        tmp_path,
+        [make_candidate(1, errors=1), make_candidate(2, met=4), make_candidate(3)],
+    )
     out = json.loads(r.stdout)
     assert r.returncode == 0
     assert out["order"] == [3, 1, 2]
@@ -229,11 +288,11 @@ def test_rank_breaks_ties_by_errors_then_warnings_then_diff_lines_then_id(
     r = _rank(
         tmp_path,
         [
-            _cand(2, errors=1, diff_lines=10, cost_usd=0.1),
-            _cand(1, errors=1, diff_lines=10, cost_usd=9.0),
-            _cand(3, warnings=5, diff_lines=100),
-            _cand(4, warnings=2, diff_lines=200),
-            _cand(5, warnings=2, diff_lines=150),
+            make_candidate(2, errors=1, diff_lines=10, cost_usd=0.1),
+            make_candidate(1, errors=1, diff_lines=10, cost_usd=9.0),
+            make_candidate(3, warnings=5, diff_lines=100),
+            make_candidate(4, warnings=2, diff_lines=200),
+            make_candidate(5, warnings=2, diff_lines=150),
         ],
     )
     assert json.loads(r.stdout)["order"] == [5, 4, 3, 1, 2]
@@ -243,21 +302,47 @@ def test_rank_disqualifies_red_suite_and_unparseable_screening(tmp_path) -> None
     r = _rank(
         tmp_path,
         [
-            _cand(1, suite_green=False, warnings=3),
-            _met(2, 3, errors=2),
-            _cand(3, screening="unparseable: correctness-review"),
+            make_candidate(1, suite_green=False, warnings=3),
+            make_candidate(2, met=3, errors=2),
+            make_candidate(3, screening="unparseable: correctness-review"),
         ],
     )
     out = json.loads(r.stdout)
     assert (out["winner"], out["order"], out["disqualified"]) == (2, [2, 3, 1], [1, 3])
 
 
+def test_rank_reports_why_each_candidate_is_disqualified(tmp_path) -> None:
+    r = _rank(
+        tmp_path,
+        [
+            make_candidate(1, suite_green=False),
+            make_candidate(2),
+            make_candidate(3, screening="unparseable: correctness-review"),
+        ],
+    )
+    assert json.loads(r.stdout)["reasons"] == {
+        "1": "red suite",
+        "2": "",
+        "3": "screening: correctness-review unparseable",
+    }
+
+
+def test_rank_names_the_red_suite_when_the_screening_is_also_unparseable(
+    tmp_path,
+) -> None:
+    r = _rank(
+        tmp_path,
+        [make_candidate(1, suite_green=False, screening="unparseable: x-review")],
+    )
+    assert json.loads(r.stdout)["reasons"] == {"1": "red suite"}
+
+
 def test_rank_all_red_yields_no_winner_and_exits_zero(tmp_path) -> None:
     r = _rank(
         tmp_path,
         [
-            _met(1, 2, suite_green=False, cost_usd=0.5),
-            _met(2, 4, suite_green=False, cost_usd=0.5),
+            make_candidate(1, met=2, suite_green=False),
+            make_candidate(2, met=4, suite_green=False),
         ],
     )
     out = json.loads(r.stdout)
@@ -266,13 +351,14 @@ def test_rank_all_red_yields_no_winner_and_exits_zero(tmp_path) -> None:
 
 
 def test_rank_accepts_a_lone_candidate(tmp_path) -> None:
-    r = _rank(tmp_path, [_cand(1)])
+    r = _rank(tmp_path, [make_candidate(1)])
     assert r.returncode == 0
     assert json.loads(r.stdout) == {
         "disqualified": [],
         "order": [1],
         "rank": {"1": 1},
-        "scenarios_met": {"1": 5},
+        "reasons": {"1": ""},
+        "scenarios_met": {"1": SCENARIOS_TOTAL},
         "winner": 1,
     }
 
@@ -280,87 +366,120 @@ def test_rank_accepts_a_lone_candidate(tmp_path) -> None:
 def test_rank_lists_disqualified_ids_in_id_order_whatever_the_ranking(tmp_path) -> None:
     r = _rank(
         tmp_path,
-        [_met(3, 5, suite_green=False), _met(1, 2, suite_green=False), _cand(2)],
+        [
+            make_candidate(3, suite_green=False),
+            make_candidate(1, met=2, suite_green=False),
+            make_candidate(2),
+        ],
     )
     out = json.loads(r.stdout)
     assert (out["order"], out["disqualified"]) == ([2, 3, 1], [1, 3])
 
 
 def test_rank_prints_sorted_keys_on_one_newline_terminated_line(tmp_path) -> None:
-    r = _rank(tmp_path, [_met(1, 2), _met(2, 5)])
+    r = _rank(tmp_path, [make_candidate(1, met=2), make_candidate(2)])
     assert r.stdout == (
         '{"disqualified": [], "order": [2, 1], "rank": {"1": 2, "2": 1}, '
+        '"reasons": {"1": "", "2": ""}, '
         '"scenarios_met": {"1": 2, "2": 5}, "winner": 2}\n'
     )
 
 
 def test_rank_places_a_no_commits_candidate_below_a_green_one(tmp_path) -> None:
-    no_commits = _cand(1, branch="", suite_green=False, scenarios_unmet=5)
-    r = _rank(tmp_path, [no_commits, _met(2, 4)])
+    no_commits = make_candidate(1, met=0, branch="", suite_green=False)
+    r = _rank(tmp_path, [no_commits, make_candidate(2, met=4)])
     out = json.loads(r.stdout)
     assert (out["winner"], out["disqualified"]) == (2, [1])
 
 
+_ORDER_SENSITIVE_CANDIDATES = [
+    make_candidate(1, met=4, errors=1, warnings=3),
+    make_candidate(2, errors=1, warnings=2),
+    make_candidate(3, met=3, warnings=1),
+    make_candidate(4, errors=1, warnings=2, diff_lines=5),
+    make_candidate(5, suite_green=False),
+]
+
+
 def test_rank_output_is_byte_identical_for_any_input_order(tmp_path) -> None:
-    cands = [_met(i, 5 - i % 3, errors=i % 2, warnings=i) for i in range(1, 6)]
-    first = _run("rank", "--candidates", _write_candidates(tmp_path, cands, "a.json"))
-    second = _run(
-        "rank", "--candidates", _write_candidates(tmp_path, cands[::-1], "b.json")
-    )
+    forward = _write_candidates(tmp_path, _ORDER_SENSITIVE_CANDIDATES, "a.json")
+    backward = _write_candidates(tmp_path, _ORDER_SENSITIVE_CANDIDATES[::-1], "b.json")
+    first = run_cli("rank", "--candidates-json", forward)
+    second = run_cli("rank", "--candidates-json", backward)
     assert first.stdout == second.stdout
-    assert first.stdout.endswith("}\n")
+    assert json.loads(first.stdout)["order"] == [4, 2, 1, 3, 5]
 
 
 def test_rank_scenarios_met_reports_met_count_per_candidate(tmp_path) -> None:
-    r = _rank(tmp_path, [_met(1, 5), _met(2, 2)])
+    r = _rank(tmp_path, [make_candidate(1), make_candidate(2, met=2)])
     assert json.loads(r.stdout)["scenarios_met"] == {"1": 5, "2": 2}
 
 
 _MALFORMED = [
-    ("two candidates sharing id 2", [_cand(2), _cand(1), _cand(2)], "2"),
+    (
+        "two candidates sharing id 2",
+        [make_candidate(2), make_candidate(1), make_candidate(2)],
+        "duplicate candidate id 2",
+    ),
     (
         "a candidate missing the errors field",
-        [{k: v for k, v in _cand(1).items() if k != "errors"}],
+        [{k: v for k, v in make_candidate(1).items() if k != "errors"}],
         "errors",
     ),
-    ("a candidate with diff_lines -3", [_cand(1, diff_lines=-3)], "diff_lines"),
-    ("a candidate with suite_green 1", [_cand(1, suite_green=1)], "suite_green"),
+    (
+        "a candidate with diff_lines -3",
+        [make_candidate(1, diff_lines=-3)],
+        "diff_lines",
+    ),
+    (
+        "a candidate with suite_green 1",
+        [make_candidate(1, suite_green=1)],
+        "suite_green",
+    ),
     (
         "a candidate with scenarios_unmet 6 of total 5",
-        [_cand(1, scenarios_unmet=6)],
+        [make_candidate(1, scenarios_unmet=6)],
         "scenarios_unmet",
     ),
-    ("a candidate with cost_usd -0.1", [_cand(1, cost_usd=-0.1)], "cost_usd"),
-    ("a candidate with screening maybe", [_cand(1, screening="maybe")], "screening"),
+    (
+        "a candidate with cost_usd -0.1",
+        [make_candidate(1, cost_usd=-0.1)],
+        "cost_usd",
+    ),
+    (
+        "a candidate with screening maybe",
+        [make_candidate(1, screening="maybe")],
+        "screening",
+    ),
     ("an empty candidates list", [], "no candidates"),
 ]
 
 
 @pytest.mark.parametrize(
-    "candidates,names",
-    [(c, n) for _, c, n in _MALFORMED],
+    "candidates,expected_message",
+    [(c, m) for _, c, m in _MALFORMED],
     ids=[d for d, _, _ in _MALFORMED],
 )
 def test_rank_rejects_malformed_candidates_with_exit_one(
-    tmp_path, candidates, names
+    tmp_path, candidates, expected_message
 ) -> None:
     r = _rank(tmp_path, candidates)
     assert (r.returncode, r.stdout) == (1, "")
     assert r.stderr.startswith("rank:")
-    assert names in r.stderr
+    assert expected_message in r.stderr
 
 
 def test_rank_rejects_a_file_that_is_not_json(tmp_path) -> None:
     path = tmp_path / "bad.json"
     path.write_text("not json at all", encoding="utf-8")
-    r = _run("rank", "--candidates", str(path))
+    r = run_cli("rank", "--candidates-json", str(path))
     assert (r.returncode, r.stdout) == (1, "")
     assert r.stderr.startswith("rank:")
     assert "not JSON" in r.stderr
 
 
 def test_rank_rejects_a_path_that_does_not_exist(tmp_path) -> None:
-    r = _run("rank", "--candidates", str(tmp_path / "missing.json"))
+    r = run_cli("rank", "--candidates-json", str(tmp_path / "missing.json"))
     assert (r.returncode, r.stdout) == (1, "")
     assert r.stderr.startswith("rank:")
     assert "no such file" in r.stderr
@@ -369,7 +488,7 @@ def test_rank_rejects_a_path_that_does_not_exist(tmp_path) -> None:
 def test_rank_rejects_a_candidates_value_that_is_not_a_list(tmp_path) -> None:
     path = tmp_path / "obj.json"
     path.write_text(json.dumps({"candidates": {"id": 1}}), encoding="utf-8")
-    r = _run("rank", "--candidates", str(path))
+    r = run_cli("rank", "--candidates-json", str(path))
     assert (r.returncode, r.stdout) == (1, "")
     assert "must be a list" in r.stderr
 
@@ -377,10 +496,11 @@ def test_rank_rejects_a_candidates_value_that_is_not_a_list(tmp_path) -> None:
 def test_rank_ignores_unknown_keys_in_the_file_and_in_candidates(tmp_path) -> None:
     path = tmp_path / "extra.json"
     path.write_text(
-        json.dumps({"candidates": [_cand(1, note="x")], "other": 1}),
+        json.dumps({"candidates": [make_candidate(1, note="x")], "other": 1}),
         encoding="utf-8",
     )
-    assert json.loads(_run("rank", "--candidates", str(path)).stdout)["winner"] == 1
+    r = run_cli("rank", "--candidates-json", str(path))
+    assert json.loads(r.stdout)["winner"] == 1
 
 
 # --- Candidate / sort_key (pure) --------------------------------------------
@@ -388,56 +508,91 @@ def test_rank_ignores_unknown_keys_in_the_file_and_in_candidates(tmp_path) -> No
 
 def test_from_dict_rejects_a_bool_id() -> None:
     with pytest.raises(ValueError, match="id must be a positive int"):
-        build_candidates.Candidate.from_dict(_cand(True))
+        build_candidates.Candidate.from_dict(make_candidate(True))
 
 
 def test_from_dict_rejects_an_empty_branch_on_a_green_suite() -> None:
     with pytest.raises(ValueError, match="candidate 1: branch"):
-        build_candidates.Candidate.from_dict(_cand(1, branch=""))
+        build_candidates.Candidate.from_dict(make_candidate(1, branch=""))
 
 
 def test_from_dict_accepts_an_empty_branch_on_a_red_suite() -> None:
-    c = build_candidates.Candidate.from_dict(_cand(1, branch="", suite_green=False))
+    c = build_candidates.Candidate.from_dict(
+        make_candidate(1, branch="", suite_green=False)
+    )
     assert c.branch == ""
 
 
 def test_from_dict_rejects_a_non_finite_cost() -> None:
     with pytest.raises(ValueError, match="cost_usd"):
-        build_candidates.Candidate.from_dict(_cand(1, cost_usd=float("inf")))
+        build_candidates.Candidate.from_dict(make_candidate(1, cost_usd=float("inf")))
+
+
+def test_from_dict_rejects_an_integer_cost_too_large_for_a_float() -> None:
+    with pytest.raises(ValueError, match="candidate 1: cost_usd"):
+        build_candidates.Candidate.from_dict(make_candidate(1, cost_usd=10**400))
 
 
 def test_from_dict_rejects_a_bare_unparseable_screening() -> None:
     with pytest.raises(ValueError, match="screening"):
-        build_candidates.Candidate.from_dict(_cand(1, screening="unparseable: "))
+        build_candidates.Candidate.from_dict(
+            make_candidate(1, screening="unparseable: ")
+        )
 
 
 def test_from_dict_names_the_id_of_the_failing_candidate() -> None:
     with pytest.raises(ValueError, match="candidate 7:"):
-        build_candidates.Candidate.from_dict(_cand(7, errors=-1))
+        build_candidates.Candidate.from_dict(make_candidate(7, errors=-1))
 
 
 def test_from_dict_normalizes_an_integer_cost_to_float() -> None:
-    c = build_candidates.Candidate.from_dict(_cand(1, cost_usd=2))
+    c = build_candidates.Candidate.from_dict(make_candidate(1, cost_usd=2))
     assert isinstance(c.cost_usd, float)
 
 
 def test_disqualified_is_true_for_a_red_suite_and_false_for_green_ok() -> None:
     from_dict = build_candidates.Candidate.from_dict
-    assert build_candidates.disqualified(from_dict(_cand(1, suite_green=False)))
-    assert not build_candidates.disqualified(from_dict(_cand(1)))
+    assert build_candidates.disqualified(
+        from_dict(make_candidate(1, suite_green=False))
+    )
+    assert not build_candidates.disqualified(from_dict(make_candidate(1)))
 
 
 def test_sort_key_ignores_cost_usd() -> None:
     from_dict = build_candidates.Candidate.from_dict
-    cheap, dear = from_dict(_cand(1, cost_usd=0.1)), from_dict(_cand(1, cost_usd=99))
+    cheap = from_dict(make_candidate(1, cost_usd=0.1))
+    dear = from_dict(make_candidate(1, cost_usd=99))
     assert build_candidates.sort_key(cheap) == build_candidates.sort_key(dear)
+
+
+def test_no_commits_factory_builds_a_red_all_unmet_candidate_with_zero_findings() -> (
+    None
+):
+    candidate = build_candidates.Candidate.no_commits(3, "", 4, 1.5)
+    assert candidate == build_candidates.Candidate(
+        id=3,
+        branch="",
+        suite_green=False,
+        scenarios_total=4,
+        scenarios_unmet=4,
+        errors=0,
+        warnings=0,
+        diff_lines=0,
+        cost_usd=1.5,
+        screening="ok",
+    )
+
+
+def test_no_commits_factory_rejects_an_invalid_id() -> None:
+    with pytest.raises(ValueError, match="id must be a positive int"):
+        build_candidates.Candidate.no_commits(0, "", 4, 1.5)
 
 
 # --- project ----------------------------------------------------------------
 
 
 def _project(cap, spent, completed, remaining, delta):
-    return _run(
+    return run_cli(
         "project",
         "--cap",
         str(cap),
@@ -507,400 +662,45 @@ def test_project_rounds_projected_to_four_decimals() -> None:
     assert out["projected"] == 1.3333
 
 
+_VALID_PROJECT_ARGS = {
+    "--cap": "10",
+    "--spent": "1",
+    "--completed": "1",
+    "--remaining": "1",
+    "--last-batch-delta": "1",
+}
+
 _BAD_PROJECT_ARGS = [
-    ("0", "1", "1", "1", "1"),
-    ("10", "-1", "1", "1", "1"),
-    ("10", "1", "1.5", "1", "1"),
-    ("10", "1", "0", "1", "1"),
-    ("10", "1", "1", "0", "1"),
-    ("inf", "1", "1", "1", "1"),
-    ("10", "nan", "1", "1", "1"),
-    ("10", "1", "1", "1", "-1"),
+    ("--cap", "0"),
+    ("--cap", "inf"),
+    ("--spent", "-1"),
+    ("--spent", "nan"),
+    ("--completed", "1.5"),
+    ("--completed", "0"),
+    ("--completed", "9"),
+    ("--remaining", "0"),
+    ("--remaining", "8"),
+    ("--last-batch-delta", "-1"),
 ]
 
 
-@pytest.mark.parametrize("cap,spent,completed,remaining,delta", _BAD_PROJECT_ARGS)
-def test_project_rejects_out_of_range_arguments_with_exit_two(
-    cap, spent, completed, remaining, delta
-) -> None:
-    r = _project(cap, spent, completed, remaining, delta)
+@pytest.mark.parametrize(
+    "flag,bad_value",
+    _BAD_PROJECT_ARGS,
+    ids=[f"{flag}={value}" for flag, value in _BAD_PROJECT_ARGS],
+)
+def test_project_rejects_out_of_range_arguments_with_exit_two(flag, bad_value) -> None:
+    args = {**_VALID_PROJECT_ARGS, flag: bad_value}
+    r = run_cli("project", *(part for pair in args.items() for part in pair))
     assert (r.returncode, r.stdout) == (2, "")
-    assert "usage" in r.stderr
+    assert f"argument {flag}:" in r.stderr
+
+
+def test_project_accepts_the_largest_completed_and_remaining_counts() -> None:
+    r = _project(10, 1, 8, 7, 1)
+    assert r.returncode == 0
 
 
 def test_project_requires_every_argument() -> None:
-    r = _run("project", "--cap", "10")
+    r = run_cli("project", "--cap", "10")
     assert (r.returncode, r.stdout) == (2, "")
-
-
-# --- collect ----------------------------------------------------------------
-
-
-def _git(repo, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(repo), *args],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-
-
-def _init_repo(path) -> None:
-    path.mkdir()
-    _git(path, "init", "-q", "-b", "main")
-    _git(path, "config", "user.name", "Test")
-    _git(path, "config", "user.email", "test@example.invalid")
-    _git(path, "config", "commit.gpgsign", "false")
-
-
-def _commit_all(repo, message: str) -> None:
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", message)
-
-
-_PLAN = """# Plan: demo
-
-### Slice 1: First
-
-```gherkin
-Feature: one
-  Scenario: only one here
-```
-
-### Slice 2: Second
-
-```gherkin
-Feature: two
-  # Scenario: a comment is not a scenario
-  Scenario: s1
-  Scenario: s2
-  Scenario: s3
-  Scenario Outline: o1
-```
-
-#### Step 2.1: do it
-
-### Slice 3: Third
-
-**Depends-on:** none
-
-#### Step 3.1: no gherkin here
-"""
-
-_OLD_LINES = [f"old {i}" for i in range(10)]
-
-
-@pytest.fixture
-def candidate_repo(tmp_path):
-    """A repo whose branch `cand` adds 12 lines, deletes 3 and adds a binary
-    file in one commit on top of `main` (the base)."""
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    (repo / "existing.txt").write_text("\n".join(_OLD_LINES) + "\n", encoding="utf-8")
-    _commit_all(repo, "base")
-    base = _git(repo, "rev-parse", "HEAD")
-    _git(repo, "checkout", "-q", "-b", "cand")
-    (repo / "added.txt").write_text(
-        "".join(f"new {i}\n" for i in range(12)), encoding="utf-8"
-    )
-    (repo / "existing.txt").write_text(
-        "\n".join(_OLD_LINES[:-3]) + "\n", encoding="utf-8"
-    )
-    (repo / "blob.bin").write_bytes(b"\x00\x01\x02\xff" * 64)
-    _commit_all(repo, "candidate work")
-    plan = tmp_path / "plan.md"
-    plan.write_text(_PLAN, encoding="utf-8")
-    return {"repo": repo, "base": base, "plan": plan, "tmp": tmp_path}
-
-
-def _lens(tmp_path, name: str, issues: list, status: str = "warn") -> str:
-    path = tmp_path / name
-    path.write_text(json.dumps({"status": status, "issues": issues}), encoding="utf-8")
-    return str(path)
-
-
-def _spec_issues(unmet_scenarios: int, unmet_criteria: int = 0) -> list:
-    return (
-        [{"category": "uncovered-scenario"}] * unmet_scenarios
-        + [{"category": "unmet-criterion"}] * unmet_criteria
-        + [{"category": "scope-violation"}]
-    )
-
-
-def _correctness_issues() -> list:
-    return [{"severity": s} for s in ("error", "error", "warning", "suggestion")]
-
-
-def _collect(fx, *, suite_exit=0, spec=None, correctness=None, step="2.1", plan=None):
-    return _run(
-        "collect",
-        "--id",
-        "2",
-        "--branch",
-        "cand",
-        "--worktree",
-        str(fx["repo"]),
-        "--base",
-        fx["base"],
-        "--suite-exit",
-        str(suite_exit),
-        "--spec-json",
-        spec or _lens(fx["tmp"], "spec.json", _spec_issues(2, 1)),
-        "--correctness-json",
-        correctness or _lens(fx["tmp"], "corr.json", _correctness_issues()),
-        "--plan",
-        str(plan or fx["plan"]),
-        "--step",
-        step,
-        "--cost-usd",
-        "1.25",
-    )
-
-
-def test_collect_derives_every_count_from_files_and_the_worktree(
-    candidate_repo,
-) -> None:
-    r = _collect(candidate_repo)
-    assert r.returncode == 0, r.stderr
-    assert json.loads(r.stdout) == {
-        "id": 2,
-        "branch": "cand",
-        "suite_green": True,
-        "scenarios_total": 4,
-        "scenarios_unmet": 3,
-        "errors": 2,
-        "warnings": 1,
-        "diff_lines": 15,
-        "cost_usd": 1.25,
-        "screening": "ok",
-    }
-
-
-def test_collect_clamps_unmet_findings_to_the_scenario_count_and_keeps_red_suite(
-    candidate_repo,
-) -> None:
-    spec = _lens(candidate_repo["tmp"], "spec6.json", _spec_issues(6))
-    r = _collect(candidate_repo, suite_exit=1, spec=spec)
-    out = json.loads(r.stdout)
-    assert r.returncode == 0
-    assert (out["suite_green"], out["scenarios_unmet"], out["scenarios_total"]) == (
-        False,
-        4,
-        4,
-    )
-    assert out["screening"] == "ok"
-
-
-def test_collect_marks_an_unparseable_lens_and_keeps_the_other_lens_counts(
-    candidate_repo,
-) -> None:
-    prose = candidate_repo["tmp"] / "prose.json"
-    prose.write_text("The code looks fine to me.", encoding="utf-8")
-    r = _collect(candidate_repo, suite_exit=1, correctness=str(prose))
-    out = json.loads(r.stdout)
-    assert out["suite_green"] is False
-    assert out["screening"] == "unparseable: correctness-review"
-    assert (out["errors"], out["warnings"]) == (0, 0)
-    assert out["scenarios_unmet"] == 3
-
-
-@pytest.mark.parametrize(
-    "content",
-    [None, '{"status": "pass"}', '{"issues": []}', '{"status": 1, "issues": []}', "[]"],
-    ids=["missing-file", "no-issues", "no-status", "status-not-string", "root-list"],
-)
-def test_collect_treats_a_structurally_wrong_spec_lens_as_unparseable(
-    candidate_repo, content
-) -> None:
-    path = candidate_repo["tmp"] / "spec-bad.json"
-    if content is not None:
-        path.write_text(content, encoding="utf-8")
-    out = json.loads(_collect(candidate_repo, spec=str(path)).stdout)
-    assert out["screening"] == "unparseable: spec-compliance-review"
-    assert out["scenarios_unmet"] == 0
-
-
-def test_collect_reports_the_first_unparseable_lens_when_both_are_bad(
-    candidate_repo,
-) -> None:
-    missing = str(candidate_repo["tmp"] / "nope.json")
-    out = json.loads(_collect(candidate_repo, spec=missing, correctness=missing).stdout)
-    assert out["screening"] == "unparseable: spec-compliance-review"
-
-
-def test_collect_counts_a_green_suite_only_for_exit_zero(candidate_repo) -> None:
-    out = json.loads(_collect(candidate_repo, suite_exit=2).stdout)
-    assert out["suite_green"] is False
-
-
-def test_collect_rejects_a_step_whose_slice_has_no_gherkin(candidate_repo) -> None:
-    r = _collect(candidate_repo, step="3.1")
-    assert (r.returncode, r.stdout) == (1, "")
-    assert "3.1" in r.stderr
-
-
-def test_collect_rejects_a_step_outside_any_slice(candidate_repo) -> None:
-    r = _collect(candidate_repo, step="9.1")
-    assert (r.returncode, r.stdout) == (1, "")
-    assert "9.1" in r.stderr
-
-
-def test_collect_rejects_a_missing_plan_file(candidate_repo) -> None:
-    r = _collect(candidate_repo, plan=candidate_repo["tmp"] / "no-plan.md")
-    assert (r.returncode, r.stdout) == (1, "")
-    assert r.stderr.startswith("collect:")
-
-
-def test_collect_rejects_a_base_ref_that_does_not_exist(candidate_repo) -> None:
-    fx = {**candidate_repo, "base": "no-such-ref"}
-    r = _collect(fx)
-    assert (r.returncode, r.stdout) == (1, "")
-    assert "no-such-ref" in r.stderr
-
-
-def test_collect_rejects_a_malformed_step_as_a_usage_error(candidate_repo) -> None:
-    r = _collect(candidate_repo, step="two")
-    assert (r.returncode, r.stdout) == (2, "")
-
-
-def test_collect_ignores_uncommitted_edits_in_the_worktree(candidate_repo) -> None:
-    (candidate_repo["repo"] / "added.txt").write_text("dirty\n", encoding="utf-8")
-    assert json.loads(_collect(candidate_repo).stdout)["diff_lines"] == 15
-
-
-def test_collect_counts_binary_files_as_zero_diff_lines(candidate_repo) -> None:
-    repo = candidate_repo["repo"]
-    (repo / "only-binary.bin").write_bytes(b"\x00\xfe" * 32)
-    _commit_all(repo, "binary only")
-    base = _git(repo, "rev-parse", "HEAD~1")
-    out = json.loads(_collect({**candidate_repo, "base": base}).stdout)
-    assert out["diff_lines"] == 0
-
-
-# --- cleanup ----------------------------------------------------------------
-
-
-@pytest.fixture
-def cleanup_repo(tmp_path):
-    """Repo on branch `build` with candidate branches c1 and c2 checked out in
-    worktrees and an unrelated branch `keep` (also in a worktree)."""
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _git(repo, "checkout", "-q", "-b", "build")
-    (repo / "f.txt").write_text("x\n", encoding="utf-8")
-    _commit_all(repo, "base")
-    paths = {}
-    for name in ("c1", "c2", "keep"):
-        paths[name] = tmp_path / f"wt-{name}"
-        _git(repo, "worktree", "add", "-q", "-b", name, str(paths[name]))
-    return {"repo": repo, "paths": paths}
-
-
-def _cleanup(fx, *branches: str, repo=None):
-    return _run("cleanup", "--repo", str(repo or fx["repo"]), "--remove", *branches)
-
-
-def _branches(repo) -> list[str]:
-    return _git(repo, "branch", "--format=%(refname:short)").splitlines()
-
-
-def test_cleanup_removes_only_the_listed_branches_and_their_worktrees(
-    cleanup_repo,
-) -> None:
-    repo = cleanup_repo["repo"]
-    r = _cleanup(cleanup_repo, "c2", "c1")
-    assert r.returncode == 0, r.stderr
-    assert json.loads(r.stdout) == {"absent": [], "removed": ["c1", "c2"]}
-    assert sorted(_branches(repo)) == ["build", "keep"]
-    assert not cleanup_repo["paths"]["c1"].exists()
-    assert not cleanup_repo["paths"]["c2"].exists()
-    assert cleanup_repo["paths"]["keep"].exists()
-
-
-def test_cleanup_second_run_is_a_no_op_listing_the_branches_as_absent(
-    cleanup_repo,
-) -> None:
-    _cleanup(cleanup_repo, "c1", "c2")
-    r = _cleanup(cleanup_repo, "c1", "c2")
-    assert r.returncode == 0
-    assert json.loads(r.stdout) == {"absent": ["c1", "c2"], "removed": []}
-
-
-def test_cleanup_reports_a_mix_of_removed_and_absent_branches(cleanup_repo) -> None:
-    r = _cleanup(cleanup_repo, "c1", "never-existed")
-    assert json.loads(r.stdout) == {"absent": ["never-existed"], "removed": ["c1"]}
-
-
-def test_cleanup_removes_a_worktree_holding_uncommitted_and_untracked_files(
-    cleanup_repo,
-) -> None:
-    (cleanup_repo["paths"]["c1"] / "f.txt").write_text("dirty\n", encoding="utf-8")
-    (cleanup_repo["paths"]["c1"] / "new.txt").write_text("new\n", encoding="utf-8")
-    r = _cleanup(cleanup_repo, "c1")
-    assert r.returncode == 0, r.stderr
-    assert not cleanup_repo["paths"]["c1"].exists()
-
-
-def test_cleanup_removes_a_branch_that_has_no_worktree(cleanup_repo) -> None:
-    _git(cleanup_repo["repo"], "branch", "loose")
-    r = _cleanup(cleanup_repo, "loose")
-    assert json.loads(r.stdout)["removed"] == ["loose"]
-
-
-def _add_early_sorting_branch(fx) -> None:
-    """A branch that sorts before `build`, so a missing refusal guard would
-    remove it before git itself rejects `build`."""
-    path = fx["repo"].parent / "wt-aaa"
-    _git(fx["repo"], "worktree", "add", "-q", "-b", "aaa", str(path))
-
-
-def test_cleanup_refuses_the_current_branch_and_removes_nothing(cleanup_repo) -> None:
-    repo = cleanup_repo["repo"]
-    _add_early_sorting_branch(cleanup_repo)
-    r = _cleanup(cleanup_repo, "aaa", "build", "c1")
-    assert (r.returncode, r.stdout) == (1, "")
-    assert "build" in r.stderr
-    assert sorted(_branches(repo)) == ["aaa", "build", "c1", "c2", "keep"]
-    assert cleanup_repo["paths"]["c1"].exists()
-
-
-def test_cleanup_refuses_the_main_worktree_branch_when_run_from_a_worktree(
-    cleanup_repo,
-) -> None:
-    _add_early_sorting_branch(cleanup_repo)
-    r = _cleanup(cleanup_repo, "aaa", "build", repo=cleanup_repo["paths"]["c1"])
-    assert (r.returncode, r.stdout) == (1, "")
-    assert "build" in r.stderr
-    assert "aaa" in _branches(cleanup_repo["repo"])
-
-
-def test_cleanup_refuses_the_branch_of_the_worktree_it_runs_from(cleanup_repo) -> None:
-    _add_early_sorting_branch(cleanup_repo)
-    r = _cleanup(cleanup_repo, "aaa", "c1", repo=cleanup_repo["paths"]["c1"])
-    assert (r.returncode, r.stdout) == (1, "")
-    assert "c1" in r.stderr
-    assert "aaa" in _branches(cleanup_repo["repo"])
-    assert cleanup_repo["paths"]["c1"].exists()
-
-
-def test_cleanup_requires_at_least_one_branch(cleanup_repo) -> None:
-    r = _run("cleanup", "--repo", str(cleanup_repo["repo"]), "--remove")
-    assert (r.returncode, r.stdout) == (2, "")
-
-
-def test_cleanup_on_a_path_that_is_not_a_repository_exits_one(tmp_path) -> None:
-    r = _run("cleanup", "--repo", str(tmp_path), "--remove", "c1")
-    assert (r.returncode, r.stdout) == (1, "")
-    assert r.stderr.startswith("cleanup:")
-
-
-# --- floor slice exemption (the module's own pass is run alongside this file) -
-
-
-def test_floor_exclusions_map_build_candidates_to_a_non_empty_reason() -> None:
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("_floor_under_test", _FLOOR_TEST)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    assert module.SLICE_EXCLUSIONS["build_candidates.py"].strip() != ""

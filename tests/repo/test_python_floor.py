@@ -162,7 +162,9 @@ SLICE_EXCLUSIONS = {
     "autoship_group.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
     "autoship_proposals.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
     "autoship_queue.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
-    "build_candidates.py": "stdlib argparse/dataclasses/json/pathlib/subprocess only; no floor-sensitive runtime API",
+    "build_candidates.py": "stdlib argparse/collections.abc/json/math/re/sys only (plus the build_candidates_git and build_candidates_model modules); no floor-sensitive runtime API",
+    "build_candidates_git.py": "stdlib collections.abc/dataclasses/os/pathlib/re/signal/subprocess/sys only (plus build_candidates_model and lib/plan_parse); no floor-sensitive runtime API",
+    "build_candidates_model.py": "stdlib collections.abc/dataclasses/json/math/pathlib/typing only; no floor-sensitive runtime API",
     "build_jobs.py": "stdlib os/sys only; no floor-sensitive runtime API",
     "build_rollback_point.py": (
         "stdlib argparse/json/subprocess/pathlib only; its datetime usage is "
@@ -742,6 +744,17 @@ class TestTheFloorSliceAccountsForEveryShippedScript:
     def test_slice_exclusions_all_carry_a_real_reason(self):
         empty = [name for name, reason in SLICE_EXCLUSIONS.items() if not reason.strip()]
         assert not empty, f"SLICE_EXCLUSIONS entries with no reason: {empty}"
+
+    def test_the_three_build_candidates_modules_are_each_excluded_with_a_reason(self):
+        """The candidate lifecycle is split over three modules (#2273); a
+        module that drops out of SLICE_EXCLUSIONS must fail here by name."""
+        modules = (
+            "build_candidates.py",
+            "build_candidates_git.py",
+            "build_candidates_model.py",
+        )
+        missing = [m for m in modules if not SLICE_EXCLUSIONS.get(m, "").strip()]
+        assert not missing, f"SLICE_EXCLUSIONS has no reason for: {missing}"
 
     def test_no_script_is_both_slice_covered_and_excluded(self):
         """A script in both is a contradiction — is it exercised under the
