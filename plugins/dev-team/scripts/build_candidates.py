@@ -18,6 +18,9 @@ import math
 import re
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import NoReturn
 
 EXIT_OK = 0
 EXIT_INVALID_DATA = 1
@@ -31,8 +34,16 @@ _ASCII_INT_RE = re.compile(r"-?[0-9]+")
 _ASCII_NUMBER_RE = re.compile(r"(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 
 
+SCREENING_OK = "ok"
+SCREENING_UNPARSEABLE_PREFIX = "unparseable: "
+
+
 class FlagError(ValueError):
     """A `/build` flag combination that validate-flags rejects (exit 2)."""
+
+
+class DataError(ValueError):
+    """Input data a subcommand rejects (exit 1)."""
 
 
 def _fail(code: int, message: str) -> int:
@@ -93,11 +104,186 @@ def validate_flags(
     return {"candidates": count, "max_cost_usd": cap, "speculative": speculative}
 
 
+def _load_json_object(path: str, label: str) -> dict:
+    """Read `path` as a JSON object; raise DataError prefixed with `label`."""
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise DataError(f"{label}: no such file: {path}") from None
+    except OSError as exc:
+        raise DataError(f"{label}: cannot read {path}: {exc.strerror}") from None
+    except ValueError:
+        raise DataError(f"{label}: not JSON (not valid UTF-8): {path}") from None
+    try:
+        data = json.loads(text)
+    except ValueError as exc:
+        raise DataError(f"{label}: not JSON: {path}: {exc}") from None
+    if not isinstance(data, dict):
+        raise DataError(f"{label}: JSON root is not an object: {path}")
+    return data
+
+
+def _reject(label: str, message: str) -> NoReturn:
+    raise ValueError(f"{label}: {message}")
+
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_number(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+@dataclass(frozen=True)
+class Candidate:
+    id: int
+    branch: str
+    suite_green: bool
+    scenarios_total: int
+    scenarios_unmet: int
+    errors: int
+    warnings: int
+    diff_lines: int
+    cost_usd: float
+    screening: str
+
+    @classmethod
+    def from_dict(cls, data: object) -> Candidate:
+        """Validate `data` field by field; raise ValueError naming the id and
+        the offending field. Unknown keys are ignored."""
+        if not isinstance(data, dict):
+            _reject("candidate entry", "not an object")
+        cid = data.get("id")
+        if not (_is_int(cid) and cid >= 1):
+            _reject(f"candidate {cid!r}", "id must be a positive int")
+        label = f"candidate {cid}"
+
+        def field(name: str) -> object:
+            if name not in data:
+                _reject(label, f"{name} is missing")
+            return data[name]
+
+        def count(name: str) -> int:
+            value = field(name)
+            if not (_is_int(value) and value >= 0):
+                _reject(label, f"{name} must be a non-negative int")
+            return value
+
+        branch = field("branch")
+        if not isinstance(branch, str):
+            _reject(label, "branch must be a string")
+        suite_green = field("suite_green")
+        if not isinstance(suite_green, bool):
+            _reject(label, "suite_green must be a boolean")
+        if branch == "" and suite_green:
+            _reject(label, "branch may be empty only when suite_green is false")
+        total = count("scenarios_total")
+        unmet = count("scenarios_unmet")
+        if unmet > total:
+            _reject(label, f"scenarios_unmet {unmet} exceeds scenarios_total {total}")
+        cost = field("cost_usd")
+        if not (_is_number(cost) and math.isfinite(cost) and cost >= 0):
+            _reject(label, "cost_usd must be a finite non-negative number")
+        screening = field("screening")
+        if not _is_valid_screening(screening):
+            _reject(
+                label,
+                f"screening must be '{SCREENING_OK}' or "
+                f"'{SCREENING_UNPARSEABLE_PREFIX}<lens>'",
+            )
+        return cls(
+            id=cid,
+            branch=branch,
+            suite_green=suite_green,
+            scenarios_total=total,
+            scenarios_unmet=unmet,
+            errors=count("errors"),
+            warnings=count("warnings"),
+            diff_lines=count("diff_lines"),
+            cost_usd=float(cost),
+            screening=screening,
+        )
+
+
+def _is_valid_screening(value: object) -> bool:
+    if value == SCREENING_OK:
+        return True
+    return (
+        isinstance(value, str)
+        and value.startswith(SCREENING_UNPARSEABLE_PREFIX)
+        and len(value) > len(SCREENING_UNPARSEABLE_PREFIX)
+    )
+
+
+def disqualified(candidate: Candidate) -> bool:
+    return (not candidate.suite_green) or candidate.screening != SCREENING_OK
+
+
+def scenarios_met(candidate: Candidate) -> int:
+    return candidate.scenarios_total - candidate.scenarios_unmet
+
+
+def sort_key(candidate: Candidate) -> tuple:
+    """Ranking key: qualified first, then more scenarios met, fewer errors,
+    fewer warnings, fewer diff lines, lower id. cost_usd never participates."""
+    return (
+        disqualified(candidate),
+        -scenarios_met(candidate),
+        candidate.errors,
+        candidate.warnings,
+        candidate.diff_lines,
+        candidate.id,
+    )
+
+
+def rank(candidates: Sequence[Candidate]) -> dict:
+    """Order candidates by `sort_key`; the winner is the first unless it is
+    disqualified."""
+    ordered = sorted(candidates, key=sort_key)
+    winner = ordered[0] if ordered and not disqualified(ordered[0]) else None
+    return {
+        "disqualified": sorted(c.id for c in candidates if disqualified(c)),
+        "order": [c.id for c in ordered],
+        "rank": {str(c.id): position for position, c in enumerate(ordered, start=1)},
+        "scenarios_met": {str(c.id): scenarios_met(c) for c in ordered},
+        "winner": None if winner is None else winner.id,
+    }
+
+
+def _load_candidates(path: str) -> list[Candidate]:
+    data = _load_json_object(path, "rank")
+    raw = data.get("candidates")
+    if not isinstance(raw, list):
+        raise DataError("rank: 'candidates' must be a list")
+    if not raw:
+        raise DataError("rank: no candidates")
+    try:
+        candidates = [Candidate.from_dict(entry) for entry in raw]
+    except ValueError as exc:
+        raise DataError(f"rank: {exc}") from None
+    seen: set[int] = set()
+    for candidate in candidates:
+        if candidate.id in seen:
+            raise DataError(f"rank: duplicate candidate id {candidate.id}")
+        seen.add(candidate.id)
+    return candidates
+
+
 def _cmd_validate_flags(args: argparse.Namespace) -> int:
     try:
         result = validate_flags(args.candidates, args.max_cost_usd, args.jobs)
     except FlagError as exc:
         return _fail(EXIT_USAGE, str(exc))
+    _emit(result)
+    return EXIT_OK
+
+
+def _cmd_rank(args: argparse.Namespace) -> int:
+    try:
+        result = rank(_load_candidates(args.candidates))
+    except DataError as exc:
+        return _fail(EXIT_INVALID_DATA, str(exc))
     _emit(result)
     return EXIT_OK
 
@@ -113,6 +299,10 @@ def _build_parser() -> argparse.ArgumentParser:
     flags.add_argument("--max-cost-usd")
     flags.add_argument("--jobs")
     flags.set_defaults(handler=_cmd_validate_flags)
+
+    ranking = sub.add_parser("rank", help="rank candidates and pick a winner")
+    ranking.add_argument("--candidates", required=True, help="candidates JSON file")
+    ranking.set_defaults(handler=_cmd_rank)
     return parser
 
 

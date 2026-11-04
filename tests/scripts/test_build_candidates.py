@@ -179,6 +179,260 @@ def test_unknown_subcommand_is_a_usage_error_with_exit_two() -> None:
     assert _run("frobnicate").returncode == 2
 
 
+# --- rank -------------------------------------------------------------------
+
+
+def _cand(cid: int, **overrides) -> dict:
+    """A green, fully-met, finding-free candidate dict; override per case."""
+    base = {
+        "id": cid,
+        "branch": f"worktree-c{cid}",
+        "suite_green": True,
+        "scenarios_total": 5,
+        "scenarios_unmet": 0,
+        "errors": 0,
+        "warnings": 0,
+        "diff_lines": 10,
+        "cost_usd": 0.5,
+        "screening": "ok",
+    }
+    base.update(overrides)
+    return base
+
+
+def _met(cid: int, met: int, **overrides) -> dict:
+    return _cand(cid, scenarios_unmet=5 - met, **overrides)
+
+
+def _write_candidates(tmp_path, candidates: list, name: str = "c.json") -> str:
+    path = tmp_path / name
+    path.write_text(json.dumps({"candidates": candidates}), encoding="utf-8")
+    return str(path)
+
+
+def _rank(tmp_path, candidates: list):
+    return _run("rank", "--candidates", _write_candidates(tmp_path, candidates))
+
+
+def test_rank_orders_by_scenarios_met_before_review_findings(tmp_path) -> None:
+    r = _rank(tmp_path, [_met(1, 5, errors=1), _met(2, 4), _met(3, 5)])
+    out = json.loads(r.stdout)
+    assert r.returncode == 0
+    assert out["order"] == [3, 1, 2]
+    assert out["winner"] == 3
+    assert out["rank"] == {"3": 1, "1": 2, "2": 3}
+
+
+def test_rank_breaks_ties_by_errors_then_warnings_then_diff_lines_then_id(
+    tmp_path,
+) -> None:
+    r = _rank(
+        tmp_path,
+        [
+            _cand(2, errors=1, diff_lines=10, cost_usd=0.1),
+            _cand(1, errors=1, diff_lines=10, cost_usd=9.0),
+            _cand(3, warnings=5, diff_lines=100),
+            _cand(4, warnings=2, diff_lines=200),
+            _cand(5, warnings=2, diff_lines=150),
+        ],
+    )
+    assert json.loads(r.stdout)["order"] == [5, 4, 3, 1, 2]
+
+
+def test_rank_disqualifies_red_suite_and_unparseable_screening(tmp_path) -> None:
+    r = _rank(
+        tmp_path,
+        [
+            _cand(1, suite_green=False, warnings=3),
+            _met(2, 3, errors=2),
+            _cand(3, screening="unparseable: correctness-review"),
+        ],
+    )
+    out = json.loads(r.stdout)
+    assert (out["winner"], out["order"], out["disqualified"]) == (2, [2, 3, 1], [1, 3])
+
+
+def test_rank_all_red_yields_no_winner_and_exits_zero(tmp_path) -> None:
+    r = _rank(
+        tmp_path,
+        [
+            _met(1, 2, suite_green=False, cost_usd=0.5),
+            _met(2, 4, suite_green=False, cost_usd=0.5),
+        ],
+    )
+    out = json.loads(r.stdout)
+    assert r.returncode == 0
+    assert (out["winner"], out["order"], out["disqualified"]) == (None, [2, 1], [1, 2])
+
+
+def test_rank_accepts_a_lone_candidate(tmp_path) -> None:
+    r = _rank(tmp_path, [_cand(1)])
+    assert r.returncode == 0
+    assert json.loads(r.stdout) == {
+        "disqualified": [],
+        "order": [1],
+        "rank": {"1": 1},
+        "scenarios_met": {"1": 5},
+        "winner": 1,
+    }
+
+
+def test_rank_lists_disqualified_ids_in_id_order_whatever_the_ranking(tmp_path) -> None:
+    r = _rank(
+        tmp_path,
+        [_met(3, 5, suite_green=False), _met(1, 2, suite_green=False), _cand(2)],
+    )
+    out = json.loads(r.stdout)
+    assert (out["order"], out["disqualified"]) == ([2, 3, 1], [1, 3])
+
+
+def test_rank_prints_sorted_keys_on_one_newline_terminated_line(tmp_path) -> None:
+    r = _rank(tmp_path, [_met(1, 2), _met(2, 5)])
+    assert r.stdout == (
+        '{"disqualified": [], "order": [2, 1], "rank": {"1": 2, "2": 1}, '
+        '"scenarios_met": {"1": 2, "2": 5}, "winner": 2}\n'
+    )
+
+
+def test_rank_places_a_no_commits_candidate_below_a_green_one(tmp_path) -> None:
+    no_commits = _cand(1, branch="", suite_green=False, scenarios_unmet=5)
+    r = _rank(tmp_path, [no_commits, _met(2, 4)])
+    out = json.loads(r.stdout)
+    assert (out["winner"], out["disqualified"]) == (2, [1])
+
+
+def test_rank_output_is_byte_identical_for_any_input_order(tmp_path) -> None:
+    cands = [_met(i, 5 - i % 3, errors=i % 2, warnings=i) for i in range(1, 6)]
+    first = _run("rank", "--candidates", _write_candidates(tmp_path, cands, "a.json"))
+    second = _run(
+        "rank", "--candidates", _write_candidates(tmp_path, cands[::-1], "b.json")
+    )
+    assert first.stdout == second.stdout
+    assert first.stdout.endswith("}\n")
+
+
+def test_rank_scenarios_met_reports_met_count_per_candidate(tmp_path) -> None:
+    r = _rank(tmp_path, [_met(1, 5), _met(2, 2)])
+    assert json.loads(r.stdout)["scenarios_met"] == {"1": 5, "2": 2}
+
+
+_MALFORMED = [
+    ("two candidates sharing id 2", [_cand(2), _cand(1), _cand(2)], "2"),
+    (
+        "a candidate missing the errors field",
+        [{k: v for k, v in _cand(1).items() if k != "errors"}],
+        "errors",
+    ),
+    ("a candidate with diff_lines -3", [_cand(1, diff_lines=-3)], "diff_lines"),
+    ("a candidate with suite_green 1", [_cand(1, suite_green=1)], "suite_green"),
+    (
+        "a candidate with scenarios_unmet 6 of total 5",
+        [_cand(1, scenarios_unmet=6)],
+        "scenarios_unmet",
+    ),
+    ("a candidate with cost_usd -0.1", [_cand(1, cost_usd=-0.1)], "cost_usd"),
+    ("a candidate with screening maybe", [_cand(1, screening="maybe")], "screening"),
+    ("an empty candidates list", [], "no candidates"),
+]
+
+
+@pytest.mark.parametrize(
+    "candidates,names",
+    [(c, n) for _, c, n in _MALFORMED],
+    ids=[d for d, _, _ in _MALFORMED],
+)
+def test_rank_rejects_malformed_candidates_with_exit_one(
+    tmp_path, candidates, names
+) -> None:
+    r = _rank(tmp_path, candidates)
+    assert (r.returncode, r.stdout) == (1, "")
+    assert r.stderr.startswith("rank:")
+    assert names in r.stderr
+
+
+def test_rank_rejects_a_file_that_is_not_json(tmp_path) -> None:
+    path = tmp_path / "bad.json"
+    path.write_text("not json at all", encoding="utf-8")
+    r = _run("rank", "--candidates", str(path))
+    assert (r.returncode, r.stdout) == (1, "")
+    assert r.stderr.startswith("rank:")
+    assert "not JSON" in r.stderr
+
+
+def test_rank_rejects_a_path_that_does_not_exist(tmp_path) -> None:
+    r = _run("rank", "--candidates", str(tmp_path / "missing.json"))
+    assert (r.returncode, r.stdout) == (1, "")
+    assert r.stderr.startswith("rank:")
+    assert "no such file" in r.stderr
+
+
+def test_rank_rejects_a_candidates_value_that_is_not_a_list(tmp_path) -> None:
+    path = tmp_path / "obj.json"
+    path.write_text(json.dumps({"candidates": {"id": 1}}), encoding="utf-8")
+    r = _run("rank", "--candidates", str(path))
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "must be a list" in r.stderr
+
+
+def test_rank_ignores_unknown_keys_in_the_file_and_in_candidates(tmp_path) -> None:
+    path = tmp_path / "extra.json"
+    path.write_text(
+        json.dumps({"candidates": [_cand(1, note="x")], "other": 1}),
+        encoding="utf-8",
+    )
+    assert json.loads(_run("rank", "--candidates", str(path)).stdout)["winner"] == 1
+
+
+# --- Candidate / sort_key (pure) --------------------------------------------
+
+
+def test_from_dict_rejects_a_bool_id() -> None:
+    with pytest.raises(ValueError, match="id must be a positive int"):
+        build_candidates.Candidate.from_dict(_cand(True))
+
+
+def test_from_dict_rejects_an_empty_branch_on_a_green_suite() -> None:
+    with pytest.raises(ValueError, match="candidate 1: branch"):
+        build_candidates.Candidate.from_dict(_cand(1, branch=""))
+
+
+def test_from_dict_accepts_an_empty_branch_on_a_red_suite() -> None:
+    c = build_candidates.Candidate.from_dict(_cand(1, branch="", suite_green=False))
+    assert c.branch == ""
+
+
+def test_from_dict_rejects_a_non_finite_cost() -> None:
+    with pytest.raises(ValueError, match="cost_usd"):
+        build_candidates.Candidate.from_dict(_cand(1, cost_usd=float("inf")))
+
+
+def test_from_dict_rejects_a_bare_unparseable_screening() -> None:
+    with pytest.raises(ValueError, match="screening"):
+        build_candidates.Candidate.from_dict(_cand(1, screening="unparseable: "))
+
+
+def test_from_dict_names_the_id_of_the_failing_candidate() -> None:
+    with pytest.raises(ValueError, match="candidate 7:"):
+        build_candidates.Candidate.from_dict(_cand(7, errors=-1))
+
+
+def test_from_dict_normalizes_an_integer_cost_to_float() -> None:
+    c = build_candidates.Candidate.from_dict(_cand(1, cost_usd=2))
+    assert isinstance(c.cost_usd, float)
+
+
+def test_disqualified_is_true_for_a_red_suite_and_false_for_green_ok() -> None:
+    from_dict = build_candidates.Candidate.from_dict
+    assert build_candidates.disqualified(from_dict(_cand(1, suite_green=False)))
+    assert not build_candidates.disqualified(from_dict(_cand(1)))
+
+
+def test_sort_key_ignores_cost_usd() -> None:
+    from_dict = build_candidates.Candidate.from_dict
+    cheap, dear = from_dict(_cand(1, cost_usd=0.1)), from_dict(_cand(1, cost_usd=99))
+    assert build_candidates.sort_key(cheap) == build_candidates.sort_key(dear)
+
+
 # --- floor slice exemption (the module's own pass is run alongside this file) -
 
 
