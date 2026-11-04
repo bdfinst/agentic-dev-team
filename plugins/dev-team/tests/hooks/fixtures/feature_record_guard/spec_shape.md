@@ -9,17 +9,8 @@ others. The goal is a faster build with the same integration order.
 
 ## Architecture Specification
 
-<!--
-A multi-line comment that the section check ignores:
-## Not A Heading
--->
-
 - A lane is one worktree and one branch.
 - Composition merges lane results in plan order.
-
-```text
-## Not a heading either, inside a fence
-```
 
 ## Acceptance Criteria
 

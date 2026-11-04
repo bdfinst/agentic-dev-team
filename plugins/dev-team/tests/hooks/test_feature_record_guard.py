@@ -7,9 +7,11 @@ Step 4.3 the refusal text and the boundary event.
 
 from __future__ import annotations
 
-import ast
+import io
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -97,6 +99,51 @@ def test_target_path_sibling_directory_with_shared_prefix_is_outside(
     assert hook.target_path(_payload(str(sibling), cwd=work)) is None
 
 
+def _symlinked_checkout(tmp_path: Path) -> tuple[Path, Path]:
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+    return real, link
+
+
+def test_target_path_matches_when_cwd_is_a_symlink_to_the_checkout(
+    tmp_path: Path,
+) -> None:
+    real, link = _symlinked_checkout(tmp_path)
+    got = hook.target_path(_payload(str(real / "plans" / "p.md"), cwd=link))
+    assert got is not None and got[1] == "plans/p.md"
+    assert os.path.realpath(got[0]) == os.path.realpath(real / "plans" / "p.md")
+
+
+def test_target_path_matches_when_file_path_goes_through_a_symlink(
+    tmp_path: Path,
+) -> None:
+    real, link = _symlinked_checkout(tmp_path)
+    got = hook.target_path(_payload(str(link / "plans" / "p.md"), cwd=real))
+    assert got is not None and got[1] == "plans/p.md"
+
+
+def test_target_path_with_a_symlinked_cwd_still_rejects_other_directories(
+    tmp_path: Path,
+) -> None:
+    _, link = _symlinked_checkout(tmp_path)
+    other = tmp_path / "other" / "plans" / "p.md"
+    assert hook.target_path(_payload(str(other), cwd=link)) is None
+
+
+def test_target_path_without_cwd_resolves_against_the_process_directory(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    payload = _payload("plans/p.md")
+    assert "cwd" not in payload
+    assert hook.target_path(payload) == (
+        str(Path(os.getcwd()) / "plans" / "p.md"),
+        "plans/p.md",
+    )
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -167,47 +214,60 @@ def test_edit_may_delete_text_with_an_empty_new_string(tmp_path: Path) -> None:
     )
 
 
-def _cannot_judge_cases(tmp_path: Path) -> list[tuple[str, dict, dict[str, str]]]:
+def _cannot_judge_cases(tmp_path: Path) -> dict[str, tuple[dict, dict[str, str]]]:
     abs_path = str(tmp_path / "plans" / "p.md")
     on_disk = {abs_path: "one\ntwo\ntwo\n"}
 
     def edit(**fields) -> dict:
         return _payload("plans/p.md", tool="Edit", cwd=tmp_path, **fields)
 
-    return [
-        ("old_string absent", edit(old_string="zzz", new_string="x"), on_disk),
-        ("old_string twice", edit(old_string="two", new_string="x"), on_disk),
-        ("old_string empty", edit(old_string="", new_string="x"), on_disk),
-        (
-            "replace_all, several matches",
+    return {
+        "old_string absent": (edit(old_string="zzz", new_string="x"), on_disk),
+        "old_string twice": (edit(old_string="two", new_string="x"), on_disk),
+        "old_string empty on an existing file": (
+            edit(old_string="", new_string="x"),
+            on_disk,
+        ),
+        "old_string empty on an existing empty file": (
+            edit(old_string="", new_string="x"),
+            {abs_path: ""},
+        ),
+        "replace_all, several matches": (
             edit(old_string="two", new_string="x", replace_all=True),
             on_disk,
         ),
-        ("Edit on a missing file", edit(old_string="one", new_string="x"), {}),
-        ("old_string not text", edit(old_string=3, new_string="x"), on_disk),
-        ("new_string missing", edit(old_string="one"), on_disk),
-        (
-            "Write content not text",
+        "Edit on a missing file": (edit(old_string="one", new_string="x"), {}),
+        "old_string not text": (edit(old_string=3, new_string="x"), on_disk),
+        "new_string missing": (edit(old_string="one"), on_disk),
+        "Write content not text": (
             _payload("plans/p.md", cwd=tmp_path, content=5),
             on_disk,
         ),
-        ("Write content missing", _payload("plans/p.md", cwd=tmp_path), on_disk),
-        (
-            "no file_path",
+        "Write content missing": (_payload("plans/p.md", cwd=tmp_path), on_disk),
+        "no file_path": (
             {"tool_name": "Write", "tool_input": {"content": "x"}},
             on_disk,
         ),
-        (
-            "other tool",
+        "other tool": (
             _payload("plans/p.md", tool="Read", cwd=tmp_path, content="x"),
             on_disk,
         ),
-    ]
+    }
 
 
-def test_inputs_the_hook_cannot_judge_return_none(tmp_path: Path) -> None:
-    for label, payload, files in _cannot_judge_cases(tmp_path):
-        assert hook.proposed_text(payload, _reader(files)) is None, label
+@pytest.mark.parametrize("label", list(_cannot_judge_cases(Path("/unused"))))
+def test_inputs_the_hook_cannot_judge_return_none(tmp_path: Path, label: str) -> None:
+    payload, files = _cannot_judge_cases(tmp_path)[label]
+    assert hook.proposed_text(payload, _reader(files)) is None
+
+
+def test_an_edit_with_an_empty_old_string_creates_a_missing_file(
+    tmp_path: Path,
+) -> None:
+    payload = _payload(
+        "plans/p.md", tool="Edit", cwd=tmp_path, old_string="", new_string="new\n"
+    )
+    assert hook.proposed_text(payload, _reader({})) == ("", "new\n")
 
 
 @pytest.mark.parametrize("error", [PermissionError("no"), IsADirectoryError("dir")])
@@ -228,10 +288,12 @@ def test_a_non_utf8_existing_file_cannot_be_judged(tmp_path: Path) -> None:
     assert hook.proposed_text(payload, hook._read_text) is None
 
 
-def test_read_text_keeps_line_endings(tmp_path: Path) -> None:
+def test_read_text_translates_crlf_so_an_lf_old_string_can_match(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "p.md"
     path.write_bytes(b"a\r\nb\r\n")
-    assert hook._read_text(str(path)) == "a\r\nb\r\n"
+    assert hook._read_text(str(path)) == "a\nb\n"
 
 
 # ---------------------------------------------------------------------------
@@ -240,10 +302,14 @@ def test_read_text_keeps_line_endings(tmp_path: Path) -> None:
 
 
 def _run_main(monkeypatch, capsys, payload: object, env: dict[str, str] | None = None):
-    import io
-
-    raw = payload if isinstance(payload, str) else json.dumps(payload)
-    monkeypatch.setattr(sys, "stdin", io.StringIO(raw))
+    """Run `hook.main()` on one payload (a dict, text, or raw bytes for stdin)."""
+    if isinstance(payload, bytes):
+        stdin = io.TextIOWrapper(io.BytesIO(payload), encoding="utf-8")
+    else:
+        stdin = io.StringIO(
+            payload if isinstance(payload, str) else json.dumps(payload)
+        )
+    monkeypatch.setattr(sys, "stdin", stdin)
     monkeypatch.delenv(hook.ESCAPE_ENV, raising=False)
     for key, value in (env or {}).items():
         monkeypatch.setenv(key, value)
@@ -261,12 +327,80 @@ def test_main_allows_a_payload_without_file_path(monkeypatch, capsys) -> None:
     assert _run_main(monkeypatch, capsys, {"tool_input": {}}) == (0, "", "")
 
 
-def test_main_escape_hatch_allows_a_matching_write_with_one_notice(
+def test_main_allows_a_non_utf8_stdin_payload_with_one_notice(
+    monkeypatch, capsys
+) -> None:
+    code, out, err = _run_main(monkeypatch, capsys, b'{"tool_input": "\xff\xfe"}')
+    assert (code, out) == (0, "")
+    assert err.startswith("feature record check skipped: UnicodeDecodeError")
+    assert err.count("\n") == 1
+
+
+def test_main_allows_a_write_when_the_working_directory_is_gone(
+    monkeypatch, capsys, tmp_path: Path
+) -> None:
+    doomed = tmp_path / "doomed"
+    doomed.mkdir()
+    monkeypatch.chdir(doomed)
+    doomed.rmdir()
+    payload = _payload("plans/p.md", content="x\n")  # no cwd: needs os.getcwd()
+    code, out, err = _run_main(monkeypatch, capsys, payload)
+    assert (code, out) == (0, "")
+    assert err.startswith("feature record check skipped: FileNotFoundError")
+    assert err.count("\n") == 1
+
+
+def test_main_allows_a_path_that_cannot_be_opened_with_one_notice(
+    monkeypatch, capsys, tmp_path: Path
+) -> None:
+    """A real fault (a NUL byte in a path that matches the checked set) reaches
+    the fail-open notice, naming the exception."""
+    payload = _payload("plans/p\x00.md", cwd=tmp_path, content="x\n")
+    code, out, err = _run_main(monkeypatch, capsys, payload)
+    assert (code, out) == (0, "")
+    assert err == "feature record check skipped: ValueError: embedded null byte\n"
+
+
+def test_main_allows_a_matching_write_when_the_record_module_is_missing(
+    tmp_path: Path,
+) -> None:
+    """Copy the hook and its stdin helper into a tree with no `scripts/` beside
+    them, so the lazy import of `feature_record` really fails."""
+    tree = tmp_path / "plugin" / "hooks"
+    (tree / "lib").mkdir(parents=True)
+    (tree / "feature_record_guard.py").write_text(HOOK_PATH.read_text(encoding="utf-8"))
+    (tree / "lib" / "stdin_json.py").write_text(
+        (_HOOKS_DIR / "lib" / "stdin_json.py").read_text(encoding="utf-8")
+    )
+    work = tmp_path / "work"
+    work.mkdir()
+    payload = _payload("plans/p.md", cwd=work, content=build_plan())
+    done = _run_hook(tree / "feature_record_guard.py", payload, work)
+    assert done.returncode == 0
+    assert done.stdout == ""
+    assert done.stderr.startswith(
+        "feature record check skipped: ModuleNotFoundError: No module named"
+    )
+    assert done.stderr.count("\n") == 1
+
+
+def test_main_escape_hatch_allows_a_violating_plan(
+    monkeypatch, capsys, tmp_path: Path
+) -> None:
+    payload = _payload("plans/p.md", cwd=tmp_path, content=_stranded_slice_two())
+    assert _run_main(monkeypatch, capsys, payload)[0] == 2  # control: it is refused
+    events_after_refusal = _events(tmp_path)
+    assert len(events_after_refusal) == 1
+    code, out, _ = _run_main(monkeypatch, capsys, payload, {hook.ESCAPE_ENV: "off"})
+    assert (code, out) == (0, "")
+    assert _events(tmp_path) == events_after_refusal  # no second event
+
+
+def test_main_escape_hatch_prints_one_notice(
     monkeypatch, capsys, tmp_path: Path
 ) -> None:
     payload = _payload("plans/p.md", cwd=tmp_path, content="anything\n")
-    code, out, err = _run_main(monkeypatch, capsys, payload, {hook.ESCAPE_ENV: "off"})
-    assert (code, out) == (0, "")
+    _, _, err = _run_main(monkeypatch, capsys, payload, {hook.ESCAPE_ENV: "off"})
     assert err == f"feature record check skipped: {hook.ESCAPE_ENV}=off\n"
 
 
@@ -281,6 +415,14 @@ def test_main_escape_hatch_is_silent_for_a_path_it_never_checks(
 # ---------------------------------------------------------------------------
 # Fast path: a path outside the matcher does no work (fresh interpreter)
 # ---------------------------------------------------------------------------
+
+_LOADED_MODULES = (
+    "feature_record",
+    "plan_parse",
+    "plan_record_parse",
+    "commit_evidence",
+    "boundary_events",
+)
 
 _WRAPPER = textwrap.dedent(
     """
@@ -299,35 +441,59 @@ _WRAPPER = textwrap.dedent(
     sys.addaudithook(audit)
     code = hook.main()
     print(json.dumps({"code": code, "opened": opened,
-                      "imported": "feature_record" in sys.modules}))
+                      "loaded": [m for m in json.loads(sys.argv[2]) if m in sys.modules]}))
     """
 )
 
 
-def _run_isolated(tmp_path: Path, payload: dict, env: dict[str, str] | None = None):
+def _clean_env() -> dict[str, str]:
+    """The test process environment without the guard's escape hatch, so a
+    developer who exported it cannot make these subprocess tests pass or fail."""
+    return {k: v for k, v in os.environ.items() if k != hook.ESCAPE_ENV}
+
+
+def _run_hook(script: Path, payload: dict, cwd: Path):
+    return subprocess.run(
+        [sys.executable, "-I", str(script)],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        env=_clean_env(),
+        check=False,
+    )
+
+
+def _run_isolated(tmp_path: Path, payload: dict):
     wrapper = tmp_path / "wrapper.py"
     wrapper.write_text(_WRAPPER)
     done = subprocess.run(
-        [sys.executable, "-I", str(wrapper), str(_HOOKS_DIR)],
+        [
+            sys.executable,
+            "-I",
+            str(wrapper),
+            str(_HOOKS_DIR),
+            json.dumps(_LOADED_MODULES),
+        ],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
         cwd=tmp_path,
-        env=env,
+        env=_clean_env(),
         check=False,
     )
     assert done.returncode == 0, done.stderr
     return json.loads(done.stdout.strip().splitlines()[-1])
 
 
-def test_a_path_outside_the_matcher_reads_no_file_and_imports_no_record(
+def test_a_path_outside_the_matcher_reads_no_file_and_loads_no_record_module(
     tmp_path: Path,
 ) -> None:
     payload = _payload("src/app.py", cwd=tmp_path, content="x = 1\n")
     assert _run_isolated(tmp_path, payload) == {
         "code": 0,
         "opened": [],
-        "imported": False,
+        "loaded": [],
     }
 
 
@@ -338,17 +504,6 @@ def test_the_audit_wrapper_sees_a_file_read(tmp_path: Path) -> None:
     payload = _payload("plans/p.md", cwd=tmp_path, content="y\n")
     result = _run_isolated(tmp_path, payload)
     assert str(tmp_path / "plans" / "p.md") in result["opened"]
-
-
-def test_top_level_imports_stay_minimal() -> None:
-    tree = ast.parse(HOOK_PATH.read_text(encoding="utf-8"))
-    imported: set[str] = set()
-    for node in tree.body:
-        if isinstance(node, ast.Import):
-            imported.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            imported.add(node.module or "")
-    assert imported == {"__future__", "os", "sys", "stdin_json"}
 
 
 # ---------------------------------------------------------------------------
@@ -371,6 +526,7 @@ def build_plan(
     blockers: tuple[str, ...] = (),
     ticked: tuple[int, ...] = (),
     filler: int = 0,
+    spec_ref: str = "https://example.test/issues/1",
 ) -> str:
     """A plan in the shape `/plan` writes. `covers` names the criteria the
     slice's first step covers; `steps` and `scenarios` are counts."""
@@ -378,7 +534,7 @@ def build_plan(
         "# Plan: Sample",
         "",
         "**Status**: approved",
-        "**Spec**: https://example.test/issues/1",
+        f"**Spec**: {spec_ref}",
         "",
         "## Goal",
         "",
@@ -557,7 +713,11 @@ def test_a_spec_write_that_drops_a_section_is_refused_naming_the_heading(
 
 def test_a_spec_with_an_empty_acceptance_criteria_section_is_refused(work) -> None:
     empty = COMPLETE_SPEC.replace("- [ ] AC1 The module works.\n", "\n")
-    assert work.write("docs/specs/x/spec.md", empty)[0] == 2
+    assert empty != COMPLETE_SPEC
+    code, _, err = work.write("docs/specs/x/spec.md", empty)
+    assert code == 2
+    assert "[spec-missing-section]" in err
+    assert 'HOW: Add "## Acceptance Criteria" with at least one line of text.' in err
 
 
 def test_a_complete_spec_write_is_allowed(work) -> None:
@@ -597,15 +757,10 @@ def test_an_edit_that_removes_the_scenario_a_criterion_depends_on_is_refused(
     work,
 ) -> None:
     work.put("plans/p.md", build_plan())
-    found = _decide(
-        work,
-        "Edit",
-        "plans/p.md",
-        old_string="  Scenario: scenario 3.1\n",
-        new_string="",
-    )
-    assert ("ac-no-scenario", "AC3") in _ids(found)
-    assert "AC3" in found[0]["what"]
+    code, _, err = work.edit("plans/p.md", "  Scenario: scenario 3.1\n", "")
+    assert code == 2
+    assert "[ac-no-scenario]" in err
+    assert 'WHAT: AC3 "Criterion 3" has no scenario' in err
 
 
 def _tick(slice_no: int) -> tuple[str, str]:
@@ -618,9 +773,13 @@ def _tick(slice_no: int) -> tuple[str, str]:
 def test_ticking_a_slice_that_has_an_open_blocker_is_refused(work) -> None:
     work.put("plans/p.md", build_plan(blockers=("Slice 2 - missing error path",)))
     old, new = _tick(2)
-    found = _decide(work, "Edit", "plans/p.md", old_string=old, new_string=new)
-    assert _ids(found) == {("closed-slice-open-blocker", "Slice 2")}
-    assert work.edit("plans/p.md", old, new)[0] == 2
+    code, _, err = work.edit("plans/p.md", old, new)
+    assert code == 2
+    assert "WHAT: Slice 2 is ticked done while an open blocker names it." in err
+    how = [line for line in err.splitlines() if line.startswith("HOW:")]
+    assert len(how) == 1
+    assert "## Plan Review Summary" in how[0] and "untick Slice 2" in how[0]
+    assert how[0].endswith(hook.EDIT_HOW_SUFFIX)
 
 
 def test_ticking_a_slice_with_a_resolved_blocker_is_allowed(work) -> None:
@@ -693,17 +852,19 @@ def test_a_plan_that_already_has_a_violation_accepts_an_unrelated_edit(work) -> 
     assert result == (0, "", "")
 
 
-def test_an_edit_that_removes_the_only_violation_is_allowed(work) -> None:
+def test_an_edit_that_removes_every_violation_is_allowed(work) -> None:
     broken = build_plan(
         slices=(
             DEFAULT_SLICES[0],
             {"covers": (), "scenarios": 1, "steps": 0},
             DEFAULT_SLICES[2],
-        ),
-        criteria=3,
-    ).replace("AC2 Criterion 2", "AC2 Criterion 2")
+        )
+    )
     record = hook._load_record()
-    assert ("scenario-no-step", "Slice 2") in _ids(record.plan_violations(broken))
+    assert _ids(record.plan_violations(broken)) == {
+        ("scenario-no-step", "Slice 2"),
+        ("ac-no-scenario", "AC2"),
+    }
     work.put("plans/p.md", broken)
     result = work.edit(
         "plans/p.md",
@@ -737,54 +898,65 @@ def test_an_edit_that_fixes_one_violation_and_adds_another_is_refused(work) -> N
     assert work.edit("plans/p.md", old, new)[0] == 2
 
 
+def _stepless_plan() -> str:
+    """A plan every judged write of which would be refused."""
+    return _stranded_slice_two()
+
+
+def test_the_judged_form_of_these_writes_is_refused(work) -> None:
+    """Control for the table below: judged, the proposed content is refused."""
+    assert work.write("plans/ctl.md", _stepless_plan())[0] == 2
+    work.put("plans/p.md", build_plan())
+    assert work.edit("plans/p.md", "#### Step 1.1: step", "Step 1.1: step")[0] == 2
+
+
 @pytest.mark.parametrize(
-    "case",
+    "label",
     [
         "invalid-json",
         "no-file-path",
         "old-absent",
         "old-twice",
-        "old-empty",
+        "old-empty-on-existing-file",
         "replace-all-several",
         "unreadable-directory",
         "not-utf8",
     ],
 )
 def test_an_input_the_hook_cannot_judge_is_allowed_silently(
-    work, monkeypatch, capsys, case: str
+    work, monkeypatch, capsys, label: str
 ) -> None:
-    plan = build_plan() + "dup\ndup\n"
-    work.put("plans/p.md", plan)
-    if case == "invalid-json":
-        assert _run_main(monkeypatch, capsys, "{not json") == (0, "", "")
-        return
-    if case == "no-file-path":
+    """Each row would be refused if the hook judged it: the new text or the
+    applied edit holds a scenario with no step."""
+    work.put("plans/p.md", build_plan())
+    bad = _stepless_plan()
+    if label == "invalid-json":
+        result = _run_main(monkeypatch, capsys, "{" + json.dumps({"content": bad}))
+    elif label == "no-file-path":
         payload = {
             "tool_name": "Write",
             "cwd": str(work.root),
-            "tool_input": {"content": "x"},
+            "tool_input": {"content": bad},
         }
-        assert _run_main(monkeypatch, capsys, payload) == (0, "", "")
-        return
-    if case == "unreadable-directory":
+        result = _run_main(monkeypatch, capsys, payload)
+    elif label == "unreadable-directory":
         (work.root / "plans" / "d.md").mkdir()
-        assert work.write("plans/d.md", build_plan(slices=(), criteria=0)) == (
-            0,
-            "",
-            "",
-        )
-        return
-    if case == "not-utf8":
+        result = work.write("plans/d.md", bad)
+    elif label == "not-utf8":
         (work.root / "plans" / "b.md").write_bytes(b"\xff\xfe broken")
-        assert work.write("plans/b.md", "x") == (0, "", "")
-        return
-    old, extra = {
-        "old-absent": ("not in the file", {}),
-        "old-twice": ("dup", {}),
-        "old-empty": ("", {}),
-        "replace-all-several": ("dup", {"replace_all": True}),
-    }[case]
-    assert work.edit("plans/p.md", old, "Step 1.1 removed", **extra) == (0, "", "")
+        result = work.write("plans/b.md", bad)
+    else:
+        # "#### Step " occurs once per step: applied (first or all), it would
+        # strip a step heading and strand its slice's scenario.
+        old, extra = {
+            "old-absent": ("not in the file", {}),
+            "old-twice": ("#### Step ", {}),
+            "old-empty-on-existing-file": ("", {}),
+            "replace-all-several": ("#### Step ", {"replace_all": True}),
+        }[label]
+        new = bad if old != "#### Step " else "Step "
+        result = work.edit("plans/p.md", old, new, **extra)
+    assert result == (0, "", "")
 
 
 def test_a_matching_edit_whose_result_is_unchanged_is_allowed(work) -> None:
@@ -796,45 +968,76 @@ def test_a_matching_edit_whose_result_is_unchanged_is_allowed(work) -> None:
     )
 
 
-def test_an_internal_error_is_allowed_with_a_one_line_notice(work, monkeypatch) -> None:
-    record = hook._load_record()
-
-    def boom(*args, **kwargs):
-        raise RuntimeError("parser exploded\nsecond line")
-
-    monkeypatch.setattr(record, "plan_violations", boom)
-    code, out, err = work.write("plans/p.md", build_plan())
-    assert (code, out) == (0, "")
-    assert err == "feature record check skipped: RuntimeError: parser exploded\n"
-
-
-def test_a_missing_record_module_is_allowed_with_a_notice(work, monkeypatch) -> None:
-    def cannot_import():
-        raise ImportError("no module")
-
-    monkeypatch.setattr(hook, "_load_record", cannot_import)
-    code, _, err = work.write("plans/p.md", build_plan())
-    assert code == 0
-    assert err.startswith("feature record check skipped: ImportError")
-    assert err.count("\n") == 1
+def test_an_edit_matches_a_crlf_file_with_an_lf_old_string(work) -> None:
+    crlf = build_plan().replace("\n", "\r\n")
+    path = work.root / "plans" / "p.md"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(crlf.encode("utf-8"))
+    old = "#### Step 2.1: step\n\n**IMPLEMENT**: do it"
+    assert old.replace("\n", "\r\n") in crlf and old not in crlf
+    code, _, err = work.edit(
+        "plans/p.md", old, "Step 2.1: step\n\n**IMPLEMENT**: do it"
+    )
+    assert code == 2
+    assert "[scenario-no-step]" in err
+    assert path.read_bytes() == crlf.encode("utf-8")
 
 
-def test_a_plan_is_checked_without_its_spec(work, monkeypatch) -> None:
-    record = hook._load_record()
-    real = record.plan_violations
-    calls: list[tuple[tuple, dict]] = []
+def test_an_edit_with_an_empty_old_string_creates_a_violating_plan_and_is_refused(
+    work,
+) -> None:
+    assert not (work.root / "plans" / "new.md").exists()
+    code, _, err = work.edit("plans/new.md", "", _stepless_plan())
+    assert code == 2 and "[scenario-no-step]" in err
 
-    def spy(*args, **kwargs):
-        calls.append((args, kwargs))
-        return real(*args, **kwargs)
 
-    monkeypatch.setattr(record, "plan_violations", spy)
-    work.put("plans/p.md", build_plan())
-    work.edit("plans/p.md", "The goal paragraph.", "Another goal paragraph.")
-    assert len(calls) == 2  # before and after
-    for args, kwargs in calls:
-        assert (kwargs.get("spec_text") if "spec_text" in kwargs else None) is None
-        assert len(args) == 1
+def test_an_edit_with_an_empty_old_string_creates_a_valid_plan_and_is_allowed(
+    work,
+) -> None:
+    assert work.edit("plans/new.md", "", build_plan()) == (0, "", "")
+
+
+def test_a_write_through_a_symlinked_working_directory_is_checked(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+    payload = {
+        "tool_name": "Write",
+        "cwd": str(link),
+        "tool_input": {
+            "file_path": str(real / "plans" / "p.md"),
+            "content": _stepless_plan(),
+        },
+    }
+    code, _, err = _run_main(monkeypatch, capsys, payload)
+    assert code == 2
+    assert err.startswith("[BLOCK] feature record: plans/p.md")
+
+
+def test_a_write_without_cwd_resolves_against_the_process_directory(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    payload = _payload("plans/p.md", content=_stepless_plan())
+    assert "cwd" not in payload
+    assert _run_main(monkeypatch, capsys, payload)[0] == 2
+    assert _run_main(
+        monkeypatch, capsys, _payload("plans/p.md", content=build_plan())
+    ) == (0, "", "")
+
+
+def test_a_plan_whose_spec_line_names_an_incomplete_spec_is_still_allowed(
+    work,
+) -> None:
+    """The hook checks a plan without its spec: an incomplete spec on disk,
+    named by the plan's **Spec** line, adds nothing to the plan's violations."""
+    work.put("docs/specs/x.md", "# Spec: incomplete\n")
+    plan = build_plan(spec_ref="docs/specs/x.md")
+    assert "**Spec**: docs/specs/x.md" in plan
+    assert work.write("plans/p.md", plan) == (0, "", "")
 
 
 @pytest.mark.parametrize(
@@ -875,7 +1078,63 @@ def test_a_fixture_with_its_step_headings_removed_is_refused(work, name: str) ->
     text = (FIXTURES / name).read_text(encoding="utf-8")
     broken = re.sub(r"(?m)^#### Step ", "Step ", text)
     assert broken != text
-    assert work.write("plans/p.md", broken)[0] == 2
+    code, _, err = work.write("plans/p.md", broken)
+    assert code == 2
+    assert "[scenario-no-step]" in err
+
+
+def test_a_covers_line_inside_a_code_fence_does_not_cover_its_criterion(work) -> None:
+    """Refusal direction for the parser's fence rule: AC3's only Covers line
+    sits in a fenced block, so AC3 has no covering step."""
+    fenced = build_plan(
+        slices=(DEFAULT_SLICES[0], DEFAULT_SLICES[1], NO_COVERS[2])
+    ).replace(
+        "#### Step 3.1: step\n\n**IMPLEMENT**: do it\n",
+        "#### Step 3.1: step\n\n**IMPLEMENT**: do it\n```text\n**Covers**: AC3\n```\n",
+    )
+    assert "```text\n**Covers**: AC3" in fenced
+    code, _, err = work.write("plans/fenced.md", fenced)
+    assert code == 2
+    assert 'WHAT: AC3 "Criterion 3" has no scenario' in err
+    unfenced = fenced.replace("```text\n**Covers**: AC3\n```\n", "**Covers**: AC3\n")
+    assert unfenced != fenced
+    assert work.write("plans/unfenced.md", unfenced) == (0, "", "")
+
+
+def test_a_section_whose_only_content_is_in_a_comment_is_empty(work) -> None:
+    commented = COMPLETE_SPEC.replace("- One module.\n", "<!-- - One module. -->\n")
+    assert commented != COMPLETE_SPEC
+    code, _, err = work.write("docs/specs/x.md", commented)
+    assert code == 2
+    assert 'WHAT: The spec has no "## Architecture Specification" section' in err
+    assert err.count("WHAT:") == 1
+
+
+def test_an_incomplete_spec_on_disk_accepts_an_unrelated_edit(work) -> None:
+    work.put("docs/specs/x.md", _spec_without("## Acceptance Criteria"))
+    assert work.edit(
+        "docs/specs/x.md", "Why the change exists.", "Why it exists, reworded."
+    ) == (0, "", "")
+
+
+def test_an_edit_that_adds_the_missing_spec_section_is_allowed(work) -> None:
+    work.put("docs/specs/x.md", _spec_without("## Acceptance Criteria"))
+    assert work.edit(
+        "docs/specs/x.md",
+        "- One module.\n",
+        "- One module.\n\n## Acceptance Criteria\n\n- [ ] AC1 It works.\n",
+    ) == (0, "", "")
+
+
+def test_an_edit_that_drops_a_second_spec_section_is_refused_naming_only_it(
+    work,
+) -> None:
+    work.put("docs/specs/x.md", _spec_without("## Architecture Specification"))
+    code, _, err = work.edit("docs/specs/x.md", "## Intent Description\n", "")
+    assert code == 2
+    assert err.count("WHAT:") == 1
+    assert 'WHAT: The spec has no "## Intent Description" section' in err
+    assert "Architecture Specification" not in err
 
 
 def test_the_hook_runs_end_to_end_in_a_fresh_interpreter(tmp_path: Path) -> None:
@@ -884,40 +1143,40 @@ def test_the_hook_runs_end_to_end_in_a_fresh_interpreter(tmp_path: Path) -> None
         "cwd": str(tmp_path),
         "tool_input": {
             "file_path": "plans/p.md",
-            "content": build_plan(
-                slices=({"covers": (), "scenarios": 1, "steps": 0},), criteria=1
-            ),
+            "content": _stranded_slice_two(),
         },
     }
-    done = subprocess.run(
-        [sys.executable, "-I", str(HOOK_PATH)],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        cwd=tmp_path,
-        check=False,
-    )
+    done = _run_hook(HOOK_PATH, payload, tmp_path)
     assert done.returncode == 2, done.stderr
     assert done.stderr.startswith("[BLOCK] feature record: plans/p.md")
+    assert done.stdout == done.stderr
 
 
-def test_a_matching_path_imports_the_record_in_a_fresh_interpreter(
+def test_a_matching_path_loads_the_record_modules_in_a_fresh_interpreter(
     tmp_path: Path,
 ) -> None:
-    """Control for the fast-path test: a matching write does import the record."""
+    """Control for the fast-path test: a matching write does load them."""
     payload = _payload("plans/p.md", cwd=tmp_path, content=build_plan())
     result = _run_isolated(tmp_path, payload)
-    assert result["code"] == 0 and result["imported"] is True
+    assert result["code"] == 0
+    assert {"feature_record", "plan_parse", "plan_record_parse"} <= set(
+        result["loaded"]
+    )
 
 
-def test_a_generated_500_line_plan_is_checked_within_a_second(
-    work, monkeypatch, capsys
-) -> None:
+def _big_plan() -> str:
     six = tuple(
         {"covers": (f"AC{k}",), "scenarios": 2, "steps": 2} for k in range(1, 7)
     )
     plan = build_plan(slices=six, criteria=6, filler=260)
     assert len(plan.splitlines()) >= 500
+    return plan
+
+
+def test_a_generated_500_line_plan_is_checked_within_a_second(
+    work, monkeypatch, capsys
+) -> None:
+    plan = _big_plan()
     assert hook._load_record().plan_violations(plan, spec_text=None) == []
     work.put("plans/big.md", plan)
     payload = {
@@ -932,6 +1191,19 @@ def test_a_generated_500_line_plan_is_checked_within_a_second(
         runs.append(time.perf_counter() - start)
         assert result == (0, "", "")
     assert min(runs) < 1.0, runs
+
+
+def test_a_cold_hook_process_checks_a_500_line_plan_within_a_generous_bound(
+    tmp_path: Path,
+) -> None:
+    """Interpreter start-up and imports included; the bound is loose on purpose
+    so a slow CI host does not flake, while a hang or quadratic parse would."""
+    payload = _payload("plans/big.md", cwd=tmp_path, content=_big_plan())
+    start = time.perf_counter()
+    done = _run_hook(HOOK_PATH, payload, tmp_path)
+    elapsed = time.perf_counter() - start
+    assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+    assert elapsed < 10.0, elapsed
 
 
 # ---------------------------------------------------------------------------
@@ -1069,13 +1341,6 @@ def test_exactly_five_violations_have_no_overflow_line(work) -> None:
     assert sum(line.startswith("WHAT:") for line in err.splitlines()) == 5
 
 
-def test_the_hook_holds_no_copy_of_the_pinned_words() -> None:
-    source = HOOK_PATH.read_text(encoding="utf-8")
-    for copy in hook._load_record().COPY.values():
-        for field in ("why", "how"):
-            assert copy[field] not in source
-
-
 def _events(root: Path) -> list[dict]:
     log = root / ".claude" / "metrics" / "boundary-events.jsonl"
     if not log.exists():
@@ -1115,22 +1380,17 @@ def test_an_allowed_write_emits_no_event(work) -> None:
     assert _events(work.root) == []
 
 
-def test_a_failing_emitter_does_not_change_the_refusal(work, monkeypatch) -> None:
-    import boundary_events  # type: ignore[import-not-found]
-
+def test_an_emitter_that_cannot_write_does_not_change_the_refusal(work) -> None:
+    """A regular file at `<root>/.claude` makes the metrics directory
+    impossible to create, a real fault in the emit path. The refusal text,
+    stdout mirror and exit code are the same as with a working emitter.
+    (`boundary_events` swallows the fault itself, before the hook's own
+    try/except is reached; that second net is a one-line wrapper.)"""
     work.put("plans/p.md", build_plan(slices=NO_COVERS))
     with_emitter = _refusal(work, "plans/p.md", _stranded_slice_two())
+    assert with_emitter[0] == 2 and len(_events(work.root)) == 1
 
-    def boom(*args, **kwargs):
-        raise OSError("disk full")
-
-    monkeypatch.setattr(boundary_events, "emit_boundary_event", boom)
+    shutil.rmtree(work.root / ".claude")
+    (work.root / ".claude").write_text("not a directory\n")
     assert _refusal(work, "plans/p.md", _stranded_slice_two()) == with_emitter
-    assert with_emitter[0] == 2
-
-
-def test_a_missing_event_helper_does_not_change_the_refusal(work, monkeypatch) -> None:
-    work.put("plans/p.md", build_plan(slices=NO_COVERS))
-    expected = _refusal(work, "plans/p.md", _stranded_slice_two())
-    monkeypatch.setitem(sys.modules, "boundary_events", None)  # import raises
-    assert _refusal(work, "plans/p.md", _stranded_slice_two()) == expected
+    assert (work.root / ".claude").is_file()

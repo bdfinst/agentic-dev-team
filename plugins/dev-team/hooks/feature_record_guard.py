@@ -77,11 +77,26 @@ def matches(rel_path: str) -> str | None:
     return None
 
 
+def _relative_inside(absolute: str, base: str) -> str | None:
+    """Return the posix path of `absolute` relative to `base`, or `None` when
+    it lies outside `base`."""
+    try:
+        rel = os.path.relpath(absolute, base)
+    except ValueError:  # another drive on Windows
+        return None
+    parts = rel.split(os.sep)
+    if parts[0] == os.pardir or os.path.isabs(rel):
+        return None
+    return "/".join(parts)
+
+
 def target_path(payload: dict) -> tuple[str, str] | None:
     """Return `(absolute, relative)` for the payload's `file_path`, or `None`.
 
     The path is resolved against the payload `cwd` (the process directory when
-    absent) and must lie inside it. Pure string work: no file is touched.
+    absent) and must lie inside it. When the plain comparison lands outside,
+    both sides are resolved through symlinks and compared again, so a symlinked
+    checkout (or macOS `/tmp`) still matches. No file is read.
     """
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
@@ -92,14 +107,13 @@ def target_path(payload: dict) -> tuple[str, str] | None:
     cwd = payload.get("cwd")
     base = os.path.abspath(cwd if isinstance(cwd, str) and cwd else os.getcwd())
     absolute = os.path.abspath(os.path.join(base, file_path))
-    try:
-        rel = os.path.relpath(absolute, base)
-    except ValueError:  # another drive on Windows
-        return None
-    parts = rel.split(os.sep)
-    if parts[0] == os.pardir or os.path.isabs(rel):
-        return None
-    return absolute, "/".join(parts)
+    rel = _relative_inside(absolute, base)
+    if rel is None:
+        absolute = os.path.realpath(absolute)
+        rel = _relative_inside(absolute, os.path.realpath(base))
+        if rel is None:
+            return None
+    return absolute, rel
 
 
 # ---------------------------------------------------------------------------
@@ -115,17 +129,19 @@ def proposed_text(payload: dict, read_text) -> tuple[str, str] | None:
     its `content`. `Edit` applies `old_string` to `new_string` on the on-disk
     text, only when `old_string` is non-empty and occurs exactly once (so
     `replace_all` with several matches is not judged). The before-text of a
-    file that does not exist is empty. Any other read error means "cannot
-    judge".
+    file that does not exist is empty, and an `Edit` with an empty
+    `old_string` on such a file creates it. Any other read error means
+    "cannot judge".
     """
     target = target_path(payload)
     if target is None:
         return None
     tool_input = payload["tool_input"]
+    missing = False
     try:
         before = read_text(target[0])
     except FileNotFoundError:
-        before = ""
+        before, missing = "", True
     except (OSError, UnicodeError):
         return None
 
@@ -136,8 +152,12 @@ def proposed_text(payload: dict, read_text) -> tuple[str, str] | None:
     if tool == "Edit":
         old = tool_input.get("old_string")
         new = tool_input.get("new_string")
-        if not isinstance(old, str) or not isinstance(new, str) or not old:
+        if not isinstance(old, str) or not isinstance(new, str):
             return None
+        if not old:
+            # An Edit with an empty old_string creates a file that does not
+            # exist yet, like a Write. On an existing file it is not judged.
+            return ("", new) if missing else None
         if before.count(old) != 1:
             return None
         return before, before.replace(old, new, 1)
@@ -145,7 +165,9 @@ def proposed_text(payload: dict, read_text) -> tuple[str, str] | None:
 
 
 def _read_text(path: str) -> str:
-    with open(path, encoding="utf-8", newline="") as handle:
+    # Default newline translation: a multi-line `old_string` written with LF
+    # must match a CRLF file, as the Edit tool matches it.
+    with open(path, encoding="utf-8") as handle:
         return handle.read()
 
 
@@ -234,16 +256,14 @@ def emit_boundary_event(*args, **kwargs) -> None:
 
 
 def _skip(reason: str) -> int:
-    sys.stderr.write(f"feature record check skipped: {reason}\n")
+    try:
+        sys.stderr.write(f"feature record check skipped: {reason}\n")
+    except (OSError, ValueError):  # stderr closed: still allow
+        pass
     return 0
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-
-def main() -> int:
+def _check() -> int:
     payload = read_stdin_json()
     if payload is None:
         return 0
@@ -252,11 +272,7 @@ def main() -> int:
         return 0
     if os.environ.get(ESCAPE_ENV, "").strip().lower() == "off":
         return _skip(f"{ESCAPE_ENV}=off")
-    try:
-        found = decide(payload, _read_text)
-    except Exception as exc:  # noqa: BLE001 - fail open by design
-        detail = (str(exc).splitlines() or [""])[0]
-        return _skip(f"{type(exc).__name__}: {detail}".rstrip(": "))
+    found = decide(payload, _read_text)
     if not found:
         return 0
     tool = payload.get("tool_name")
@@ -276,6 +292,23 @@ def main() -> int:
         session_id if isinstance(session_id, str) else None,
     )
     return 2
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+
+def main() -> int:
+    """Check one write. Any error, in reading the payload, resolving the
+    working directory, judging the write or printing the refusal, allows the
+    write with a one-line notice. `SystemExit` and `KeyboardInterrupt` are not
+    swallowed."""
+    try:
+        return _check()
+    except Exception as exc:  # noqa: BLE001 - fail open by design
+        detail = (str(exc).splitlines() or [""])[0]
+        return _skip(f"{type(exc).__name__}: {detail}".rstrip(": "))
 
 
 if __name__ == "__main__":  # pragma: no cover

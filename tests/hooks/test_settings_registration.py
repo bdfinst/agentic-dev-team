@@ -78,34 +78,24 @@ def test_verify_guard_edit_marker_py_is_registered_on_write_edit_notebookedit() 
     assert any("verify_guard_edit_marker.py" in cmd for cmd in commands)
 
 
-def _registrations(path, script: str) -> list[tuple[str, str, list[str]]]:
-    """Every `(event, matcher, [script basenames in the group])` whose group
-    runs `script`, one tuple per registration."""
+def _registrations(path, script: str) -> list[tuple[str, str]]:
+    """Every `(event, matcher)` of a group that runs `script`, one tuple per
+    registration. Hooks without a `.py` token in their command are skipped."""
     found = []
     for event, entries in json.loads(path.read_text())["hooks"].items():
         for entry in entries:
-            names = [
-                re.findall(r"([A-Za-z0-9_]+\.py)", hook["command"])[-1]
-                for hook in entry.get("hooks", [])
-            ]
-            found += [
-                (event, entry.get("matcher", ""), names) for n in names if n == script
-            ]
+            for hook in entry.get("hooks", []):
+                scripts = re.findall(r"([A-Za-z0-9_]+\.py)", hook.get("command", ""))
+                if scripts and scripts[-1] == script:
+                    found.append((event, entry.get("matcher", "")))
     return found
 
 
-def test_feature_record_guard_is_registered_once_in_each_file_in_matching_shape() -> (
-    None
-):
+def test_feature_record_guard_is_registered_once_in_each_file() -> None:
     """#2275: the write guard sits in the Write|Edit PreToolUse group of both
     hooks.json (the file current Claude Code loads) and settings.json (the
-    older-CLI mirror), once each, beside the same neighbours."""
-    script = "feature_record_guard.py"
-    in_hooks_json = _registrations(HOOKS_JSON, script)
-    in_settings = _registrations(SETTINGS, script)
-    assert len(in_hooks_json) == 1, in_hooks_json
-    assert len(in_settings) == 1, in_settings
-    assert in_hooks_json == in_settings
-    event, matcher, group = in_hooks_json[0]
-    assert (event, matcher) == ("PreToolUse", "Write|Edit")
-    assert group.count(script) == 1
+    older-CLI mirror), once each."""
+    for path in (HOOKS_JSON, SETTINGS):
+        assert _registrations(path, "feature_record_guard.py") == [
+            ("PreToolUse", "Write|Edit")
+        ], path

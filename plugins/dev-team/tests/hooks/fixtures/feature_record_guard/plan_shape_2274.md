@@ -46,14 +46,7 @@ Feature: Open a lane
 #### Step 1.1: Open
 
 **Complexity**: standard
-**IMPLEMENT**: Create the worktree. The setup command is shown below.
-
-```bash
-# A line that looks like a Covers marker, inside a fence, is not read:
-# **Covers**: AC9
-git worktree add ../lane-1 -b lane-1
-```
-
+**IMPLEMENT**: Create the worktree with `git worktree add`.
 **TEST**: The worktree exists after open.
 **Files**: `scripts/lane.py`
 **Covers**: AC1
