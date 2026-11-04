@@ -119,6 +119,18 @@ def test_open_is_a_registered_command_with_its_own_arguments():
     assert (args.command, args.name, args.path, args.trunk) == ("open", "x", "p", "t")
 
 
+def test_compose_is_a_registered_command_that_takes_only_a_trunk():
+    args = lane.build_parser().parse_args(["compose", "--trunk", "t"])
+
+    assert (args.command, args.trunk) == ("compose", "t")
+
+
+def test_help_lists_compose(tmp_path, capsys):
+    _, out, _ = run_main(["--help"], tmp_path, capsys)
+
+    assert re.search(r"^\s+compose\s+merge trunk into the lane", out, re.MULTILINE)
+
+
 def test_every_registered_command_is_keyed_by_its_own_name():
     assert {key: command.name for key, command in lane.COMMANDS.items()} == {
         key: key for key in lane.COMMANDS
@@ -611,3 +623,258 @@ def test_a_path_taken_while_open_runs_is_reported_as_path_exists(
 
     block = single_refusal(code, out, err, "path exists")
     assert str(occupied) in block["why"]
+
+
+# --- compose: merge and identity output -------------------------------------
+
+SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
+
+
+def lane_with_commit(repo, name="feature"):
+    """A lane beside `repo` with one commit of its own."""
+    lane_path = add_linked_worktree(repo, name)
+    commit_file(lane_path, "lane.txt", "lane\n", "lane work")
+    return lane_path
+
+
+def advance_trunk(repo, name="trunk.txt"):
+    """A new commit on the primary checkout's trunk branch; returns its SHA."""
+    return commit_file(repo.path, name, "trunk\n", f"trunk adds {name}")
+
+
+def is_ancestor(cwd, ancestor, descendant):
+    return lane_core.git_ok(["merge-base", "--is-ancestor", ancestor, descendant], cwd)
+
+
+def test_compose_merges_a_moved_trunk_into_the_lane(repo_without_remote, capsys):
+    lane_path = lane_with_commit(repo_without_remote)
+    trunk_tip = advance_trunk(repo_without_remote)
+
+    code, _, err = run_main(["compose"], lane_path, capsys)
+
+    assert (code, err) == (0, "")
+    assert is_ancestor(lane_path, trunk_tip, "HEAD")
+    assert (lane_path / "trunk.txt").is_file()
+    assert (lane_path / "lane.txt").is_file()
+
+
+def test_compose_prints_the_trunk_commit_and_the_head_tree_as_identities(
+    repo_without_remote, capsys
+):
+    lane_path = lane_with_commit(repo_without_remote)
+    trunk_tip = advance_trunk(repo_without_remote)
+
+    _, out, _ = run_main(["compose"], lane_path, capsys)
+
+    printed = parse_output(out)
+    assert printed["expected-trunk"] == trunk_tip
+    assert printed["expected-tree"] == git(lane_path, "rev-parse", "HEAD^{tree}")
+    assert SHA_PATTERN.fullmatch(printed["expected-trunk"])
+    assert SHA_PATTERN.fullmatch(printed["expected-tree"])
+    assert (printed["lane"], printed["trunk"]) == ("feature", "main")
+
+
+def test_compose_prints_a_ready_to_run_integrate_line(repo_without_remote, capsys):
+    lane_path = lane_with_commit(repo_without_remote)
+    advance_trunk(repo_without_remote)
+
+    _, out, _ = run_main(["compose"], lane_path, capsys)
+
+    printed = parse_output(out)
+    assert printed["next"] == (
+        f"lane.py integrate --expected-trunk {printed['expected-trunk']}"
+        f" --expected-tree {printed['expected-tree']}"
+    )
+
+
+def test_compose_repeats_trunk_in_the_next_line_only_when_it_was_given(
+    repo_without_remote, capsys
+):
+    lane_path = lane_with_commit(repo_without_remote)
+
+    _, out, _ = run_main(["compose", "--trunk", "main"], lane_path, capsys)
+
+    assert parse_output(out)["next"].endswith(" --trunk main")
+
+
+def merge_argvs(argv_spy, start):
+    """Recorded `git merge` invocations after record index `start`."""
+    return [
+        argv
+        for argv in argv_spy.records[start:]
+        if argv[:1] == ["git"] and "merge" in argv[1:2]
+    ]
+
+
+def test_compose_is_a_no_op_when_the_lane_already_contains_trunk(
+    repo_without_remote, capsys, argv_spy
+):
+    lane_path = lane_with_commit(repo_without_remote)
+    advance_trunk(repo_without_remote)
+    first = run_main(["compose"], lane_path, capsys)
+    head_after_first = git(lane_path, "rev-parse", "HEAD")
+    records_before = len(argv_spy.records)
+
+    second = run_main(["compose"], lane_path, capsys)
+
+    assert first[0] == second[0] == 0
+    assert second[1] == first[1]
+    assert git(lane_path, "rev-parse", "HEAD") == head_after_first
+    assert merge_argvs(argv_spy, records_before) == []
+
+
+def test_a_lane_that_is_only_behind_fast_forwards_without_a_merge_commit(
+    repo_without_remote, capsys
+):
+    lane_path = add_linked_worktree(repo_without_remote, "feature")
+    trunk_tip = advance_trunk(repo_without_remote)
+
+    code, out, _ = run_main(["compose"], lane_path, capsys)
+
+    printed = parse_output(out)
+    assert code == 0
+    assert git(lane_path, "rev-parse", "HEAD") == trunk_tip
+    assert printed["expected-tree"] == git(
+        repo_without_remote.path, "rev-parse", "main^{tree}"
+    )
+    assert git(lane_path, "rev-list", "--merges", "--count", "HEAD") == "0"
+
+
+def open_origin_lane(repo, name="feature"):
+    """A lane on fixture R, branched from origin/main, with one commit of its own."""
+    lane_path = add_linked_worktree(repo, name, start="origin/main")
+    commit_file(lane_path, "lane.txt", "lane\n", "lane work")
+    return lane_path
+
+
+def test_compose_also_merges_a_local_trunk_branch_that_is_ahead_of_the_trunk_ref(
+    repo_with_origin, capsys
+):
+    lane_path = open_origin_lane(repo_with_origin)
+    origin_tip = git(repo_with_origin.path, "rev-parse", "origin/main")
+    local_tip = advance_trunk(repo_with_origin, "local.txt")
+
+    code, out, _ = run_main(["compose"], lane_path, capsys)
+
+    assert code == 0
+    assert is_ancestor(lane_path, local_tip, "HEAD")
+    assert (lane_path / "local.txt").is_file()
+    printed = parse_output(out)
+    assert printed["trunk"] == "origin/main"
+    assert printed["expected-trunk"] == origin_tip
+
+
+def advance_origin(repo, name="remote.txt"):
+    """Move the bare origin's main forward without pushing, then fetch it."""
+    scratch = repo.path.parent / "scratch-origin-work"
+    git(repo.path.parent, "clone", "-q", str(repo.origin), str(scratch))
+    tip = commit_file(scratch, name, "remote\n", f"origin adds {name}")
+    git(repo.origin, "fetch", "-q", str(scratch), "main:main")
+    git(repo.path, "fetch", "-q", "origin")
+    return tip
+
+
+def test_compose_merges_the_trunk_ref_then_the_local_branch_when_they_diverged(
+    repo_with_origin, capsys, argv_spy
+):
+    lane_path = open_origin_lane(repo_with_origin)
+    origin_tip = advance_origin(repo_with_origin)
+    local_tip = advance_trunk(repo_with_origin, "local.txt")
+    records_before = len(argv_spy.records)
+
+    code, out, _ = run_main(["compose"], lane_path, capsys)
+
+    assert code == 0
+    assert is_ancestor(lane_path, origin_tip, "HEAD")
+    assert is_ancestor(lane_path, local_tip, "HEAD")
+    assert parse_output(out)["expected-trunk"] == origin_tip
+    merges = merge_argvs(argv_spy, records_before)
+    assert [argv[-1] for argv in merges] == ["origin/main", "refs/heads/main"]
+
+
+# --- compose: refusals outside a usable lane --------------------------------
+
+
+def primary_on_trunk(repo):
+    return repo.path
+
+
+def detached_linked_worktree(repo):
+    lane_path = add_linked_worktree(repo, "feature")
+    git(lane_path, "switch", "-q", "--detach")
+    return lane_path
+
+
+def linked_worktree_on_trunk(repo):
+    git(repo.path, "switch", "-q", "-c", "elsewhere")
+    path = default_lane_dir(repo, "on-main")
+    git(repo.path, "worktree", "add", "-q", str(path), "main")
+    return path
+
+
+@pytest.mark.parametrize(
+    "place",
+    [primary_on_trunk, detached_linked_worktree, linked_worktree_on_trunk],
+    ids=["primary-on-trunk", "detached-head", "linked-worktree-on-trunk"],
+)
+@covers("not in a lane")
+def test_compose_refuses_outside_a_lane(place, repo_without_remote, capsys):
+    cwd = place(repo_without_remote)
+    state_before = lane_state(cwd)
+
+    code, out, err = run_main(["compose"], cwd, capsys)
+
+    block = single_refusal(code, out, err, "not in a lane")
+    assert str(cwd) in block["why"]
+    assert "lane.py open <name>" in block["how"]
+    assert lane_state(cwd) == state_before
+
+
+def make_staged(lane_path):
+    (lane_path / "staged.txt").write_text("staged\n")
+    git(lane_path, "add", "--", "staged.txt")
+    return "staged.txt"
+
+
+def make_unstaged(lane_path):
+    (lane_path / "base.txt").write_text("edited\n")
+    return "base.txt"
+
+
+def make_untracked(lane_path):
+    (lane_path / "untracked.txt").write_text("new\n")
+    return "untracked.txt"
+
+
+@pytest.mark.parametrize(
+    "make_dirty", [make_staged, make_unstaged, make_untracked], ids=lambda f: f.__name__
+)
+@covers("lane has uncommitted changes")
+def test_compose_refuses_a_lane_with_any_uncommitted_change(
+    make_dirty, repo_without_remote, capsys
+):
+    lane_path = lane_with_commit(repo_without_remote)
+    advance_trunk(repo_without_remote)
+    dirty_path = make_dirty(lane_path)
+    head_before = git(lane_path, "rev-parse", "HEAD")
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "lane has uncommitted changes")
+    assert dirty_path in block["why"]
+    assert "commit or stash" in block["how"]
+    assert "add .claude/ to .gitignore" in block["how"]
+    assert "/setup" in block["how"]
+    assert git(lane_path, "rev-parse", "HEAD") == head_before
+
+
+@covers("trunk ref cannot be resolved")
+def test_compose_refuses_a_trunk_that_does_not_resolve(repo_without_remote, capsys):
+    lane_path = lane_with_commit(repo_without_remote)
+    head_before = git(lane_path, "rev-parse", "HEAD")
+
+    code, out, err = run_main(["compose", "--trunk", "missing-ref"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "trunk ref cannot be resolved")
+    assert "'missing-ref'" in block["why"]
+    assert git(lane_path, "rev-parse", "HEAD") == head_before

@@ -17,6 +17,7 @@ every command shares:
   over `resolve_trunk_commit` for tests and probes.
 - `worktrees`, `branch_exists`, `branch_checked_out` and `primary_checkout`:
   the one worktree-listing parser and the questions built on it.
+- `dirty_paths`: the one reader of `git status`.
 
 Import whitelist (pinned by an AST test): the standard library and
 `review_gate_hash`. Stdlib only otherwise. See ADR 0014 and ADR 0031.
@@ -131,6 +132,11 @@ WHAT_BRANCH_EXISTS = "branch exists"
 WHAT_PATH_EXISTS = "path exists"
 WHAT_TRUNK_UNRESOLVED = "trunk ref cannot be resolved"
 WHAT_NOT_A_GIT_REPOSITORY = "not a git repository"
+WHAT_NOT_IN_A_LANE = "not in a lane"
+WHAT_LANE_HAS_UNCOMMITTED_CHANGES = "lane has uncommitted changes"
+
+#: Paths named in a dirty-tree refusal before it says "and N more".
+MAX_LISTED_PATHS = 10
 
 
 @dataclass(frozen=True)
@@ -251,6 +257,33 @@ def not_a_git_repository_refusal(cwd: Path) -> Refusal:
         what=WHAT_NOT_A_GIT_REPOSITORY,
         why=f"{cwd} is not inside a git work tree",
         how="run lane.py from inside a git repository (cd into your repository first)",
+    )
+
+
+@_registered(WHAT_NOT_IN_A_LANE)
+def not_in_a_lane_refusal(cwd: Path, trunk_ref: str) -> Refusal:
+    return Refusal(
+        what=WHAT_NOT_IN_A_LANE,
+        why=(
+            f"{cwd} is not in a lane: a lane is a linked worktree on a branch "
+            f"other than the trunk branch (trunk: {trunk_ref})"
+        ),
+        how="create one with lane.py open <name>, then run this command inside it",
+    )
+
+
+@_registered(WHAT_LANE_HAS_UNCOMMITTED_CHANGES)
+def lane_has_uncommitted_changes_refusal(paths: Sequence[str]) -> Refusal:
+    listed = ", ".join(paths[:MAX_LISTED_PATHS])
+    extra = len(paths) - MAX_LISTED_PATHS
+    more = f" and {extra} more" if extra > 0 else ""
+    return Refusal(
+        what=WHAT_LANE_HAS_UNCOMMITTED_CHANGES,
+        why=f"the lane has uncommitted changes: {listed}{more}",
+        how=(
+            "commit or stash the listed paths; if they are .claude/ files, "
+            "add .claude/ to .gitignore (run /setup)"
+        ),
     )
 
 
@@ -413,6 +446,31 @@ def git_text(args: Sequence[str], cwd: Path) -> str:
     if completed.returncode != 0:
         raise _failure(["git", *args], _last_line(completed.stderr))
     return completed.stdout.strip()
+
+
+def dirty_paths(cwd: Path) -> list[str]:
+    """Every path `git status` reports: staged, unstaged and untracked.
+
+    Read raw (`-z`), because `git_text` strips the leading space of the first
+    status entry. A rename or copy entry is followed by its origin path, which
+    is skipped. Ignored files are not reported.
+    """
+    args = ["status", "--porcelain=v1", "-z", "--untracked-files=all"]
+    completed = _git(args, cwd)
+    if completed.returncode != 0:
+        raise _failure(["git", *args], _last_line(completed.stderr))
+    entries = completed.stdout.split("\0")
+    paths: list[str] = []
+    index = 0
+    while index < len(entries):
+        entry = entries[index]
+        index += 1
+        if len(entry) < 4:
+            continue
+        paths.append(entry[3:])
+        if set(entry[:2]) & set("RC"):
+            index += 1
+    return paths
 
 
 def require_work_tree(cwd: Path) -> None:

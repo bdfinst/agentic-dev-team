@@ -85,6 +85,8 @@ SAMPLE_ARGUMENTS = {
     "path exists": (Path("/occupied"),),
     "trunk ref cannot be resolved": ("missing-ref",),
     "not a git repository": (Path("/plain"),),
+    "not in a lane": (Path("/primary"), "main"),
+    "lane has uncommitted changes": (["a.txt"],),
 }
 
 #: Every argv the guard rejects: id -> (args, text the reason must contain).
@@ -1098,3 +1100,68 @@ def test_without_a_listing_a_bare_directory_is_its_own_primary(
     bare_clone_of(repo_without_remote.path, bare, tmp_path)
 
     assert lane_core.primary_checkout(bare) == bare.resolve()
+
+
+# --- dirty_paths and the lane refusals --------------------------------------
+
+
+def test_dirty_paths_is_empty_for_a_clean_tree_and_ignores_ignored_files(
+    repo_without_remote,
+):
+    repo = repo_without_remote.path
+    (repo / ".claude").mkdir()
+    (repo / ".claude" / "gate").write_text("ignored\n")
+
+    assert lane_core.dirty_paths(repo) == []
+
+
+def test_dirty_paths_names_staged_unstaged_and_untracked_paths_in_full(
+    repo_without_remote,
+):
+    repo = repo_without_remote.path
+    (repo / "staged.txt").write_text("s\n")
+    git(repo, "add", "--", "staged.txt")
+    (repo / "base.txt").write_text("changed\n")
+    (repo / "with space.txt").write_text("u\n")
+    (repo / "dir").mkdir()
+    (repo / "dir" / "inner.txt").write_text("u\n")
+
+    assert sorted(lane_core.dirty_paths(repo)) == [
+        "base.txt",
+        "dir/inner.txt",
+        "staged.txt",
+        "with space.txt",
+    ]
+
+
+def test_dirty_paths_keeps_the_first_entry_whole_and_skips_a_rename_origin(
+    repo_without_remote,
+):
+    repo = repo_without_remote.path
+    git(repo, "mv", "base.txt", "renamed.txt")
+
+    assert lane_core.dirty_paths(repo) == ["renamed.txt"]
+
+
+def test_dirty_paths_outside_a_repository_is_a_git_command_failed_refusal(tmp_path):
+    with pytest.raises(lane_core.RefusalError) as caught:
+        lane_core.dirty_paths(tmp_path)
+
+    assert caught.value.refusal.what == GIT_FAILED
+
+
+def test_the_dirty_tree_refusal_caps_the_paths_it_lists():
+    paths = [f"f{number}.txt" for number in range(lane_core.MAX_LISTED_PATHS + 3)]
+
+    refusal = lane_core.lane_has_uncommitted_changes_refusal(paths)
+
+    assert "f0.txt" in refusal.why
+    assert f"f{lane_core.MAX_LISTED_PATHS}.txt" not in refusal.why
+    assert "and 3 more" in refusal.why
+
+
+def test_the_dirty_tree_refusal_does_not_say_more_for_a_short_list():
+    refusal = lane_core.lane_has_uncommitted_changes_refusal(["a.txt", "b.txt"])
+
+    assert "a.txt, b.txt" in refusal.why
+    assert "more" not in refusal.why
