@@ -2612,6 +2612,10 @@
       "summary": "Run tests on the merged result — **do not skip this**.",
       "anchor": "5-post-merge-verification-cleanup"
     },
+    "Lanes versus pull requests": {
+      "summary": "Use a lane for repositories without PRs.",
+      "anchor": "lanes-versus-pull-requests"
+    },
     "Integration": {
       "summary": "Triggered after Phase 3 human gate approval",
       "anchor": "integration"

@@ -34,7 +34,7 @@ def lane_text() -> str:
 
 @pytest.fixture(scope="module")
 def refusal_table_whats(lane_text: str) -> list[str]:
-    refusals = section(lane_text, r"^## Refusals$")
+    refusals = section(lane_text, r"^## Refusals$", boundary_pattern=r"^## ")
     return [
         match["what"]
         for line in refusals.splitlines()
@@ -169,7 +169,9 @@ def test_refusal_table_has_no_row_the_tool_lacks(
 def test_refusal_table_rows_have_a_cause_and_a_fix(lane_text: str) -> None:
     rows = [
         line
-        for line in section(lane_text, r"^## Refusals$").splitlines()
+        for line in section(
+            lane_text, r"^## Refusals$", boundary_pattern=r"^## "
+        ).splitlines()
         if TABLE_ROW.match(line)
     ]
     assert rows
@@ -177,3 +179,67 @@ def test_refusal_table_rows_have_a_cause_and_a_fix(lane_text: str) -> None:
         cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
         assert len(cells) == 3
         assert all(cells)
+
+
+# --- branch-workflow: lanes versus /pr (Step 4.2) ---------------------------
+
+BRANCH_WORKFLOW = PLUGIN_ROOT / "skills" / "branch-workflow" / "SKILL.md"
+LANES_HEADING = "## Lanes versus pull requests"
+OPTION_1_ORIGINAL = (
+    "Integrate feature branch into base, run tests on merged result, "
+    "delete feature branch, then call"
+)
+
+
+@pytest.fixture(scope="module")
+def branch_workflow_text() -> str:
+    return BRANCH_WORKFLOW.read_text()
+
+
+def lanes_section(text: str) -> str:
+    return section(text, rf"^{re.escape(LANES_HEADING)}$", boundary_pattern=r"^## ")
+
+
+def option_1(text: str) -> str:
+    return section(text, r"^1\. \*\*Merge locally\*\*", boundary_pattern=r"^2\. ")
+
+
+def test_branch_workflow_has_the_pinned_heading_once(
+    branch_workflow_text: str,
+) -> None:
+    assert branch_workflow_text.count(f"\n{LANES_HEADING}\n") == 1
+
+
+@pytest.mark.parametrize(
+    "phrase", ["without PRs", "/pr", "lane integrate", "--local-trunk"]
+)
+def test_lanes_section_has_the_pinned_phrase(
+    branch_workflow_text: str, phrase: str
+) -> None:
+    assert phrase in lanes_section(branch_workflow_text)
+
+
+def test_lanes_section_ends_at_the_next_heading(branch_workflow_text: str) -> None:
+    assert "## Integration" not in lanes_section(branch_workflow_text)
+    assert lanes_section(branch_workflow_text).strip()
+
+
+def test_option_1_keeps_its_original_sentence_verbatim(
+    branch_workflow_text: str,
+) -> None:
+    assert OPTION_1_ORIGINAL in option_1(branch_workflow_text)
+
+
+def test_option_1_points_to_lane_integrate(branch_workflow_text: str) -> None:
+    line = next(
+        line
+        for line in branch_workflow_text.splitlines()
+        if line.startswith("1. **Merge locally**")
+    )
+    assert "`lane integrate`" in line
+    assert "(#lanes-versus-pull-requests)" in line
+
+
+def test_the_lanes_link_resolves_to_the_lane_skill(branch_workflow_text: str) -> None:
+    assert "(../lane/SKILL.md)" in lanes_section(branch_workflow_text)
+    assert (BRANCH_WORKFLOW.parent / "../lane/SKILL.md").resolve() == LANE_SKILL
