@@ -82,7 +82,7 @@ def scan_block(slice_id: str, gherkin: str) -> list[dict]:
     return rows
 
 
-def _report(
+def _build_report(
     scenarios: list[dict], scanned: list[str], skipped: list[str], error: str | None
 ) -> dict:
     """The output object; `missing` is derived from the scenarios without a falsifier."""
@@ -111,12 +111,12 @@ def build_falsifier_report(lines: list[str]) -> dict:
             continue
         scanned.append(slice_id)
         scenarios.extend(scan_block(slice_id, gherkin))
-    return _report(scenarios, scanned, skipped, None)
+    return _build_report(scenarios, scanned, skipped, None)
 
 
 def unreadable_result(message: str) -> dict:
     """The output object for an unreadable plan: empty lists, `error` set."""
-    return _report([], [], [], message)
+    return _build_report([], [], [], message)
 
 
 def main(argv: list[str] | None = None) -> int:

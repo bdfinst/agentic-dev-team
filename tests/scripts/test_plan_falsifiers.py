@@ -202,14 +202,7 @@ def test_scenario_without_falsifier_directly_before_one_with_falsifier():
         ("B", "b text"),
     ]
     assert out["missing"] == [{"slice": "1", "scenario": "A"}]
-
-
-def test_first_of_two_scenarios_missing_gives_exactly_one_missing_entry():
-    gherkin = _scenario_block("First", "Given x") + _scenario_block(
-        "Second", f"{_FALSIFIER_COMMENT_PREFIX} second text", "Given y"
-    )
-    out = _scan(gherkin)
-    assert out["missing"] == [{"slice": "1", "scenario": "First"}]
+    assert len(out["missing"]) == 1
 
 
 def test_scenarios_are_attributed_to_their_slice():
