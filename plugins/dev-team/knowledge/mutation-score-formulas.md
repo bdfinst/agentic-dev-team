@@ -47,7 +47,7 @@ adjusted_score = Killed / (Killed + (Survived - Accepted) + NoCoverage)
 
 Label both clearly (e.g. `Raw: 68.57% (24/35) · Adjusted for 11 accepted
 survivors: 100% (24/24)`), plus a per-mutant "Accepted Survivors (deferred)"
-table (file, line, operator, reason). Never let `adjusted_score` stand
+table (file, line, operator, status, reason). Never let `adjusted_score` stand
 alone — `raw_score` plus the reason table is what keeps a documented
 deferral from silently vanishing.
 

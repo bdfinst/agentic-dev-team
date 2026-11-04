@@ -132,7 +132,7 @@ files](#structurally-unkillable-files). Every accepted entry carries a
 
 When any survivor is accepted, print both, labeled clearly (e.g. `Raw:
 68.57% (24/35) · Adjusted for 11 accepted survivors: 100% (24/24)`), plus a
-per-mutant "Accepted Survivors (deferred)" table (file, line, operator,
+per-mutant "Accepted Survivors (deferred)" table (file, line, operator, status,
 reason):
 
 ```
@@ -140,7 +140,7 @@ raw_score      = honest_score (unchanged)
 adjusted_score = Killed / (Killed + (Survived - Accepted) + NoCoverage)
 ```
 
-Falsifier-expected survivors are excluded from `Accepted` in the adjusted-score formula and reported on their own `Falsifier-expected: N` line; the raw/adjusted pair is printed only when ordinary accepted survivors exist. List each falsifier-expected entry, with its `reason`, in the per-mutant survivors table under its own status whenever at least one exists, even when no ordinary accepted survivor does.
+Falsifier-expected survivors are excluded from `Accepted` in the adjusted-score formula and reported on their own `Falsifier-expected: N` line; the raw/adjusted pair is printed only when ordinary accepted survivors exist. List each falsifier-expected entry, with its `reason`, in the per-mutant "Accepted Survivors (deferred)" table under its own `status` whenever at least one exists, even when no ordinary accepted survivor does.
 
 **JS/TS cross-reference.** On a JS/TS (Stryker) run with
 `--skip-static-mutants` active, accepted survivors also include the
