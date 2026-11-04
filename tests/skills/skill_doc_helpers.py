@@ -401,9 +401,12 @@ def frontmatter_fields(text: str) -> dict[str, str]:
     A small subset parser (added for test_doctor_skill, #2272): plain and
     quoted scalars, and a folded `>-` value whose indented continuation lines
     are joined with single spaces. No nesting, lists or other block styles.
+    Text that does not open with a `---` line has no frontmatter: ``{}``.
     """
     fields: dict[str, str] = {}
     key: str | None = None
+    if not text.startswith("---"):
+        return fields
     for line in frontmatter(text).splitlines()[1:]:
         if line[:1] in (" ", "\t") and key is not None:
             fields[key] = f"{fields[key]} {line.strip()}".strip()

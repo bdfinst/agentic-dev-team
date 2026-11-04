@@ -68,13 +68,17 @@ def read_bounded(path: Path) -> LoadResult:
 
 
 def load_json(path: Path) -> LoadResult:
-    """Read ``path`` as a JSON object; other OSErrors propagate to the caller."""
+    """Read ``path`` as a JSON object; other OSErrors propagate to the caller.
+
+    Text that is not JSON, not UTF-8 or nested past the recursion limit is
+    ``INVALID``.
+    """
     raw = read_bounded(path)
     if raw.kind is not LoadKind.LOADED:
         return raw
     try:
         data = json.loads(raw.data.decode("utf-8"))
-    except ValueError:  # JSONDecodeError and UnicodeDecodeError
+    except (ValueError, RecursionError):  # bad JSON or bytes, or nested too deeply
         return LoadResult(LoadKind.INVALID)
     if not isinstance(data, dict):
         return LoadResult(LoadKind.NOT_OBJECT)

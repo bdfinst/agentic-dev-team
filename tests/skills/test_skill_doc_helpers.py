@@ -99,18 +99,26 @@ def test_text_without_fence_lines_yields_nothing():
 
 
 @pytest.mark.parametrize(
-    ("line", "expected"),
+    ("line", "key", "expected"),
     [
-        ("name: doctor", "doctor"),
-        ('argument-hint: "[--json] [--fix]"', "[--json] [--fix]"),
-        ("user-invocable: true", "true"),
+        ("name: doctor", "name", "doctor"),
+        ('argument-hint: "[--json] [--fix]"', "argument-hint", "[--json] [--fix]"),
+        ("user-invocable: true", "user-invocable", "true"),
+        ("name: 'doctor'", "name", "doctor"),
+        ("name:", "name", ""),
+        ("url: http://x:80/y", "url", "http://x:80/y"),
     ],
-    ids=["plain", "quoted", "boolean-word"],
+    ids=[
+        "plain",
+        "double-quoted",
+        "boolean-word",
+        "single-quoted",
+        "empty",
+        "colon-in-value",
+    ],
 )
-def test_frontmatter_fields_reads_a_single_line_value(line, expected):
-    key = line.split(":")[0]
-
-    assert frontmatter_fields(_doc("---", line, "---", "body"))[key] == expected
+def test_frontmatter_fields_reads_a_single_line_value(line, key, expected):
+    assert frontmatter_fields(_doc("---", line, "---", "body")) == {key: expected}
 
 
 def test_frontmatter_fields_joins_a_folded_value_on_single_spaces():
@@ -128,3 +136,19 @@ def test_frontmatter_fields_ignores_the_body():
     text = _doc("---", "name: x", "---", "other: y")
 
     assert frontmatter_fields(text) == {"name": "x"}
+
+
+def test_frontmatter_fields_keeps_a_colon_inside_a_folded_continuation():
+    text = _doc("---", "description: >-", "  a: b", "---")
+
+    assert frontmatter_fields(text) == {"description": "a: b"}
+
+
+def test_frontmatter_fields_joins_a_tab_indented_continuation():
+    text = _doc("---", "description: >-", "\tfirst", "\tsecond", "---")
+
+    assert frontmatter_fields(text) == {"description": "first second"}
+
+
+def test_frontmatter_fields_of_text_without_frontmatter_is_empty():
+    assert frontmatter_fields(_doc("just prose", "key: value")) == {}

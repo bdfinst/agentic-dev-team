@@ -26,14 +26,13 @@ SCHEMA_VERSION = 1
 
 ISSUES_URL = "https://github.com/bdfinst/agentic-dev-team/issues"
 
-#: The shared repair constants (``UPGRADE_FIX``, ``SETUP_FIX``, ``INSTALL_FIX``,
-#: ``REPORT_FIX``) and ``edit_fix``; check-local repairs (``DOCTOR_FIX``,
-#: ``INTERPRETER_FIX``, ``FLOOR_FIX``) live in ``doctor_checks.py`` beside the
-#: checks that use them.
 UPGRADE_FIX = "/upgrade"
 SETUP_FIX = "/setup"
 INSTALL_FIX = "claude plugin install dev-team@bfinster"
 REPORT_FIX = f"report this at {ISSUES_URL}"
+
+#: Starts every ``--fix`` error line, whatever its tail.
+FIX_FAILED_PREFIX = "fix failed: "
 
 
 def edit_fix(where: str) -> str:

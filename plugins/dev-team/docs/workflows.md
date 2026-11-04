@@ -169,6 +169,7 @@ The plugin has two multi-phase pipelines with inter-phase gates.
 | `/telemetry` | `skills/telemetry/SKILL.md` | Manage and report the opt-in usage telemetry beacon | `[on\|off\|status\|report]` |
 | `/version` | `skills/version/SKILL.md` | Report the installed plugin version | `(none)` |
 | `/upgrade` | `skills/upgrade/SKILL.md` | Check for and apply plugin updates from within a session | `(none)` |
+| `/doctor` | `skills/doctor/SKILL.md` | Diagnose the plugin install and this repo's dev-team configuration; `--fix` creates the missing runtime directories | `[--json] [--fix]` |
 | `/help` | `skills/help/SKILL.md` | List the main dev-team workflows; `--all` shows every user command | `[--all]` |
 | `/agent-readiness` | `skills/agent-readiness/SKILL.md` | Score how ready the current repo is for AI-assisted development against the Agent-Readiness Scorecard and emit a tiered report | `[repo-path] [--json <file>] [--markdown <file>]` |
 | `/run-report` | `skills/run-report/SKILL.md` | Report one orchestrated run's timeline — per-state dwell time, rejection count, hook denials/bypasses, and cost — joined from the boundary/cost/state event logs | `[--session <id>]` |

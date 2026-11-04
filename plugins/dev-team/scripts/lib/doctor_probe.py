@@ -21,7 +21,11 @@ SHIM_NO_INTERPRETER = 2
 #: Where py.sh keeps its interpreter cache; the probe points it at a scratch directory.
 PY_CACHE_ENV = "DEV_TEAM_PY_CACHE"
 
-_PROBE_LINE = re.compile(r"(?P<path>.+) (?P<version>[0-9]+\.[0-9]+\.[0-9]+)")
+#: Each version component is at most 9 digits, the bound ``doctor_checks.MAX_VERSION_DIGITS``
+#: gives version numbers: ``int()`` refuses longer runs on 3.11+.
+_PROBE_LINE = re.compile(
+    r"(?P<path>.+) (?P<version>[0-9]{1,9}\.[0-9]{1,9}\.[0-9]{1,9})"
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -63,6 +67,8 @@ def run_probe(
     """Run ``shim`` against ``script``'s ``probe_flag`` mode, never touching the cache."""
     if not shim.is_file():
         return ProbeResult(False, detail=f"shim not found: {shim}")
+    if not script.is_file():
+        return ProbeResult(False, detail=f"script not found: {script}")
     with tempfile.TemporaryDirectory() as scratch:
         probe_env = {**env, PY_CACHE_ENV: str(Path(scratch) / "python")}
         try:

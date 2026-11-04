@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """doctor.py - diagnose the installed dev-team plugin (``/doctor``).
 
-Diagnoses by default and changes nothing. With ``--fix``, creates the missing
-``.claude/metrics`` and ``.claude/memory`` directories and their missing
-``.claude`` parent, and changes no other file.
+Diagnoses by default and leaves the project unchanged; the only side effect is a
+transient probe file created, and on a normal run removed, in ``.claude/metrics``. With ``--fix``,
+creates the missing ``.claude/metrics`` and ``.claude/memory`` directories and
+their missing ``.claude`` parent, and changes no other file.
 Runs deterministic checks and prints each as ``ok``, ``warn`` or ``fail`` with
 the command that repairs it. Exit 0 when the overall status is ``ok`` or
 ``warn``, 1 when it is ``fail`` or a ``--fix`` action failed, 2 on a usage error.
@@ -46,12 +47,6 @@ PROBE_FILE_PREFIX = ".doctor-probe-"
 DEFAULT_PROBE_TIMEOUT_SECONDS = 20
 GIT_TIMEOUT_SECONDS = 10
 
-#: Where each plugin helper module lives, relative to the plugin root.
-HELPER_DIRS = {
-    "autocompact_config": ("hooks", "lib"),
-    "check_version_drift": ("skills", "upgrade", "scripts"),
-}
-
 
 def _use_lib_path() -> None:
     lib = str(_HERE / "lib")
@@ -81,6 +76,14 @@ def _checks():
     import doctor_checks
 
     return doctor_checks
+
+
+def _files():
+    """The bounded-file-reader module, imported lazily for the same reason as ``_model``."""
+    _use_lib_path()
+    import doctor_files
+
+    return doctor_files
 
 
 def _format_internal_error(exc: Exception) -> str:
@@ -123,7 +126,7 @@ def _apply_fixes_isolated(ctx: CheckContext) -> tuple[list[str], list[str]]:
     try:
         _checks().apply_fixes(ctx, fixed, errors)
     except Exception as exc:  # noqa: BLE001 -- isolation: the checks still run
-        errors.append(f"fix failed: {type(exc).__name__}: {exc}")
+        errors.append(f"{_model().FIX_FAILED_PREFIX}{type(exc).__name__}: {exc}")
     return fixed, errors
 
 
@@ -155,7 +158,7 @@ def _load_helper(plugin_root: Path, name: str):
     (reported as an incomplete install) on every call. Nothing stays in
     ``sys.modules`` afterwards.
     """
-    path = plugin_root.joinpath(*HELPER_DIRS[name], f"{name}.py")
+    path = plugin_root.joinpath(*_checks().HELPER_DIRS[name], f"{name}.py")
     if not path.is_file():
         raise ImportError(f"{name} not found at {path}")
     spec = importlib.util.spec_from_file_location(name, path)

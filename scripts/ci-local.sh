@@ -363,6 +363,49 @@ _resolve_python_ceiling() {
   return 1
 }
 
+# Interpreters BELOW the floor that doctor.py --probe must still answer on: its
+# top level stays parseable by them so a too-old interpreter reports its
+# version (the python-floor check names the floor) instead of a SyntaxError.
+# Parse-only tests cannot show it RUNS there, so run it.
+PROBE_BELOW_FLOOR_PYTHONS="3.8 3.9"
+
+_resolve_below_floor_python() {
+  if command -v uv >/dev/null 2>&1; then
+    uv python find "$1" 2>/dev/null && return 0
+    uv python install "$1" >/dev/null 2>&1 && uv python find "$1" 2>/dev/null && return 0
+  fi
+  return 1
+}
+
+# Unlike the floor interpreter, a below-floor one is not required locally: a
+# machine that cannot resolve it prints a visible note and the rest of the gate
+# runs. In CI (`CI` or `GITHUB_ACTIONS` set) it is required, so a runner that
+# cannot resolve one fails instead of passing on nothing.
+_check_doctor_probe_below_floor() {
+  local version interpreter output
+  for version in $PROBE_BELOW_FLOOR_PYTHONS; do
+    if ! interpreter="$(_resolve_below_floor_python "$version")" || [ -z "$interpreter" ]; then
+      if [ -n "${CI:-}${GITHUB_ACTIONS:-}" ]; then
+        printf 'No Python %s available in CI, and this gate does not skip there.\n' "$version" >&2
+        return 1
+      fi
+      printf 'note: no Python %s available; not checking doctor.py --probe under it.\n' "$version" >&2
+      continue
+    fi
+    if ! output="$("$interpreter" plugins/dev-team/scripts/doctor.py --probe)"; then
+      printf 'doctor.py --probe exited non-zero under Python %s (%s).\n' "$version" "$interpreter" >&2
+      return 1
+    fi
+    if [ "${output//$'\n'/}" != "$output" ] ||
+      ! printf '%s\n' "$output" | grep -Eqx ".+ ${version//./\\.}\\.[0-9]+"; then
+      printf 'doctor.py --probe under Python %s printed %s, not one "<path> %s.<micro>" line.\n' \
+        "$version" "$output" "$version" >&2
+      return 1
+    fi
+    printf 'doctor.py --probe under Python %s: %s\n' "$version" "$output"
+  done
+}
+
 chk_python_floor() {
   local py310
   if ! py310="$(_resolve_python310)" || [ -z "$py310" ]; then
@@ -379,6 +422,8 @@ chk_python_floor() {
     -print0 | xargs -0 -n1 "$py310" -m py_compile || return 1
 
   "$py310" scripts/import_probe_shipped.py || return 1
+
+  _check_doctor_probe_below_floor || return 1
 
   # Byte-compile + import prove the shipped tree PARSES and LOADS on the floor
   # interpreter, but neither executes a function BODY — a runtime-only API used
@@ -404,7 +449,9 @@ chk_python_floor() {
   #     `datetime.fromisoformat` for the identical reason (#1829).
   #   - doctor.py, whose `--probe` mode and 3.8-parseable top level are the one
   #     property of that script that is floor-sensitive by design: the test module
-  #     runs `doctor.py --probe` under the interpreter that runs pytest (#2272).
+  #     runs `doctor.py --probe` under the interpreter that runs pytest. The
+  #     below-floor half of that claim is run above, by
+  #     `_check_doctor_probe_below_floor`.
   #
   # Every OTHER shipped, tested plugins/dev-team/scripts/*.py module is
   # accounted for in tests/repo/test_python_floor.py's SLICE_EXCLUSIONS, with

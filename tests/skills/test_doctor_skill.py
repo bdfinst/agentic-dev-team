@@ -63,6 +63,8 @@ HELP_ROW = (
 # The example pins the script's own layout, so the indent comes from the shipped
 # report module rather than a copy kept here.
 FIX_INDENT = doctor._model().FIX_INDENT
+# The row regex takes its statuses from the shipped enum, not a copy kept here.
+STATUS_ALTERNATION = "(?:" + "|".join(s.value for s in doctor._model().Status) + ")"
 
 
 @pytest.fixture(scope="module")
@@ -161,6 +163,17 @@ def test_body_states_warn_rows_do_not_fail_the_run(collapsed_body):
     assert WARN_ROWS_SENTENCE in collapsed_body
 
 
+def test_body_fix_flag_names_exactly_the_runtime_directories_the_script_creates(body):
+    flags = section(body, r"^## Flags", boundary_pattern=r"^## ")
+    (fix_bullet,) = re.findall(
+        r"^- `--fix`.*?(?=^- |\Z)", flags, re.MULTILINE | re.DOTALL
+    )
+
+    named = set(re.findall(r"`\.claude/([\w-]+)`", fix_bullet))
+
+    assert named == set(doctor._checks().RUNTIME_DIRS)
+
+
 def test_body_checks_section_lists_the_ids_in_script_order(body):
     checks_section = section(body, r"^## Checks", boundary_pattern=r"^## ")
 
@@ -175,7 +188,7 @@ def test_body_example_matches_the_script_row_order_and_fix_layout(body):
     example = blocks[0]
     checks_module = doctor._checks()
 
-    row_ids = re.findall(r"^(?:ok|warn|fail)\s+(\S+)", example, re.MULTILINE)
+    row_ids = re.findall(rf"^{STATUS_ALTERNATION}\s+(\S+)", example, re.MULTILINE)
     fix_lines = [
         line for line in example.splitlines() if line.strip().startswith("fix:")
     ]

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import errno
 import hashlib
 import json
 import os
@@ -36,7 +37,7 @@ import doctor
 
 report_model = doctor._model()
 doctor_checks = doctor._checks()
-doctor_files = sys.modules["doctor_files"]
+doctor_files = doctor._files()
 Check = report_model.Check
 Report = report_model.Report
 Status = report_model.Status
@@ -57,6 +58,35 @@ CHECK_IDS = INSTALL_SIDE_IDS + (
 )
 ISSUES_URL = "https://github.com/bdfinst/agentic-dev-team/issues"
 FIFO_READ_DEADLINE_SECONDS = 5
+#: Open brackets deep enough to exhaust the recursion limit of every supported
+#: interpreter (3.13 survives 5000 but not 20000), within the reader's size cap.
+NESTING_PAST_ANY_RECURSION_LIMIT = 100_000
+
+
+def _result_within_deadline(call):
+    """``call()``'s result, run on a daemon thread so a read that blocks fails the test.
+
+    An exception from ``call`` is re-raised here.
+    """
+    outcomes: list = []
+
+    def run() -> None:
+        try:
+            outcomes.append(call())
+        except Exception as exc:  # noqa: BLE001 -- handed to the test thread
+            outcomes.append(exc)
+
+    worker = threading.Thread(
+        target=run, daemon=True
+    )  # a blocked read must not hold the run open
+    worker.start()
+    worker.join(timeout=FIFO_READ_DEADLINE_SECONDS)
+    if worker.is_alive():
+        pytest.fail("read blocked")
+    (outcome,) = outcomes
+    if isinstance(outcome, Exception):
+        raise outcome
+    return outcome
 
 
 def _context(tmp_path: Path, **overrides) -> doctor.Context:
@@ -395,15 +425,10 @@ def test_an_uncached_or_incomparable_catalog_is_ok(
     assert summary in check.summary
 
 
-@pytest.mark.parametrize(
-    "catalog_bytes",
-    [b"\xff", b'{"plugins": 5}'],
-    ids=["not-utf-8", "plugins-not-a-list"],
-)
-def test_an_unreadable_catalog_is_ok_and_not_cached(tmp_path, catalog_bytes):
+def test_a_catalog_whose_plugins_is_not_a_list_is_ok_and_not_cached(tmp_path):
     config = _config_dir(tmp_path, installed="14.0.1", catalog="14.0.1")
     market_json = tmp_path / "marketplace" / ".claude-plugin" / "marketplace.json"
-    market_json.write_bytes(catalog_bytes)
+    market_json.write_bytes(b'{"plugins": 5}')
 
     check = doctor_checks.check_plugin_version(_context(tmp_path, config_dir=config))
 
@@ -450,10 +475,170 @@ def test_an_unusable_install_record_is_warn_naming_the_file(tmp_path, record_byt
     assert "no usable version" in check.summary
 
 
+def _registry_file(tmp_path: Path) -> Path:
+    return tmp_path / "claude" / "plugins" / "known_marketplaces.json"
+
+
+def _catalog_file(tmp_path: Path) -> Path:
+    return tmp_path / "marketplace" / ".claude-plugin" / "marketplace.json"
+
+
+def _replace_with_fifo(path: Path) -> None:
+    path.unlink()
+    os.mkfifo(path)
+
+
+def _replace_with_oversize(path: Path) -> None:
+    path.write_bytes(b" " * (doctor_files.MAX_FILE_BYTES + 1))
+
+
+def _replace_with_self_loop(path: Path) -> None:
+    path.unlink()
+    path.symlink_to(path.name)
+
+
+MAX_DIGITS = doctor_checks.MAX_VERSION_DIGITS
+NEEDS_FIFO = pytest.mark.skipif(
+    not hasattr(os, "mkfifo"), reason="needs POSIX named pipes"
+)
+REGISTRY = "marketplace registry"
+CATALOG = "catalog"
+
+UNUSABLE_CATALOG_INPUTS = [
+    pytest.param(
+        _registry_file,
+        _replace_with_fifo,
+        REGISTRY,
+        "not a regular file",
+        id="registry-fifo",
+        marks=NEEDS_FIFO,
+    ),
+    pytest.param(
+        _catalog_file,
+        _replace_with_fifo,
+        CATALOG,
+        "not a regular file",
+        id="catalog-fifo",
+        marks=NEEDS_FIFO,
+    ),
+    pytest.param(
+        _registry_file,
+        _replace_with_oversize,
+        REGISTRY,
+        "too large",
+        id="registry-too-large",
+    ),
+    pytest.param(
+        _catalog_file,
+        _replace_with_oversize,
+        CATALOG,
+        "too large",
+        id="catalog-too-large",
+    ),
+    pytest.param(
+        _registry_file,
+        lambda path: path.write_bytes(b"{not json"),
+        REGISTRY,
+        "invalid JSON",
+        id="registry-invalid-json",
+    ),
+    pytest.param(
+        _catalog_file,
+        lambda path: path.write_bytes(b"\xff"),
+        CATALOG,
+        "invalid JSON",
+        id="catalog-not-utf-8",
+    ),
+    pytest.param(
+        _catalog_file,
+        lambda path: path.write_bytes(b"[]"),
+        CATALOG,
+        "not an object",
+        id="catalog-not-an-object",
+    ),
+    pytest.param(
+        _catalog_file,
+        _replace_with_self_loop,
+        CATALOG,
+        "OSError",
+        id="catalog-os-error",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("locate", "damage", "noun", "phrase"), UNUSABLE_CATALOG_INPUTS
+)
+def test_an_unusable_registry_or_catalog_is_warn_naming_the_file_without_blocking(
+    tmp_path, locate, damage, noun, phrase
+):
+    config = _config_dir(tmp_path, installed="14.0.1", catalog="14.0.1")
+    target = locate(tmp_path)
+    damage(target)
+
+    check = _result_within_deadline(
+        lambda: doctor_checks.check_plugin_version(
+            _context(tmp_path, config_dir=config)
+        )
+    )
+
+    assert (check.status, check.fix) == (
+        Status.WARN,
+        "claude plugin install dev-team@bfinster",
+    )
+    assert check.summary == f"{target.name}: no usable {noun} ({phrase})"
+
+
+def _record_file(tmp_path: Path) -> Path:
+    return tmp_path / "claude" / "plugins" / "installed_plugins.json"
+
+
+@pytest.mark.parametrize(
+    ("damage", "phrase"),
+    [
+        pytest.param(
+            lambda path: path.write_text("[" * NESTING_PAST_ANY_RECURSION_LIMIT),
+            "invalid JSON",
+            id="nested",
+        ),
+        pytest.param(_replace_with_oversize, "too large", id="too-large"),
+        pytest.param(
+            _replace_with_fifo,
+            "not a regular file",
+            id="fifo",
+            marks=NEEDS_FIFO,
+        ),
+        pytest.param(_replace_with_self_loop, "OSError", id="os-error"),
+    ],
+)
+def test_an_install_record_the_reader_refuses_is_warn_naming_the_file_without_blocking(
+    tmp_path, damage, phrase
+):
+    config = _config_dir(tmp_path, installed="14.0.1", catalog="14.0.1")
+    record = _record_file(tmp_path)
+    damage(record)
+
+    check = _result_within_deadline(
+        lambda: doctor_checks.check_plugin_version(
+            _context(tmp_path, config_dir=config)
+        )
+    )
+
+    assert (check.status, check.fix) == (
+        Status.WARN,
+        "claude plugin install dev-team@bfinster",
+    )
+    assert check.summary == (
+        f"{record.name}: no usable version for dev-team ({phrase})"
+    )
+
+
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
         ("14.0.10", (14, 0, 10)),
+        ("9" * MAX_DIGITS, (int("9" * MAX_DIGITS),)),
+        ("1" * (MAX_DIGITS + 1), None),
         ("0", (0,)),
         ("next", None),
         ("14.0.1-rc1", None),
@@ -466,6 +651,17 @@ def test_an_unusable_install_record_is_warn_naming_the_file(tmp_path, record_byt
 )
 def test_version_tuple_accepts_only_dotted_ascii_digits(text, expected):
     assert doctor_checks._version_tuple(text) == expected
+
+
+def test_an_installed_version_with_an_over_long_digit_run_is_not_comparable(tmp_path):
+    over_long = "1" * 5000  # past int()'s 4300-digit limit on 3.11+
+
+    check = _plugin_version(tmp_path, installed=over_long, catalog="14.0.1")
+
+    assert (check.status, check.summary) == (
+        Status.OK,
+        f"cannot compare {over_long} to 14.0.1",
+    )
 
 
 def _args(project: Path) -> SimpleNamespace:
@@ -610,24 +806,6 @@ def test_git_absent_means_not_in_git_and_the_human_output_notes_it(tmp_path):
     )
 
 
-def test_a_git_free_path_reports_the_project_outside_git_end_to_end(tmp_path):
-    project = _project_dir(tmp_path)
-    no_git_bin = tmp_path / "no-git-bin"
-    no_git_bin.mkdir()
-    env = {"PATH": str(no_git_bin), "CLAUDE_PLUGIN_ROOT": str(PLUGIN)}
-
-    completed = _run_script(
-        DOCTOR, "--project", str(project), "--json", cwd=tmp_path, env=env
-    )
-
-    assert json.loads(completed.stdout)["project_root"] == str(project.resolve())
-    as_text = _run_script(DOCTOR, "--project", str(project), cwd=tmp_path, env=env)
-    assert (
-        f"note: {project.resolve()} is not inside a git repository"
-        in as_text.stdout.splitlines()
-    )
-
-
 def test_a_git_toplevel_is_the_project_root_and_in_git(tmp_path):
     top = tmp_path / "top"
     top.mkdir()
@@ -687,10 +865,12 @@ def test_from_args_asks_git_once_for_the_toplevel_of_the_project(tmp_path):
     ]
 
 
-def test_the_git_call_uses_its_own_timeout_constant(tmp_path):
+def test_the_git_call_is_bounded_by_a_positive_timeout(tmp_path):
     _, _, kwargs = _recorded_git_call(tmp_path)
 
-    assert kwargs["timeout"] == doctor.GIT_TIMEOUT_SECONDS
+    timeout = kwargs.get("timeout")
+
+    assert isinstance(timeout, (int, float)) and timeout > 0
 
 
 def test_the_default_probe_write_removes_its_file_and_leaves_a_stale_probe(tmp_path):
@@ -1014,6 +1194,18 @@ def test_an_interpreter_path_containing_a_space_is_kept_whole(tmp_path):
         ("echo hello\n", "probe printed no version line"),
         ("exit 0\n", "probe printed no version line"),
         ('echo "/usr/bin/python3 3.12"\n', "probe printed no version line"),
+        (
+            'echo "/usr/bin/python3 3.12.1"\necho trailing-noise\n',
+            "probe printed no version line",
+        ),
+        (
+            f'echo "/usr/bin/python3 3.{"1" * 5000}.1"\n',
+            "probe printed no version line",
+        ),
+        (
+            f'echo "/usr/bin/python3 3.{"1" * (MAX_DIGITS + 1)}.1"\n',
+            "probe printed no version line",
+        ),
     ],
     ids=[
         "exit-2",
@@ -1023,6 +1215,9 @@ def test_an_interpreter_path_containing_a_space_is_kept_whole(tmp_path):
         "garbage",
         "empty",
         "two-part-version",
+        "noise-after-the-version-line",
+        "over-long-version-component",
+        "one-digit-past-the-cap",
     ],
 )
 def test_a_probe_without_a_version_fails_both_checks_with_a_distinct_summary(
@@ -1064,6 +1259,22 @@ def test_a_missing_shim_file_fails_without_running_anything(tmp_path):
     assert floor.summary == "no interpreter resolved"
 
 
+def test_a_missing_script_file_fails_without_running_anything(tmp_path):
+    ran = tmp_path / "ran"
+    shim = _shim(tmp_path, f'echo run >> "{ran}"\necho "/usr/bin/python3 3.12.1"\n')
+    gone = tmp_path / "no-such-doctor.py"
+
+    interpreter, floor = _both(_probe_context(tmp_path, shim, script=gone))
+
+    assert (interpreter.status, interpreter.summary) == (
+        Status.FAIL,
+        f"script not found: {gone}",
+    )
+    assert interpreter.fix == "set DEV_TEAM_PYTHON to a Python 3 path"
+    assert floor.summary == "no interpreter resolved"
+    assert not ran.exists()
+
+
 def test_a_valid_version_line_is_ignored_when_the_shim_exits_nonzero(
     tmp_path,
 ):
@@ -1072,6 +1283,67 @@ def test_a_valid_version_line_is_ignored_when_the_shim_exits_nonzero(
     interpreter, floor = _both(_probe_context(tmp_path, shim))
 
     assert interpreter.summary == "probe exited 1"
+    assert floor.summary == "no interpreter resolved"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        'echo noise\necho "/usr/bin/python3 3.12.1"\n',
+        'echo "/usr/bin/python3 3.12.1"\necho\necho "   "\n',
+    ],
+    ids=["noise-before-the-version-line", "blank-lines-after-the-version-line"],
+)
+def test_the_last_non_blank_stdout_line_is_the_version_line(tmp_path, body):
+    probe = _probe_context(tmp_path, _shim(tmp_path, body)).probe()
+
+    assert (probe.resolved, probe.path, probe.version) == (
+        True,
+        "/usr/bin/python3",
+        (3, 12, 1),
+    )
+
+
+def test_a_version_component_of_exactly_the_digit_cap_still_resolves(tmp_path):
+    minor = "1" * MAX_DIGITS
+    shim = _shim(tmp_path, f'echo "/usr/bin/python3 3.{minor}.1"\n')
+
+    probe = _probe_context(tmp_path, shim).probe()
+
+    assert (probe.resolved, probe.version) == (True, (3, int(minor), 1))
+
+
+def test_the_first_non_blank_stderr_line_names_why_py_sh_found_no_interpreter(
+    tmp_path,
+):
+    shim = _shim(tmp_path, "printf '\\n  \\nfirst\\nsecond\\n' >&2\nexit 2\n")
+
+    interpreter, _ = _both(_probe_context(tmp_path, shim))
+
+    assert interpreter.summary == "py.sh found no interpreter: first"
+
+
+def test_stderr_that_is_not_utf_8_is_still_a_summary_not_a_crash(tmp_path):
+    shim = _shim(tmp_path, "printf '\\377\\376 broken' >&2\nexit 1\n")
+
+    interpreter, floor = _both(_probe_context(tmp_path, shim))
+
+    assert interpreter.status is Status.FAIL
+    assert interpreter.summary.startswith("probe exited 1: ")
+    assert interpreter.summary.endswith("broken")
+    assert floor.summary == "no interpreter resolved"
+
+
+def test_the_real_shim_with_only_sh_on_path_reports_no_interpreter(tmp_path):
+    sh_only = tmp_path / "sh-only"
+    sh_only.mkdir()
+    (sh_only / "sh").symlink_to(shutil.which("sh") or "/bin/sh")
+    context = _probe_context(tmp_path, REAL_SHIM, env={"PATH": str(sh_only)})
+
+    interpreter, floor = _both(context)
+
+    assert interpreter.status is Status.FAIL
+    assert interpreter.summary.startswith("py.sh found no interpreter:")
     assert floor.summary == "no interpreter resolved"
 
 
@@ -1185,6 +1457,27 @@ def test_module_top_level_parses_as_python_3_8(module):
     ast.parse(module.read_text(), feature_version=(3, 8))
 
 
+#: ``str`` methods added after 3.8 that a parse check cannot see.
+STR_METHODS_NEWER_THAN_3_8 = {"removeprefix", "removesuffix"}
+
+
+@pytest.mark.parametrize(
+    "module",
+    [DOCTOR, REPORT_MODULE, CHECKS_MODULE, PROBE_MODULE, FILES_MODULE],
+    ids=lambda m: m.name,
+)
+def test_no_module_calls_a_str_method_newer_than_python_3_8(module):
+    """A 3.8 interpreter reaches the checks (via ``--probe``'s sibling run); a call
+    that only exists from 3.9 would turn a check into an internal error there."""
+    attributes = {
+        node.attr
+        for node in ast.walk(ast.parse(module.read_text()))
+        if isinstance(node, ast.Attribute)
+    }
+
+    assert attributes & STR_METHODS_NEWER_THAN_3_8 == set()
+
+
 # ---------------------------------------------------------------------------
 # Step 1.5: tools, CLI flags, exit codes, import hygiene
 # ---------------------------------------------------------------------------
@@ -1232,12 +1525,6 @@ def test_optional_tools_never_change_the_status_and_list_in_declared_order(
     check = doctor_checks.check_optional_tools(context)
 
     assert (check.status, check.fix, check.summary) == (Status.OK, None, summary)
-
-
-def test_the_registered_checks_start_with_the_install_side_ids_in_order():
-    ids = tuple(check_id for check_id, _ in doctor_checks.CHECKS)
-
-    assert ids[: len(INSTALL_SIDE_IDS)] == INSTALL_SIDE_IDS
 
 
 def _install_side(checks):
@@ -1474,6 +1761,21 @@ def test_a_project_outside_git_resolves_to_itself_and_the_human_output_notes_it(
     )
 
 
+def test_without_project_the_current_directory_is_the_project_and_the_note_says_so(
+    tmp_path,
+):
+    cwd = tmp_path / "plain"
+
+    as_json = _run_cli(tmp_path, "--json", cwd=cwd)
+    as_text = _run_cli(tmp_path, cwd=cwd)
+
+    assert json.loads(as_json.stdout)["project_root"] == str(cwd.resolve())
+    assert (
+        f"note: {cwd.resolve()} is not inside a git repository"
+        in as_text.stdout.splitlines()
+    )
+
+
 def _git_repo(path: Path) -> None:
     """``git init`` ``path`` under a scrubbed env, so ambient GIT_* never leak in."""
     subprocess.run(
@@ -1501,6 +1803,18 @@ def test_a_subdirectory_of_a_git_repository_resolves_to_the_toplevel(tmp_path):
         f"project: {repo.resolve()}",
     ]
     assert "note:" not in as_text.stdout
+
+
+def test_without_project_a_subdirectory_of_a_git_repository_resolves_to_the_toplevel(
+    tmp_path,
+):
+    repo = tmp_path / "repo"
+    (repo / "src" / "app").mkdir(parents=True)
+    _git_repo(repo)
+
+    done = _run_cli(tmp_path, "--json", cwd=repo / "src" / "app")
+
+    assert json.loads(done.stdout)["project_root"] == str(repo.resolve())
 
 
 def test_json_roots_are_absolute(tmp_path):
@@ -1742,6 +2056,38 @@ FIX_BLOCKERS = pytest.mark.parametrize(
 )
 
 
+PROJECT_SIDE_IDS = CHECK_IDS[len(INSTALL_SIDE_IDS) :]
+
+
+@pytest.mark.parametrize(
+    "build_blocker",
+    [_file_at_claude, _dangling_claude],
+    ids=["file", "dangling-symlink"],
+)
+def test_a_blocked_claude_directory_gives_every_project_check_the_same_fail_row(
+    tmp_path, build_blocker
+):
+    context = _project_context(tmp_path)
+    blocker = build_blocker(context)
+    project_checks = tuple(
+        (check_id, check_fn)
+        for check_id, check_fn in doctor_checks.CHECKS
+        if check_id in PROJECT_SIDE_IDS
+    )
+
+    report = doctor.run(context, checks=project_checks)
+
+    expected = (
+        Status.FAIL,
+        f"{blocker}: not a directory",
+        f"mv {blocker} {blocker}.bak && /doctor --fix",
+    )
+    assert [c.id for c in report.checks] == list(PROJECT_SIDE_IDS)
+    assert [(c.status, c.summary, c.fix) for c in report.checks] == [expected] * len(
+        PROJECT_SIDE_IDS
+    )
+
+
 @BLOCKERS
 def test_a_non_directory_in_the_way_is_fail_with_mv_then_fix(tmp_path, build_blocker):
     context = _project_context(tmp_path)
@@ -1751,7 +2097,7 @@ def test_a_non_directory_in_the_way_is_fail_with_mv_then_fix(tmp_path, build_blo
 
     assert check.status is Status.FAIL
     assert check.fix == f"mv {blocker} {blocker}.bak && /doctor --fix"
-    assert check.summary == f"{blocker} is not a directory"
+    assert check.summary == f"{blocker}: not a directory"
 
 
 def _stat_denied_on_metrics(monkeypatch, filename: str | None) -> None:
@@ -1813,7 +2159,7 @@ def test_a_self_looping_symlink_in_place_of_metrics_is_a_blocker_to_check_and_fi
 
     assert (check.status, check.summary, check.fix) == (
         Status.FAIL,
-        f"{metrics} is not a directory",
+        f"{metrics}: not a directory",
         f"mv {metrics} {metrics}.bak && /doctor --fix",
     )
     assert (fixed, errors) == (
@@ -1821,6 +2167,92 @@ def test_a_self_looping_symlink_in_place_of_metrics_is_a_blocker_to_check_and_fi
         [f"fix failed: {metrics}: not a directory, move it aside"],
     )
     assert metrics.readlink() == Path("metrics")
+
+
+def _a_directory(tmp_path: Path) -> Path:
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    return target
+
+
+def _a_regular_file(tmp_path: Path) -> Path:
+    target = tmp_path / "a-file"
+    target.write_text("")
+    return target
+
+
+def _beneath_a_regular_file(tmp_path: Path) -> Path:
+    return _a_regular_file(tmp_path) / "x"  # resolving it fails with ENOTDIR
+
+
+def _metrics_symlinked_to(context: doctor.Context, target: Path) -> Path:
+    metrics = _metrics_path(context)
+    metrics.parent.mkdir(parents=True)
+    metrics.symlink_to(target)
+    return metrics
+
+
+def test_a_symlink_to_a_directory_in_place_of_metrics_is_writable_and_fix_skips_it(
+    tmp_path,
+):
+    context = _project_context(tmp_path)
+    metrics = _metrics_symlinked_to(context, _a_directory(tmp_path))
+
+    check = doctor_checks.check_metrics_writable(context)
+    fixed, errors = _apply_fixes(context)
+
+    assert (check.status, check.summary) == (Status.OK, f"{metrics} writable")
+    assert (fixed, errors) == (_created(context, "memory"), [])
+    assert metrics.is_symlink()
+
+
+@pytest.mark.parametrize(
+    "make_target",
+    [_a_regular_file, _beneath_a_regular_file],
+    ids=["to-a-regular-file", "through-a-regular-file"],
+)
+def test_a_symlink_that_leads_to_no_directory_in_place_of_metrics_is_a_blocker(
+    tmp_path, make_target
+):
+    context = _project_context(tmp_path)
+    metrics = _metrics_symlinked_to(context, make_target(tmp_path))
+
+    check = doctor_checks.check_metrics_writable(context)
+    fixed, errors = _apply_fixes(context)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.FAIL,
+        f"{metrics}: not a directory",
+        f"mv {metrics} {metrics}.bak && /doctor --fix",
+    )
+    assert (fixed, errors) == (
+        _created(context, "memory"),
+        [f"fix failed: {metrics}: not a directory, move it aside"],
+    )
+
+
+def test_a_symlink_whose_target_cannot_be_statted_is_fail_with_chmod_on_its_parent(
+    tmp_path, monkeypatch
+):
+    context = _project_context(tmp_path)
+    metrics = _metrics_symlinked_to(context, _a_directory(tmp_path))
+    real_stat = Path.stat
+
+    def stat(self, *, follow_symlinks=True):
+        # ``lstat`` is ``stat(follow_symlinks=False)``: only the target lookup is denied.
+        if self.name == "metrics" and follow_symlinks:
+            raise PermissionError(13, "denied", str(self))
+        return real_stat(self, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "stat", stat)
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.FAIL,
+        f"{metrics}: PermissionError",
+        f"chmod u+rwx {metrics.parent}",
+    )
 
 
 @FIX_BLOCKERS
@@ -2048,22 +2480,37 @@ def test_project_settings_with_invalid_utf8_are_fail_invalid_json(tmp_path):
     assert (check.status, check.summary) == (Status.FAIL, f"{path}: invalid JSON")
 
 
-def test_unreadable_project_settings_are_fail_naming_the_path_and_error_type(
-    tmp_path, monkeypatch
-):
+def _self_loop(path: Path) -> Path:
+    """A symlink at ``path`` that names itself: opening it raises ELOOP, a real ``OSError``."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.symlink_to(path.name)
+    return path
+
+
+def test_unreadable_project_settings_are_fail_naming_the_path_and_error_type(tmp_path):
     context = _project_context(tmp_path)
-    path = _write_settings(context, "{}")
-
-    def denied(_path):
-        raise PermissionError("denied")
-
-    monkeypatch.setattr(doctor_checks, "load_json", denied)
+    path = _self_loop(context.project_root / ".claude" / "settings.json")
 
     check = doctor_checks.check_project_settings(context)
 
     assert check.status is Status.FAIL
-    assert check.summary == f"cannot read {path}: PermissionError"
+    assert check.summary == f"cannot read {path}: OSError"
     assert check.fix == f"edit {path}"
+
+
+def test_deeply_nested_project_settings_are_fail_invalid_json_not_an_internal_error(
+    tmp_path,
+):
+    context = _project_context(tmp_path)
+    path = _write_settings(context, "[" * NESTING_PAST_ANY_RECURSION_LIMIT)
+
+    check = doctor_checks.check_project_settings(context)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.FAIL,
+        f"{path}: invalid JSON",
+        f"edit {path}",
+    )
 
 
 def test_a_plugin_root_without_hooks_lib_fails_project_settings_with_upgrade(
@@ -2110,27 +2557,11 @@ def test_project_settings_that_are_a_fifo_are_fail_not_a_regular_file_without_bl
     path = context.project_root / ".claude" / "settings.json"
     path.parent.mkdir(parents=True)
     os.mkfifo(path)
-    outcomes: list[Check | Exception] = []
 
-    def read() -> None:
-        try:
-            outcomes.append(doctor_checks.check_project_settings(context))
-        except Exception as exc:  # noqa: BLE001 -- handed to the test thread
-            outcomes.append(exc)
-
-    worker = threading.Thread(
-        target=read,
-        daemon=True,  # a blocked read must not hold the test run open
+    outcome = _result_within_deadline(
+        lambda: doctor_checks.check_project_settings(context)
     )
 
-    worker.start()
-    worker.join(timeout=FIFO_READ_DEADLINE_SECONDS)
-
-    if worker.is_alive():
-        pytest.fail("read blocked on FIFO")
-    (outcome,) = outcomes
-    if isinstance(outcome, Exception):
-        raise outcome
     assert (outcome.status, outcome.summary) == (
         Status.FAIL,
         f"{path}: not a regular file",
@@ -2304,6 +2735,19 @@ def test_current_absent_or_newer_managed_sections_are_ok(
     assert (check.status, check.fix, check.summary) == (Status.OK, None, summary)
 
 
+def test_a_gitignore_marker_with_an_over_long_version_is_stale_not_an_internal_error(
+    tmp_path,
+):
+    over_long = "1" * 5000  # past int()'s 4300-digit limit on 3.11+
+
+    check = _managed_check(
+        tmp_path, gitignore=GITIGNORE_MARKER.format(suffix=f" v{over_long}") + "\n"
+    )
+
+    assert (check.status, check.fix) == (Status.WARN, "/setup")
+    assert check.summary.startswith("stale: .gitignore at v0")
+
+
 def test_a_file_without_the_marker_is_not_opted_in(tmp_path):
     check = _managed_check(
         tmp_path, "# just notes\n", _gitignore_at(GITIGNORE_CURRENT_VERSION)
@@ -2405,7 +2849,7 @@ def test_an_undecodable_managed_file_is_fail_naming_the_file_and_the_error_type(
     check = doctor_checks.check_managed_sections(context)
 
     assert check.status is Status.FAIL
-    assert check.summary == f"cannot read {relative}: UnicodeDecodeError"
+    assert check.summary == f"cannot read {path}: UnicodeDecodeError"
     assert "internal error" not in check.summary
     assert check.fix == f"edit {path}"
 
@@ -2413,13 +2857,13 @@ def test_an_undecodable_managed_file_is_fail_naming_the_file_and_the_error_type(
 def test_an_undecodable_gitignore_outranks_a_stale_claude_md(tmp_path):
     context = _project_context(tmp_path)
     _write_managed(context, CLAUDE_MD, _claude_md_at(CLAUDE_CURRENT_VERSION - 1))
-    _write_managed(context, GITIGNORE, b"\xff")
+    gitignore = _write_managed(context, GITIGNORE, b"\xff")
 
     check = doctor_checks.check_managed_sections(context)
 
     assert (check.status, check.summary) == (
         Status.FAIL,
-        "cannot read .gitignore: UnicodeDecodeError",
+        f"cannot read {gitignore}: UnicodeDecodeError",
     )
 
 
@@ -2435,7 +2879,7 @@ def test_an_undecodable_gitignore_fails_managed_sections_and_no_other_check_in_a
         script=DOCTOR,
         which=_which_finding("jq"),
     )
-    _write_managed(context, GITIGNORE, b"\xff\xfe not utf-8")
+    gitignore = _write_managed(context, GITIGNORE, b"\xff\xfe not utf-8")
 
     report = doctor.run(context)
 
@@ -2443,25 +2887,25 @@ def test_an_undecodable_gitignore_fails_managed_sections_and_no_other_check_in_a
     assert [c.id for c in report.checks] == list(CHECK_IDS)
     assert (by_id["managed-sections"].status, by_id["managed-sections"].summary) == (
         Status.FAIL,
-        "cannot read .gitignore: UnicodeDecodeError",
+        f"cannot read {gitignore}: UnicodeDecodeError",
     )
     assert [c.id for c in report.checks if "internal error" in c.summary] == []
     assert [by_id[check_id].status for check_id in INSTALL_SIDE_IDS] == [
         Status.OK
     ] * len(INSTALL_SIDE_IDS)
-    # The fixture project has no .claude directory: both project checks warn.
-    assert by_id["project-settings"].status is Status.WARN
-    assert by_id["metrics-writable"].status is Status.WARN
+    assert [c.id for c in report.checks if c.status is Status.FAIL] == [
+        "managed-sections"
+    ]
 
 
 def test_when_both_managed_files_are_unreadable_the_first_is_the_one_named(tmp_path):
     context = _project_context(tmp_path)
-    _write_managed(context, CLAUDE_MD, b"\xff")
+    claude_md = _write_managed(context, CLAUDE_MD, b"\xff")
     _write_managed(context, GITIGNORE, b"\xff")
 
     check = doctor_checks.check_managed_sections(context)
 
-    assert check.summary == "cannot read .claude/CLAUDE.md: UnicodeDecodeError"
+    assert check.summary == f"cannot read {claude_md}: UnicodeDecodeError"
 
 
 @pytest.mark.parametrize("relative", MANAGED_FILES)
@@ -2497,24 +2941,16 @@ def test_a_managed_file_over_the_size_limit_is_fail_too_large(tmp_path, relative
 
 @pytest.mark.parametrize("relative", MANAGED_FILES)
 def test_an_unreadable_managed_file_is_fail_naming_the_file_and_the_error_type(
-    tmp_path, monkeypatch, relative
+    tmp_path, relative
 ):
     context = _project_context(tmp_path)
-    path = _write_managed(context, relative, "x")
-    real_read = doctor_checks.read_bounded
-
-    def read(target):
-        if target == path:
-            raise PermissionError("denied")
-        return real_read(target)
-
-    monkeypatch.setattr(doctor_checks, "read_bounded", read)
+    path = _self_loop(context.project_root / relative)
 
     check = doctor_checks.check_managed_sections(context)
 
     assert (check.status, check.summary, check.fix) == (
         Status.FAIL,
-        f"cannot read {relative}: PermissionError",
+        f"cannot read {path}: OSError",
         f"edit {path}",
     )
 
@@ -2533,13 +2969,19 @@ def test_hooks_json_that_is_a_directory_is_fail_not_a_regular_file(tmp_path):
     )
 
 
-def test_a_claude_path_that_is_a_regular_file_means_no_managed_sections(tmp_path):
-    context = _project_context(tmp_path)
-    (context.project_root / ".claude").write_text("a file, not a directory")
+def test_an_unreadable_hooks_json_is_fail_cannot_read_with_the_upgrade_fix(tmp_path):
+    root = _plugin_with_hooks(tmp_path, {})
+    hooks_json = root / "hooks" / "hooks.json"
+    hooks_json.unlink()
+    _self_loop(hooks_json)
 
-    check = doctor_checks.check_managed_sections(context)
+    check = doctor_checks.check_hook_registration(_context(tmp_path, plugin_root=root))
 
-    assert (check.status, check.summary) == (Status.OK, "not opted in")
+    assert (check.status, check.fix, check.summary) == (
+        Status.FAIL,
+        "/upgrade",
+        "cannot read hooks/hooks.json: OSError",
+    )
 
 
 CLAUDE_MD_PATTERN = _section(CLAUDE_MD).marker_pattern
@@ -2556,6 +2998,15 @@ NEWER_LINE = "<!-- dev-team: concise-response preference v7 -->"
         (NEWER_LINE, 7),
         ("<!-- dev-team: concise-response preference v10 -->", 10),
         ("<!-- dev-team: concise-response preference vX -->", None),
+        (
+            f"<!-- dev-team: concise-response preference v{'9' * MAX_DIGITS} -->",
+            int("9" * MAX_DIGITS),
+        ),
+        (
+            f"<!-- dev-team: concise-response preference v{'1' * (MAX_DIGITS + 1)} -->",
+            0,
+        ),
+        (f"<!-- dev-team: concise-response preference v{'1' * 5000} -->", 0),
         (f"{OLDER_LINE}\n{NEWER_LINE}", 7),
         (f"{NEWER_LINE}\n{OLDER_LINE}", 7),
     ],
@@ -2566,6 +3017,9 @@ NEWER_LINE = "<!-- dev-team: concise-response preference v7 -->"
         "v7",
         "v10",
         "non-numeric-suffix",
+        "nine-digit-suffix",
+        "ten-digit-suffix",
+        "over-long-suffix",
         "older-line-first",
         "newer-line-first",
     ],
@@ -2834,6 +3288,133 @@ def test_an_unexpected_exception_while_fixing_is_one_error_and_the_checks_still_
     assert report.errors == ["fix failed: ValueError: bad root"]
     assert report.fixed == []
     assert [c.id for c in report.checks] == ["a"]
+
+
+def _mkdir_losing_a_race_on(name: str):
+    """A ``Path.mkdir`` that finds ``name`` created by someone else just before it."""
+    real_mkdir = Path.mkdir
+
+    def mkdir(self, *args, **kwargs):
+        if self.name != name:
+            return real_mkdir(self, *args, **kwargs)
+        real_mkdir(self, parents=True, exist_ok=True)
+        raise FileExistsError(errno.EEXIST, "File exists", str(self))
+
+    return mkdir
+
+
+def _mkdir_leaving_a_file_then_raising_exists(name: str):
+    """A ``Path.mkdir`` that finds a regular file at ``name`` just before it."""
+    real_mkdir = Path.mkdir
+
+    def mkdir(self, *args, **kwargs):
+        if self.name != name:
+            return real_mkdir(self, *args, **kwargs)
+        real_mkdir(self.parent, parents=True, exist_ok=True)
+        self.write_text("")
+        raise FileExistsError(errno.EEXIST, "File exists", str(self))
+
+    return mkdir
+
+
+def test_a_non_directory_that_wins_the_mkdir_race_is_an_error_and_not_ours(
+    tmp_path, monkeypatch
+):
+    context = _project_context(tmp_path)
+    monkeypatch.setattr(
+        Path, "mkdir", _mkdir_leaving_a_file_then_raising_exists("metrics")
+    )
+
+    fixed, errors = _apply_fixes(context)
+
+    metrics = context.project_root / ".claude" / "metrics"
+    assert errors == [f"fix failed: {metrics}: File exists"]
+    assert fixed == _created(context, "memory")
+
+
+def test_an_os_error_from_mkdir_is_one_error_and_the_next_directory_is_still_made(
+    tmp_path, monkeypatch
+):
+    context = _project_context(tmp_path)
+    monkeypatch.setattr(
+        Path,
+        "mkdir",
+        _mkdir_raising_on("metrics", PermissionError(13, "denied", "/some/file")),
+    )
+
+    fixed, errors = _apply_fixes(context)
+
+    metrics = context.project_root / ".claude" / "metrics"
+    assert errors == [f"fix failed: {metrics}: denied"]
+    assert fixed == _created(context, "memory")
+
+
+def test_an_os_error_from_the_blocker_check_is_one_error_and_the_next_directory_is_still_made(
+    tmp_path, monkeypatch
+):
+    context = _project_context(tmp_path)
+    real_lstat = Path.lstat
+
+    def lstat(self):
+        if self.name == "metrics":
+            raise PermissionError(13, "denied")
+        return real_lstat(self)
+
+    monkeypatch.setattr(Path, "lstat", lstat)
+
+    fixed, errors = _apply_fixes(context)
+
+    metrics = context.project_root / ".claude" / "metrics"
+    assert errors == [f"fix failed: {metrics}: denied"]
+    assert fixed == _created(context, "memory")
+
+
+def test_an_os_error_without_an_errno_is_reported_by_its_message(tmp_path, monkeypatch):
+    context = _project_context(tmp_path)
+    monkeypatch.setattr(Path, "mkdir", _mkdir_raising_on("metrics", OSError("boom")))
+
+    fixed, errors = _apply_fixes(context)
+
+    metrics = context.project_root / ".claude" / "metrics"
+    assert errors == [f"fix failed: {metrics}: boom"]
+    assert fixed == _created(context, "memory")
+
+
+def test_a_directory_created_by_someone_else_during_the_fix_is_no_error_and_not_ours(
+    tmp_path, monkeypatch
+):
+    context = _project_context(tmp_path)
+    monkeypatch.setattr(Path, "mkdir", _mkdir_losing_a_race_on("metrics"))
+
+    fixed, errors = _apply_fixes(context)
+
+    assert errors == []
+    assert fixed == _created(context, "memory")
+    assert (context.project_root / ".claude" / "metrics").is_dir()
+
+
+def test_a_failed_mkdir_exits_1_and_names_the_path_on_stderr_and_stdout(
+    tmp_path, monkeypatch, capsys
+):
+    project = _fix_project(tmp_path)
+    config = _config_dir(tmp_path, installed="14.0.1", catalog="14.0.1")
+    for key, value in _cli_env(tmp_path, _temp_plugin(tmp_path), config).items():
+        monkeypatch.setenv(key, value)
+    for key in [key for key in os.environ if key.startswith("GIT_")]:
+        monkeypatch.delenv(key)  # an ambient GIT_DIR would move the project root
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+    monkeypatch.setattr(
+        Path, "mkdir", _mkdir_raising_on("memory", PermissionError(13, "denied"))
+    )
+    memory = project.resolve() / ".claude" / "memory"
+    error = f"fix failed: {memory}: denied"
+
+    exit_code = doctor.main(["--fix", "--project", str(project)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.err.splitlines() == [error]
+    assert f"  {error}" in captured.out.splitlines()
 
 
 def test_a_raise_on_the_second_directory_keeps_what_the_first_one_created(

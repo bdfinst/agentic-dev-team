@@ -75,7 +75,9 @@ See the "deterministic tools over inference" rule in the repo CLAUDE.md.
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -90,6 +92,17 @@ from _ci_local_invocation import (
     without_comments,
 )
 from _repo_root import REPO_ROOT
+
+DOCTOR_SCRIPTS = REPO_ROOT / "plugins" / "dev-team" / "scripts"
+
+
+def _doctor_checks(monkeypatch):
+    """The shipped ``/doctor`` checks module: it restates the floor for its own check."""
+    monkeypatch.syspath_prepend(str(DOCTOR_SCRIPTS))
+    import doctor
+
+    return doctor._checks()
+
 
 #: The bash function name every parser call below is scoped to.
 FLOOR_FN = "chk_python_floor"
@@ -445,6 +458,15 @@ class TestTheFloorIsDeclaredOnce:
         assert re.search(r"Python\s+" + re.escape(FLOOR_DOTTED), ADR.read_text(encoding="utf-8"))
 
 
+    def test_the_doctor_python_floor_check_states_the_same_floor(self, monkeypatch):
+        """``/doctor``'s ``python-floor`` check holds the floor as a tuple and in
+        its fix text; both are built from ``FLOOR_DOTTED`` here, not restated."""
+        doctor_checks = _doctor_checks(monkeypatch)
+
+        assert ".".join(map(str, doctor_checks.PYTHON_FLOOR)) == FLOOR_DOTTED
+        assert FLOOR_DOTTED in doctor_checks.FLOOR_FIX
+
+
 def _floor_check_body(ci_local: str) -> str:
     """The text of `chk_python_floor`'s function body. Thin wrapper over the
     shared `check_body()` in `_ci_local_invocation`."""
@@ -572,6 +594,100 @@ class TestTheFloorIsProvenByRunningIt:
             "check first that it does not reduce what actually executes "
             "(--collect-only, --ignore, --deselect, -k, -m all do, silently)."
         )
+
+    def test_the_floor_check_runs_doctor_probe_below_the_floor_before_the_slice(
+        self, ci_local
+    ):
+        """``doctor.py --probe`` must answer on an interpreter older than the floor
+        (the python-floor check names the floor instead of a traceback). Parse
+        tests cannot show it runs there, so the gate runs it; this pins that the
+        gate keeps doing so, on exactly the two versions below the floor."""
+        code = without_comments(_floor_check_body(ci_local))
+        call = "_check_doctor_probe_below_floor || return 1"
+
+        assert call in code, f"chk_python_floor no longer runs `{call}`"
+        assert code.index(call) < code.index("-m pytest"), (
+            "the below-floor probe must run before the pytest invocation, which "
+            "has to stay the function's last command"
+        )
+        assigned = re.findall(
+            r'(?m)^PROBE_BELOW_FLOOR_PYTHONS="([^"]*)"$', without_comments(ci_local)
+        )
+        assert assigned == ["3.8 3.9"]
+
+    @staticmethod
+    def _run_probe_gate(
+        ci_local: str,
+        env_overrides: dict[str, str],
+        resolver_body: str = "return 1",
+        versions: str | None = None,
+        cwd: Path | None = None,
+    ):
+        """Run ``_check_doctor_probe_below_floor`` with ``_resolve_below_floor_python``
+        replaced by ``resolver_body`` (default: no interpreter resolvable)."""
+        start = ci_local.index("PROBE_BELOW_FLOOR_PYTHONS=")
+        end = ci_local.index(f"\n{FLOOR_FN}() {{")
+        env = {
+            k: v for k, v in os.environ.items() if k not in ("CI", "GITHUB_ACTIONS")
+        }
+        env.update(env_overrides)
+        override = f'\nPROBE_BELOW_FLOOR_PYTHONS="{versions}"' if versions else ""
+        script = (
+            ci_local[start:end]
+            + override
+            + f"\n_resolve_below_floor_python() {{ {resolver_body}; }}"
+            + "\n_check_doctor_probe_below_floor\n"
+        )
+        return subprocess.run(
+            ["bash", "-c", script],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=cwd,
+            check=False,
+        )
+
+    def test_an_unresolvable_below_floor_interpreter_notes_and_continues_locally(
+        self, ci_local
+    ):
+        done = self._run_probe_gate(ci_local, {})
+
+        assert done.returncode == 0
+        assert "note: no Python 3.8 available" in done.stderr
+
+    @pytest.mark.parametrize(
+        ("fake_output", "expected_returncode"),
+        [
+            ('echo "/x 3.8.1"; exit 3', 1),
+            ('echo "/x 3.8.1"; echo "/x 3.8.1"', 1),
+            ('echo "/x 3.12.1"', 1),
+            ('echo "/x 3.8.1"', 0),
+        ],
+        ids=["exits-non-zero", "two-lines", "wrong-minor", "one-matching-line"],
+    )
+    def test_the_below_floor_probe_gate_judges_what_the_interpreter_prints(
+        self, ci_local, tmp_path, fake_output, expected_returncode
+    ):
+        """A resolved interpreter must exit 0 and print exactly one
+        ``<path> <requested>.<micro>`` line; anything else fails the gate."""
+        fake = tmp_path / "fake-python"
+        fake.write_text(f"#!/bin/sh\n{fake_output}\n")
+        fake.chmod(0o755)
+
+        done = self._run_probe_gate(
+            ci_local, {}, resolver_body=f'echo "{fake}"', versions="3.8", cwd=tmp_path
+        )
+
+        assert done.returncode == expected_returncode, done.stderr
+
+    @pytest.mark.parametrize("variable", ["CI", "GITHUB_ACTIONS"])
+    def test_an_unresolvable_below_floor_interpreter_fails_in_ci(
+        self, ci_local, variable
+    ):
+        done = self._run_probe_gate(ci_local, {variable: "true"})
+
+        assert done.returncode == 1
+        assert "does not skip there" in done.stderr
 
     def test_the_check_does_not_suppress_its_own_verdict(self, ci_local):
         """The pytest invocation's exit status IS this gate's verdict, and this
