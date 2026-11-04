@@ -177,6 +177,7 @@ WHAT_TRUNK_MOVED = "trunk moved"
 WHAT_TRUNK_CANNOT_FAST_FORWARD = "trunk cannot fast-forward"
 WHAT_REVIEW_GATE = "review gate stale or missing"
 WHAT_PR_REPOSITORY = "PR repository"
+WHAT_INVALID_IDENTITY_ARGUMENT = "invalid identity argument"
 
 #: Unicode categories `display_text` escapes: control (C0, DEL, C1), line
 #: separator (U+2028) and paragraph separator (U+2029).
@@ -589,6 +590,21 @@ def trunk_worktree_dirty_refusal(
             "(git commit) or abort (git merge --abort) an unfinished merge, "
             "then run integrate again"
         ),
+    )
+
+
+@_registered(WHAT_INVALID_IDENTITY_ARGUMENT)
+def invalid_identity_argument_refusal(problems: Sequence[tuple[str, str]]) -> Refusal:
+    """`problems` are the `(flag, value)` pairs that are not 40 lowercase hex.
+
+    One refusal for all of them: nothing can be compared until every identity
+    is well formed. A value is shown quoted and escaped by the renderer.
+    """
+    named = "; ".join(f"{flag} {value!r}" for flag, value in problems)
+    return Refusal(
+        what=WHAT_INVALID_IDENTITY_ARGUMENT,
+        why=f"an identity must be 40 lowercase hex characters, got {named}",
+        how="pass the 40-hex lowercase values compose printed, unabbreviated",
     )
 
 

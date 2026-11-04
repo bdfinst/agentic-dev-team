@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """lane.py -- identity-checked lanes: open, compose, integrate.
 
-`open` and `compose` are registered so far. Usage errors exit 2, refusals exit 1
-(blocks on stderr), success 0.
+`open`, `compose` and `integrate` are the commands. Usage errors exit 2,
+refusals exit 1 (blocks on stderr), success 0.
 
 Import whitelist (pinned by an AST test): the standard library, `lane_core`,
 `git_origin_host` and, from the plugin's `hooks/lib`, `artifact_paths`,
@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import re
 import shlex
 import sys
 from collections.abc import Callable, Sequence
@@ -62,6 +63,22 @@ TRUNK_HELP = "trunk ref (default: origin's default branch, else main or master)"
 
 OPEN_COMMAND = "open"
 COMPOSE_COMMAND = "compose"
+INTEGRATE_COMMAND = "integrate"
+
+#: What `compose` prints for `expected-trunk` and `expected-tree`: a full SHA-1.
+IDENTITY_PATTERN = re.compile(r"[0-9a-f]{40}")
+EXPECTED_TRUNK_FLAG = "--expected-trunk"
+EXPECTED_TREE_FLAG = "--expected-tree"
+
+#: Last line of a successful `integrate`: nothing was published.
+PUSHED_NOTHING = "pushed: nothing; run git push yourself if wanted"
+
+#: The PR hook's gate file, which `integrate` removes with the lane. A test
+#: pins it to the hook's own `_GATE_FILE_NAME`.
+GATE_FILE_NAME = ".pr-review-passed"
+
+#: Fast-forward only, and never over an ignored file in the trunk worktree.
+FAST_FORWARD_ARGS = ("merge", "--ff-only", "--no-overwrite-ignore")
 
 
 @dataclass(frozen=True)
@@ -744,6 +761,148 @@ def emit_integrate_refusals(refusals: Sequence[lane_core.Refusal]) -> int:
     return code
 
 
+# --- integrate: apply ---------------------------------------------------------
+
+
+def _configure_integrate(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        EXPECTED_TRUNK_FLAG, required=True, help="expected-trunk as compose printed it"
+    )
+    parser.add_argument(
+        EXPECTED_TREE_FLAG, required=True, help="expected-tree as compose printed it"
+    )
+    _add_trunk_argument(parser)
+    parser.add_argument(
+        "--local-trunk",
+        action="store_true",
+        help="integrate locally even when origin is on GitHub (a PR repository)",
+    )
+
+
+def _invalid_identities(args: argparse.Namespace) -> list[tuple[str, str]]:
+    """The `(flag, value)` pairs that are not 40 lowercase hex."""
+    given = (
+        (EXPECTED_TRUNK_FLAG, args.expected_trunk),
+        (EXPECTED_TREE_FLAG, args.expected_tree),
+    )
+    return [
+        (flag, value)
+        for flag, value in given
+        if IDENTITY_PATTERN.fullmatch(value) is None
+    ]
+
+
+@dataclass(frozen=True)
+class IntegratePlan:
+    """What the apply steps act on, all read before the first one runs."""
+
+    lane_path: Path
+    lane_branch: str
+    trunk_branch: str
+    trunk_worktree: Path
+    former_head: str
+    gate_file: Path
+
+
+def _plan_integrate(entered: EnteredLane) -> IntegratePlan:
+    """Read everything the apply steps need, while the lane still exists.
+
+    The checks passed, so the trunk branch and its worktree exist; a refusal
+    here means that changed since they ran.
+    """
+    context = entered.context
+    lane_path = context.lane_path
+    trunk_branch = context.trunk_branch
+    if trunk_branch is None:
+        raise lane_core.RefusalError(
+            lane_core.trunk_branch_missing_refusal(context.trunk_ref, None)
+        )
+    trunk_worktree = lane_core.branch_worktree(trunk_branch, lane_path)
+    if trunk_worktree is None:
+        raise lane_core.RefusalError(
+            lane_core.trunk_checked_out_nowhere_refusal(trunk_branch)
+        )
+    with lane_core.filtered_process_environment():
+        gate_file = artifact_paths.resolve_file(
+            "memory", GATE_FILE_NAME, lane_path, migrate=False
+        )
+    return IntegratePlan(
+        lane_path=lane_path,
+        lane_branch=context.branch,
+        trunk_branch=trunk_branch,
+        trunk_worktree=trunk_worktree,
+        former_head=lane_core.head_commit(lane_path),
+        gate_file=gate_file,
+    )
+
+
+# The apply steps. Each is one named unit, run in this order by `_apply`, and
+# each git call takes `plan.trunk_worktree` as its cwd: the process may be
+# running inside the lane that the third step removes, and the process cwd is
+# never changed.
+
+
+def _fast_forward(plan: IntegratePlan) -> str:
+    """Move the trunk branch to the lane's HEAD; return the branch's new tip."""
+    lane_core.git_text([*FAST_FORWARD_ARGS, plan.former_head], plan.trunk_worktree)
+    return lane_core.head_commit(plan.trunk_worktree)
+
+
+def _remove_gate_file(plan: IntegratePlan) -> None:
+    plan.gate_file.unlink(missing_ok=True)
+
+
+def _remove_worktree(plan: IntegratePlan) -> None:
+    """Without `--force`: git refuses a worktree that is not clean."""
+    lane_core.git_text(["worktree", "remove", str(plan.lane_path)], plan.trunk_worktree)
+
+
+def _delete_branch(plan: IntegratePlan) -> None:
+    """`-d`, not `-D`: git deletes only a branch the trunk now contains."""
+    lane_core.git_text(["branch", "-d", plan.lane_branch], plan.trunk_worktree)
+
+
+def _apply(plan: IntegratePlan) -> str:
+    """Run the apply steps in order; return the trunk branch's new tip."""
+    now_at = _fast_forward(plan)
+    _remove_gate_file(plan)
+    _remove_worktree(plan)
+    _delete_branch(plan)
+    return now_at
+
+
+def _print_integrated(plan: IntegratePlan, now_at: str) -> None:
+    recover = shlex.join(["git", "branch", plan.lane_branch, plan.former_head])
+    print(f"trunk: {plan.trunk_branch}")
+    print(f"former-head: {plan.former_head}")
+    print(f"now-at: {now_at}")
+    print(f"continue-in: {plan.trunk_worktree}")
+    print(f"recover: {recover}")
+    print(PUSHED_NOTHING)
+
+
+def cmd_integrate(args: argparse.Namespace, cwd: Path) -> int:
+    """Fast-forward the local trunk branch to the lane, then remove the lane.
+
+    Every check runs first and changes nothing; the apply steps run only when
+    none refuses.
+    """
+    invalid = _invalid_identities(args)
+    if invalid:
+        raise lane_core.RefusalError(
+            lane_core.invalid_identity_argument_refusal(invalid)
+        )
+    refusals = collect_refusals(
+        args.trunk, args.expected_trunk, args.expected_tree, cwd, args.local_trunk
+    )
+    if refusals:
+        return emit_integrate_refusals(refusals)
+    plan = _plan_integrate(_enter_lane(args.trunk, cwd))
+    now_at = _apply(plan)
+    _print_integrated(plan, now_at)
+    return lane_core.EXIT_OK
+
+
 #: Every registered command, keyed by its own `name`.
 COMMANDS: dict[str, Command] = {
     command.name: command
@@ -759,6 +918,12 @@ COMMANDS: dict[str, Command] = {
             help="merge trunk into the lane and print the identities to review",
             configure=_configure_compose,
             handler=cmd_compose,
+        ),
+        Command(
+            name=INTEGRATE_COMMAND,
+            help="fast-forward the local trunk to the lane when every identity holds",
+            configure=_configure_integrate,
+            handler=cmd_integrate,
         ),
     )
 }

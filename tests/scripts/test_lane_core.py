@@ -121,6 +121,7 @@ SAMPLE_ARGUMENTS = {
     "trunk cannot fast-forward": ("v1", None),
     "review gate stale or missing": ("origin/main", "the gate file is missing"),
     "PR repository": (),
+    "invalid identity argument": ([("--expected-tree", "abc")],),
 }
 
 #: Every argv the guard rejects: id -> (args, text the reason must contain).
