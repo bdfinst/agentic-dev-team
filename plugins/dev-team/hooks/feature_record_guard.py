@@ -141,6 +141,63 @@ def _read_text(path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Decision
+# ---------------------------------------------------------------------------
+
+
+def _load_record():
+    """Import `scripts/feature_record.py`, only after a path match.
+
+    `hooks/` reaches into `scripts/` here the way `review_verdict_recorder.py`
+    reaches into `scripts/lib/`: both ship inside this plugin, and neither
+    `feature_record` nor its helpers import anything from `hooks/` (no cycle).
+    The paths are appended so a `hooks/lib` module is never shadowed.
+    """
+    scripts = os.path.join(os.path.dirname(_HOOK_DIR), "scripts")
+    for path in (scripts, os.path.join(scripts, "lib")):
+        if path not in sys.path:
+            sys.path.append(path)
+    import feature_record
+
+    return feature_record
+
+
+def decide(payload: dict, read_text) -> list[dict]:
+    """Return the violations the write would introduce; empty means allow.
+
+    Pure apart from `read_text`. A plan is checked without its spec
+    (`spec_text=None`); a spec is checked on its own, only when the spec file
+    itself is written. Only violations absent before the write count.
+    """
+    target = target_path(payload)
+    kind = matches(target[1]) if target else None
+    if kind is None:
+        return []
+    texts = proposed_text(payload, read_text)
+    if texts is None:
+        return []
+    record = _load_record()
+    if kind == PLAN:
+
+        def check(text: str) -> list[dict]:
+            return record.plan_violations(text, spec_text=None)
+
+    else:
+        check = record.spec_violations
+    before, after = texts
+    # An empty before-state (a new file) has nothing to compare with, so every
+    # violation of the proposed text is introduced. Checking "" would not do:
+    # `spec_violations("")` already reports all three missing sections.
+    known = check(before) if before else []
+    return record.introduced(known, check(after))
+
+
+def _skip(reason: str) -> int:
+    sys.stderr.write(f"feature record check skipped: {reason}\n")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -153,10 +210,20 @@ def main() -> int:
     if target is None or matches(target[1]) is None:
         return 0
     if os.environ.get(ESCAPE_ENV, "").strip().lower() == "off":
-        sys.stderr.write(f"feature record check skipped: {ESCAPE_ENV}=off\n")
+        return _skip(f"{ESCAPE_ENV}=off")
+    try:
+        found = decide(payload, _read_text)
+    except Exception as exc:  # noqa: BLE001 - fail open by design
+        detail = (str(exc).splitlines() or [""])[0]
+        return _skip(f"{type(exc).__name__}: {detail}".rstrip(": "))
+    if not found:
         return 0
-    proposed_text(payload, _read_text)
-    return 0
+    sys.stderr.write(
+        f"[BLOCK] feature record: {target[1]} - {len(found)} violation(s) introduced\n"
+    )
+    for violation in found:
+        sys.stderr.write(violation["what"] + "\n")
+    return 2
 
 
 if __name__ == "__main__":  # pragma: no cover
