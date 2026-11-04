@@ -81,6 +81,7 @@ NO_GIT_MESSAGE = "git gave no message"
 RESTORED_CLAUSE = "the lane was restored to its state before compose"
 
 GIT_DIR_NAME = ".git"
+ORIGIN_REMOTE = "origin"
 HEAD_REFS_PREFIX = "refs/heads/"
 REMOTE_REFS_PREFIX = "refs/remotes/"
 WORKTREE_LINE_PREFIX = "worktree "
@@ -175,6 +176,7 @@ WHAT_TREE_MISMATCH = "tree mismatch"
 WHAT_TRUNK_MOVED = "trunk moved"
 WHAT_TRUNK_CANNOT_FAST_FORWARD = "trunk cannot fast-forward"
 WHAT_REVIEW_GATE = "review gate stale or missing"
+WHAT_PR_REPOSITORY = "PR repository"
 
 #: Unicode categories `display_text` escapes: control (C0, DEL, C1), line
 #: separator (U+2028) and paragraph separator (U+2029).
@@ -485,6 +487,28 @@ def review_gate_refusal(trunk_ref: str, why: str) -> Refusal:
             f"run /code-review --since {trunk_ref} inside the lane, "
             "then run integrate again"
         ),
+    )
+
+
+#: Closes the output when a PR-repository refusal comes with others, so the
+#: reader who fixes the rest still learns that integrating locally is the
+#: exception here.
+PR_REPOSITORY_NOTE = (
+    "this is a PR repository: /pr is the default way to land this work; "
+    "integrate locally only with --local-trunk"
+)
+
+
+@_registered(WHAT_PR_REPOSITORY)
+def pr_repository_refusal() -> Refusal:
+    """The `origin` remote is on GitHub. Its URL is not quoted: it may carry a token."""
+    return Refusal(
+        what=WHAT_PR_REPOSITORY,
+        why=(
+            "the origin remote is on GitHub, so this work lands through a pull "
+            "request, not a local fast-forward"
+        ),
+        how="open the PR with /pr, or pass --local-trunk to integrate locally",
     )
 
 
@@ -803,9 +827,15 @@ def git_attempt(args: Sequence[str], cwd: Path) -> GitAttempt:
 
 
 def origin_url(cwd: Path) -> str:
-    """The `origin` remote's URL, or "" when there is no `origin`."""
-    attempt = git_attempt(["remote", "get-url", "origin"], cwd)
-    return attempt.stdout if attempt.ok else ""
+    """The `origin` remote's URL, or "" when there is no `origin` remote.
+
+    "" means only that: a git failure while asking raises the `git command
+    failed` refusal. Callers that decide on the URL (a GitHub origin must not be
+    mistaken for none) rely on that.
+    """
+    if ORIGIN_REMOTE not in _remote_names(cwd):
+        return ""
+    return git_text(["remote", "get-url", ORIGIN_REMOTE], cwd)
 
 
 def git_ok(args: Sequence[str], cwd: Path) -> bool:

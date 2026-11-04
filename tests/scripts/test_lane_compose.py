@@ -771,6 +771,36 @@ def test_a_merge_probe_that_keeps_failing_still_resets_and_reports_unverified(
     assert not has_unfinished_merge(lane_path)
 
 
+@covers("git command failed")
+def test_a_failed_origin_lookup_after_a_merge_restores_the_lane_instead_of_printing_next(
+    repo_with_origin, capsys, monkeypatch
+):
+    lane_path = open_origin_lane(repo_with_origin)
+    advance_origin(repo_with_origin)
+    before = unchanged_state(lane_path)
+    stub_git_call(monkeypatch, "git_text", [["remote", "get-url"]], raise_boom)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, GIT_FAILED)
+    assert "the lane was restored to its state before compose" in block["why"]
+    assert unchanged_state(lane_path) == before
+
+
+@covers("git command failed")
+def test_a_failed_origin_lookup_with_nothing_to_merge_prints_no_next_line(
+    repo_with_origin, capsys, monkeypatch
+):
+    lane_path = open_origin_lane(repo_with_origin)
+    before = unchanged_state(lane_path)
+    stub_git_call(monkeypatch, "git_text", [["remote", "get-url"]], raise_boom)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    single_refusal(code, out, err, GIT_FAILED)
+    assert unchanged_state(lane_path) == before
+
+
 def test_an_interrupt_during_the_second_merge_restores_the_lane_and_propagates(
     repo_with_origin, capsys, monkeypatch
 ):

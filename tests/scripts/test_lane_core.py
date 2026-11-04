@@ -120,6 +120,7 @@ SAMPLE_ARGUMENTS = {
     "trunk moved": ("origin/main", "a" * 40, "b" * 40),
     "trunk cannot fast-forward": ("v1", None),
     "review gate stale or missing": ("origin/main", "the gate file is missing"),
+    "PR repository": (),
 }
 
 #: Every argv the guard rejects: id -> (args, text the reason must contain).
@@ -1661,6 +1662,24 @@ def test_origin_url_is_the_origin_remote_url(repo_with_origin):
 
 def test_origin_url_is_empty_without_an_origin(repo_without_remote):
     assert lane_core.origin_url(repo_without_remote.path) == ""
+
+
+def raise_git_failure():
+    raise lane_core.RefusalError(
+        lane_core.git_command_failed_refusal("git remote", "fatal: injected")
+    )
+
+
+@pytest.mark.parametrize("failing", [["remote"], ["remote", "get-url"]])
+def test_origin_url_raises_on_a_git_failure_instead_of_saying_there_is_no_origin(
+    failing, repo_with_origin, monkeypatch
+):
+    stub_git_call(monkeypatch, "git_text", [failing], raise_git_failure)
+
+    with pytest.raises(lane_core.RefusalError) as failure:
+        lane_core.origin_url(repo_with_origin.path)
+
+    assert failure.value.refusal.what == GIT_FAILED
 
 
 def test_origin_url_ignores_a_remote_that_is_not_called_origin(repo_without_remote):

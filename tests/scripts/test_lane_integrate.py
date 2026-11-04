@@ -38,6 +38,7 @@ from lane_fixtures import (
     advance_trunk,
     append_ledger,
     argv_spy,
+    build_repo_with_origin,
     build_repo_without_remote,
     commit_file,
     composed_gated_lane,
@@ -121,6 +122,7 @@ def collect(
     expected_trunk: str | None = None,
     expected_tree: str | None = None,
     cwd: Path | None = None,
+    local_trunk: bool = False,
 ) -> list[lane_core.Refusal]:
     """The refusals for `composed`, with its own identities unless overridden."""
     return lane.collect_refusals(
@@ -128,6 +130,7 @@ def collect(
         expected_trunk or composed.expected_trunk,
         expected_tree or composed.expected_tree,
         cwd or composed.path,
+        local_trunk=local_trunk,
     )
 
 
@@ -916,6 +919,174 @@ def test_collect_a_git_failure_in_check_5_is_a_git_failure_not_a_sub_condition(
 
     assert block["refused"] == "git command failed"
     assert "fatal: injected" in block["why"]
+
+
+# --- check 6: not a PR repository ------------------------------------------
+
+PR_REPOSITORY = "PR repository"
+GITHUB_URL = "https://github.com/acme/widgets.git"
+PR_REPOSITORY_URLS = {
+    "https with .git": GITHUB_URL,
+    "ssh": "ssh://git@github.com/acme/widgets.git",
+    "scp-like git@": "git@github.com:acme/widgets.git",
+}
+
+
+def composed_with_origin_kind(tmp_path, capsys, origin: str, url: str | None = None):
+    """A composed, gated lane whose origin is `github`, `other` or `none`."""
+    if origin == "none":
+        return composed_gated_lane(build_repo_without_remote(tmp_path), capsys)
+    repo = build_repo_with_origin(tmp_path)
+    composed = composed_gated_lane(repo, capsys)
+    if origin == "github":
+        git(repo.path, "remote", "set-url", "origin", url or GITHUB_URL)
+    return composed
+
+
+@pytest.mark.parametrize("local_trunk", [False, True], ids=["no-flag", "local-trunk"])
+@pytest.mark.parametrize("origin", ["github", "other", "none"])
+def test_collect_the_pr_repository_block_by_origin_kind_and_flag(
+    origin, local_trunk, tmp_path, capsys
+):
+    composed = composed_with_origin_kind(tmp_path, capsys, origin)
+    before = observed_state(composed)
+
+    refusals = collect(composed, local_trunk=local_trunk)
+
+    printed = origin == "github" and not local_trunk
+    assert [r.what for r in refusals] == ([PR_REPOSITORY] if printed else [])
+    if printed:
+        (block,) = printed_blocks(refusals, capsys)
+        assert "/pr" in block["how"]
+        assert "--local-trunk" in block["how"]
+    assert observed_state(composed) == before
+
+
+@covers("PR repository")
+@pytest.mark.parametrize("form", sorted(PR_REPOSITORY_URLS))
+def test_collect_every_github_url_form_is_a_pr_repository(form, tmp_path, capsys):
+    composed = composed_with_origin_kind(
+        tmp_path, capsys, "github", PR_REPOSITORY_URLS[form]
+    )
+
+    block = only_block(composed, capsys)
+
+    assert block["refused"] == PR_REPOSITORY
+    assert "github.com" not in block["why"] + block["how"]
+
+
+def test_collect_a_non_github_host_that_only_looks_like_one_is_not_a_pr_repository(
+    tmp_path, capsys
+):
+    composed = composed_with_origin_kind(
+        tmp_path, capsys, "other", "https://notgithub.example.com/acme/w.git"
+    )
+
+    assert collect(composed) == []
+
+
+def printed_with_note(refusals, capsys) -> list[str]:
+    """The lines `emit_integrate_refusals` writes to stderr."""
+    assert lane.emit_integrate_refusals(refusals) == 1
+    return capsys.readouterr().err.splitlines()
+
+
+@covers("PR repository")
+@covers("lane has uncommitted changes")
+def test_collect_a_pr_repository_refusal_with_others_ends_with_the_note_line(
+    tmp_path, capsys
+):
+    composed = composed_with_origin_kind(tmp_path, capsys, "github")
+    leave_untracked_file(composed.path)
+
+    refusals = collect(composed)
+    lines = printed_with_note(refusals, capsys)
+
+    assert [r.what for r in refusals] == [UNCOMMITTED, PR_REPOSITORY]
+    assert lines[-1].startswith("note: ")
+    assert "/pr" in lines[-1]
+    assert lines[-2] == ""
+    assert [line for line in lines if line.startswith("refused: ")] == [
+        f"refused: {UNCOMMITTED}",
+        f"refused: {PR_REPOSITORY}",
+    ]
+
+
+@covers("PR repository")
+def test_collect_a_lone_pr_repository_refusal_has_no_note(tmp_path, capsys):
+    composed = composed_with_origin_kind(tmp_path, capsys, "github")
+
+    lines = printed_with_note(collect(composed), capsys)
+
+    assert not any(line.startswith("note:") for line in lines)
+
+
+@covers("lane has uncommitted changes")
+@covers("trunk moved")
+def test_collect_several_refusals_without_a_pr_repository_have_no_note(
+    composed_with_origin, capsys
+):
+    leave_untracked_file(composed_with_origin.path)
+    advance_origin(composed_with_origin.repo)
+
+    refusals = collect(composed_with_origin)
+    lines = printed_with_note(refusals, capsys)
+
+    assert [r.what for r in refusals] == ["trunk moved", UNCOMMITTED]
+    assert not any(line.startswith("note:") for line in lines)
+
+
+def fail_git_text_once_the_lane_is_entered(monkeypatch, prefix: list[str]) -> None:
+    """`lane_core.git_text` raises for a call starting with `prefix`, from the moment
+    `_enter_lane` has returned (entering a lane itself lists remotes)."""
+    real_enter = lane._enter_lane
+    real = lane_core.git_text
+    entered: list[bool] = []
+
+    def enter(*args):
+        result = real_enter(*args)
+        entered.append(True)
+        return result
+
+    def failing(args, cwd):
+        if entered and list(args[: len(prefix)]) == prefix:
+            raise lane_core.RefusalError(
+                lane_core.git_command_failed_refusal("git remote", "fatal: injected")
+            )
+        return real(args, cwd)
+
+    monkeypatch.setattr(lane, "_enter_lane", enter)
+    monkeypatch.setattr(lane_core, "git_text", failing)
+
+
+@covers("git command failed")
+@pytest.mark.parametrize("failing", [["remote"], ["remote", "get-url"]])
+def test_collect_a_failed_origin_lookup_on_a_github_repository_still_refuses(
+    failing, tmp_path, monkeypatch, capsys
+):
+    composed = composed_with_origin_kind(tmp_path, capsys, "github")
+    fail_git_text_once_the_lane_is_entered(monkeypatch, failing)
+    before = observed_state(composed)
+
+    (block,) = printed_blocks(collect(composed), capsys)
+
+    assert block["refused"] == "git command failed"
+    assert "fatal: injected" in block["why"]
+    assert observed_state(composed) == before
+
+
+def test_collect_local_trunk_does_not_read_the_origin(tmp_path, monkeypatch, capsys):
+    composed = composed_with_origin_kind(tmp_path, capsys, "github")
+    fail_git_text_once_the_lane_is_entered(monkeypatch, ["remote"])
+
+    assert collect(composed, local_trunk=True) == []
+
+
+def test_there_is_one_origin_lookup_in_lane():
+    source = (SCRIPTS_DIR / "lane.py").read_text(encoding="utf-8")
+
+    assert source.count("lane_core.origin_url(") == 1
+    assert source.count("git_origin_host.classify(") == 1
 
 
 # --- check 4: the lane is clean ----------------------------------------------

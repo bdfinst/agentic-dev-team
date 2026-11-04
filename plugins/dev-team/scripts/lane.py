@@ -194,7 +194,11 @@ def _require_clean(lane_path: Path) -> None:
 
 
 def _is_pr_repository(lane_path: Path) -> bool:
-    """True when the `origin` remote is on GitHub: work lands through a PR."""
+    """True when the `origin` remote is on GitHub: work lands through a PR.
+
+    The only origin lookup. No `origin` is False; a git failure raises, so a
+    failed lookup is never read as "not GitHub".
+    """
     host = git_origin_host.classify(lane_core.origin_url(lane_path))
     return host == ORIGIN_HOST_GITHUB
 
@@ -474,11 +478,13 @@ def cmd_compose(args: argparse.Namespace, cwd: Path) -> int:
 @dataclass(frozen=True)
 class CheckContext:
     """What every integrate check reads: the lane entered, and the identities
-    the reviewer holds (`expected-trunk`, `expected-tree` as `compose` printed them)."""
+    the reviewer holds (`expected-trunk`, `expected-tree` as `compose` printed them);
+    `local_trunk` is `--local-trunk`."""
 
     entered: EnteredLane
     expected_trunk: str
     expected_tree: str
+    local_trunk: bool = False
 
 
 @dataclass(frozen=True)
@@ -663,14 +669,25 @@ def _check_trunk_fast_forwards(ctx: CheckContext) -> lane_core.Refusal | None:
     return None
 
 
+def _check_not_a_pr_repository(ctx: CheckContext) -> lane_core.Refusal | None:
+    """A GitHub origin lands work through a PR, unless `--local-trunk` was given.
+
+    `--local-trunk` settles it, so the origin is not even read. Otherwise the
+    one origin lookup (`_is_pr_repository`) raises when git cannot answer, and
+    the engine reports that: a failed lookup never reads as "not GitHub".
+    """
+    if ctx.local_trunk or not _is_pr_repository(ctx.entered.context.lane_path):
+        return None
+    return lane_core.pr_repository_refusal()
+
+
 def _check_lane_is_clean(ctx: CheckContext) -> lane_core.Refusal | None:
     return _dirty_refusal(ctx.entered.context.lane_path)
 
 
 #: The integrate checks, in the order their blocks are printed. `order` is the
-#: slot number from the plan; a gap is a check a later step registers, so that
-#: step adds one entry and moves nothing:
-#:   6 PR repository (Step 3.3).
+#: slot number from the plan (1 tree, 2 review gate, 3 trunk moved, 4 lane
+#: clean, 5 trunk fast-forward, 6 PR repository).
 #:
 #: A check that hits a git failure: `collect_refusals` turns the
 #: `RefusalError` it raises into that check's refusal (the `git command
@@ -684,6 +701,7 @@ CHECKS: tuple[Check, ...] = (
     Check(3, "trunk has not moved", _check_trunk_has_not_moved),
     Check(4, "lane is clean", _check_lane_is_clean),
     Check(5, "trunk can fast-forward", _check_trunk_fast_forwards),
+    Check(6, "not a PR repository", _check_not_a_pr_repository),
 )
 
 
@@ -695,7 +713,11 @@ def _run_check(check: Check, ctx: CheckContext) -> lane_core.Refusal | None:
 
 
 def collect_refusals(
-    trunk_arg: str | None, expected_trunk: str, expected_tree: str, cwd: Path
+    trunk_arg: str | None,
+    expected_trunk: str,
+    expected_tree: str,
+    cwd: Path,
+    local_trunk: bool = False,
 ) -> list[lane_core.Refusal]:
     """Every refusal `integrate` would print, in check order. Changes nothing.
 
@@ -707,9 +729,19 @@ def collect_refusals(
         entered = _enter_lane(trunk_arg, cwd)
     except lane_core.RefusalError as stop:
         return [stop.refusal]
-    ctx = CheckContext(entered, expected_trunk, expected_tree)
+    ctx = CheckContext(entered, expected_trunk, expected_tree, local_trunk)
     outcomes = (_run_check(check, ctx) for check in CHECKS)
     return [refusal for refusal in outcomes if refusal is not None]
+
+
+def emit_integrate_refusals(refusals: Sequence[lane_core.Refusal]) -> int:
+    """Print the blocks, then the closing `note:` when a PR-repository refusal
+    comes with others. Returns the exit code (1)."""
+    code = lane_core.emit_refusals(refusals)
+    pr_repository = any(r.what == lane_core.WHAT_PR_REPOSITORY for r in refusals)
+    if pr_repository and len(refusals) > 1:
+        sys.stderr.write(f"\nnote: {lane_core.PR_REPOSITORY_NOTE}\n")
+    return code
 
 
 #: Every registered command, keyed by its own `name`.
