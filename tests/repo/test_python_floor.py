@@ -135,6 +135,7 @@ FLOOR_TEST_SLICE = (
     "plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py",
     "plugins/dev-team/tests/scripts/test_coverage_discovery_js.py",
     "plugins/dev-team/tests/scripts/test_autoship_reclaim.py",
+    "tests/scripts/test_doctor.py",
 )
 
 #: Issue #1829: `FLOOR_TEST_SLICE` above is hand-maintained, so a new shipped,

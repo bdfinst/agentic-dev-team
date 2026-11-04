@@ -402,6 +402,9 @@ chk_python_floor() {
   #     before 3.11) — the #1650 shape exactly, one paragraph up;
   #   - autoship_reclaim.py, which strips a trailing `Z` before
   #     `datetime.fromisoformat` for the identical reason (#1829).
+  #   - doctor.py, whose `--probe` mode and 3.8-parseable top level are the one
+  #     property of that script that is floor-sensitive by design: the test module
+  #     runs `doctor.py --probe` under the interpreter that runs pytest (#2272).
   #
   # Every OTHER shipped, tested plugins/dev-team/scripts/*.py module is
   # accounted for in tests/repo/test_python_floor.py's SLICE_EXCLUSIONS, with
@@ -459,6 +462,7 @@ chk_python_floor() {
     plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py \
     plugins/dev-team/tests/scripts/test_coverage_discovery_js.py \
     plugins/dev-team/tests/scripts/test_autoship_reclaim.py \
+    tests/scripts/test_doctor.py \
     -q || return 1
 }
 
