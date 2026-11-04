@@ -419,7 +419,8 @@ def check_project_settings(ctx: CheckContext) -> Check:
     if autocompact.validate_pct(value) is None:
         return make_check(
             Status.WARN,
-            f"{autocompact.KEY} is {value!r}, expected a percent string 1-100",
+            f"{autocompact.KEY} has type {type(value).__name__}"
+            f" and length {len(str(value))}, expected a percent string 1-100",
             SETUP_FIX,
         )
     return make_check(Status.OK, f"env.{autocompact.KEY} is {value!r}")

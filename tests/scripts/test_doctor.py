@@ -1970,11 +1970,25 @@ def test_the_autocompact_value_is_validated(tmp_path, value, status, fix):
     assert (check.status, check.fix) == (status, fix)
 
 
-def test_an_invalid_autocompact_value_is_named_by_its_repr(tmp_path):
+def test_an_invalid_autocompact_value_is_named_by_type_and_length_not_echoed(
+    tmp_path,
+):
+    secret = "sk-not-a-percent-0123456789"
+    check, _ = _settings_check(tmp_path, _autocompact_settings(secret))
+
+    assert check.summary == (
+        "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE has type str and length 27,"
+        " expected a percent string 1-100"
+    )
+    assert secret not in check.summary
+
+
+def test_a_non_string_autocompact_value_is_named_by_its_type(tmp_path):
     check, _ = _settings_check(tmp_path, _autocompact_settings(40))
 
     assert check.summary == (
-        "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE is 40, expected a percent string 1-100"
+        "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE has type int and length 2,"
+        " expected a percent string 1-100"
     )
 
 

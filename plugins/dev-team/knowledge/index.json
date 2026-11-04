@@ -3589,6 +3589,28 @@
       "anchor": "java-spring-boot"
     }
   },
+  "plugins/dev-team/skills/doctor/SKILL.md": {
+    "Steps": {
+      "summary": "Run the script and report its output verbatim:",
+      "anchor": "steps"
+    },
+    "Exit codes": {
+      "summary": "Exit 0: print stdout verbatim, then stderr if it is not empty.",
+      "anchor": "exit-codes"
+    },
+    "Flags": {
+      "summary": "`--json` prints the report as JSON instead of text.",
+      "anchor": "flags"
+    },
+    "Checks": {
+      "summary": "The script runs these nine checks, in this order:",
+      "anchor": "checks"
+    },
+    "Example": {
+      "summary": "Do not add commentary beyond the script's output.",
+      "anchor": "example"
+    }
+  },
   "plugins/dev-team/skills/domain-analysis/SKILL.md": {
     "Overview": {
       "summary": "Assess the domain health of an existing multi-component system.",

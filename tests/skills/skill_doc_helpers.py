@@ -353,6 +353,71 @@ def frontmatter(text: str) -> str:
     return "\n".join(out)
 
 
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+
+
+def fenced_blocks(text: str, tag: str) -> list[str]:
+    """Return the body of every fenced code block whose info string starts
+    with `tag`, in document order (added for test_doctor_skill, #2272).
+
+    A fence is three or more backticks or tildes, indented at most three
+    spaces. It closes only on a fence of the same character that is at least
+    as long as the opener, so a four-backtick block can wrap a three-backtick
+    example. The first word of the info string is compared to `tag`
+    (`bash title=x` matches `bash`); untagged blocks never match. An
+    unclosed block yields nothing.
+    """
+    blocks: list[str] = []
+    opener: tuple[str, int] | None = None
+    is_tagged_block = False
+    block_lines: list[str] = []
+    for line in text.splitlines():
+        fence = _FENCE.match(line)
+        if opener is None:
+            if fence:
+                marks, info = fence.groups()
+                opener = (marks[0], len(marks))
+                words = info.split()
+                is_tagged_block = bool(words) and words[0] == tag
+                block_lines = []
+            continue
+        if (
+            fence
+            and fence.group(1)[0] == opener[0]
+            and len(fence.group(1)) >= opener[1]
+            and not fence.group(2).strip()
+        ):
+            if is_tagged_block:
+                blocks.append("\n".join(block_lines))
+            opener = None
+            continue
+        block_lines.append(line)
+    return blocks
+
+
+def frontmatter_fields(text: str) -> dict[str, str]:
+    """Top-level `key: value` pairs of the YAML frontmatter, as strings.
+
+    A small subset parser (added for test_doctor_skill, #2272): plain and
+    quoted scalars, and a folded `>-` value whose indented continuation lines
+    are joined with single spaces. No nesting, lists or other block styles.
+    """
+    fields: dict[str, str] = {}
+    key: str | None = None
+    for line in frontmatter(text).splitlines()[1:]:
+        if line[:1] in (" ", "\t") and key is not None:
+            fields[key] = f"{fields[key]} {line.strip()}".strip()
+        elif ":" in line:
+            key, _, value = line.partition(":")
+            value = value.strip()
+            if value == ">-":
+                value = ""
+            elif len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            fields[key] = value
+    return fields
+
+
 def section(
     text: str,
     start_pattern: str,
