@@ -6065,6 +6065,56 @@
       "anchor": "documentation-style"
     }
   },
+  "plugins/dev-team/skills/speculative-build/SKILL.md": {
+    "Preconditions": {
+      "summary": "`/build` runs these checks before it follows this skill:",
+      "anchor": "preconditions"
+    },
+    "Base and batches": {
+      "summary": "Set `base` to the build worktree's current commit:",
+      "anchor": "base-and-batches"
+    },
+    "Dispatch": {
+      "summary": "Dispatch each candidate as the `software-engineer` agent, by `subagent_type`, with `isolation: \"worktree\"`.",
+      "anchor": "dispatch"
+    },
+    "Suite and diff": {
+      "summary": "Run the plan's suite command in each candidate worktree yourself.",
+      "anchor": "suite-and-diff"
+    },
+    "Screening": {
+      "summary": "Screen each candidate once, after its suite run.",
+      "anchor": "screening"
+    },
+    "Cost cap": {
+      "summary": "Read the cost meter for the session transcript:",
+      "anchor": "cost-cap"
+    },
+    "Rank": {
+      "summary": "Write `{\"candidates\": [...]}` to a file.",
+      "anchor": "rank"
+    },
+    "Record": {
+      "summary": "Write the table rows to a file as `{\"rows\": [...]}`, one row per candidate id.",
+      "anchor": "record"
+    },
+    "Keep": {
+      "summary": "Merge the winner with `reconcile`.",
+      "anchor": "keep"
+    },
+    "Cleanup": {
+      "summary": "Do not run this section before the checkpoint.",
+      "anchor": "cleanup"
+    },
+    "Resume": {
+      "summary": "The step continues at `/build` sub-step 4's inline checkpoint on the merged winner.",
+      "anchor": "resume"
+    },
+    "Failure modes": {
+      "summary": "Every halt first writes the record, removes nothing, and prints the halt template.",
+      "anchor": "failure-modes"
+    }
+  },
   "plugins/dev-team/skills/static-analysis-integration/SKILL.md": {
     "Constraints": {
       "summary": "1.",
