@@ -5,7 +5,8 @@ The Markdown plan stays the authoring surface. This module reads it (and the
 spec it names) into a single view and reports which stated invariants the
 record breaks. The view is derived on every call and is never stored.
 
-Library: `build_record`, `violations`, `plan_violations`. CLI:
+Library: `build_record`, `violations`, `plan_violations`, `spec_violations`,
+`introduced`. CLI:
 `view <plan> [--spec <path>]` and `check <plan> [--spec <path>]`.
 
 The library functions are pure on `str` input and never raise. Only `main`
@@ -342,11 +343,96 @@ def violations(record: dict) -> list[dict[str, str]]:
     )
 
 
+REQUIRED_SPEC_SECTIONS = (
+    "## Intent Description",
+    "## Architecture Specification",
+    "## Acceptance Criteria",
+)
+_COMMENT_OPEN, _COMMENT_CLOSE = "<!--", "-->"
+
+
+def _visible_text(line: str, in_comment: bool) -> tuple[str, bool]:
+    """Return `line` without its `<!-- ... -->` parts, and whether a comment is
+    still open at the end of the line. Walks by index so a line with many
+    comment markers stays linear."""
+    kept: list[str] = []
+    pos = 0
+    while pos < len(line):
+        if in_comment:
+            end = line.find(_COMMENT_CLOSE, pos)
+            if end < 0:
+                return "".join(kept), True
+            pos, in_comment = end + len(_COMMENT_CLOSE), False
+        else:
+            start = line.find(_COMMENT_OPEN, pos)
+            if start < 0:
+                kept.append(line[pos:])
+                break
+            kept.append(line[pos:start])
+            pos, in_comment = start + len(_COMMENT_OPEN), True
+    return "".join(kept), in_comment
+
+
+def _section_has_content(spec_text: str, heading: str) -> bool:
+    """True when some `heading` section holds a non-blank line outside a comment.
+
+    A section runs to the next `## ` heading. Headings inside a code fence
+    neither start nor end a section; fenced lines are content.
+    """
+    in_section = False
+    in_comment = False
+    for line, in_fence in plan_parse.iter_slice_body_lines(spec_text):
+        if in_fence:
+            if in_section and line.strip():
+                return True
+            continue
+        if line.startswith("## "):
+            in_section = line.strip() == heading
+            in_comment = False
+            continue
+        if not in_section:
+            continue
+        visible, in_comment = _visible_text(line, in_comment)
+        if visible.strip():
+            return True
+    return False
+
+
+def spec_violations(spec_text: str) -> list[dict[str, str]]:
+    """Return `spec-missing-section` per required heading that is absent or empty.
+
+    A heading matches by exact text after trimming, case-sensitive. Pure and
+    total.
+    """
+    return [
+        make_violation("spec-missing-section", heading, heading=heading)
+        for heading in REQUIRED_SPEC_SECTIONS
+        if not _section_has_content(spec_text, heading)
+    ]
+
+
+def _all_violations(record: dict, spec_text: str | None) -> list[dict[str, str]]:
+    """Structural violations of the record plus those of a loaded spec."""
+    found = violations(record)
+    if spec_text is not None:
+        found = _unique(found + spec_violations(spec_text))
+    return found
+
+
 def plan_violations(
     plan_text: str, spec_text: str | None = None
 ) -> list[dict[str, str]]:
-    """Return the violations of the plan in `plan_text`. Pure and total."""
-    return violations(build_record(plan_text, spec_text))
+    """Return the violations of the plan in `plan_text`, and of `spec_text`
+    when one is given. Pure and total."""
+    return _all_violations(build_record(plan_text, spec_text), spec_text)
+
+
+def introduced(
+    before: list[dict[str, str]], after: list[dict[str, str]]
+) -> list[dict[str, str]]:
+    """Return the violations in `after` whose (id, subject) is not in `before`."""
+    known = {violation_key(v) for v in before}
+    return _unique([v for v in after if violation_key(v) not in known])
 
 
 def unverifiable(record: dict) -> list[str]:
@@ -432,7 +518,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "view":
         print(json.dumps(record, indent=2))
         return 0
-    found = violations(record)
+    found = _all_violations(record, spec_text)
     pending = unverifiable(record)
     print(
         json.dumps(

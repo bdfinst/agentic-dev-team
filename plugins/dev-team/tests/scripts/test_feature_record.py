@@ -698,3 +698,271 @@ def test_a_ticked_build_progress_line_for_a_slice_with_no_heading_is_not_a_close
         .replace("**Open blocker**: Slice 1", "**Open blocker**: Slice 9")
     )
     assert _found(text) == []
+
+
+# ---------------------------------------------------------------------------
+# spec_violations
+# ---------------------------------------------------------------------------
+
+INTENT = "## Intent Description"
+ARCH = "## Architecture Specification"
+CRITERIA = "## Acceptance Criteria"
+
+
+def _spec_keys(text: str) -> list[tuple[str, str]]:
+    return [
+        feature_record.violation_key(v) for v in feature_record.spec_violations(text)
+    ]
+
+
+def _without_section(heading: str) -> str:
+    """The sample spec with `heading` and its body removed."""
+    kept, skipping = [], False
+    for line in _fixture("spec_sample.md").splitlines():
+        if line.startswith("## "):
+            skipping = line.strip() == heading
+        if not skipping:
+            kept.append(line)
+    return "\n".join(kept) + "\n"
+
+
+def _with_body(heading: str, body: str) -> str:
+    """The sample spec with the body of `heading` replaced by `body`."""
+    out, skipping = [], False
+    for line in _fixture("spec_sample.md").splitlines():
+        if line.startswith("## "):
+            skipping = line.strip() == heading
+            out.append(line)
+            if skipping:
+                out.append(body)
+            continue
+        if not skipping:
+            out.append(line)
+    return "\n".join(out) + "\n"
+
+
+def test_a_complete_spec_has_no_violation():
+    assert feature_record.spec_violations(_fixture("spec_sample.md")) == []
+
+
+@pytest.mark.parametrize("heading", [INTENT, ARCH, CRITERIA])
+def test_a_spec_missing_a_required_section_is_a_violation_naming_it(heading):
+    found = feature_record.spec_violations(_without_section(heading))
+    assert [(v["id"], v["subject"]) for v in found] == [
+        ("spec-missing-section", heading)
+    ]
+    assert found[0]["what"] == (
+        f'The spec has no "{heading}" section, or it is empty. [spec-missing-section]'
+    )
+    assert found[0]["how"] == f'Add "{heading}" with at least one line of text.'
+
+
+@pytest.mark.parametrize("heading", [INTENT, ARCH, CRITERIA])
+@pytest.mark.parametrize(
+    "body",
+    [
+        "",
+        "   ",
+        "<!-- placeholder -->",
+        "<!-- one -->\n<!-- two -->",
+        "<!--\nspread over\nseveral lines\n-->",
+        "<!-- unclosed comment swallows the rest",
+    ],
+    ids=["blank", "spaces", "comment", "two-comments", "multiline-comment", "unclosed"],
+)
+def test_a_section_with_no_text_outside_comments_is_empty(heading, body):
+    assert _spec_keys(_with_body(heading, body)) == [("spec-missing-section", heading)]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "- one criterion",
+        "Plain text.",
+        "<!-- note -->\ntext after a comment",
+        "<!--\nmulti\n-->\ntext after a multi-line comment",
+        "<!-- note --> text on the same line",
+        "```\nonly a code block\n```",
+    ],
+    ids=["list-item", "text", "after-comment", "after-multiline", "same-line", "fence"],
+)
+def test_a_section_with_a_list_item_or_text_is_not_empty(body):
+    assert _spec_keys(_with_body(CRITERIA, body)) == []
+
+
+def test_a_heading_with_trailing_text_or_different_case_does_not_match():
+    for variant in ("## Acceptance Criteria (v2)", "## acceptance criteria"):
+        text = _fixture("spec_sample.md").replace(CRITERIA, variant)
+        assert _spec_keys(text) == [("spec-missing-section", CRITERIA)]
+
+
+def test_surrounding_whitespace_on_a_heading_is_trimmed():
+    text = _fixture("spec_sample.md").replace(CRITERIA, CRITERIA + "   ")
+    assert _spec_keys(text) == []
+
+
+def test_a_heading_inside_a_code_fence_does_not_count():
+    text = (
+        _without_section(CRITERIA)
+        + f"\n```\n{CRITERIA}\n- looks like a criterion\n```\n"
+    )
+    assert _spec_keys(text) == [("spec-missing-section", CRITERIA)]
+
+
+def test_content_after_the_next_heading_does_not_fill_an_empty_section():
+    text = _with_body(INTENT, "").replace(ARCH, "## Notes\n\nSome notes.\n\n" + ARCH)
+    assert _spec_keys(text) == [("spec-missing-section", INTENT)]
+
+
+def test_a_repeated_heading_is_present_when_any_occurrence_has_text():
+    text = _with_body(INTENT, "") + f"\n{INTENT}\n\nThe real intent.\n"
+    assert _spec_keys(text) == []
+
+
+def test_every_missing_section_is_reported_in_required_order():
+    assert _spec_keys("# Spec\n") == [
+        ("spec-missing-section", INTENT),
+        ("spec-missing-section", ARCH),
+        ("spec-missing-section", CRITERIA),
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["", "x", "\x00\xff￾" * 1000, "<!--" * 250_000, "-->" * 300_000, "## " * 100_000],
+    ids=[
+        "empty",
+        "one-char",
+        "binary-ish",
+        "many-openers",
+        "many-closers",
+        "many-headings",
+    ],
+)
+def test_spec_violations_is_total(text):
+    assert isinstance(feature_record.spec_violations(text), list)
+
+
+# ---------------------------------------------------------------------------
+# The spec in the plan-level checks
+# ---------------------------------------------------------------------------
+
+
+def _local_spec_layout(tmp_path: Path, spec_text: str) -> Path:
+    (tmp_path / "docs" / "specs").mkdir(parents=True)
+    (tmp_path / "plans").mkdir()
+    (tmp_path / "docs" / "specs" / "x.md").write_text(spec_text)
+    plan = tmp_path / "plans" / "1-x.md"
+    plan.write_text("# P\n\n**Spec**: docs/specs/x.md\n")
+    return plan
+
+
+def test_a_plan_naming_an_incomplete_local_spec_reports_the_spec_violation(
+    tmp_path, capsys
+):
+    plan = _local_spec_layout(tmp_path, _without_section(INTENT))
+    code, out, err = _run(["check", str(plan)], capsys)
+    assert code == 1
+    assert [(v["id"], v["subject"]) for v in json.loads(out)["violations"]] == [
+        ("spec-missing-section", INTENT)
+    ]
+    assert err.strip() == "1 violations, 0 unverifiable"
+
+
+def test_a_plan_naming_a_complete_local_spec_is_clean(tmp_path, capsys):
+    plan = _local_spec_layout(tmp_path, _fixture("spec_sample.md"))
+    assert _run(["check", str(plan)], capsys)[0] == 0
+
+
+def test_an_explicit_spec_path_is_checked_too(tmp_path, capsys):
+    spec = tmp_path / "s.md"
+    spec.write_text(_without_section(ARCH))
+    code, out, _err = _run(
+        ["check", str(FIXTURES / "plan_complete.md"), "--spec", str(spec)], capsys
+    )
+    assert code == 1
+    assert json.loads(out)["violations"][0]["subject"] == ARCH
+
+
+def test_a_spec_that_is_not_loaded_is_not_checked(capsys):
+    code, out, _err = _run(
+        ["check", str(FIXTURES / "plan_local_spec_missing.md")], capsys
+    )
+    assert (code, json.loads(out)["violations"]) == (0, [])
+
+
+def test_plan_violations_checks_a_spec_only_when_given_one():
+    plan = _fixture("plan_complete.md")
+    incomplete = _without_section(CRITERIA)
+    assert feature_record.plan_violations(plan) == []
+    assert feature_record.plan_violations(plan, None) == []
+    assert [v["subject"] for v in feature_record.plan_violations(plan, incomplete)] == [
+        CRITERIA
+    ]
+
+
+def test_plan_and_spec_violations_are_reported_together():
+    plan = _fixture("plan_uncovered_criterion.md")
+    found = feature_record.plan_violations(plan, _without_section(INTENT))
+    assert [feature_record.violation_key(v) for v in found] == [
+        ("ac-no-scenario", "AC2"),
+        ("spec-missing-section", INTENT),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# introduced
+# ---------------------------------------------------------------------------
+
+
+def _v(violation_id: str, subject: str) -> dict[str, str]:
+    return {"id": violation_id, "subject": subject, "what": "", "why": "", "how": ""}
+
+
+A = _v("scenario-no-step", "Slice 1")
+B = _v("scenario-no-step", "Slice 2")
+C = _v("ac-no-scenario", "AC1")
+
+
+@pytest.mark.parametrize(
+    "before, after, expected",
+    [
+        ([A], [A, B], [B]),  # only the other one is introduced
+        ([A], [], []),  # repair
+        ([A], [A], []),  # identical
+        ([A], [B], [B]),  # swap
+        ([], [A], [A]),  # new
+        ([], [], []),
+        ([A, B], [B, C, A], [C]),
+        ([A], [A, B, B], [B]),  # no duplicates in the result
+    ],
+    ids=["extra", "repair", "identical", "swap", "new", "none", "mixed", "dedupe"],
+)
+def test_introduced_returns_only_violations_whose_key_is_new(before, after, expected):
+    assert feature_record.introduced(before, after) == expected
+
+
+def test_a_violation_is_the_same_key_when_only_its_wording_differs():
+    reworded = dict(A, what="different words")
+    assert feature_record.introduced([A], [reworded]) == []
+
+
+def test_introduced_compares_subject_as_well_as_id():
+    same_id_other_subject = _v("scenario-no-step", "Slice 3")
+    assert feature_record.introduced([A], [same_id_other_subject]) == [
+        same_id_other_subject
+    ]
+
+
+def test_a_write_that_fixes_one_violation_and_adds_another_introduces_only_the_new_one():
+    before = feature_record.plan_violations(_fixture("plan_scenario_no_step.md"))
+    after = feature_record.plan_violations(_fixture("plan_uncovered_criterion.md"))
+    assert [
+        feature_record.violation_key(v)
+        for v in feature_record.introduced(before, after)
+    ] == [("ac-no-scenario", "AC2")]
+
+
+def test_an_unclosed_comment_in_one_occurrence_of_a_heading_does_not_hide_the_next():
+    text = _with_body(INTENT, "<!-- never closed") + f"\n{INTENT}\n\nThe real intent.\n"
+    assert _spec_keys(text) == []

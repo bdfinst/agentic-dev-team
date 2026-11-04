@@ -217,6 +217,10 @@ SLICE_EXCLUSIONS = {
         "stdlib argparse/json/pathlib only; its datetime usage is "
         "timezone-aware construction, not a floor-sensitive parse shim"
     ),
+    "feature_record.py": (
+        "stdlib argparse/json/re/collections/pathlib only; no floor-sensitive "
+        "runtime API"
+    ),
     "gherkin_analysis_coverage_gate.py": (
         "stdlib argparse/json/re/dataclasses/pathlib only; no "
         "floor-sensitive runtime API"
