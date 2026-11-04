@@ -250,8 +250,9 @@ def _fence_after(open_fence: str | None, text: str) -> str | None:
 def _headings(lines: list[str]) -> list[_Heading]:
     """Every ATX heading at column 0 with a space after the hashes, outside a
     fence; a `# ` heading ends a `## ` section too. A fence that is never
-    closed runs to the end of the file (as in CommonMark), so nothing after it
-    is a heading and a summary appended there lands inside the fence."""
+    closed would hide every later heading (CommonMark runs it to the end of
+    the file), and a summary appended inside it would be invisible to the
+    next run, which would append another: such a plan is rejected."""
     found = []
     open_fence = None
     for index, line in enumerate(lines):
@@ -263,6 +264,8 @@ def _headings(lines: list[str]) -> list[_Heading]:
         heading = _HEADING_RE.fullmatch(text)
         if heading:
             found.append(_Heading(index, len(heading.group(1)), heading.group(2)))
+    if open_fence is not None:
+        _reject("plan has a code fence that is never closed")
     return found
 
 
@@ -458,25 +461,36 @@ def _read_plan(path: Path) -> str:
 
 
 def _load_rows(path: str) -> object:
-    """The `rows` value of the result file."""
+    """The `rows` value of the result file. The shape hint is added only when
+    the file parsed but has the wrong shape."""
     try:
         data = load_json_object(path, "result")
     except DataError as exc:
-        raise ValueError(f"{exc} ({RESULT_SHAPE_HINT})") from None
+        hint = (
+            f" ({RESULT_SHAPE_HINT})"
+            if "JSON root is not an object" in str(exc)
+            else ""
+        )
+        raise ValueError(f"{exc}{hint}") from None
     if "rows" not in data:
         _reject(f"result: no 'rows' key: {path} ({RESULT_SHAPE_HINT})")
     return data["rows"]
 
 
+#: An attempt number never needs more digits than this; longer digit strings
+#: are left to `record` to reject, without depending on the interpreter's
+#: int-string digit limit (absent before 3.10.7, off under
+#: PYTHONINTMAXSTRDIGITS=0).
+_ATTEMPT_MAX_DIGITS = 9
+_ATTEMPT_RE = re.compile(rf"[0-9]{{1,{_ATTEMPT_MAX_DIGITS}}}")
+
+
 def _coerce_attempt(raw: str) -> object:
-    """`raw` as an int when it is ASCII digits, else unchanged for `record`
-    to reject; a digit string too long for int() is also left unchanged."""
-    if not re.fullmatch(r"[0-9]+", raw):
+    """`raw` as an int when it is at most `_ATTEMPT_MAX_DIGITS` ASCII digits,
+    else unchanged for `record` to reject."""
+    if not _ATTEMPT_RE.fullmatch(raw):
         return raw
-    try:
-        return int(raw)
-    except ValueError:  # beyond sys.get_int_max_str_digits()
-        return raw
+    return int(raw)
 
 
 def _write_atomic(target: Path, data: bytes) -> None:

@@ -391,10 +391,25 @@ def test_record_does_not_take_inline_triple_backticks_for_a_fence_opener() -> No
     )
 
 
-def test_record_treats_a_fence_that_is_never_closed_as_running_to_the_end() -> None:
+def test_record_rejects_a_plan_whose_fence_is_never_closed() -> None:
     plan = PLAN_HEAD + "```\n## Build Progress\n"
+    with pytest.raises(ValueError, match="never closed"):
+        plan_summary_record.record(plan, STEP, ATTEMPT, one_kept_row())
+
+
+def test_record_ends_the_summary_at_a_level_one_heading() -> None:
+    appendix = "# Appendix\n\nMore.\n\n"
+    plan = PLAN_HEAD + SUMMARY_HEADING + "\nReviewed.\n\n" + appendix + BUILD_PROGRESS
     recorded = plan_summary_record.record(plan, STEP, ATTEMPT, one_kept_row())
-    assert recorded == plan + "\n" + SECTION_AT_END
+    assert recorded == (
+        PLAN_HEAD
+        + SUMMARY_HEADING
+        + "\nReviewed.\n\n"
+        + subsection(KEPT_ROW_LINE)
+        + "\n"
+        + appendix
+        + BUILD_PROGRESS
+    )
 
 
 # --- insertion: neither section -----------------------------------------------
@@ -647,7 +662,8 @@ def test_record_keeps_the_plans_file_mode(tmp_path) -> None:
     plan = tmp_path / "plan.md"
     plan.write_bytes(PLAN_WITHOUT_SUMMARY.encode("utf-8"))
     plan.chmod(0o640)
-    _run_record(plan, _write_result(tmp_path, one_kept_row()))
+    process = _run_record(plan, _write_result(tmp_path, one_kept_row()))
+    assert process.returncode == 0, process.stderr
     assert stat.S_IMODE(plan.stat().st_mode) == 0o640
 
 
@@ -667,7 +683,8 @@ def test_record_keeps_a_symlinked_plan_a_symlink(tmp_path) -> None:
     target.write_bytes(PLAN_WITHOUT_SUMMARY.encode("utf-8"))
     link = tmp_path / "plan.md"
     os.symlink(target, link)
-    _run_record(link, _write_result(tmp_path, one_kept_row()))
+    process = _run_record(link, _write_result(tmp_path, one_kept_row()))
+    assert process.returncode == 0, process.stderr
     assert link.is_symlink()
 
 
@@ -1062,7 +1079,10 @@ _VALID_RESULT_TEXT = json.dumps({"rows": [make_row(1)]})
 
 _BAD_INPUT_CASES = [
     bad_result("not-json", "{not json", "not JSON"),
-    bad_result("json-list", json.dumps([]), "rows"),
+    bad_result(
+        "json-list-names-rows", json.dumps([]), plan_summary_record.RESULT_SHAPE_HINT
+    ),
+    bad_result("json-list", json.dumps([]), "JSON root is not an object"),
     bad_result(
         "row-without-outcome",
         json.dumps({"rows": [_ROW_WITHOUT_OUTCOME]}),
@@ -1086,11 +1106,11 @@ _BAD_INPUT_CASES = [
         "attempt-5000-digits", _VALID_RESULT_TEXT, "attempt", attempt="9" * 5000
     ),
     bad_result("json-nested-too-deep", "[" * 100_000, "not JSON"),
-    bad_result("json-string", json.dumps("rows"), "rows"),
-    bad_result("result-without-rows", json.dumps({"other": []}), "rows"),
+    bad_result("json-string", json.dumps("rows"), "JSON root is not an object"),
+    bad_result("result-without-rows", json.dumps({"other": []}), "no 'rows' key"),
     BadInputCase(
         "plan-missing",
-        "no such file",
+        "plan file: no such file",
         {RESULT_NAME: _VALID_RESULT_TEXT.encode("utf-8")},
     ),
     BadInputCase(
@@ -1100,11 +1120,13 @@ _BAD_INPUT_CASES = [
     ),
     BadInputCase(
         "plan-is-a-directory",
-        "plan file",
+        "cannot read",
         {"plan-dir/inner.md": b"", RESULT_NAME: _VALID_RESULT_TEXT.encode("utf-8")},
         plan_name="plan-dir",
     ),
-    BadInputCase("result-missing", "no such file", {PLAN_NAME: VALID_PLAN_BYTES}),
+    BadInputCase(
+        "result-missing", "result: no such file", {PLAN_NAME: VALID_PLAN_BYTES}
+    ),
 ]
 
 

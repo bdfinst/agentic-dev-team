@@ -162,9 +162,9 @@ SLICE_EXCLUSIONS = {
     "autoship_group.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
     "autoship_proposals.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
     "autoship_queue.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
-    "build_candidates.py": "stdlib argparse/collections.abc/json/math/re/sys only (plus the build_candidates_git and build_candidates_model modules); no floor-sensitive runtime API",
+    "build_candidates.py": "stdlib argparse/collections.abc/json/math/pathlib/re/sys only (plus the build_candidates_git and build_candidates_model modules); no floor-sensitive runtime API",
     "build_candidates_git.py": "stdlib collections.abc/dataclasses/os/pathlib/re/signal/subprocess/sys only (plus build_candidates_model and lib/plan_parse); no floor-sensitive runtime API",
-    "build_candidates_model.py": "stdlib collections.abc/dataclasses/json/math/pathlib/typing only; no floor-sensitive runtime API",
+    "build_candidates_model.py": "stdlib collections.abc/dataclasses/json/math/pathlib/re/typing only; no floor-sensitive runtime API",
     "plan_summary_record.py": "stdlib argparse/dataclasses/os/pathlib/re/stat/sys/tempfile/typing only (plus build_candidates_model); no floor-sensitive runtime API",
     "build_jobs.py": "stdlib os/sys only; no floor-sensitive runtime API",
     "build_rollback_point.py": (
@@ -747,7 +747,7 @@ class TestTheFloorSliceAccountsForEveryShippedScript:
         assert not empty, f"SLICE_EXCLUSIONS entries with no reason: {empty}"
 
     def test_the_three_build_candidates_modules_are_each_excluded_with_a_reason(self):
-        """The candidate lifecycle is split over three modules (#2273); a
+        """The candidate lifecycle is split over three modules; a
         module that drops out of SLICE_EXCLUSIONS must fail here by name."""
         modules = (
             "build_candidates.py",
@@ -758,7 +758,7 @@ class TestTheFloorSliceAccountsForEveryShippedScript:
         assert not missing, f"SLICE_EXCLUSIONS has no reason for: {missing}"
 
     def test_plan_summary_record_is_excluded_with_a_reason(self):
-        """The plan-summary writer (#2273) is exempt from the floor slice; if
+        """The plan-summary writer is exempt from the floor slice; if
         its entry drops out it must fail here by name."""
         reason = SLICE_EXCLUSIONS.get("plan_summary_record.py", "")
         assert reason.strip(), "SLICE_EXCLUSIONS has no reason for plan_summary_record.py"
