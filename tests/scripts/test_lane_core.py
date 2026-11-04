@@ -35,6 +35,8 @@ from lane_fixtures import (
     non_stdlib,
     repo_with_origin,
     repo_without_remote,
+    skipped_covers,
+    skipped_covers_in,
 )
 
 from _repo_root import REPO_ROOT
@@ -89,32 +91,108 @@ SAMPLE_ARGUMENTS = {
 GUARD_CASES = {
     "push": (["push", "origin", "main"], "subcommand push"),
     "send-pack": (["send-pack", "somewhere"], "subcommand send-pack"),
-    "push-after-C": (["-C", "/tmp", "push"], "subcommand push"),
-    "push-after-git-dir": (["--git-dir", "/x", "push"], "subcommand push"),
-    "push-after-work-tree": (["--work-tree", "/x", "push"], "subcommand push"),
-    "push-after-namespace": (["--namespace", "n", "push"], "subcommand push"),
-    "push-after-super-prefix": (["--super-prefix", "p", "push"], "subcommand push"),
-    "push-after-config-env-value": (["--config-env", "a=B", "push"], "--config-env"),
+    # Only `-c diff.relative=false` may precede the subcommand (an allowlist).
+    "global-C": (["-C", "/tmp", "status"], "global option -C"),
+    "global-git-dir": (["--git-dir", "/x", "status"], "global option --git-dir"),
+    "global-git-dir-equals": (["--git-dir=/x", "status"], "global option --git-dir"),
+    "global-work-tree": (["--work-tree", "/x", "status"], "global option --work-tree"),
+    "global-namespace": (["--namespace", "n", "status"], "global option --namespace"),
+    "global-super-prefix": (["--super-prefix", "p", "status"], "global option --super"),
+    "global-attr-source": (
+        ["--attr-source", "x", "push"],
+        "global option --attr-source",
+    ),
+    "global-exec-path-equals": (
+        ["--exec-path=/x", "status"],
+        "global option --exec-path",
+    ),
+    "global-exec-path-bare": (["--exec-path", "status"], "global option --exec-path"),
+    "global-paginate": (["-p", "status"], "global option -p"),
+    "global-no-pager-capital-P": (["-P", "status"], "global option -P"),
+    "global-unknown-option": (
+        ["--not-a-git-option", "status"],
+        "global option --not-a",
+    ),
+    "global-config-env": (
+        ["--config-env", "a=B", "push"],
+        "global option --config-env",
+    ),
+    "global-config-env-equals-form": (
+        ["--config-env=a=B", "status"],
+        "global option --config-env",
+    ),
+    "options-only-no-subcommand": (["-c", "diff.relative=false"], "no git subcommand"),
+    "no-arguments": ([], "no git subcommand"),
     "--no-verify": (["commit", "--no-verify", "-m", "x"], "option --no-verify"),
+    "--no-verify-equals": (["commit", "--no-verify=1"], "option --no-verify"),
     "--force": (["branch", "--force", "x"], "option --force"),
     "--force-with-lease": (
         ["branch", "--force-with-lease", "x"],
         "option --force-with-lease",
     ),
+    "--force-with-lease-equals": (
+        ["fetch", "--force-with-lease=main:abc"],
+        "option --force-with-lease",
+    ),
+    "--force-if-includes": (
+        ["fetch", "--force-if-includes"],
+        "option --force-if-includes",
+    ),
     "-f": (["branch", "-f", "x"], "option -f"),
     "--no-gpg-sign": (["commit", "--no-gpg-sign", "-m", "x"], "option --no-gpg-sign"),
-    "hooksPath-via-c": (["-c", "core.hooksPath=/hooks", "status"], "core.hooksPath"),
+    # Abbreviations git accepts for a forbidden long option.
+    "abbrev-no-verif": (["commit", "--no-verif"], "abbreviates --no-verify"),
+    "abbrev-no-ver": (["commit", "--no-ver"], "abbreviates --no-verify"),
+    "abbrev-no-gpg": (["commit", "--no-gpg"], "abbreviates --no-gpg-sign"),
+    "abbrev-force-w": (["fetch", "--force-w"], "abbreviates --force-with-lease"),
+    "abbrev-force-w-equals": (
+        ["fetch", "--force-w=main"],
+        "abbreviates --force-with-lease",
+    ),
+    "abbrev-force-i": (["fetch", "--force-i"], "abbreviates --force-if-includes"),
+    "abbrev-forc": (["branch", "--forc", "x"], "abbreviates --force"),
+    # Short-option clusters that contain -f.
+    "cluster-fd": (["clean", "-fd"], "contains -f"),
+    "cluster-ff": (["clean", "-ff"], "contains -f"),
+    "cluster-qf": (["branch", "-qf", "x"], "contains -f"),
+    # -n is --no-verify for these subcommands.
+    "commit-n": (["commit", "-n", "-m", "x"], "contains -n"),
+    "commit-cluster-an": (["commit", "-an", "-m", "x"], "contains -n"),
+    "merge-n": (["merge", "-n", "x"], "contains -n"),
+    "am-n": (["am", "-n"], "contains -n"),
+    "rebase-n": (["rebase", "-n", "x"], "contains -n"),
+    # -D, -M, -B (and -C) force a change.
+    "branch-D": (["branch", "-D", "x"], "forces a branch"),
+    "branch-M": (["branch", "-M", "x"], "forces a branch"),
+    "branch-C": (["branch", "-C", "x"], "forces a branch"),
+    "worktree-B": (["worktree", "add", "-B", "x", "/p"], "forces a branch"),
+    "checkout-B": (["checkout", "-B", "x"], "forces a branch"),
+    "switch-C": (["switch", "-C", "x"], "forces a branch"),
+    "switch-cluster-qB": (["switch", "-qB", "x"], "forces a branch"),
+    "hooksPath-via-c": (
+        ["-c", "core.hooksPath=/hooks", "status"],
+        "only -c diff.relative",
+    ),
     "hooksPath-via-c-lowercase": (
         ["-c", "core.hookspath=/hooks", "status"],
-        "core.hooksPath",
+        "only -c diff.relative",
     ),
-    "hooksPath-via-config": (["config", "core.hooksPath=/hooks"], "core.hooksPath"),
-    "hooksPath-via-config-uppercase": (
-        ["config", "CORE.HOOKSPATH=/hooks"],
-        "core.hooksPath",
+    # The `config` subcommand is never run.
+    "config-subcommand": (["config", "user.name", "x"], "subcommand config"),
+    "hooksPath-via-config-two-tokens": (
+        ["config", "core.hooksPath", "/dev/null"],
+        "subcommand config",
     ),
+    "hooksPath-via-config-local": (
+        ["config", "--local", "core.hooksPath", "x"],
+        "subcommand config",
+    ),
+    # A hooks-path name anywhere else is refused as a token.
+    "hooksPath-bare-token": (["status", "core.hooksPath"], "core.hooksPath"),
+    "hooksPath-bare-token-uppercase": (["status", "CORE.HOOKSPATH"], "core.hooksPath"),
+    "hooksPath-equals-token": (["status", "core.hooksPath=/hooks"], "core.hooksPath"),
     "other-config-override": (["-c", "user.name=x", "status"], "only -c diff.relative"),
-    "config-env-equals-form": (["--config-env=a=B", "status"], "--config-env"),
+    "c-without-value": (["-c"], "only -c diff.relative"),
     "force-refspec": (["fetch", "origin", "+refs/heads/*:refs/x/*"], "forcing refspec"),
     "force-refspec-short": (["fetch", "origin", "+main"], "forcing refspec"),
 }
@@ -162,12 +240,14 @@ def test_git_command_failed_stays_complete_when_git_said_nothing():
 
 def test_a_trunk_refusal_tells_an_explicit_ref_from_a_default_one():
     explicit = lane_core.trunk_unresolved_refusal("mine")
-    default = lane_core.trunk_unresolved_refusal("origin/gone", is_default=True)
-    none_found = lane_core.trunk_unresolved_refusal(None)
+    default = lane_core.trunk_unresolved_refusal(None, "origin/gone")
+    none_found = lane_core.trunk_unresolved_refusal(None, None)
+    both = lane_core.trunk_unresolved_refusal("mine", "origin/gone")
 
     assert "'mine'" in explicit.why and "default" not in explicit.why
-    assert "'origin/gone'" in default.why and "default" in default.why
-    assert "no default branch" in none_found.why
+    assert "'origin/gone'" in default.why and "default trunk" in default.why
+    assert "no default trunk" in none_found.why
+    assert both.why == explicit.why
 
 
 # --- registry ---------------------------------------------------------------
@@ -203,6 +283,34 @@ def test_every_registered_refusal_has_a_covering_test():
     assert not missing, (
         f"no @covers(...) test for registered refusals: {sorted(missing)}"
     )
+
+
+def test_no_test_that_declares_covers_is_skipped():
+    assert skipped_covers(TEST_SOURCES) == []
+
+
+@pytest.mark.parametrize(
+    "decorator",
+    [
+        "pytest.mark.skip",
+        "pytest.mark.skip(reason='x')",
+        "pytest.mark.skipif(True, reason='x')",
+        "pytest.mark.xfail",
+    ],
+)
+def test_the_skip_check_sees_a_covers_test_that_is_skipped(decorator):
+    source = f"@covers('a')\n@{decorator}\ndef test_x():\n    pass\n"
+
+    assert skipped_covers_in(source) == ["test_x"]
+
+
+def test_the_skip_check_ignores_skips_without_covers_and_covers_without_skips():
+    source = (
+        "@pytest.mark.skip\ndef test_a():\n    pass\n"
+        "@covers('a')\n@pytest.mark.parametrize('x', [1])\ndef test_b(x):\n    pass\n"
+    )
+
+    assert skipped_covers_in(source) == []
 
 
 def test_every_covers_literal_is_in_the_final_vocabulary():
@@ -344,6 +452,54 @@ def test_git_runs_with_a_timeout_and_no_stdin(monkeypatch, tmp_path):
     assert seen["stdin"] is subprocess.DEVNULL
 
 
+def _captured_env(monkeypatch, tmp_path) -> dict[str, str]:
+    seen: dict[str, object] = {}
+
+    def capture(argv, **kwargs):
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", capture)
+    lane_core._git(["status"], tmp_path)
+    return seen["env"]  # type: ignore[return-value]
+
+
+def test_git_does_not_inherit_config_injected_through_the_environment(
+    monkeypatch, tmp_path
+):
+    injected = {
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "core.hooksPath",
+        "GIT_CONFIG_VALUE_0": "/hooks",
+        "GIT_CONFIG_KEY_17": "core.hooksPath",
+        "GIT_CONFIG_VALUE_17": "/hooks",
+        "GIT_CONFIG_PARAMETERS": "'core.hookspath=/hooks'",
+    }
+    for name, value in injected.items():
+        monkeypatch.setenv(name, value)
+
+    env = _captured_env(monkeypatch, tmp_path)
+
+    assert set(injected) & set(env) == set()
+
+
+@pytest.mark.parametrize("name", sorted(lane_core.GIT_ENV_DROPPED))
+def test_git_does_not_inherit_a_redirecting_variable(name, monkeypatch, tmp_path):
+    monkeypatch.setenv(name, "/elsewhere")
+
+    assert name not in _captured_env(monkeypatch, tmp_path)
+
+
+def test_git_keeps_the_rest_of_the_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("LANE_PROBE", "kept")
+
+    env = _captured_env(monkeypatch, tmp_path)
+
+    assert env["LANE_PROBE"] == "kept"
+    assert env["GIT_CONFIG_GLOBAL"] == "/dev/null"
+    assert env["HOME"]
+
+
 # Calls that start a process, by module. An alias or a `from` import of one of
 # these is resolved before counting.
 _SPAWNERS = {
@@ -450,6 +606,20 @@ def test_lane_core_never_imports_lane():
         ["git", "-c", "core.hooksPath=/hooks", "status"],
         ["git", "-c", "CORE.HOOKSPATH=/hooks", "status"],
         ["git", "fetch", "origin", "+main:main"],
+        ["git", "fetch", "--force-with-lease=main"],
+        ["git", "fetch", "--force-if-includes"],
+        ["git", "commit", "--no-verif"],
+        ["git", "commit", "--no-gpg"],
+        ["git", "fetch", "--force-w"],
+        ["git", "clean", "-fd"],
+        ["git", "clean", "-qf"],
+        ["git", "commit", "-n", "-m", "x"],
+        ["git", "commit", "-an"],
+        ["git", "branch", "-D", "x"],
+        ["git", "switch", "-C", "x"],
+        ["git", "checkout", "-B", "x"],
+        ["git", "worktree", "add", "-B", "x", "/p"],
+        ["git", "-c", "core.hookspath", "status"],
     ],
 )
 def test_the_oracle_flags_a_forbidden_call(argv):
@@ -460,9 +630,23 @@ def test_the_oracle_flags_a_forbidden_call(argv):
     assert forbidden_hits(argv) != []
 
 
-def test_the_oracle_does_not_flag_a_branch_that_merely_looks_like_push():
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["git", "branch", "pushed"],
+        ["git", "log", "-n", "3"],
+        ["git", "branch", "-d", "x"],
+        ["git", "worktree", "add", "-q", "-b", "x", "/p", "abc"],
+        ["git", "switch", "-q", "-c", "x"],
+        ["git", "commit", "-q", "-m", "fix: format"],
+        ["git", "merge", "--no-ff", "x"],
+        ["git", "-c", "diff.relative=false", "diff", "--name-only"],
+        ["git", "format-patch", "--format=short"],
+    ],
+)
+def test_the_oracle_does_not_flag_a_harmless_call(argv):
     spy = ArgvSpy()
-    spy.records.append(["git", "branch", "pushed"])
+    spy.records.append(argv)
 
     assert spy.violations() == []
 
@@ -654,16 +838,35 @@ def test_a_remote_name_with_a_slash_is_stripped_whole(repo_with_origin):
     assert lane_core.local_branch_of("team/main", repo) == "main"
 
 
-def test_a_tag_maps_to_itself(repo_with_origin):
+def test_a_tag_has_no_local_branch(repo_with_origin):
     git(repo_with_origin.path, "tag", "v1")
 
-    assert lane_core.local_branch_of("v1", repo_with_origin.path) == "v1"
+    assert lane_core.local_branch_of("v1", repo_with_origin.path) is None
 
 
-def test_a_sha_maps_to_itself(repo_without_remote):
+def test_a_sha_has_no_local_branch(repo_without_remote):
     sha = git(repo_without_remote.path, "rev-parse", "HEAD")
 
-    assert lane_core.local_branch_of(sha, repo_without_remote.path) == sha
+    assert lane_core.local_branch_of(sha, repo_without_remote.path) is None
+
+
+def test_a_remote_tracking_ref_of_an_unknown_remote_has_no_local_branch(
+    repo_without_remote,
+):
+    repo = repo_without_remote.path
+    git(repo, "update-ref", "refs/remotes/ghost/main", "HEAD")
+
+    assert lane_core.local_branch_of("ghost/main", repo) is None
+
+
+@pytest.mark.parametrize("ref", ["-lead", "--help", "bad name", "", "main^{tree}"])
+def test_a_malformed_ref_has_no_local_branch_and_never_reaches_git(
+    ref, repo_without_remote, argv_spy
+):
+    records_before = len(argv_spy.records)
+
+    assert lane_core.local_branch_of(ref, repo_without_remote.path) is None
+    assert argv_spy.records[records_before:] == []
 
 
 # --- lane_context -----------------------------------------------------------
@@ -731,6 +934,32 @@ def test_a_linked_worktree_on_the_trunk_branch_is_not_a_lane_for_any_trunk_spell
     assert lane_core.lane_context(trunk_ref, on_trunk) is None
 
 
+def test_a_branch_named_like_a_tag_trunk_is_a_lane(repo_without_remote):
+    git(repo_without_remote.path, "tag", "v1", "main")
+    worktree = add_linked_worktree(repo_without_remote, "v1")
+
+    context = lane_core.lane_context("v1", worktree)
+
+    assert context is not None
+    assert (context.branch, context.trunk_ref, context.trunk_branch) == (
+        "v1",
+        "v1",
+        None,
+    )
+
+
+def test_a_sha_trunk_has_no_trunk_branch_and_a_linked_branch_is_a_lane(
+    repo_without_remote,
+):
+    sha = git(repo_without_remote.path, "rev-parse", "HEAD")
+    worktree = add_linked_worktree(repo_without_remote, "feature-x")
+
+    context = lane_core.lane_context(sha, worktree)
+
+    assert context is not None
+    assert (context.trunk_ref, context.trunk_branch) == (sha, None)
+
+
 def test_the_trunk_branch_of_a_remote_tracking_trunk_is_the_local_branch(
     repo_with_origin,
 ):
@@ -758,7 +987,7 @@ def test_the_primary_checkout_finds_itself(repo_without_remote):
     )
 
 
-def test_a_separate_git_dir_checkout_gets_the_main_worktree_git_lists(tmp_path):
+def test_a_separate_git_dir_checkout_gets_the_primary_git_lists(tmp_path):
     repo = tmp_path / "sep"
     git_dir = tmp_path / "gd"
     git(
@@ -793,6 +1022,63 @@ def test_a_bare_primary_is_the_bare_repository(repo_without_remote, tmp_path):
     git(bare, "worktree", "add", "-q", "-b", "feat", str(from_bare), "main")
 
     assert lane_core.primary_checkout(from_bare) == bare.resolve()
+
+
+# --- worktrees, branch_exists, branch_checked_out ---------------------------
+
+
+def test_worktrees_lists_the_primary_first_with_its_branch(repo_without_remote):
+    lane_path = add_linked_worktree(repo_without_remote, "feature-x")
+
+    listed = lane_core.worktrees(repo_without_remote.path)
+
+    assert listed == [
+        (repo_without_remote.path.resolve(), "main"),
+        (lane_path.resolve(), "feature-x"),
+    ]
+
+
+def test_worktrees_gives_none_for_a_detached_head(repo_without_remote):
+    lane_path = add_linked_worktree(repo_without_remote, "feature-x")
+    git(lane_path, "checkout", "-q", "--detach")
+
+    assert lane_core.worktrees(lane_path)[1] == (lane_path.resolve(), None)
+
+
+def test_worktrees_gives_none_for_a_bare_repository(repo_without_remote, tmp_path):
+    bare = tmp_path / "bare.git"
+    git(tmp_path, "clone", "-q", "--bare", str(repo_without_remote.path), str(bare))
+
+    assert lane_core.worktrees(bare) == [(bare.resolve(), None)]
+
+
+def test_worktrees_keeps_a_slash_in_the_branch_name(repo_without_remote):
+    lane_path = add_linked_worktree(repo_without_remote, "feat/x")
+
+    assert lane_core.worktrees(lane_path)[1] == (lane_path.resolve(), "feat/x")
+
+
+def test_branch_exists_sees_a_local_branch_and_not_a_tag(repo_without_remote):
+    repo = repo_without_remote.path
+    git(repo, "branch", "there")
+    git(repo, "tag", "only-a-tag")
+
+    assert lane_core.branch_exists("there", repo)
+    assert not lane_core.branch_exists("only-a-tag", repo)
+    assert not lane_core.branch_exists("missing", repo)
+
+
+def test_branch_checked_out_is_true_only_while_a_worktree_holds_the_branch(
+    repo_without_remote,
+):
+    repo = repo_without_remote.path
+    git(repo, "branch", "idle")
+    add_linked_worktree(repo_without_remote, "held")
+
+    assert lane_core.branch_checked_out("main", repo)
+    assert lane_core.branch_checked_out("held", repo)
+    assert not lane_core.branch_checked_out("idle", repo)
+    assert not lane_core.branch_checked_out("hel", repo)
 
 
 @pytest.fixture

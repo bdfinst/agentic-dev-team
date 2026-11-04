@@ -11,8 +11,12 @@ every command shares:
   argv before it reaches `_run`. `review_gate_hash.default_base_ref` is the one
   delegated exception: it runs its own `git` calls, without this module's
   timeout, and a runtime spy in the tests covers it.
-- `resolve_trunk`, `local_branch_of` and `lane_context`: which ref is trunk,
-  which local branch it maps to, and whether the working directory is a lane.
+- `resolve_trunk_commit`, `local_branch_of` and `lane_context`: which ref is
+  the trunk, which local branch it maps to (None for a tag or SHA), and
+  whether the working directory is a lane. `resolve_trunk` is a thin wrapper
+  over `resolve_trunk_commit` for tests and probes.
+- `worktrees`, `branch_exists`, `branch_checked_out` and `primary_checkout`:
+  the one worktree-listing parser and the questions built on it.
 
 Import whitelist (pinned by an AST test): the standard library and
 `review_gate_hash`. Stdlib only otherwise. See ADR 0014 and ADR 0031.
@@ -23,6 +27,7 @@ This module never pushes, never skips git hooks and never forces anything.
 from __future__ import annotations
 
 import functools
+import os
 import re
 import shlex
 import subprocess
@@ -47,41 +52,79 @@ GIT_DIR_NAME = ".git"
 HEAD_REFS_PREFIX = "refs/heads/"
 REMOTE_REFS_PREFIX = "refs/remotes/"
 WORKTREE_LINE_PREFIX = "worktree "
+BRANCH_LINE_PREFIX = "branch "
 
-#: A ref the user may pass as `--trunk`. Validated before git sees it, so a
-#: value starting with `-` can never be read as an option.
+#: A ref the user may pass as `--trunk` and the form a lane name must take.
+#: Validated before git sees it, so a value starting with `-` can never be read
+#: as an option.
 REF_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
+LANE_NAME_PATTERN = REF_PATTERN
 
 #: Subcommands that publish history. This tool never runs them.
 FORBIDDEN_SUBCOMMANDS = frozenset({"push", "send-pack"})
 
-#: Tokens that skip a hook, a signature or a safety check. Matched by exact
-#: equality, never by substring.
-FORBIDDEN_TOKENS = frozenset(
-    {"--no-verify", "--force", "--force-with-lease", "-f", "--no-gpg-sign"}
+#: This tool never writes git config, so it never runs the `config` subcommand.
+CONFIG_SUBCOMMAND = "config"
+
+#: Long options that skip a hook, a signature or a safety check.
+FORBIDDEN_LONG_OPTIONS = frozenset(
+    {
+        "--no-verify",
+        "--force",
+        "--force-with-lease",
+        "--force-if-includes",
+        "--no-gpg-sign",
+    }
 )
 
-#: A `-c` override is allowed only with this value.
+#: Tokens that skip a hook, a signature or a safety check. Matched by exact
+#: equality (or `--name=value`), never by substring. Other spellings of the
+#: same options are caught by the abbreviation and short-cluster rules.
+FORBIDDEN_TOKENS = FORBIDDEN_LONG_OPTIONS | {"-f"}
+
+#: Git accepts an unambiguous prefix of a long option. A prefix of a forbidden
+#: option at least this long (after `--`) is refused too.
+MIN_ABBREVIATION_LENGTH = 3
+
+#: A short-option cluster such as `-fd` or `-qf`.
+SHORT_CLUSTER_PATTERN = re.compile(r"-[A-Za-z]+")
+FORCE_SHORT_LETTER = "f"
+
+#: `-n` is `--no-verify` for these subcommands.
+NO_VERIFY_SHORT_SUBCOMMANDS = frozenset({"commit", "merge", "am", "rebase"})
+NO_VERIFY_SHORT_LETTER = "n"
+
+#: `-D`, `-M`, `-B` and `-C` force a delete, move, reset or copy here.
+FORCE_UPPER_SUBCOMMANDS = frozenset({"branch", "worktree", "checkout", "switch"})
+FORCE_UPPER_LETTERS = frozenset("DMBC")
+
+#: The only global option lane_core's own calls may put before the subcommand.
 CONFIG_OPTION = "-c"
 CONFIG_ENV_OPTION = "--config-env"
 ALLOWED_CONFIG_OVERRIDE = "diff.relative=false"
-HOOKS_PATH_PREFIX = "core.hookspath="
+HOOKS_PATH_NAME = "core.hookspath"
+HOOKS_PATH_PREFIX = f"{HOOKS_PATH_NAME}="
 
 #: A refspec starting with this forces the update.
 FORCE_REFSPEC_PREFIX = "+"
 
-#: Global git options that take a separate value token.
-_GLOBAL_OPTIONS_WITH_VALUE = frozenset(
+#: Environment variables that redirect or reconfigure git. They are not passed
+#: on to the git calls this module makes.
+GIT_ENV_DROPPED = frozenset(
     {
-        CONFIG_OPTION,
-        "-C",
-        "--git-dir",
-        "--work-tree",
-        "--namespace",
-        "--super-prefix",
-        CONFIG_ENV_OPTION,
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
+        "GIT_EXEC_PATH",
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_NAMESPACE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     }
 )
+GIT_ENV_DROPPED_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 
 WHAT_GIT_COMMAND_FAILED = "git command failed"
 WHAT_INVALID_LANE_NAME = "invalid lane name"
@@ -185,14 +228,17 @@ def path_exists_refusal(path: Path) -> Refusal:
 
 
 @_registered(WHAT_TRUNK_UNRESOLVED)
-def trunk_unresolved_refusal(ref: str | None, is_default: bool = False) -> Refusal:
-    """`ref` is the ref that failed, or None when no default branch was found."""
-    if ref is None:
-        why = "no --trunk was given and no default branch could be found"
-    elif is_default:
-        why = f"the default trunk ref {ref!r} does not resolve to a commit"
+def trunk_unresolved_refusal(given: str | None, default: str | None = None) -> Refusal:
+    """`given` is the `--trunk` value; `default` is the default trunk found.
+
+    `given` wins. With neither, no --trunk was given and no default trunk exists.
+    """
+    if given is not None:
+        why = f"trunk ref {given!r} does not resolve to a commit"
+    elif default is not None:
+        why = f"the default trunk {default!r} does not resolve to a commit"
     else:
-        why = f"trunk ref {ref!r} does not resolve to a commit"
+        why = "no --trunk was given and no default trunk could be found"
     return Refusal(
         what=WHAT_TRUNK_UNRESOLVED,
         why=why,
@@ -229,15 +275,32 @@ def _failure(argv: Sequence[str], detail: str) -> RefusalError:
     return RefusalError(git_command_failed_refusal(shlex.join(argv), detail))
 
 
+def _git_env() -> dict[str, str]:
+    """The parent environment without the variables that reconfigure git.
+
+    `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` are kept: they name a whole
+    config file the operator chose, and the test fixtures point them at
+    /dev/null. `review_gate_hash.default_base_ref` (delegated) still inherits
+    the full environment.
+    """
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if key not in GIT_ENV_DROPPED and not key.startswith(GIT_ENV_DROPPED_PREFIXES)
+    }
+
+
 def _run(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     """The only `subprocess.run` call in this module. Never `shell=True`.
 
-    Git never reads stdin and is abandoned after `GIT_TIMEOUT_SECONDS`.
+    Git never reads stdin, runs with `_git_env()` and is abandoned after
+    `GIT_TIMEOUT_SECONDS`.
     """
     try:
         return subprocess.run(
             list(argv),
             cwd=str(cwd),
+            env=_git_env(),
             capture_output=True,
             text=True,
             check=False,
@@ -251,59 +314,86 @@ def _run(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
         raise _failure(argv, str(exc)) from exc
 
 
-def _subcommand_index(args: Sequence[str]) -> int | None:
-    """Index of the git subcommand, skipping global options and their values."""
+def _global_options_reason(args: Sequence[str]) -> tuple[int | None, str | None]:
+    """`(subcommand index, None)` or `(None, why the leading options are refused)`.
+
+    An allowlist: the only option allowed before the subcommand is
+    `-c diff.relative=false`. Anything else (`-C`, `--git-dir`, `--exec-path`,
+    `--attr-source`, an unknown option) could redirect git, so it is refused.
+    The location comes from `cwd`.
+    """
     index = 0
     while index < len(args):
         token = args[index]
-        if token in _GLOBAL_OPTIONS_WITH_VALUE:
+        if not token.startswith("-"):
+            return index, None
+        if token == CONFIG_OPTION:
+            override = args[index + 1] if index + 1 < len(args) else ""
+            if override != ALLOWED_CONFIG_OVERRIDE:
+                return None, (
+                    f"only {CONFIG_OPTION} {ALLOWED_CONFIG_OVERRIDE} is allowed, "
+                    f"not {CONFIG_OPTION} {override}"
+                )
             index += 2
             continue
-        if not token.startswith("-"):
-            return index
-        index += 1
+        return None, f"global option {token} is never passed by lane.py"
+    return None, "no git subcommand was given"
+
+
+def _forbidden_long_option(name: str) -> str | None:
+    """The forbidden long option `name` is, or abbreviates; else None."""
+    if not name.startswith("--") or len(name) - 2 < MIN_ABBREVIATION_LENGTH:
+        return None
+    for option in sorted(FORBIDDEN_LONG_OPTIONS):
+        if option.startswith(name):
+            return option
     return None
 
 
-def _token_reason(token: str) -> str | None:
-    if token in FORBIDDEN_TOKENS:
-        return f"option {token} is never passed by lane.py"
-    if token.lower().startswith(HOOKS_PATH_PREFIX):
+def _cluster_reason(token: str, subcommand: str) -> str | None:
+    if SHORT_CLUSTER_PATTERN.fullmatch(token) is None:
+        return None
+    letters = set(token[1:])
+    if FORCE_SHORT_LETTER in letters:
+        return f"option {token} contains -{FORCE_SHORT_LETTER} (force)"
+    if subcommand in NO_VERIFY_SHORT_SUBCOMMANDS and NO_VERIFY_SHORT_LETTER in letters:
+        return f"option {token} contains -{NO_VERIFY_SHORT_LETTER} (--no-verify)"
+    if subcommand in FORCE_UPPER_SUBCOMMANDS and letters & FORCE_UPPER_LETTERS:
+        return f"option {token} forces a branch or worktree change"
+    return None
+
+
+def _token_reason(token: str, subcommand: str) -> str | None:
+    name = token.partition("=")[0]
+    if name in FORBIDDEN_TOKENS:
+        return f"option {name} is never passed by lane.py"
+    abbreviated = _forbidden_long_option(name)
+    if abbreviated is not None:
+        return f"option {name} abbreviates {abbreviated}, never passed by lane.py"
+    cluster = _cluster_reason(token, subcommand)
+    if cluster is not None:
+        return cluster
+    lowered = token.lower()
+    if lowered == HOOKS_PATH_NAME or lowered.startswith(HOOKS_PATH_PREFIX):
         return "core.hooksPath override is never passed by lane.py"
     if token.startswith(FORCE_REFSPEC_PREFIX):
         return f"forcing refspec {token} is never passed by lane.py"
     return None
 
 
-def _config_override_reason(
-    args: Sequence[str], subcommand_index: int | None
-) -> str | None:
-    """Only `-c diff.relative=false` may appear among the global options."""
-    global_end = len(args) if subcommand_index is None else subcommand_index
-    for index in range(global_end):
-        if args[index].startswith(CONFIG_ENV_OPTION):
-            return f"{CONFIG_ENV_OPTION} is never passed by lane.py"
-        if args[index] != CONFIG_OPTION:
-            continue
-        override = args[index + 1] if index + 1 < len(args) else ""
-        if override != ALLOWED_CONFIG_OVERRIDE:
-            return (
-                f"only {CONFIG_OPTION} {ALLOWED_CONFIG_OVERRIDE} is allowed, "
-                f"not {CONFIG_OPTION} {override}"
-            )
-    return None
-
-
 def _guard_reason(args: Sequence[str]) -> str | None:
     """Why `args` must not run, or None. Checks tokens this code builds."""
-    subcommand_index = _subcommand_index(args)
-    if subcommand_index is not None and args[subcommand_index] in FORBIDDEN_SUBCOMMANDS:
-        return f"subcommand {args[subcommand_index]} is never run by lane.py"
+    subcommand_index, reason = _global_options_reason(args)
+    if subcommand_index is None:
+        return reason
+    subcommand = args[subcommand_index]
+    if subcommand in FORBIDDEN_SUBCOMMANDS or subcommand == CONFIG_SUBCOMMAND:
+        return f"subcommand {subcommand} is never run by lane.py"
     for token in args:
-        reason = _token_reason(token)
+        reason = _token_reason(token, subcommand)
         if reason is not None:
             return reason
-    return _config_override_reason(args, subcommand_index)
+    return None
 
 
 def _git(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -341,43 +431,47 @@ def _commit_of(ref: str, cwd: Path) -> str | None:
     return completed.stdout.strip() if completed.returncode == 0 else None
 
 
-def _trunk_candidate(arg: str | None, cwd: Path) -> str | None:
-    return arg if arg is not None else default_base_ref(cwd)
+def resolve_trunk_commit(arg: str | None, cwd: Path) -> tuple[str, str]:
+    """`(trunk ref, commit SHA)`: `arg`, else the default trunk.
+
+    A malformed value, no default trunk, or a ref that is not a commit all
+    refuse, naming which of the three applies.
+    """
+    candidate = arg if arg is not None else default_base_ref(cwd)
+    commit = None if candidate is None else _commit_of(candidate, cwd)
+    if candidate is None or commit is None:
+        default = candidate if arg is None else None
+        raise RefusalError(trunk_unresolved_refusal(arg, default))
+    return candidate, commit
 
 
 def resolve_trunk(arg: str | None, cwd: Path) -> str | None:
-    """The trunk ref: `arg`, else the default base ref. None when unusable.
+    """The trunk ref of `resolve_trunk_commit`, or None when it would refuse.
 
-    A malformed value, no default, or a ref that is not a commit all give None.
-    `resolve_trunk_commit` is the variant that refuses and names the ref.
+    For tests and probes; commands use `resolve_trunk_commit`.
     """
-    candidate = _trunk_candidate(arg, cwd)
-    if candidate is None or _commit_of(candidate, cwd) is None:
+    try:
+        return resolve_trunk_commit(arg, cwd)[0]
+    except RefusalError as exc:
+        if exc.refusal.what != WHAT_TRUNK_UNRESOLVED:
+            raise
         return None
-    return candidate
-
-
-def resolve_trunk_commit(arg: str | None, cwd: Path) -> tuple[str, str]:
-    """`(trunk ref, commit SHA)`, or a refusal that names the ref that failed."""
-    candidate = _trunk_candidate(arg, cwd)
-    commit = None if candidate is None else _commit_of(candidate, cwd)
-    if candidate is None or commit is None:
-        raise RefusalError(trunk_unresolved_refusal(candidate, is_default=arg is None))
-    return candidate, commit
 
 
 def _remote_names(cwd: Path) -> list[str]:
     return git_text(["remote"], cwd).splitlines()
 
 
-def local_branch_of(ref: str, cwd: Path) -> str:
-    """The local branch trunk maps to: `origin/main` -> `main`, else `ref`.
+def local_branch_of(ref: str, cwd: Path) -> str | None:
+    """The local branch the trunk maps to: `origin/main` -> `main`, else None.
 
-    `ref` must already match `REF_PATTERN`. Git gives the full ref name; a tag
-    or SHA has no branch form and maps to itself, which the fast-forward check
-    refuses later. A remote name may contain `/`, so the remote is matched
-    against `git remote`, longest name first.
+    None means the ref has no local-branch form: a tag, a SHA, or a value that
+    does not match `REF_PATTERN` (which never reaches git). Git gives the full
+    ref name. A remote name may contain `/`, so the remote is matched against
+    `git remote`, longest name first.
     """
+    if REF_PATTERN.fullmatch(ref) is None:
+        return None
     completed = _git(["rev-parse", "--symbolic-full-name", ref], cwd)
     full = completed.stdout.strip() if completed.returncode == 0 else ""
     if full.startswith(HEAD_REFS_PREFIX):
@@ -387,16 +481,54 @@ def local_branch_of(ref: str, cwd: Path) -> str:
         for remote in sorted(_remote_names(cwd), key=len, reverse=True):
             if tracking.startswith(f"{remote}/"):
                 return tracking.removeprefix(f"{remote}/")
-    return ref
+    return None
 
 
 @dataclass(frozen=True)
 class LaneContext:
+    """`trunk_branch` is None when the trunk has no local-branch form."""
+
     lane_path: Path
     branch: str
     trunk_ref: str
-    trunk_branch: str
+    trunk_branch: str | None
     primary_path: Path
+
+
+def worktrees(cwd: Path) -> list[tuple[Path, str | None]]:
+    """Every worktree git lists, primary first: `(path, checked-out branch | None)`.
+
+    The branch is None for a detached HEAD and for a bare repository.
+    """
+    entries: list[tuple[Path, str | None]] = []
+    path: Path | None = None
+    branch: str | None = None
+    for line in git_text(["worktree", "list", "--porcelain"], cwd).splitlines():
+        if line.startswith(WORKTREE_LINE_PREFIX):
+            if path is not None:
+                entries.append((path, branch))
+            path = Path(line.removeprefix(WORKTREE_LINE_PREFIX)).resolve()
+            branch = None
+        elif line.startswith(BRANCH_LINE_PREFIX) and path is not None:
+            ref = line.removeprefix(BRANCH_LINE_PREFIX)
+            branch = (
+                ref.removeprefix(HEAD_REFS_PREFIX)
+                if ref.startswith(HEAD_REFS_PREFIX)
+                else None
+            )
+    if path is not None:
+        entries.append((path, branch))
+    return entries
+
+
+def branch_exists(name: str, cwd: Path) -> bool:
+    """True when local branch `name` exists."""
+    return git_ok(["show-ref", "--verify", "--quiet", f"{HEAD_REFS_PREFIX}{name}"], cwd)
+
+
+def branch_checked_out(name: str, cwd: Path) -> bool:
+    """True when a worktree has local branch `name` checked out."""
+    return any(branch == name for _, branch in worktrees(cwd))
 
 
 def _rev_parse_paths(flags: Sequence[str], cwd: Path) -> list[Path]:
@@ -406,10 +538,10 @@ def _rev_parse_paths(flags: Sequence[str], cwd: Path) -> list[Path]:
 
 
 def _primary_of(common_dir: Path, cwd: Path) -> Path:
-    """The main worktree: git lists it first. Without a listing, guess from the name."""
-    for line in git_text(["worktree", "list", "--porcelain"], cwd).splitlines():
-        if line.startswith(WORKTREE_LINE_PREFIX):
-            return Path(line.removeprefix(WORKTREE_LINE_PREFIX)).resolve()
+    """The primary checkout: git lists it first. Without a listing, guess from the name."""
+    listed = worktrees(cwd)
+    if listed:
+        return listed[0][0]
     return common_dir.parent if common_dir.name == GIT_DIR_NAME else common_dir
 
 
@@ -423,16 +555,22 @@ def lane_context(trunk_ref: str, cwd: Path) -> LaneContext | None:
     """The lane `cwd` is in, or None.
 
     A lane is a linked worktree on a branch that is not the trunk branch.
-    Detached HEAD, the primary checkout and the trunk branch are not lanes.
+    Detached HEAD, the primary checkout and the trunk branch are not lanes. A
+    trunk with no local branch (a tag or SHA) has no branch to match, so any
+    branch in a linked worktree is a lane.
     """
     top, git_dir, common = _rev_parse_paths(
         ["--show-toplevel", "--git-dir", "--git-common-dir"], cwd
     )
     if git_dir == common:
         return None
-    branch = _git(["symbolic-ref", "--short", "-q", "HEAD"], cwd).stdout.strip()
+    # The full ref: `--short` prints `heads/v1` when a tag `v1` also exists.
+    head = _git(["symbolic-ref", "-q", "HEAD"], cwd).stdout.strip()
+    branch = (
+        head.removeprefix(HEAD_REFS_PREFIX) if head.startswith(HEAD_REFS_PREFIX) else ""
+    )
     trunk_branch = local_branch_of(trunk_ref, cwd)
-    if not branch or branch == trunk_branch:
+    if not branch or (trunk_branch is not None and branch == trunk_branch):
         return None
     return LaneContext(
         lane_path=top,

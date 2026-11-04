@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Iterable, Sequence
@@ -54,12 +55,28 @@ ORACLE_FORBIDDEN_TOKENS = frozenset(
         "--no-verify",
         "--force",
         "--force-with-lease",
+        "--force-if-includes",
         "-f",
         "--no-gpg-sign",
     }
 )
 ORACLE_HOOKS_PATH_PREFIX = "core.hookspath="
 ORACLE_FORCE_REFSPEC_PREFIX = "+"
+
+#: Spellings the exact-token set cannot see. Each is written out here, not read
+#: from lane_core, for the same reason as the set above.
+ORACLE_LONG_OPTIONS = (
+    "--no-verify",
+    "--force",
+    "--force-with-lease",
+    "--force-if-includes",
+    "--no-gpg-sign",
+)
+ORACLE_MIN_ABBREVIATION = 3
+ORACLE_CLUSTER = re.compile(r"-[A-Za-z]+")
+ORACLE_NO_VERIFY_SUBCOMMANDS = frozenset({"commit", "merge", "am", "rebase"})
+ORACLE_FORCE_UPPER_SUBCOMMANDS = frozenset({"branch", "worktree", "checkout", "switch"})
+ORACLE_FORCE_UPPER_LETTERS = frozenset("DMBC")
 
 _IDENTITY = {
     "GIT_AUTHOR_NAME": "lane tester",
@@ -120,6 +137,37 @@ def covered_whats(paths: Iterable[Path]) -> set[str]:
                     arg.value for arg in node.args if isinstance(arg, ast.Constant)
                 )
     return whats
+
+
+SKIP_MARK_NAMES = frozenset({"skip", "skipif", "xfail"})
+
+
+def skipped_covers_in(source: str) -> list[str]:
+    """Names of tests that declare `@covers(...)` and also a skip/skipif/xfail mark.
+
+    A skipped test renders nothing, so its `covers` claim would be a lie the
+    registry check cannot see from the source alone.
+    """
+    found: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        decorators = [ast.unparse(decorator) for decorator in node.decorator_list]
+        declares = any(text.startswith("covers(") for text in decorators)
+        skips = any(
+            f"mark.{name}" in text for text in decorators for name in SKIP_MARK_NAMES
+        )
+        if declares and skips:
+            found.append(node.name)
+    return found
+
+
+def skipped_covers(paths: Iterable[Path]) -> list[str]:
+    return [
+        name
+        for path in paths
+        for name in skipped_covers_in(path.read_text(encoding="utf-8"))
+    ]
 
 
 @dataclass(frozen=True)
@@ -218,14 +266,40 @@ def single_refusal(code, out, err, what):
     return block
 
 
+def _spelling_hit(token: str, argv: Sequence[str]) -> bool:
+    """An abbreviated long option, or a short-option cluster that forces or skips."""
+    name = token.partition("=")[0]
+    if (
+        name.startswith("--")
+        and len(name) - 2 >= ORACLE_MIN_ABBREVIATION
+        and any(option.startswith(name) for option in ORACLE_LONG_OPTIONS)
+    ):
+        return True
+    if ORACLE_CLUSTER.fullmatch(token) is None:
+        return False
+    letters = set(token[1:])
+    words = set(argv)
+    return (
+        "f" in letters
+        or ("n" in letters and bool(words & ORACLE_NO_VERIFY_SUBCOMMANDS))
+        or (
+            bool(letters & ORACLE_FORCE_UPPER_LETTERS)
+            and bool(words & ORACLE_FORCE_UPPER_SUBCOMMANDS)
+        )
+    )
+
+
 def forbidden_hits(argv: Sequence[str]) -> list[str]:
     """Tokens of one recorded argv that the tool must never pass."""
     return [
         token
         for token in argv
         if token in ORACLE_FORBIDDEN_TOKENS
+        or token.partition("=")[0] in ORACLE_FORBIDDEN_TOKENS
+        or token.lower() == ORACLE_HOOKS_PATH_PREFIX.rstrip("=")
         or token.lower().startswith(ORACLE_HOOKS_PATH_PREFIX)
         or token.startswith(ORACLE_FORCE_REFSPEC_PREFIX)
+        or _spelling_hit(token, argv)
     ]
 
 

@@ -250,13 +250,16 @@ SLICE_EXCLUSIONS = {
         "stdlib argparse/collections.abc/dataclasses/os/pathlib/sys and "
         "lane_core only; the floor gate byte-compiles and imports it under "
         "the oldest interpreter, and its tests run only in the default "
-        "pytest gate"
+        "pytest gate; no floor-sensitive runtime API; import whitelist "
+        "pinned by an AST test (tests/scripts/test_lane*.py)"
     ),
     "lane_core.py": (
-        "stdlib collections.abc/dataclasses/functools/pathlib/re/shlex/"
+        "stdlib collections.abc/dataclasses/functools/os/pathlib/re/shlex/"
         "subprocess/sys and review_gate_hash only; the floor gate "
         "byte-compiles and imports it under the oldest interpreter, and its "
-        "tests run only in the default pytest gate"
+        "tests run only in the default pytest gate; no floor-sensitive "
+        "runtime API; import whitelist pinned by an AST test "
+        "(tests/scripts/test_lane*.py)"
     ),
     "mutation_stack_sections.py": (
         "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"

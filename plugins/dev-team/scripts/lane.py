@@ -34,28 +34,34 @@ OPEN_COMMAND = "open"
 
 @dataclass(frozen=True)
 class Command:
+    """One command. `name` is the only place the command's name is written.
+
+    `build_parser` adds the sub-parser under `name` and hands it to
+    `configure`. The handler is not attached with `set_defaults`: the tests
+    substitute handlers by replacing entries of `COMMANDS`, so dispatch reads
+    `COMMANDS` at call time.
+    """
+
     name: str
-    add_parser: Callable[[argparse._SubParsersAction], None]
+    help: str
+    configure: Callable[[argparse.ArgumentParser], None]
     handler: Callable[[argparse.Namespace, Path], int]
 
 
-def _add_open(subparsers: argparse._SubParsersAction) -> None:
-    parser = subparsers.add_parser(
-        OPEN_COMMAND,
-        help="create a lane: a linked worktree and branch at the trunk tip",
-    )
+def _configure_open(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("name", help="branch name for the lane")
     parser.add_argument(
         "--path", help="worktree directory (default: beside the primary checkout)"
     )
     parser.add_argument(
-        "--trunk", help="trunk ref (default: the remote default branch)"
+        "--trunk",
+        help="trunk ref (default: origin's default branch, else main or master)",
     )
 
 
 def _name_problem(name: str, cwd: Path) -> str | None:
     """Why `name` is unusable, or None. The pattern runs before git sees it."""
-    if lane_core.REF_PATTERN.fullmatch(name) is None:
+    if lane_core.LANE_NAME_PATTERN.fullmatch(name) is None:
         return NAME_PATTERN_PROBLEM
     if not lane_core.git_ok(["check-ref-format", "--branch", name], cwd):
         return NAME_GIT_PROBLEM
@@ -70,15 +76,8 @@ def _validated_name(name: str, cwd: Path) -> str:
 
 
 def _require_free_branch(name: str, cwd: Path) -> None:
-    branch_ref = f"{lane_core.HEAD_REFS_PREFIX}{name}"
-    if lane_core.git_ok(["show-ref", "--verify", "--quiet", branch_ref], cwd):
+    if lane_core.branch_exists(name, cwd):
         raise lane_core.RefusalError(lane_core.branch_exists_refusal(name))
-
-
-def _branch_is_checked_out(name: str, cwd: Path) -> bool:
-    """True when a worktree has branch `name` checked out."""
-    listing = lane_core.git_text(["worktree", "list", "--porcelain"], cwd)
-    return f"branch {lane_core.HEAD_REFS_PREFIX}{name}" in listing.splitlines()
 
 
 def _lane_path(name: str, path_arg: str | None, cwd: Path) -> Path:
@@ -110,7 +109,7 @@ def cmd_open(args: argparse.Namespace, cwd: Path) -> int:
         # checks. A failed `worktree add -b` can leave its own new branch
         # behind, so a branch counts as taken only when a worktree holds it.
         _require_free_path(path)
-        if _branch_is_checked_out(name, cwd):
+        if lane_core.branch_checked_out(name, cwd):
             raise lane_core.RefusalError(lane_core.branch_exists_refusal(name))
         raise
     print(f"worktree: {path}")
@@ -118,9 +117,17 @@ def cmd_open(args: argparse.Namespace, cwd: Path) -> int:
     return lane_core.EXIT_OK
 
 
-#: Every registered command, by name.
+#: Every registered command, keyed by its own `name`.
 COMMANDS: dict[str, Command] = {
-    OPEN_COMMAND: Command(OPEN_COMMAND, _add_open, cmd_open),
+    command.name: command
+    for command in (
+        Command(
+            name=OPEN_COMMAND,
+            help="create a lane: a linked worktree and branch at the trunk tip",
+            configure=_configure_open,
+            handler=cmd_open,
+        ),
+    )
 }
 
 
@@ -132,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="command", required=True, metavar="<command>"
     )
     for command in COMMANDS.values():
-        command.add_parser(subparsers)
+        command.configure(subparsers.add_parser(command.name, help=command.help))
     return parser
 
 

@@ -12,6 +12,8 @@ detection are tested in `test_lane_core.py`.
 
 from __future__ import annotations
 
+import argparse
+import ast
 import dataclasses
 import re
 import sys
@@ -117,6 +119,40 @@ def test_open_is_a_registered_command_with_its_own_arguments():
     assert (args.command, args.name, args.path, args.trunk) == ("open", "x", "p", "t")
 
 
+def test_every_registered_command_is_keyed_by_its_own_name():
+    assert {key: command.name for key, command in lane.COMMANDS.items()} == {
+        key: key for key in lane.COMMANDS
+    }
+
+
+def test_the_parser_exposes_exactly_the_registered_commands():
+    parser = lane.build_parser()
+    (subparsers,) = [
+        action
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    ]
+
+    assert set(subparsers.choices) == set(lane.COMMANDS)
+
+
+def test_a_command_name_is_written_once_and_used_for_its_parser(monkeypatch):
+    renamed = dataclasses.replace(lane.COMMANDS[lane.OPEN_COMMAND], name="renamed")
+    monkeypatch.setattr(lane, "COMMANDS", {renamed.name: renamed})
+
+    args = lane.build_parser().parse_args(["renamed", "x"])
+
+    assert (args.command, args.name) == ("renamed", "x")
+
+
+def test_trunk_help_names_the_default_trunk_rule(tmp_path, capsys):
+    code, out, _ = run_main(["open", "--help"], tmp_path, capsys)
+
+    flattened = " ".join(out.split())
+    assert code == 0
+    assert "origin's default branch, else main or master" in flattened
+
+
 def test_a_missing_subcommand_is_a_usage_error(tmp_path, capsys):
     code, _, err = run_main([], tmp_path, capsys)
 
@@ -155,6 +191,56 @@ def test_lane_imports_only_stdlib_and_lane_core():
     modules = imported_modules(SCRIPTS_DIR / "lane.py")
 
     assert non_stdlib(modules) == {"lane_core"}
+
+
+#: Private `lane_core` names `lane.py` may use. Empty: everything it needs is public.
+ALLOWED_PRIVATE_CORE_NAMES: frozenset[str] = frozenset()
+
+
+def private_core_references(source: str) -> set[str]:
+    """Private `lane_core` names a module reads: `lane_core._x` or `from lane_core import _x`."""
+    tree = ast.parse(source)
+    aliases = {"lane_core"}
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            aliases.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == "lane_core"
+            )
+        if isinstance(node, ast.ImportFrom) and node.module == "lane_core":
+            found.update(a.name for a in node.names if a.name.startswith("_"))
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id in aliases
+            and node.attr.startswith("_")
+        ):
+            found.add(node.attr)
+    return found
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("import lane_core\nlane_core._run([], 1)", {"_run"}),
+        ("import lane_core\nlane_core._git([], 1)", {"_git"}),
+        ("import lane_core as core\ncore._commit_of('x')", {"_commit_of"}),
+        ("from lane_core import _run", {"_run"}),
+        ("import lane_core\nlane_core.git_text([], 1)", set()),
+        ("import lane_core\nother._run()", set()),
+    ],
+)
+def test_the_seam_check_sees_private_core_references(source, expected):
+    assert private_core_references(source) == expected
+
+
+def test_lane_reaches_lane_core_only_through_its_public_names():
+    source = (SCRIPTS_DIR / "lane.py").read_text(encoding="utf-8")
+
+    assert private_core_references(source) - ALLOWED_PRIVATE_CORE_NAMES == set()
 
 
 # --- open: the new lane -----------------------------------------------------
