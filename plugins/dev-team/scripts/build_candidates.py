@@ -26,6 +26,7 @@ from typing import NoReturn
 EXIT_OK = 0
 EXIT_INVALID_DATA = 1
 EXIT_USAGE = 2
+EXIT_RESTORE_FAILED = 2
 
 MIN_CANDIDATES = 1
 MAX_CANDIDATES = 8
@@ -37,6 +38,10 @@ sys.path.insert(0, str(_HERE / "lib"))
 import plan_parse
 
 GIT_TIMEOUT_SECONDS = 120
+# build_wave_reconcile.py bounds its own suite run at 1800s; allow it that
+# plus the merge and checkout around it.
+RECONCILE_TIMEOUT_SECONDS = 2100
+RECONCILE_SCRIPT = _HERE / "build_wave_reconcile.py"
 LENS_SPEC_COMPLIANCE = "spec-compliance-review"
 LENS_CORRECTNESS = "correctness-review"
 UNMET_SCENARIO_CATEGORIES = frozenset({"uncovered-scenario", "unmet-criterion"})
@@ -62,6 +67,10 @@ class FlagError(ValueError):
 
 class DataError(ValueError):
     """Input data a subcommand rejects (exit 1)."""
+
+
+class RestoreFailedError(RuntimeError):
+    """The build branch could not be returned to its pre-merge SHA (exit 2)."""
 
 
 def _fail(code: int, message: str) -> int:
@@ -513,6 +522,111 @@ def _cmd_collect(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _head_sha(repo: str) -> str:
+    result = _git(repo, "rev-parse", "HEAD")
+    if result.returncode != 0:
+        raise DataError(
+            f"reconcile: cannot resolve HEAD in {repo}: {result.stderr.strip()}"
+        )
+    return result.stdout.strip()
+
+
+def _current_branch(repo: str) -> str:
+    return _git(repo, "symbolic-ref", "--short", "-q", "HEAD").stdout.strip()
+
+
+def _run_reconcile_script(
+    repo: str, into: str, base: str, test_cmd: str, branch: str
+) -> bool:
+    """Run build_wave_reconcile.py in `repo`; True when it exits 0. Its stderr
+    is passed through; its stdout is dropped."""
+    command = [
+        sys.executable,
+        str(RECONCILE_SCRIPT),
+        "--into",
+        into,
+        "--base",
+        base,
+        "--test-cmd",
+        test_cmd,
+        branch,
+    ]
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=RECONCILE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"reconcile: build_wave_reconcile.py timed out after {RECONCILE_TIMEOUT_SECONDS}s",
+            file=sys.stderr,
+        )
+        return False
+    sys.stderr.write(proc.stderr)
+    return proc.returncode == 0
+
+
+def _restore_branch(repo: str, pre: str) -> None:
+    """Return HEAD to `pre`: abort a merge in progress, then `reset --keep`
+    (never --hard: the worktree holds uncommitted plan edits). Raise
+    RestoreFailedError when HEAD is not `pre` afterwards."""
+    failure = RestoreFailedError(
+        f"reconcile: could not restore the build branch to {pre}; "
+        f"save your uncommitted edits, then run: git reset --keep {pre}"
+    )
+    try:
+        merge_head = _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip()
+        if merge_head and (Path(repo) / merge_head).exists():
+            _git(repo, "merge", "--abort")
+        reset = _git(repo, "reset", "--keep", pre)
+        if reset.returncode != 0:
+            sys.stderr.write(reset.stderr)
+        restored = _head_sha(repo) == pre
+    except DataError:
+        raise failure from None
+    if not restored:
+        raise failure
+
+
+def reconcile(*, repo: str, into: str, base: str, test_cmd: str, branch: str) -> dict:
+    """Merge `branch` into the build branch with build_wave_reconcile.py. On
+    failure restore the build branch to its pre-merge SHA and report
+    merged=False; raise RestoreFailedError when that restore fails."""
+    if _current_branch(repo) != into:
+        raise DataError(f"reconcile: {repo} is not on build branch '{into}'")
+    pre = _head_sha(repo)
+    merged = _run_reconcile_script(repo, into, base, test_cmd, branch)
+    if not merged:
+        _restore_branch(repo, pre)
+    return {
+        "branch": branch,
+        "head": _head_sha(repo),
+        "merged": merged,
+        "pre_merge_sha": pre,
+    }
+
+
+def _cmd_reconcile(args: argparse.Namespace) -> int:
+    try:
+        result = reconcile(
+            repo=args.repo,
+            into=args.into,
+            base=args.base,
+            test_cmd=args.test_cmd,
+            branch=args.branch,
+        )
+    except DataError as exc:
+        return _fail(EXIT_INVALID_DATA, str(exc))
+    except RestoreFailedError as exc:
+        return _fail(EXIT_RESTORE_FAILED, str(exc))
+    _emit(result)
+    return EXIT_OK if result["merged"] else EXIT_INVALID_DATA
+
+
 def _cmd_rank(args: argparse.Namespace) -> int:
     try:
         result = rank(_load_candidates(args.candidates))
@@ -546,6 +660,16 @@ def _build_parser() -> argparse.ArgumentParser:
     collecting.add_argument("--step", required=True, type=_step_id)
     collecting.add_argument("--cost-usd", required=True, type=_finite_non_negative)
     collecting.set_defaults(handler=_cmd_collect)
+
+    reconciling = sub.add_parser(
+        "reconcile", help="merge the winner; restore the build branch on failure"
+    )
+    reconciling.add_argument("--repo", required=True)
+    reconciling.add_argument("--into", required=True)
+    reconciling.add_argument("--base", required=True)
+    reconciling.add_argument("--test-cmd", required=True)
+    reconciling.add_argument("branch")
+    reconciling.set_defaults(handler=_cmd_reconcile)
 
     ranking = sub.add_parser("rank", help="rank candidates and pick a winner")
     ranking.add_argument("--candidates", required=True, help="candidates JSON file")
