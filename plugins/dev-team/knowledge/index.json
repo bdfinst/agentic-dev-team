@@ -5022,6 +5022,10 @@
       "summary": "Sample across the `knowledge/task-size-classifier.md` buckets",
       "anchor": "task-matrix"
     },
+    "Speculative dispatch case (#2273)": {
+      "summary": "This case compares three candidates with one on a `complex` step.",
+      "anchor": "speculative-dispatch-case-2273"
+    },
     "Repetitions and isolation": {
       "summary": "**≥5 runs per arm per task class** (see `--runs`).",
       "anchor": "repetitions-and-isolation"

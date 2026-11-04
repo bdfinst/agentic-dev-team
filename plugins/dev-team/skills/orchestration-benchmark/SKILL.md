@@ -85,6 +85,40 @@ Sample across the `knowledge/task-size-classifier.md` buckets
 Reuse existing `/agent-eval` fixtures under `evals/fixtures/` wherever
 possible; add fixtures only where a class has none.
 
+### Speculative dispatch case (#2273)
+
+This case compares three candidates with one on a `complex` step.
+It measures whether the extra candidates earn their cost.
+
+- **Class.** `complex` only. The fixture step is a `complex` step of a plan
+  built with `/build`.
+- **Pilot.** Run `/build --candidates 1` once on the fixture step. Set the
+  cap at 5× its measured cost (`cost_meter.py report`). Exclude the pilot
+  from the runs.
+- **Arms.** Two arms, both under Arm B's configuration: `--candidates 1`,
+  and `--candidates 3 --max-cost-usd <cap>`.
+- **Repetitions.** The ≥ 5 runs (`--runs`), interleaved order (1, 3, 1, 3,
+  …), median + spread, and model-pinning rules apply unchanged. See
+  [Repetitions and isolation](#repetitions-and-isolation).
+- **Metrics.** Use the Metrics table plus the plan's `### Speculative
+  dispatch` rows. These give the kept candidate's rank inputs and the Cost
+  column.
+  Screening spend = the run's measured step cost − the sum of the Cost
+  column.
+- **Pre-registered rule.** N = 3 earns its cost only when both conditions
+  hold:
+  - Its acceptance pass rate exceeds N = 1's by at least 20 points.
+  - Its median cost is at most 3× N = 1's median plus the measured
+    screening spend.
+- **Noise and ties.** A difference under 20 points is noise at five runs. A
+  difference of exactly 20 points (one run) is inconclusive. Extend the case
+  to 10 runs before applying the rule.
+- **If the rule fails.** The report states that N = 1 is retained. A
+  follow-up PR updates the experimental note of the `--candidates` bullet
+  (`skills/build/SKILL.md`, Parse Arguments) with the result.
+- **Report.** Name one subsection `Speculative dispatch` under **Per-class
+  results**.
+
 ## Repetitions and isolation
 
 - **≥5 runs per arm per task class** (see `--runs`). Report median + spread
@@ -165,6 +199,8 @@ Body sections, in order:
 1. **Per-class results** — one table per task class: median + spread per arm
    for each metric (cost, tokens by band, quality pass rate, rework,
    wall-clock).
+   The speculative dispatch case adds one `Speculative dispatch` subsection
+   here.
 2. **Crossover threshold** — the task-size threshold below which A/B beats
    C, with the fixture-overfitting caveat attached.
 3. **Decision-rule outcomes** — per class: adopt/retain verdicts against the
