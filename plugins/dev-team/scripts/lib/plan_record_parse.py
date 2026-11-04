@@ -18,6 +18,7 @@ if _LIB not in sys.path:
     sys.path.insert(0, _LIB)
 
 import plan_parse
+from commit_evidence import STEP_PATTERN
 
 _H1_H2_RE = re.compile(r"^#{1,2}\s")
 _CRITERION_ITEM_RE = re.compile(r"^(?:[-*]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.*)$")
@@ -28,15 +29,18 @@ _COVERS_RE = re.compile(r"^\**Covers\**\s*:\s*\**\s*(.*)$")
 _COVERS_TOKEN_RE = re.compile(r"^(AC\d+)\b")
 _SCENARIO_RE = re.compile(r"^(?:Scenario Outline|Scenario):\s*(.*)$")
 _DOC_STRING_FENCE = '"""'
-# Must stay equal to `progress_guardian.STEP_PATTERN` (a test pins that): the
-# record's Build Progress items are exactly the lines the guardian parses.
-_PROGRESS_ITEM_RE = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
+# The Build Progress item line is `commit_evidence.STEP_PATTERN`, the one
+# definition the progress guardian and the commit evidence rule also use, so
+# the record's items are exactly the lines they parse.
+_PROGRESS_ITEM_RE = STEP_PATTERN
 _PROGRESS_STEP_PREFIX_RE = re.compile(r"^-\s+\[[ xX]\]\s+Step\s+([\d.]+):")
 # One grammar for both blocker lines: `**Open blocker**: Slice 2 - text` and
 # `**Resolved blocker**: Slice 2 - text`, optionally behind a list marker, with
-# the colon outside or inside the bold (`**Open blocker:**`).
+# the colon outside or inside the bold (`**Open blocker:**`). The caller
+# strips the line, so the tail needs no trailing-space handling (a lazy tail
+# with `\s*$` backtracks quadratically on a long run of spaces).
 _BLOCKER_RE = re.compile(
-    r"^(?:[-*]\s+)?\*\*(Open|Resolved) blocker(?:\*\*\s*:|:\*\*)\s*Slice\s+(\d+)\s+-\s+(.+?)\s*$"
+    r"^(?:[-*]\s+)?\*\*(Open|Resolved) blocker(?:\*\*\s*:|:\*\*)\s*Slice\s+(\d+)\s+-\s+(.+)$"
 )
 _PROGRESS_SLICE_RE = re.compile(r"^[Ss]lice\s+(\d[^:\s]*)")
 

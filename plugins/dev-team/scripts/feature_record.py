@@ -41,9 +41,10 @@ CommitEvidence = Callable[[dict[str, object]], "bool | None"]
 
 # Same grammar as `plan_parse._SLICE_HEADING_RE` / `_HEADING_RE`; a test pins
 # that both agree on the slice ids of the fixtures.
-_SLICE_HEADING_RE = re.compile(r"^#{1,3}\s+[Ss]lice\s+([^:]+):\s*(.*)$")
+_SLICE_HEADING_RE = re.compile(r"^#{1,3}\s+[Ss]lice\s+([^:\s][^:]*):\s*(.*)$")
 _HEADING_RE = re.compile(r"^#{1,3}\s")
 _H2_RE = re.compile(r"^##\s+\S")
+_STEPS_LABEL_RE = re.compile(r"^\*\*Steps(?:\*\*\s*:|:\*\*)")
 _URL_RE = re.compile(r"^https?://\S+", re.IGNORECASE)
 _MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 _SPEC_DIR = "docs/specs/"
@@ -80,6 +81,19 @@ def spec_reference(plan_text: str) -> str | None:
     return value or None
 
 
+def _steps_block(slice_text: str) -> str:
+    """The part of a slice from its `**Steps:**` label on, or "" when it has
+    none. A `#### Step` heading before the label (in the Behavior part) is not
+    a step of the slice."""
+    lines = slice_text.splitlines()
+    for index, (line, in_fence) in enumerate(
+        plan_parse.iter_slice_body_lines(slice_text)
+    ):
+        if not in_fence and _STEPS_LABEL_RE.match(line.strip()):
+            return "\n".join(lines[index:])
+    return ""
+
+
 def _slices(plan_text: str) -> list[dict[str, object]]:
     """Split the plan into `### Slice <n>: <title>` sections, fence-aware."""
     slices: list[dict[str, object]] = []
@@ -95,7 +109,7 @@ def _slices(plan_text: str) -> list[dict[str, object]]:
                 "number": current[0],
                 "title": current[1],
                 "scenarios": plan_record_parse.parse_scenarios(text),
-                "step_ids": plan_record_parse.parse_step_ids(text),
+                "step_ids": plan_record_parse.parse_step_ids(_steps_block(text)),
             }
         )
 
@@ -117,7 +131,10 @@ def _slices(plan_text: str) -> list[dict[str, object]]:
 
 
 def _spec_part(
-    plan_text: str, spec_text: str | None, spec_source: str | None
+    plan_text: str,
+    spec_text: str | None,
+    spec_source: str | None,
+    spec_reason: str | None = None,
 ) -> dict[str, object] | None:
     source = spec_source if spec_source is not None else spec_reference(plan_text)
     if spec_text is not None:
@@ -129,7 +146,7 @@ def _spec_part(
         return {"source": source, "loaded": True, "reason": None, "sections": sections}
     if source is None:
         return None
-    reason = "url-not-fetched" if _URL_RE.match(source) else "not-found"
+    reason = "url-not-fetched" if _URL_RE.match(source) else spec_reason or "not-found"
     return {"source": source, "loaded": False, "reason": reason, "sections": []}
 
 
@@ -171,6 +188,7 @@ def build_record(
     plan_path: str | None = None,
     commit_evidence: CommitEvidence | None = None,
     spec_source: str | None = None,
+    spec_reason: str | None = None,
 ) -> dict[str, object]:
     """Return the schema-1 feature record for `plan_text`.
 
@@ -179,6 +197,8 @@ def build_record(
     line is the source. `commit_evidence` is the optional callback for the
     commit invariant: it is asked about each ticked item, and
     `applicability.commit_evidence` is `evaluated` only when one was given.
+    `spec_reason` says why a named local spec was not loaded (`not-found` when
+    absent).
     """
     criteria = plan_record_parse.parse_criteria(plan_text)
     covers_by_step = plan_record_parse.parse_covers(plan_text)
@@ -203,7 +223,7 @@ def build_record(
             "unknown_covers": unknown,
             "blockers": plan_record_parse.parse_blockers(plan_text),
         },
-        "spec": _spec_part(plan_text, spec_text, spec_source),
+        "spec": _spec_part(plan_text, spec_text, spec_source, spec_reason),
         "build_progress": {
             "legacy": progress["legacy"],
             "items": _progress_items(progress["items"], commit_evidence),
@@ -225,10 +245,13 @@ def build_record(
 # they tell the author what to write.
 # ---------------------------------------------------------------------------
 
+_CRITERION_TEXT_LIMIT = 60
+_TEXT_PLACEHOLDER = f"<criterion text, {_CRITERION_TEXT_LIMIT} chars>"
+
 COPY: dict[str, dict[str, str]] = {
     "ac-no-scenario": {
         "what": (
-            '<AC id> "<criterion text, 60 chars>" has no scenario: no step names it, '
+            f'<AC id> "{_TEXT_PLACEHOLDER}" has no scenario: no step names it, '
             "or its covering slices have none. [ac-no-scenario]"
         ),
         "why": "A criterion with no scenario has no behavior that proves it.",
@@ -281,7 +304,7 @@ COPY: dict[str, dict[str, str]] = {
 
 _PLACEHOLDERS = {
     "ac_id": "<AC id>",
-    "text": "<criterion text, 60 chars>",
+    "text": _TEXT_PLACEHOLDER,
     "n": "<n>",
     "heading": "<heading>",
     "id": "<id>",
@@ -290,7 +313,6 @@ _PLACEHOLDERS = {
     "header": "<header>",
 }
 _PLACEHOLDER_RE = re.compile("|".join(re.escape(p) for p in _PLACEHOLDERS.values()))
-_CRITERION_TEXT_LIMIT = 60
 
 
 def make_violation(violation_id: str, subject: str, **fields: str) -> dict[str, str]:
@@ -360,7 +382,6 @@ def _closed_slice_violations(plan: dict, progress: dict) -> list[dict[str, str]]
         if progress["legacy"]
         else {i["id"] for i in progress["items"] if i["kind"] == "slice" and i["done"]}
     )
-    existing = {s["number"] for s in plan["slices"]}
     # A resolved blocker with the same slice and text cancels exactly one open one.
     resolved = Counter(_blocker_key(b) for b in plan["blockers"]["resolved"])
     found = []
@@ -368,7 +389,7 @@ def _closed_slice_violations(plan: dict, progress: dict) -> list[dict[str, str]]
         key = _blocker_key(blocker)
         if resolved[key] > 0:
             resolved[key] -= 1
-        elif key[0] in closed and key[0] in existing:
+        elif key[0] in closed:
             found.append(
                 make_violation("closed-slice-open-blocker", f"Slice {key[0]}", n=key[0])
             )
@@ -553,25 +574,36 @@ def _spec_candidates(plan_path: str, ref: str) -> list[Path]:
     return candidates
 
 
-def _load_referenced_spec(plan_path: str, plan_text: str) -> str | None:
-    """Read the local spec the plan's `**Spec**:` line names, or None.
+def _load_referenced_spec(
+    plan_path: str, plan_text: str
+) -> tuple[str | None, str | None]:
+    """Read the local spec the plan's `**Spec**:` line names.
+
+    Returns `(text, reason)`. `text` is None when no spec was loaded, and then
+    `reason` says why a named local spec was not: `outside-docs-specs` (the
+    path does not stay under `docs/specs/`), `unreadable` (a file is there but
+    cannot be read or decoded) or `not-found`. With no Spec line, or a URL,
+    both are None: a URL is never fetched.
 
     Only a relative path that stays under `docs/specs/` after normalisation is
     read, so a Spec line cannot make the tool open `README.md`, `../x` or an
-    absolute path. A URL is never fetched. An unreadable file reads as None.
+    absolute path.
     """
     ref = spec_reference(plan_text)
     if ref is None or _URL_RE.match(ref):
-        return None
+        return None, None
     normalized = posixpath.normpath(ref)
     if not normalized.startswith(_SPEC_DIR):
-        return None
+        return None, "outside-docs-specs"
+    unreadable = False
     for candidate in _spec_candidates(plan_path, normalized):
         try:
-            return candidate.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError, ValueError):
+            return candidate.read_text(encoding="utf-8"), None
+        except (FileNotFoundError, NotADirectoryError):
             continue
-    return None
+        except (OSError, UnicodeDecodeError, ValueError):
+            unreadable = True
+    return None, "unreadable" if unreadable else "not-found"
 
 
 def _commit_evidence_callback(plan_path: str, plan_text: str) -> CommitEvidence:
@@ -648,8 +680,9 @@ def main(argv: list[str] | None = None) -> int:
         plan_text = _read_text(args.plan, "plan")
         if args.spec is not None:
             spec_text: str | None = _read_text(args.spec, "spec")
+            spec_reason = None
         else:
-            spec_text = _load_referenced_spec(args.plan, plan_text)
+            spec_text, spec_reason = _load_referenced_spec(args.plan, plan_text)
     except _InputError as exc:
         print(exc, file=sys.stderr)
         return 2
@@ -659,6 +692,7 @@ def main(argv: list[str] | None = None) -> int:
         plan_path=args.plan,
         commit_evidence=_commit_evidence_callback(args.plan, plan_text),
         spec_source=args.spec,
+        spec_reason=spec_reason,
     )
     _name_declared_files(record, plan_text)
     if args.command == "view":

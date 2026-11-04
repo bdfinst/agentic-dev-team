@@ -7,10 +7,10 @@ Fixtures live in tests/scripts/fixtures/feature_record/.
 from __future__ import annotations
 
 import json
-import os
 import socket
 import subprocess
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
@@ -22,7 +22,12 @@ _SCRIPTS = _REPO_ROOT / "plugins" / "dev-team" / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 sys.path.insert(0, str(_SCRIPTS / "lib"))
 
+# importlib import mode does not put this directory on sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import feature_record
+import plan_parse
+from git_fixtures import isolate_git
 
 FIXTURES = Path(__file__).parent / "fixtures" / "feature_record"
 
@@ -47,10 +52,7 @@ def _no_enclosing_repository(monkeypatch, tmp_path):
     these tests are about the structural invariants, whatever branch the suite
     runs on. The commit invariant is tested in test_feature_record_commits.py
     against repositories built for the purpose."""
-    monkeypatch.setenv(
-        "GIT_CEILING_DIRECTORIES",
-        os.pathsep.join([str(_REPO_ROOT), str(tmp_path.parent)]),
-    )
+    isolate_git(monkeypatch, [_REPO_ROOT, tmp_path.parent])
 
 
 def _run(argv: list[str], capsys) -> tuple[int, str, str]:
@@ -131,6 +133,74 @@ def test_the_record_of_a_complete_plan_has_every_part():
         _fixture("plan_complete.md"), plan_path="plans/sample.md"
     )
     assert record == EXPECTED_COMPLETE
+
+
+_SLICE_PLANS = sorted(
+    [
+        *FIXTURES.glob("plan_*.md"),
+        *(FIXTURES.parent.parent.parent / "hooks").glob(
+            "fixtures/feature_record_guard/plan_shape_*.md"
+        ),
+    ],
+    key=lambda path: path.name,
+)
+
+
+@pytest.mark.parametrize("path", _SLICE_PLANS, ids=lambda path: path.name)
+def test_the_record_and_plan_parse_agree_on_the_slice_ids_of_each_fixture(path):
+    """`feature_record._SLICE_HEADING_RE` copies `plan_parse._SLICE_HEADING_RE`;
+    this fails when the two read different slices from the same plan."""
+    text = path.read_text(encoding="utf-8")
+    ids = [s["number"] for s in feature_record.build_record(text)["plan"]["slices"]]
+    assert ids == [b[0] for b in plan_parse.slice_gherkin_blocks(text.splitlines())]
+
+
+def test_the_slice_id_pin_covers_fixtures_that_have_slices():
+    with_slices = [
+        path
+        for path in _SLICE_PLANS
+        if feature_record.build_record(path.read_text(encoding="utf-8"))["plan"][
+            "slices"
+        ]
+    ]
+    assert len(with_slices) >= 5
+
+
+def test_the_record_and_plan_parse_share_one_slice_heading_grammar():
+    assert (
+        feature_record._SLICE_HEADING_RE.pattern == plan_parse._SLICE_HEADING_RE.pattern
+    )
+
+
+# A quadratic heading pattern needs about 8 s for these lines and a linear one
+# a few milliseconds, so the 2 s bound separates them without timing noise.
+_LONG_RUN = 50_000
+_LINEAR_BOUND_SECONDS = 2.0
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "### Slice" + " " * _LONG_RUN,
+        "### Slice 1" + " " * _LONG_RUN,
+        "###" + " " * _LONG_RUN + "Slice",
+    ],
+    ids=["spaces-after-slice", "spaces-after-id", "spaces-before-slice"],
+)
+def test_a_slice_heading_with_a_long_run_of_spaces_parses_in_linear_time(heading):
+    text = f"{heading}\nbody\n"
+    started = time.perf_counter()
+    assert feature_record.build_record(text)["plan"]["slices"] == []
+    assert plan_parse.slice_gherkin_blocks(text.splitlines()) == []
+    assert time.perf_counter() - started < _LINEAR_BOUND_SECONDS
+
+
+def test_a_slice_heading_keeps_a_parenthetical_in_its_id():
+    text = "### Slice 1 (core):  Parse\n"
+    assert feature_record.build_record(text)["plan"]["slices"][0]["number"] == (
+        "1 (core)"
+    )
+    assert plan_parse.slice_gherkin_blocks(text.splitlines())[0][0] == "1 (core)"
 
 
 def test_the_record_is_json_serialisable():
@@ -335,17 +405,51 @@ def test_a_local_spec_is_found_relative_to_the_plans_repository(
     assert "## Acceptance Criteria" in part["sections"]
 
 
-def test_an_unreadable_local_spec_is_recorded_as_not_found(
-    tmp_path, monkeypatch, capsys
-):
+def _spec_reason(tmp_path, monkeypatch, capsys, spec_line: str, setup=None):
+    """Run `view` on a one-line plan naming `spec_line`; return `spec.reason`."""
     root = _isolated(tmp_path, monkeypatch)
     (root / "docs" / "specs").mkdir(parents=True)
-    (root / "docs" / "specs" / "x.md").write_bytes(b"\xff\xfe\x00bad")
+    if setup is not None:
+        setup(root)
     plan = root / "1-x.md"
-    plan.write_text("# P\n\n**Spec**: docs/specs/x.md\n")
+    plan.write_text(f"# P\n\n**Spec**: {spec_line}\n")
     code, out, _err = _run(["view", str(plan)], capsys)
     assert code == 0
-    assert json.loads(out)["spec"]["reason"] == "not-found"
+    part = json.loads(out)["spec"]
+    assert part["loaded"] is False
+    return part["reason"]
+
+
+def test_an_undecodable_local_spec_is_recorded_as_unreadable(
+    tmp_path, monkeypatch, capsys
+):
+    def undecodable(root):
+        (root / "docs" / "specs" / "x.md").write_bytes(b"\xff\xfe\x00bad")
+
+    assert (
+        _spec_reason(tmp_path, monkeypatch, capsys, "docs/specs/x.md", undecodable)
+        == "unreadable"
+    )
+
+
+def test_a_local_spec_that_is_a_directory_is_recorded_as_unreadable(
+    tmp_path, monkeypatch, capsys
+):
+    def directory(root):
+        (root / "docs" / "specs" / "x.md").mkdir()
+
+    assert (
+        _spec_reason(tmp_path, monkeypatch, capsys, "docs/specs/x.md", directory)
+        == "unreadable"
+    )
+
+
+def test_a_missing_local_spec_under_docs_specs_is_still_not_found(
+    tmp_path, monkeypatch, capsys
+):
+    assert (
+        _spec_reason(tmp_path, monkeypatch, capsys, "docs/specs/gone.md") == "not-found"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -626,6 +730,34 @@ def test_a_slice_with_a_scenario_and_a_step_passes():
     assert ("scenario-no-step", "Slice 1") not in _found(_fixture("plan_complete.md"))
 
 
+def _slice_plan(*parts: str) -> str:
+    """A one-slice plan whose body is `parts`, behind a scenario fence."""
+    return "# P\n\n### Slice 1: S\n\n```gherkin\nScenario: s\n```\n\n" + "".join(parts)
+
+
+def test_a_step_heading_before_the_steps_label_is_not_a_step_of_the_slice():
+    text = _slice_plan("#### Step 1.1: early\n\n**Steps:**\n\nNothing here.\n")
+    assert _found(text) == [("scenario-no-step", "Slice 1")]
+    assert feature_record.build_record(text)["plan"]["slices"][0]["step_ids"] == []
+
+
+def test_a_steps_label_inside_a_fence_does_not_open_the_steps_block():
+    text = _slice_plan("```text\n**Steps:**\n```\n\n#### Step 1.1: early\n")
+    assert _found(text) == [("scenario-no-step", "Slice 1")]
+
+
+@pytest.mark.parametrize("label", ["**Steps:**", "**Steps**:"])
+def test_a_step_heading_after_the_steps_label_counts(label):
+    text = _slice_plan(f"{label}\n\n#### Step 1.1: late\n")
+    assert _found(text) == []
+    assert feature_record.build_record(text)["plan"]["slices"][0]["step_ids"] == ["1.1"]
+
+
+def test_a_slice_with_step_headings_and_no_steps_label_has_no_steps():
+    text = _slice_plan("#### Step 1.1: unlabelled\n")
+    assert _found(text) == [("scenario-no-step", "Slice 1")]
+
+
 def test_a_slice_with_a_step_and_no_scenario_is_not_a_scenario_no_step_violation():
     text = _fixture("plan_covering_slice_no_scenario.md")
     assert not [k for k in _found(text) if k[0] == "scenario-no-step"]
@@ -695,6 +827,27 @@ def test_a_blocker_naming_a_slice_that_does_not_exist_is_ignored():
     assert _found(text) == []
 
 
+def test_a_heading_with_a_parenthetical_does_not_hide_a_closed_slice():
+    """The heading id is `1 (core)`; the Build Progress id is `1`. The check
+    compares the progress id with the blocker, so the heading text is moot."""
+    text = _swap(
+        _fixture("plan_closed_slice_open_blocker.md"),
+        "### Slice 1: Parse",
+        "### Slice 1 (core): Parse",
+    )
+    assert _found(text) == [("closed-slice-open-blocker", "Slice 1")]
+
+
+def test_a_plan_with_no_slice_headings_still_has_a_closed_slice_violation():
+    text = (
+        "# Plan: inline only\n\n## Plan Review Summary\n\n"
+        "**Open blocker**: Slice 1 - gap\n\n"
+        "## Build Progress\n\n- [x] Slice 1: Parse\n"
+    )
+    assert feature_record.build_record(text)["plan"]["slices"] == []
+    assert _found(text) == [("closed-slice-open-blocker", "Slice 1")]
+
+
 def test_a_slice_with_no_build_progress_line_is_not_closed():
     text = _fixture("plan_closed_slice_open_blocker.md")
     text = text[: text.index("## Build Progress")]
@@ -717,7 +870,7 @@ def test_violations_come_in_invariant_order_then_plan_order():
 def test_inserting_an_unprefixed_criterion_keeps_the_keys_of_existing_violations():
     before = (
         "## Acceptance Criteria\n\n- AC1 covered\n- AC7 not covered\n\n"
-        "### Slice 1: S\n\n```gherkin\nScenario: s\n```\n\n"
+        "### Slice 1: S\n\n```gherkin\nScenario: s\n```\n\n**Steps:**\n\n"
         "#### Step 1.1: t\n\n**Covers**: AC1\n"
     )
     after = _swap(before, "- AC7 not", "- a fresh unprefixed one\n- AC7 not")
@@ -776,7 +929,7 @@ def test_check_with_no_subcommand_is_a_usage_error():
     assert raised.value.code == 2
 
 
-def test_a_ticked_build_progress_line_for_a_slice_with_no_heading_is_not_a_closed_slice():
+def test_a_ticked_build_progress_line_for_a_slice_with_no_heading_is_closed():
     text = _swap(
         _swap(
             _fixture("plan_closed_slice_open_blocker.md"),
@@ -786,7 +939,7 @@ def test_a_ticked_build_progress_line_for_a_slice_with_no_heading_is_not_a_close
         "**Open blocker**: Slice 1",
         "**Open blocker**: Slice 9",
     )
-    assert _found(text) == []
+    assert _found(text) == [("closed-slice-open-blocker", "Slice 9")]
 
 
 # ---------------------------------------------------------------------------
@@ -1176,7 +1329,9 @@ def test_each_structural_violation_carries_its_exact_pinned_wording(
     assert json.loads(out)["violations"] == [expected]
 
 
-def test_a_nul_in_the_spec_line_is_recorded_as_not_found(tmp_path, monkeypatch, capsys):
+def test_a_nul_in_the_spec_line_is_recorded_as_unreadable(
+    tmp_path, monkeypatch, capsys
+):
     root = _isolated(tmp_path, monkeypatch)
     plan = root / "plan.md"
     plan.write_text("# P\n\n**Spec**: docs/specs/x\x00.md\n")
@@ -1186,7 +1341,7 @@ def test_a_nul_in_the_spec_line_is_recorded_as_not_found(tmp_path, monkeypatch, 
         assert "Traceback" not in err
     assert (
         json.loads(_run(["view", str(plan)], capsys)[1])["spec"]["reason"]
-        == "not-found"
+        == "unreadable"
     )
 
 
@@ -1224,7 +1379,7 @@ def test_only_a_relative_path_under_docs_specs_is_read(
     part = json.loads(out)["spec"]
     assert code == 0
     assert part["loaded"] is loaded
-    assert part["reason"] == (None if loaded else "not-found")
+    assert part["reason"] == (None if loaded else "outside-docs-specs")
 
 
 def test_an_absolute_spec_path_is_not_read(tmp_path, monkeypatch, capsys):
@@ -1233,7 +1388,7 @@ def test_an_absolute_spec_path_is_not_read(tmp_path, monkeypatch, capsys):
     absolute = root / "docs" / "specs" / "x.md"
     plan.write_text(f"# P\n\n**Spec**: {absolute}\n")
     part = json.loads(_run(["view", str(plan)], capsys)[1])["spec"]
-    assert (part["loaded"], part["reason"]) == (False, "not-found")
+    assert (part["loaded"], part["reason"]) == (False, "outside-docs-specs")
 
 
 def test_an_explicit_spec_path_is_not_limited_to_docs_specs(

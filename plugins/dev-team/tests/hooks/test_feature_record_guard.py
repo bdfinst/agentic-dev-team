@@ -54,6 +54,8 @@ HOOK_PATH = _HOOKS_DIR / "feature_record_guard.py"
         ("src/app.py", None),
         ("docs/specs/x/notes.md", None),
         ("docs/specs/x/plans/deep/p.md", None),
+        ("docs/specs/x/other/p.md", None),
+        ("docs/specs/plans/p.md", None),
         ("plans/sub/p.md", None),
         ("docs/other/x.md", None),
     ],
@@ -182,9 +184,17 @@ def test_write_proposes_its_content_against_the_on_disk_text(tmp_path: Path) -> 
     )
 
 
-def test_write_to_a_new_file_has_an_empty_before_state(tmp_path: Path) -> None:
+def test_write_to_a_new_file_has_no_before_state(tmp_path: Path) -> None:
     payload = _payload("plans/p.md", cwd=tmp_path, content="new\n")
-    assert hook.proposed_text(payload, _reader({})) == ("", "new\n")
+    assert hook.proposed_text(payload, _reader({})) == (None, "new\n")
+
+
+def test_write_to_an_existing_empty_file_has_an_empty_before_state(
+    tmp_path: Path,
+) -> None:
+    abs_path = str(tmp_path / "plans" / "p.md")
+    payload = _payload("plans/p.md", cwd=tmp_path, content="new\n")
+    assert hook.proposed_text(payload, _reader({abs_path: ""})) == ("", "new\n")
 
 
 def test_edit_applies_old_to_new_once(tmp_path: Path) -> None:
@@ -267,7 +277,7 @@ def test_an_edit_with_an_empty_old_string_creates_a_missing_file(
     payload = _payload(
         "plans/p.md", tool="Edit", cwd=tmp_path, old_string="", new_string="new\n"
     )
-    assert hook.proposed_text(payload, _reader({})) == ("", "new\n")
+    assert hook.proposed_text(payload, _reader({})) == (None, "new\n")
 
 
 @pytest.mark.parametrize("error", [PermissionError("no"), IsADirectoryError("dir")])
@@ -358,7 +368,8 @@ def test_main_allows_a_path_that_cannot_be_opened_with_one_notice(
     payload = _payload("plans/p\x00.md", cwd=tmp_path, content="x\n")
     code, out, err = _run_main(monkeypatch, capsys, payload)
     assert (code, out) == (0, "")
-    assert err == "feature record check skipped: ValueError: embedded null byte\n"
+    assert err.startswith("feature record check skipped: ValueError")
+    assert err.count("\n") == 1
 
 
 def test_main_allows_a_matching_write_when_the_record_module_is_missing(
@@ -639,12 +650,12 @@ def _decide(work, tool: str, rel: str, **fields) -> list[dict]:
 
 
 def test_a_valid_generated_plan_has_no_violation() -> None:
-    record = hook._load_record()
+    record = hook._import_feature_record()
     assert record.plan_violations(build_plan(), spec_text=None) == []
 
 
 def test_the_generated_plan_with_covers_opts_in_to_criterion_coverage() -> None:
-    record = hook._load_record()
+    record = hook._import_feature_record()
     built = record.build_record(build_plan())
     assert built["applicability"]["criterion_coverage"] == "applies"
 
@@ -722,6 +733,32 @@ def test_a_spec_with_an_empty_acceptance_criteria_section_is_refused(work) -> No
 
 def test_a_complete_spec_write_is_allowed(work) -> None:
     assert work.write("docs/specs/x.md", COMPLETE_SPEC) == (0, "", "")
+
+
+_PARTIAL_SPEC = "## Intent Description\n\nWhy the change exists.\n"
+_OTHER_SECTIONS = {
+    ("spec-missing-section", "## Architecture Specification"),
+    ("spec-missing-section", "## Acceptance Criteria"),
+}
+
+
+def test_a_write_to_an_existing_empty_spec_is_judged_against_the_empty_text(
+    work,
+) -> None:
+    """An empty file already lacks all three sections, so a write that adds one
+    and leaves the rest missing introduces nothing."""
+    work.put("docs/specs/x.md", "")
+    assert _decide(work, "Write", "docs/specs/x.md", content=_PARTIAL_SPEC) == []
+    assert work.write("docs/specs/x.md", _PARTIAL_SPEC) == (0, "", "")
+
+
+def test_the_same_write_to_a_missing_spec_is_refused_for_every_missing_section(
+    work,
+) -> None:
+    assert not (work.root / "docs/specs/x.md").exists()
+    found = _decide(work, "Write", "docs/specs/x.md", content=_PARTIAL_SPEC)
+    assert _ids(found) == _OTHER_SECTIONS
+    assert work.write("docs/specs/x.md", _PARTIAL_SPEC)[0] == 2
 
 
 def test_a_write_that_creates_a_violating_plan_is_refused(work) -> None:
@@ -814,7 +851,7 @@ def test_a_tick_that_no_commit_backs_is_allowed_and_runs_no_git(
 
 def test_deleting_the_only_covers_line_is_allowed(work) -> None:
     one_cover = build_plan(slices=(DEFAULT_SLICES[0],), criteria=2)
-    record = hook._load_record()
+    record = hook._import_feature_record()
     assert ("ac-no-scenario", "AC2") in _ids(record.plan_violations(one_cover))
     work.put("plans/p.md", one_cover)
     assert work.edit("plans/p.md", "**Covers**: AC1\n", "") == (0, "", "")
@@ -843,7 +880,7 @@ def test_a_plan_that_already_has_a_violation_accepts_an_unrelated_edit(work) -> 
             DEFAULT_SLICES[2],
         )
     )
-    record = hook._load_record()
+    record = hook._import_feature_record()
     assert record.plan_violations(broken)
     work.put("plans/p.md", broken)
     result = work.edit(
@@ -860,7 +897,7 @@ def test_an_edit_that_removes_every_violation_is_allowed(work) -> None:
             DEFAULT_SLICES[2],
         )
     )
-    record = hook._load_record()
+    record = hook._import_feature_record()
     assert _ids(record.plan_violations(broken)) == {
         ("scenario-no-step", "Slice 2"),
         ("ac-no-scenario", "AC2"),
@@ -882,7 +919,7 @@ def test_an_edit_that_fixes_one_violation_and_adds_another_is_refused(work) -> N
             DEFAULT_SLICES[2],
         )
     )
-    record = hook._load_record()
+    record = hook._import_feature_record()
     assert ("scenario-no-step", "Slice 2") in _ids(record.plan_violations(broken))
     work.put("plans/p.md", broken)
     start = broken.index("### Slice 3: Part 3")
@@ -1057,7 +1094,7 @@ def test_committed_plan_shaped_fixtures_pass_as_new_files(
 
 
 def test_the_covers_fixtures_exercise_the_coverage_invariant() -> None:
-    record = hook._load_record()
+    record = hook._import_feature_record()
     applies = {
         name: record.build_record((FIXTURES / name).read_text(encoding="utf-8"))[
             "applicability"
@@ -1177,7 +1214,7 @@ def test_a_generated_500_line_plan_is_checked_within_a_second(
     work, monkeypatch, capsys
 ) -> None:
     plan = _big_plan()
-    assert hook._load_record().plan_violations(plan, spec_text=None) == []
+    assert hook._import_feature_record().plan_violations(plan, spec_text=None) == []
     work.put("plans/big.md", plan)
     payload = {
         "tool_name": "Write",

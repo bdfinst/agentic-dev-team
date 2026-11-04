@@ -178,13 +178,35 @@ def test_the_steps_equal_the_records_build_progress_items(tmp_path):
     ]
 
 
-def test_the_steps_equal_the_old_loop_on_the_real_local_plans(tmp_path):
-    """The real `plans/*.md` are gitignored, so a clean checkout has none and
-    the loop body does not run there; where they exist, each must agree."""
-    for real in sorted((_REPO_ROOT / "plans").glob("*.md")):
-        text = real.read_text(encoding="utf-8")
-        steps, _ = progress_guardian.parse_plan(real)
-        assert _as_pairs(steps) == _old_loop_steps(text), real.name
+def test_parse_plan_takes_its_steps_from_the_record_and_does_not_parse_markdown(
+    tmp_path, monkeypatch
+):
+    """The record is the seam: a record that holds an item the Markdown does
+    not hold must come out as a step. This fails if `parse_plan` re-reads the
+    Markdown itself."""
+    sentinel = {
+        "kind": "step",
+        "id": "7.7",
+        "header": "sentinel only the record holds",
+        "done": True,
+        "commit_backed": None,
+    }
+    seen = []
+
+    def fake_build_record(text, spec_text=None, *args, **kwargs):
+        seen.append(text)
+        return {"build_progress": {"legacy": False, "items": [sentinel]}}
+
+    monkeypatch.setattr(
+        progress_guardian.feature_record, "build_record", fake_build_record
+    )
+    plan = _write(tmp_path, _NESTED_INDENT_REAL_SHAPE)
+
+    steps, errors = progress_guardian.parse_plan(plan)
+
+    assert seen == [_NESTED_INDENT_REAL_SHAPE]
+    assert steps == [progress_guardian.Step(True, "sentinel only the record holds")]
+    assert errors == []
 
 
 # ---------------------------------------------------------------------------

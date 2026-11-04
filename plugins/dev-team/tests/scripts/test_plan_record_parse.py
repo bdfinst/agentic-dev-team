@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import sys
+import time
 
 import pytest
 
@@ -363,6 +364,12 @@ def test_a_plan_with_no_checkboxes_has_no_items(md):
 _ORACLE_STEP_PATTERN = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
 
 
+def test_the_record_item_pattern_is_the_commit_evidence_pattern():
+    import commit_evidence
+
+    assert plan_record_parse._PROGRESS_ITEM_RE is commit_evidence.STEP_PATTERN
+
+
 def test_the_oracle_pattern_equals_the_records_item_pattern():
     assert _ORACLE_STEP_PATTERN.pattern == plan_record_parse._PROGRESS_ITEM_RE.pattern
 
@@ -627,6 +634,35 @@ def test_a_blocker_line_inside_a_fence_is_ignored():
 def test_malformed_blocker_lines_are_not_blockers(line):
     text = f"## Plan Review Summary\n{line}\n"
     assert plan_record_parse.parse_blockers(text) == {"open": [], "resolved": []}
+
+
+# A quadratic pattern needs about 8 s for this input and a linear one a few
+# milliseconds, so the 2 s bound separates them without timing noise.
+_LONG_RUN = 50_000
+_LINEAR_BOUND_SECONDS = 2.0
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "**Open blocker**: Slice 1 - a" + " " * _LONG_RUN + "b",
+        "**Open blocker**: Slice 1 - a" + " " * _LONG_RUN,
+        "**Open blocker**: Slice 1" + " " * _LONG_RUN,
+        "**Open blocker**:" + " " * _LONG_RUN + "Slice 1 -",
+    ],
+    ids=["inner-spaces", "trailing-spaces", "no-dash", "leading-spaces"],
+)
+def test_a_blocker_line_with_a_long_run_of_spaces_parses_in_linear_time(line):
+    started = time.perf_counter()
+    plan_record_parse.parse_blockers(f"## Plan Review Summary\n{line}\n")
+    assert time.perf_counter() - started < _LINEAR_BOUND_SECONDS
+
+
+def test_a_blocker_keeps_inner_spaces_and_drops_the_outer_ones():
+    text = "## Plan Review Summary\n   **Open blocker**: Slice 1 - a   b   \n"
+    assert plan_record_parse.parse_blockers(text)["open"] == [
+        {"slice": "1", "text": "a   b"}
+    ]
 
 
 @pytest.mark.parametrize(

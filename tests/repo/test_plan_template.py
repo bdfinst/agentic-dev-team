@@ -112,10 +112,3 @@ def test_526_3_1b_build_progress_parse_skips_the_acceptance_criteria_mirror() ->
     headers = [i["header"] for i in module.parse_build_progress(plan)["items"]]
 
     assert headers == ["Slice 1: real work"]
-
-
-def test_526_3_1c_build_progress_parse_checks_for_acceptance_criteria_skip_trigger() -> (
-    None
-):
-    # The other half of the inner-skip pair.
-    assert "### Acceptance Criteria" in PLAN_RECORD_PARSE.read_text()

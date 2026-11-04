@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse Write|Edit hook: refuse a plan or spec write that breaks the feature record (#2275).
+"""PreToolUse Write|Edit hook: refuse a plan or spec write that breaks the feature record.
 
 A write to a plan (`plans/*.md`, `docs/specs/*/plans/*.md`) or a spec
 (`docs/specs/*.md`, `docs/specs/*/spec.md`) is checked against the invariants
@@ -121,27 +121,26 @@ def target_path(payload: dict) -> tuple[str, str] | None:
 # ---------------------------------------------------------------------------
 
 
-def proposed_text(payload: dict, read_text) -> tuple[str, str] | None:
+def proposed_text(payload: dict, read_text) -> tuple[str | None, str] | None:
     """Return `(before, after)` text for the write, or `None` when the hook
     cannot judge it and must allow.
 
     `read_text(path)` returns the file text; it may raise. `Write` proposes
     its `content`. `Edit` applies `old_string` to `new_string` on the on-disk
     text, only when `old_string` is non-empty and occurs exactly once (so
-    `replace_all` with several matches is not judged). The before-text of a
-    file that does not exist is empty, and an `Edit` with an empty
-    `old_string` on such a file creates it. Any other read error means
-    "cannot judge".
+    `replace_all` with several matches is not judged). `before` is `None` for
+    a file that does not exist, which is not the same as an existing empty
+    file (`""`); an `Edit` with an empty `old_string` on a missing file
+    creates it. Any other read error means "cannot judge".
     """
     target = target_path(payload)
     if target is None:
         return None
     tool_input = payload["tool_input"]
-    missing = False
     try:
-        before = read_text(target[0])
+        before: str | None = read_text(target[0])
     except FileNotFoundError:
-        before, missing = "", True
+        before = None
     except (OSError, UnicodeError):
         return None
 
@@ -154,11 +153,12 @@ def proposed_text(payload: dict, read_text) -> tuple[str, str] | None:
         new = tool_input.get("new_string")
         if not isinstance(old, str) or not isinstance(new, str):
             return None
-        if not old:
+        if before is None:
             # An Edit with an empty old_string creates a file that does not
-            # exist yet, like a Write. On an existing file it is not judged.
-            return ("", new) if missing else None
-        if before.count(old) != 1:
+            # exist yet, like a Write. Any other Edit on a missing file is not
+            # judged.
+            return (None, new) if not old else None
+        if not old or before.count(old) != 1:
             return None
         return before, before.replace(old, new, 1)
     return None
@@ -176,13 +176,17 @@ def _read_text(path: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _load_record():
+def _import_feature_record():
     """Import `scripts/feature_record.py`, only after a path match.
 
     `hooks/` reaches into `scripts/` here the way `review_verdict_recorder.py`
     reaches into `scripts/lib/`: both ship inside this plugin, and neither
     `feature_record` nor its helpers import anything from `hooks/` (no cycle).
-    The paths are appended so a `hooks/lib` module is never shadowed.
+    `scripts/` and `scripts/lib` are appended to `sys.path`, so a module of the
+    same name earlier on the path (`hooks/`, `hooks/lib`) wins. `feature_record`
+    also puts `scripts/lib` at the front of `sys.path` itself, but only when
+    its resolved path is not already listed, so with the append here it adds
+    nothing in a normal checkout; under a symlinked plugin directory it can.
     """
     scripts = os.path.join(os.path.dirname(_HOOK_DIR), "scripts")
     for path in (scripts, os.path.join(scripts, "lib")):
@@ -207,20 +211,21 @@ def decide(payload: dict, read_text) -> list[dict]:
     texts = proposed_text(payload, read_text)
     if texts is None:
         return []
-    record = _load_record()
+    feature_record_module = _import_feature_record()
     if kind == PLAN:
 
         def check(text: str) -> list[dict]:
-            return record.plan_violations(text, spec_text=None)
+            return feature_record_module.plan_violations(text, spec_text=None)
 
     else:
-        check = record.spec_violations
+        check = feature_record_module.spec_violations
     before, after = texts
-    # An empty before-state (a new file) has nothing to compare with, so every
+    # A file that does not exist has nothing to compare with, so every
     # violation of the proposed text is introduced. Checking "" would not do:
-    # `spec_violations("")` already reports all three missing sections.
-    known = check(before) if before else []
-    return record.introduced(known, check(after))
+    # `spec_violations("")` already reports all three missing sections. An
+    # existing empty file does have a before-state, and it is checked.
+    known = [] if before is None else check(before)
+    return feature_record_module.introduced(known, check(after))
 
 
 def format_refusal(rel_path: str, found: list[dict], tool: str | None) -> str:

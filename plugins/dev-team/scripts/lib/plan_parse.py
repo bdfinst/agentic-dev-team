@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TextIO
 
 _SLICE_RE = re.compile(r"^#+\s+[Ss]lice\s+([^:]+)")
-_SLICE_HEADING_RE = re.compile(r"^#{1,3}\s+[Ss]lice\s+([^:]+):\s*(.*)$")
+_SLICE_HEADING_RE = re.compile(r"^#{1,3}\s+[Ss]lice\s+([^:\s][^:]*):\s*(.*)$")
 _HEADING_RE = re.compile(r"^#{1,3}\s")
 _STEP_RE = re.compile(r"^#{4,}\s")
 # `\**\s*:\s*\**\s*` handles bold markup on *both* sides of the colon —

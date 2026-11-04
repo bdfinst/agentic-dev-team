@@ -7,6 +7,7 @@ and of "backed":
 - `run_git`, `branch_base_sha` (None when no trunk ref diverges from HEAD)
 - `extract_declared_paths`, `is_path_declared`, `parse_slice_files`
 - `commits_since` (subjects and touched files past a base)
+- `checked_commits_since` (the same, or None when git failed)
 - `item_backed` (the per-item rule)
 
 Policy stays with the callers. The guardian falls back to whole history when
@@ -29,8 +30,7 @@ BACKTICK_PATH_RE = re.compile(r"`([^`\s]+\.[a-zA-Z0-9_]+)`")
 # Matches backtick-quoted directory declarations (trailing '/'), e.g.
 # `plugins/dev-team/skills/new-feature/`. Kept separate from
 # BACKTICK_PATH_RE so extension-less, non-path backtick tokens (e.g.
-# `runHook()`, `SomeClass`) are never mistaken for declared paths — see
-# issue #713.
+# `runHook()`, `SomeClass`) are never mistaken for declared paths.
 BACKTICK_DIR_RE = re.compile(r"`([^`\s]+/)`")
 
 # Matches a slice's `**Files:** ...` declaration line. Captures the
@@ -61,7 +61,7 @@ def extract_declared_paths(text: str) -> list[str]:
     slice touches things under here" — matched with startswith, not
     equality, by callers. Bare backtick-quoted tokens with no extension
     and no trailing slash (e.g. `` `runHook()` ``) are not paths and are
-    intentionally excluded (see issue #713).
+    intentionally excluded.
     """
     return BACKTICK_PATH_RE.findall(text) + BACKTICK_DIR_RE.findall(text)
 
@@ -69,10 +69,9 @@ def extract_declared_paths(text: str) -> list[str]:
 def is_path_declared(file_path: str, declared_paths) -> bool:
     """True if file_path exactly matches a declared file, falls under
     a declared directory (trailing '/') prefix, or matches a declared glob
-    pattern (fnmatch, stdlib — issue #865 AC9, e.g. `src/auth/**`). Single
-    source of truth shared by the commit-discipline, scope and
-    declared-scope checks so they cannot drift on what counts as
-    "declared" (see issue #525/#713/#865).
+    pattern (fnmatch, stdlib, e.g. `src/auth/**`). Single source of truth
+    shared by the commit-discipline, scope and declared-scope checks so they
+    cannot drift on what counts as "declared".
     """
     for declared in declared_paths:
         if declared.endswith("/"):
@@ -151,7 +150,7 @@ def branch_base_sha(repo_root: str) -> str | None:
     origin/main the moment any work begins. Returns None when no
     trunk-like ref resolves to a divergence point (no repository, no git,
     an orphan or detached HEAD with no trunk ref, a git error); callers
-    choose their own policy for None. See issue #525.
+    choose their own policy for None.
     """
     head_sha = run_git(["rev-parse", "HEAD"], repo_root).strip()
     for branch in ("origin/main", "origin/master", "main", "master"):
