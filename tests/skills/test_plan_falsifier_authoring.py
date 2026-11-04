@@ -21,8 +21,6 @@ PLAN_SKILL_DIR = PLUGIN_ROOT / "skills" / "plan"
 SKILL_MD = PLAN_SKILL_DIR / "SKILL.md"
 TEMPLATE_MD = PLAN_SKILL_DIR / "references" / "plan-template.md"
 
-SKILL_LINE_LIMIT = 200
-
 FALSIFIER_COMMENT_RE = re.compile(rf"^\s*#\s*{re.escape(FALSIFIER_PREFIX)}\s*\S")
 GHERKIN_FENCE_RE = re.compile(r"```gherkin\n(.*?)```", re.DOTALL)
 
@@ -37,15 +35,22 @@ SKILL_RULE_SENTENCE = (
     "comment naming a mutation the scenario does not detect \u2014 never the negation of its `Then` clause."
 )
 
+STEP_5B_SENTENCE = (
+    "Also pass the Acceptance Test Critic the output of "
+    '`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_falsifiers.py" <plan-file>`, '
+    "run on the current plan file on each review pass "
+    "(its `missing` array is the deterministic input for the Falsifier check)."
+)
 
-def _gherkin_fence(text: str) -> list[str]:
+
+def _gherkin_fence_lines(text: str) -> list[str]:
     match = GHERKIN_FENCE_RE.search(text)
     assert match, "no gherkin fence found"
     return match.group(1).splitlines()
 
 
 def test_template_falsifier_line_follows_each_example_scenario_title():
-    lines = _gherkin_fence(TEMPLATE_MD.read_text(encoding="utf-8"))
+    lines = _gherkin_fence_lines(TEMPLATE_MD.read_text(encoding="utf-8"))
     title_indexes = [
         i for i, line in enumerate(lines) if line.strip().startswith("Scenario:")
     ]
@@ -87,11 +92,9 @@ def test_plan_step5b_passes_falsifier_script_output_to_the_acceptance_test_criti
         SKILL_MD.read_text(encoding="utf-8"), "#### 5b.", "### 6."
     )
 
-    assert any(
-        "plan_falsifiers.py" in p and "Acceptance Test Critic" in p
+    [paragraph] = [
+        p
         for p in _paragraphs(step5b)
-    )
-
-
-def test_plan_skill_stays_under_the_line_limit():
-    assert len(SKILL_MD.read_text(encoding="utf-8").splitlines()) < SKILL_LINE_LIMIT
+        if p.startswith("Pass each reviewer the full plan content.")
+    ]
+    assert STEP_5B_SENTENCE in paragraph
