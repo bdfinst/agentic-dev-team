@@ -8,7 +8,11 @@ sentence that prints the count. Script resolution is checked mechanically:
 every `python3 "${CLAUDE_PLUGIN_ROOT}/..."` call in Parse Arguments must name
 a file under the plugin root, and every flag named for `build_candidates.py
 validate-flags` must appear in its real `--help`. The `docs/skills.md` row is
-checked against the frontmatter it is generated from.
+checked against the frontmatter it is generated from. Step 4 routes `complex`
+steps to the speculative-build skill through one paragraph placed immediately
+before the single-dispatch paragraph; the default text (the `trivial` and
+`standard` bullets and the dispatch paragraph) stays pinned verbatim by
+`fixtures/build_skill_untouched_passages.md`.
 """
 
 from __future__ import annotations
@@ -19,12 +23,14 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from skill_doc_helpers import (
     PLUGIN_ROOT,
     Fact,
     assert_fact,
+    collapsed,
     frontmatter,
     grep,
     parse_arguments_section,
@@ -77,6 +83,47 @@ STEP_1_PRINT = (
 )
 PRINT_NO_COMPLEX_STEPS = (
     "`speculative dispatch: no complex steps in this plan; --candidates has no effect`"
+)
+
+UNTOUCHED_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "build_skill_untouched_passages.md"
+)
+STEP_4_START = r"^### 4\. Implement each step$"
+STEP_4_BOUNDARY = r"^### "
+ROUTING_START = "**Speculative dispatch (#2273).**"
+DISPATCH_START = "For each step within a slice, dispatch"
+TRIVIAL_BULLET_START = "- **trivial**:"
+STANDARD_BULLET_START = "- **standard**:"
+#: H2 headings of the fixture, in file order; each heads one fenced passage.
+FIXTURE_PASSAGES = ("trivial bullet", "standard bullet", "dispatch paragraph")
+FIXTURE_FENCE = "~~~~"
+#: Padding that pushes the routing paragraph past 200 words (Gherkin tolerance).
+LONG_PARAGRAPH_WORDS = 200
+LONG_PARAGRAPH_PADDING = 120
+#: First line after the per-behavior cycle in Step 4; the moved pair goes before it.
+MOVE_BEFORE = "5. **Mark step done**"
+#: The default text must name neither word (case-insensitive).
+DEFAULT_TEXT_FORBIDDEN = ("candidates", "speculative")
+#: Phrases the routing paragraph states, in the order the plan fixes. Each is a
+#: regex run against the whitespace-collapsed paragraph. "exactly as below" is
+#: the pinned wording for "every other step runs unchanged".
+ROUTING_PHRASES = (
+    ("names_the_flag", r"`--candidates N`"),
+    ("conditions_on_n_of_2_or_more", r"N (≥ 2|of 2 or more|is 2 or more)"),
+    ("conditions_on_complex_complexity", r"`\*\*Complexity\*\*` is `complex`"),
+    ("names_the_skill", r"speculative-build/SKILL\.md"),
+    (
+        "resumes_at_the_inline_checkpoint_on_the_merged_winner",
+        r"sub-step 4's inline checkpoint on the merged winner",
+    ),
+    (
+        "runs_cleanup_after_the_checkpoint_passes",
+        r"Cleanup.* after that checkpoint passes",
+    ),
+    (
+        "runs_every_other_step_exactly_as_below",
+        r"every step when N = 1, runs exactly as below",
+    ),
 )
 
 
@@ -348,3 +395,123 @@ def test_every_flag_named_for_validate_flags_is_listed_by_its_help(invocation):
         if not re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", help_text)
     ]
     assert not missing, f"{script} {subcommand} --help does not list {missing}"
+
+
+def _step_4(text: str) -> str:
+    return section_outside_code(text, STEP_4_START, boundary_pattern=STEP_4_BOUNDARY)
+
+
+def _paragraphs(text: str) -> list[str]:
+    return [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+
+
+def _line_starting(text: str, prefix: str) -> str:
+    matches = [line for line in text.splitlines() if line.lstrip().startswith(prefix)]
+    assert len(matches) == 1, f"expected one line starting {prefix!r}: {matches}"
+    return matches[0]
+
+
+def _routing_paragraph(text: str) -> str:
+    """The paragraph immediately before the dispatch paragraph (blank lines only
+    between them). Position within Step 4 is deliberately not asserted."""
+    paragraphs = _paragraphs(_step_4(text))
+    starts = [i for i, p in enumerate(paragraphs) if p.startswith(DISPATCH_START)]
+    assert len(starts) == 1, f"expected one dispatch paragraph, found {len(starts)}"
+    assert starts[0] > 0, "nothing precedes the dispatch paragraph"
+    return paragraphs[starts[0] - 1]
+
+
+def test_step_4_has_one_speculative_dispatch_paragraph(skill_text):
+    paragraphs = _paragraphs(_step_4(skill_text))
+    assert sum(p.startswith(ROUTING_START) for p in paragraphs) == 1
+
+
+def test_speculative_dispatch_paragraph_is_immediately_before_the_dispatch_paragraph(
+    skill_text,
+):
+    assert _routing_paragraph(skill_text).startswith(ROUTING_START)
+
+
+@pytest.mark.parametrize(
+    "pattern", [p for _, p in ROUTING_PHRASES], ids=[i for i, _ in ROUTING_PHRASES]
+)
+def test_speculative_dispatch_paragraph_states(skill_text, pattern):
+    assert re.search(pattern, collapsed(_routing_paragraph(skill_text)))
+
+
+def test_speculative_dispatch_paragraph_states_its_points_in_the_plan_order(
+    skill_text,
+):
+    paragraph = collapsed(_routing_paragraph(skill_text))
+    positions = [re.search(p, paragraph) for _, p in ROUTING_PHRASES]
+    assert all(positions)
+    starts = [m.start() for m in positions]
+    assert starts == sorted(starts)
+
+
+def test_routing_checks_hold_when_the_pair_follows_the_per_behavior_cycle(skill_text):
+    """Gherkin tolerance: the routing and dispatch paragraphs may sit after the
+    per-behavior cycle, and the routing paragraph may exceed 200 words."""
+    routing = _routing_paragraph(skill_text)
+    dispatch = _line_starting(_step_4(skill_text), DISPATCH_START)
+    pair = f"{routing}\n\n{dispatch}\n\n"
+    assert pair in skill_text
+    longer = (routing + " " + "Extra words. " * LONG_PARAGRAPH_PADDING).strip()
+    assert len(longer.split()) > LONG_PARAGRAPH_WORDS
+    moved = skill_text.replace(pair, "", 1).replace(
+        MOVE_BEFORE, f"\n{longer}\n\n{dispatch}\n\n{MOVE_BEFORE}", 1
+    )
+    assert moved.index(dispatch) > skill_text.index(MOVE_BEFORE)
+    assert _routing_paragraph(moved) == longer
+    assert all(
+        re.search(pattern, collapsed(_routing_paragraph(moved)))
+        for _, pattern in ROUTING_PHRASES
+    )
+
+
+def _fixture_passages() -> dict[str, str]:
+    """Parse the fixture by its H2 headings; each heading owns one fenced block."""
+    passages: dict[str, str] = {}
+    heading = None
+    in_fence = False
+    body: list[str] = []
+    for line in UNTOUCHED_FIXTURE.read_text(encoding="utf-8").splitlines():
+        if not in_fence and line.startswith("## "):
+            heading = line.removeprefix("## ").strip()
+        elif line == FIXTURE_FENCE:
+            if in_fence:
+                assert heading is not None
+                passages[heading] = "\n".join(body)
+                body = []
+            in_fence = not in_fence
+        elif in_fence:
+            body.append(line)
+    return passages
+
+
+def _default_passages(text: str) -> dict[str, str]:
+    step_4 = _step_4(text)
+    return {
+        "trivial bullet": _line_starting(step_4, TRIVIAL_BULLET_START),
+        "standard bullet": _line_starting(step_4, STANDARD_BULLET_START),
+        "dispatch paragraph": _line_starting(step_4, DISPATCH_START),
+    }
+
+
+def test_fixture_has_the_three_passages_under_their_headings():
+    assert tuple(_fixture_passages()) == FIXTURE_PASSAGES
+
+
+@pytest.mark.parametrize("name", FIXTURE_PASSAGES, ids=FIXTURE_PASSAGES)
+def test_default_passage_names_neither_candidates_nor_speculative(skill_text, name):
+    passage = _default_passages(skill_text)[name]
+    assert passage.strip()
+    for word in DEFAULT_TEXT_FORBIDDEN:
+        assert word not in passage.lower(), f"{name} names {word!r}"
+
+
+@pytest.mark.parametrize("name", FIXTURE_PASSAGES, ids=FIXTURE_PASSAGES)
+def test_fixture_passage_is_still_present_verbatim_in_the_build_skill(skill_text, name):
+    passage = _fixture_passages()[name]
+    assert passage.strip(), f"fixture passage {name!r} is empty"
+    assert passage in skill_text
