@@ -1506,6 +1506,51 @@ def test_merge_in_progress_is_true_only_between_a_merge_and_its_conclusion(
     assert not lane_core.merge_in_progress(repo)
 
 
+def fail_every_git_call(monkeypatch):
+    """Every `_git` call exits 128, as git does when it cannot answer at all."""
+    monkeypatch.setattr(
+        lane_core,
+        "_git",
+        lambda args, cwd: subprocess.CompletedProcess(args, 128, "", "fatal: injected"),
+    )
+
+
+def test_is_ancestor_strict_answers_like_is_ancestor_and_raises_on_a_git_failure(
+    repo_without_remote, monkeypatch
+):
+    repo = repo_without_remote.path
+    older = git(repo, "rev-parse", "HEAD")
+    newer = commit_file(repo, "n.txt", "n\n", "newer")
+    assert lane_core.is_ancestor_strict(older, newer, repo)
+    assert not lane_core.is_ancestor_strict(newer, older, repo)
+
+    fail_every_git_call(monkeypatch)
+
+    with pytest.raises(lane_core.RefusalError) as failure:
+        lane_core.is_ancestor_strict(older, newer, repo)
+    assert failure.value.refusal.what == GIT_FAILED
+    assert "fatal: injected" in failure.value.refusal.why
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        lambda repo: lane_core.merge_in_progress(repo),
+        lambda repo: lane_core.branch_commit("main", repo),
+    ],
+    ids=["merge_in_progress", "branch_commit"],
+)
+def test_a_yes_or_no_reader_raises_on_a_git_failure_instead_of_saying_no(
+    ask, repo_without_remote, monkeypatch
+):
+    fail_every_git_call(monkeypatch)
+
+    with pytest.raises(lane_core.RefusalError) as failure:
+        ask(repo_without_remote.path)
+
+    assert failure.value.refusal.what == GIT_FAILED
+
+
 def test_branch_commit_names_a_local_branch_tip_and_not_a_tag(repo_without_remote):
     repo = repo_without_remote.path
     git(repo, "tag", "only-a-tag")

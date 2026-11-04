@@ -19,7 +19,8 @@ every command shares:
   on it.
 - `dirty_paths`: the one reader of `git status`; `origin_url`: the one reader
   of the `origin` remote.
-- `head_commit`, `commit_tree`, `head_tree`, `is_ancestor`, `unmerged_paths`,
+- `head_commit`, `commit_tree`, `head_tree`, `is_ancestor`,
+  `is_ancestor_strict`, `unmerged_paths`,
   `has_unmerged_entries` and `merge_in_progress`: one reader per fact about the
   history and merge state of a work tree.
 - `local_files_a_merge_would_overwrite`: the ignored files a merge would clobber.
@@ -492,11 +493,10 @@ def trunk_branch_missing_refusal(trunk_ref: str, branch: str | None) -> Refusal:
         )
     else:
         why = f"the local trunk branch {branch} (for {trunk_ref}) does not exist"
-    return Refusal(
-        what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
-        why=why,
-        how="pass --trunk <branch> naming the local branch to fast-forward",
-    )
+    how = "pass --trunk <branch> naming the local branch to fast-forward"
+    if branch is not None:
+        how = f"{how}, or create it: git branch {branch} {trunk_ref}"
+    return Refusal(what=WHAT_TRUNK_CANNOT_FAST_FORWARD, why=why, how=how)
 
 
 @_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
@@ -528,16 +528,24 @@ def trunk_checked_out_nowhere_refusal(branch: str) -> Refusal:
 
 @_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
 def trunk_worktree_dirty_refusal(
-    branch: str, worktree: Path, paths: Sequence[str]
+    branch: str, worktree: Path, paths: Sequence[str], merge_unfinished: bool = False
 ) -> Refusal:
-    """The worktree that has the trunk branch holds uncommitted changes."""
+    """The worktree that has the trunk branch holds uncommitted changes, an
+    unfinished merge, or both."""
+    found = [listed_paths(paths)] if paths else []
+    if merge_unfinished:
+        found.append(f"a merge is in progress ({MERGE_HEAD} exists)")
     return Refusal(
         what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
         why=(
             f"the trunk worktree {worktree} (on {branch}) has uncommitted "
-            f"changes: {listed_paths(paths)}"
+            f"changes: {'; '.join(found)}"
         ),
-        how="clean the trunk worktree (commit or stash the listed paths), then run integrate again",
+        how=(
+            "clean the trunk worktree: commit or stash its changes, and conclude "
+            "(git commit) or abort (git merge --abort) an unfinished merge, "
+            "then run integrate again"
+        ),
     )
 
 
@@ -764,6 +772,18 @@ def git_ok(args: Sequence[str], cwd: Path) -> bool:
     return _git(args, cwd).returncode == 0
 
 
+def _git_yes_or_no(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """`_git` for a question git answers with exit 0 (yes) or 1 (no).
+
+    Any other exit is git failing, not an answer, and raises the `git command
+    failed` refusal: a broken call must never read as "no".
+    """
+    completed = _git(args, cwd)
+    if completed.returncode not in (0, 1):
+        raise _failure(["git", *args], git_message(completed))
+    return completed
+
+
 def _git_checked(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     """`_git`, but a non-zero exit raises the `git command failed` refusal."""
     completed = _git(args, cwd)
@@ -819,6 +839,12 @@ def is_ancestor(ancestor: str, descendant: str, cwd: Path) -> bool:
     return git_ok(["merge-base", "--is-ancestor", ancestor, descendant], cwd)
 
 
+def is_ancestor_strict(ancestor: str, descendant: str, cwd: Path) -> bool:
+    """`is_ancestor`, but a git failure raises instead of reading as "not an ancestor"."""
+    args = ["merge-base", "--is-ancestor", ancestor, descendant]
+    return _git_yes_or_no(args, cwd).returncode == 0
+
+
 def unmerged_paths(cwd: Path) -> list[str]:
     """Paths with unresolved merge conflicts."""
     listed = git_text(["diff", "--name-only", "--diff-filter=U", "-z"], cwd)
@@ -850,13 +876,26 @@ def local_files_a_merge_would_overwrite(commit: str, cwd: Path) -> list[str]:
 
 
 def merge_in_progress(cwd: Path) -> bool:
-    """True while a merge is begun and not concluded or aborted."""
-    return git_ok(["rev-parse", "--verify", "--quiet", MERGE_HEAD], cwd)
+    """True while a merge is begun and not concluded or aborted.
+
+    A git failure raises; it is not "no merge in progress".
+    """
+    args = ["rev-parse", "--verify", "--quiet", MERGE_HEAD]
+    return _git_yes_or_no(args, cwd).returncode == 0
 
 
 def branch_commit(name: str, cwd: Path) -> str | None:
-    """The commit local branch `name` points at, or None when it does not exist."""
-    return _commit_of(f"{HEAD_REFS_PREFIX}{name}", cwd)
+    """The commit local branch `name` points at.
+
+    None only when the branch does not exist (or `name` is malformed and never
+    reaches git). A git failure raises.
+    """
+    ref = f"{HEAD_REFS_PREFIX}{name}"
+    if REF_PATTERN.fullmatch(ref) is None:
+        return None
+    args = ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"]
+    completed = _git_yes_or_no(args, cwd)
+    return completed.stdout.strip() if completed.returncode == 0 else None
 
 
 def require_work_tree(cwd: Path) -> None:

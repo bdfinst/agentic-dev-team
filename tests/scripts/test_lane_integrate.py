@@ -17,6 +17,7 @@ Every test runs in-process against real git repositories built by
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -235,7 +236,8 @@ def test_collect_a_tag_as_trunk_has_no_branch_to_fast_forward(
 
     assert block["refused"] == FAST_FORWARD
     assert "does not exist" in block["why"]
-    assert "--trunk <branch>" in block["how"]
+    assert "pass --trunk <branch>" in block["how"]
+    assert "git branch" not in block["how"]
 
 
 @covers("trunk cannot fast-forward")
@@ -251,6 +253,8 @@ def test_collect_a_remote_trunk_without_a_local_branch_does_not_exist(
     assert block["refused"] == FAST_FORWARD
     assert "local trunk branch main" in block["why"]
     assert "does not exist" in block["why"]
+    assert "pass --trunk <branch>" in block["how"]
+    assert "or create it: git branch main origin/main" in block["how"]
 
 
 @covers("trunk cannot fast-forward")
@@ -281,6 +285,66 @@ def test_collect_a_trunk_moved_after_compose_with_no_remote_fails_both_checks(
     assert second["refused"] == FAST_FORWARD
     assert "not an ancestor" in second["why"]
     assert observed_state(composed_without_remote) == before
+
+
+@covers("trunk cannot fast-forward")
+def test_collect_an_unfinished_merge_in_the_trunk_worktree_is_named(
+    composed_with_origin, capsys
+):
+    primary = composed_with_origin.repo.path
+    merge_head = primary / git(primary, "rev-parse", "--git-path", "MERGE_HEAD")
+    merge_head.write_text(git(primary, "rev-parse", "HEAD") + "\n", encoding="utf-8")
+    assert git(primary, "status", "--porcelain=v1") == ""
+
+    block = only_block(composed_with_origin, capsys)
+
+    assert block["refused"] == "trunk cannot fast-forward"
+    assert "has uncommitted changes" in block["why"]
+    assert "a merge is in progress (MERGE_HEAD exists)" in block["why"]
+    assert "git merge --abort" in block["how"]
+
+
+def fail_git_for(monkeypatch, prefix: list[str], cwd: Path | None = None) -> None:
+    """`lane_core._git` exits 128 for a call whose arguments start with `prefix`
+    (in `cwd` when given); every other call runs for real."""
+    real = lane_core._git
+
+    def failing(args, where):
+        if list(args[: len(prefix)]) == prefix and (
+            cwd is None or Path(where).resolve() == cwd.resolve()
+        ):
+            return subprocess.CompletedProcess(args, 128, "", "fatal: injected")
+        return real(args, where)
+
+    monkeypatch.setattr(lane_core, "_git", failing)
+
+
+@covers("git command failed")
+@pytest.mark.parametrize(
+    "failing_call",
+    ["ancestry", "branch commit", "merge in progress"],
+)
+def test_collect_a_git_failure_in_check_5_is_a_git_failure_not_a_sub_condition(
+    failing_call, composed_with_origin, monkeypatch, capsys
+):
+    calls = {
+        "ancestry": (["merge-base", "--is-ancestor"], composed_with_origin.path),
+        "branch commit": (
+            ["rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"],
+            None,
+        ),
+        "merge in progress": (
+            ["rev-parse", "--verify", "--quiet", "MERGE_HEAD"],
+            composed_with_origin.repo.path,
+        ),
+    }
+    prefix, where = calls[failing_call]
+    fail_git_for(monkeypatch, prefix, where)
+
+    (block,) = printed_blocks(collect(composed_with_origin), capsys)
+
+    assert block["refused"] == "git command failed"
+    assert "fatal: injected" in block["why"]
 
 
 # --- check 4: the lane is clean ----------------------------------------------

@@ -492,7 +492,9 @@ def _check_trunk_fast_forwards(ctx: CheckContext) -> lane_core.Refusal | None:
 
     One refusal per run, the first sub-condition that fails, in the order a
     person fixes them: the branch exists, the lane contains it, a worktree has
-    it, and that worktree is clean.
+    it, and that worktree is clean (no changes, no unfinished merge). A git
+    failure while asking is not a sub-condition: the readers raise it and the
+    engine reports it as this check's `git command failed` block.
     """
     context = ctx.entered.context
     lane_path = context.lane_path
@@ -502,14 +504,17 @@ def _check_trunk_fast_forwards(ctx: CheckContext) -> lane_core.Refusal | None:
     branch_commit = lane_core.branch_commit(branch, lane_path)
     if branch_commit is None:
         return lane_core.trunk_branch_missing_refusal(context.trunk_ref, branch)
-    if not lane_core.is_ancestor(branch_commit, "HEAD", lane_path):
+    if not lane_core.is_ancestor_strict(branch_commit, "HEAD", lane_path):
         return lane_core.trunk_not_an_ancestor_refusal(branch, context.trunk_ref)
     worktree = lane_core.branch_worktree(branch, lane_path)
     if worktree is None:
         return lane_core.trunk_checked_out_nowhere_refusal(branch)
     dirty = lane_core.dirty_paths(worktree)
-    if dirty:
-        return lane_core.trunk_worktree_dirty_refusal(branch, worktree, dirty)
+    unfinished = lane_core.merge_in_progress(worktree)
+    if dirty or unfinished:
+        return lane_core.trunk_worktree_dirty_refusal(
+            branch, worktree, dirty, merge_unfinished=unfinished
+        )
     return None
 
 
@@ -524,8 +529,10 @@ def _check_lane_is_clean(ctx: CheckContext) -> lane_core.Refusal | None:
 #:
 #: A check that hits a git failure: `collect_refusals` turns the
 #: `RefusalError` it raises into that check's refusal (the `git command
-#: failed` block) and runs the rest. A check never needs to catch git errors
-#: itself, and one broken git call cannot hide the other checks' findings.
+#: failed` block) and runs the rest. A check does not catch git errors, and its
+#: readers must raise on one instead of answering "no" (a yes/no question git
+#: fails to answer is not a "no"), so one broken git call becomes a block and
+#: cannot hide the other checks' findings.
 CHECKS: tuple[Check, ...] = (
     Check(1, "tree matches", _check_tree_matches),
     Check(3, "trunk has not moved", _check_trunk_has_not_moved),
