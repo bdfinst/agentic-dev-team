@@ -32,34 +32,47 @@ import pytest
 from lane_fixtures import (
     GATE_DISPATCH_AGENTS,
     GATE_RELATIVE_PATH,
+    GITHUB_URL,
     LEDGER_RELATIVE_PATH,
+    NETWORK_ARGV_PREFIXES,
     ComposedLane,
+    InjectedGitFailure,
     add_linked_worktree,
     advance_origin,
     advance_trunk,
     append_ledger,
     argv_spy,
+    branch_exists_in,
     build_repo_with_origin,
     build_repo_without_remote,
+    claude_snapshot,
     commit_file,
     composed_gated_lane,
+    composed_with_origin_kind,
     covers,
     dispatch_row,
+    edit_tracked_file,
     enforce_covers,
     gate_hash_of,
     git,
+    git_env,
     git_succeeds,
     hermetic_process_env,
+    integrate_argv,
     is_ancestor,
+    leave_untracked_file,
     ledger_row,
+    observed_state,
     parse_blocks,
     parse_output,
     plain_directory,
     repo_with_origin,
     repo_without_remote,
+    run_integrate,
     run_main,
     seed_gate,
     unchanged_state,
+    use_github_origin,
     write_gate_file,
 )
 
@@ -72,52 +85,12 @@ if str(SCRIPTS_DIR) not in sys.path:
 import lane
 import lane_core
 import review_agent_registry
+from review_gate_hash import branch_diff_gate_hash
 
 NOT_IN_A_LANE = "not in a lane"
 UNCOMMITTED = "lane has uncommitted changes"
 REVIEW_GATE = "review gate stale or missing"
 PR_HOOK_PATH = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_pr_review.py"
-
-
-def claude_snapshot(worktree: Path) -> list[tuple[str, bool, bytes | None]]:
-    """Every entry under `<worktree>/.claude`: (relative path, is a directory, bytes).
-
-    `unchanged_state` collapses an ignored directory to one status line, so it
-    cannot see a file written or changed inside `.claude/`; this can.
-    """
-    root = worktree / ".claude"
-    if not root.exists():
-        return []
-    return sorted(
-        (
-            str(entry.relative_to(root)),
-            entry.is_dir(),
-            None if entry.is_dir() else entry.read_bytes(),
-        )
-        for entry in root.rglob("*")
-    )
-
-
-def observed_state(composed: ComposedLane) -> dict[str, object]:
-    """What must be equal before and after a refused run: both worktrees (git
-    state and everything under their `.claude/`), and the gate file's bytes
-    (None when absent)."""
-    gate = composed.path / GATE_RELATIVE_PATH
-    return {
-        "lane": unchanged_state(composed.path),
-        "trunk": unchanged_state(composed.repo.path),
-        "lane .claude": claude_snapshot(composed.path),
-        "trunk .claude": claude_snapshot(composed.repo.path),
-        "gate": gate.read_bytes() if gate.is_file() else None,
-    }
-
-
-def leave_untracked_file(worktree: Path) -> None:
-    (worktree / "scratch.txt").write_text("x\n", encoding="utf-8")
-
-
-def edit_tracked_file(worktree: Path) -> None:
-    (worktree / "base.txt").write_text("edited\n", encoding="utf-8")
 
 
 def collect(
@@ -929,23 +902,11 @@ def test_collect_a_git_failure_in_check_5_is_a_git_failure_not_a_sub_condition(
 # --- check 6: not a PR repository ------------------------------------------
 
 PR_REPOSITORY = "PR repository"
-GITHUB_URL = "https://github.com/acme/widgets.git"
 PR_REPOSITORY_URLS = {
     "https with .git": GITHUB_URL,
     "ssh": "ssh://git@github.com/acme/widgets.git",
     "scp-like git@": "git@github.com:acme/widgets.git",
 }
-
-
-def composed_with_origin_kind(tmp_path, capsys, origin: str, url: str | None = None):
-    """A composed, gated lane whose origin is `github`, `other` or `none`."""
-    if origin == "none":
-        return composed_gated_lane(build_repo_without_remote(tmp_path), capsys)
-    repo = build_repo_with_origin(tmp_path)
-    composed = composed_gated_lane(repo, capsys)
-    if origin == "github":
-        git(repo.path, "remote", "set-url", "origin", url or GITHUB_URL)
-    return composed
 
 
 @pytest.mark.parametrize("local_trunk", [False, True], ids=["no-flag", "local-trunk"])
@@ -1230,32 +1191,6 @@ ABBREVIATED_SHA = "a" * 12
 WRONG_SHA = "0" * 40
 
 
-def integrate_argv(
-    composed: ComposedLane, *extra: str, **identities: str | None
-) -> list[str]:
-    """`integrate` with the composed identities; `expected_trunk=` / `expected_tree=`
-    override one (a value of None leaves its flag out)."""
-    given = {
-        "expected_trunk": composed.expected_trunk,
-        "expected_tree": composed.expected_tree,
-        **identities,
-    }
-    argv = ["integrate"]
-    for key, flag in (
-        ("expected_trunk", "--expected-trunk"),
-        ("expected_tree", "--expected-tree"),
-    ):
-        if given[key] is not None:
-            argv += [flag, given[key]]
-    return [*argv, *extra]
-
-
-def run_integrate(composed: ComposedLane, capsys, *extra: str, cwd=None, **identities):
-    """`main(["integrate", ...])` in the lane; `(exit code, stdout, stderr)`."""
-    argv = integrate_argv(composed, *extra, **identities)
-    return run_main(argv, cwd or composed.path, capsys)
-
-
 @covers("invalid identity argument")
 @pytest.mark.parametrize(
     ("flag", "key", "value"),
@@ -1358,12 +1293,6 @@ def test_help_lists_open_compose_and_integrate(capsys):
 # --- the integrate command: success -------------------------------------------
 
 
-def branch_exists_in(repo_path: Path, branch: str) -> bool:
-    return git_succeeds(
-        repo_path, "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"
-    )
-
-
 def assert_integrated(
     composed: ComposedLane, out: str, former_trunk: str
 ) -> dict[str, str]:
@@ -1419,7 +1348,7 @@ def test_integrate_on_a_remote_tracking_trunk_moves_only_the_local_branch(
     assert printed["former-head"] != tracking
 
 
-@covers("git command failed")
+@covers("integrate step failed")
 def test_integrate_never_overwrites_an_ignored_file_in_the_trunk_worktree(
     composed_without_remote, capsys
 ):
@@ -1436,7 +1365,7 @@ def test_integrate_never_overwrites_an_ignored_file_in_the_trunk_worktree(
 
     (block,) = parse_blocks(err)
     assert (code, out) == (1, "")
-    assert block["refused"] == "git command failed"
+    assert block["refused"] == "integrate step failed"
     assert "merge --ff-only" in block["why"]
     assert precious.read_text(encoding="utf-8") == "precious\n"
     assert observed_state(composed) == before
@@ -1489,7 +1418,7 @@ def fault_trunk_is_a_tag(composed) -> list[str]:
 
 
 def fault_github_origin(composed) -> list[str]:
-    git(composed.repo.path, "remote", "set-url", "origin", GITHUB_URL)
+    use_github_origin(composed.repo)
     return []
 
 
@@ -1837,7 +1766,8 @@ def test_the_fast_forward_does_not_read_the_trunk_tip_back(
 
     monkeypatch.setattr(lane_core, "head_commit", unreadable)
 
-    assert lane._fast_forward(plan) == plan.former_head
+    lane._fast_forward(plan)
+
     assert git(composed.repo.path, "rev-parse", "main") == plan.former_head
 
 
@@ -1890,7 +1820,7 @@ def test_integrate_deletes_a_lane_branch_whose_upstream_does_not_contain_it(
     )
 
 
-@covers("git command failed")
+@covers("integrate step failed")
 def test_integrate_does_not_delete_a_lane_branch_that_moved_after_the_plan(
     composed_without_remote, capsys, monkeypatch
 ):
@@ -1909,7 +1839,7 @@ def test_integrate_does_not_delete_a_lane_branch_that_moved_after_the_plan(
 
     (block,) = parse_blocks(err)
     assert (code, out) == (1, "")
-    assert block["refused"] == "git command failed"
+    assert block["refused"] == "integrate step failed"
     assert "update-ref" in block["why"]
     assert git(repo, "rev-parse", f"refs/heads/{composed.name}") == elsewhere
 
@@ -1946,7 +1876,7 @@ def test_the_success_lines_show_control_characters_escaped(capsys):
         gate_file=Path("/lane/gate"),
     )
 
-    lane._print_integrated(plan, "b" * 40)
+    lane._print_integrated(plan)
 
     out = capsys.readouterr().out
     assert "\x1b" not in out
@@ -2002,3 +1932,254 @@ def test_integrate_a_gate_file_that_cannot_be_removed_is_a_step_failure(
     assert str(gate) in block["why"]
     assert str(failure) in block["why"]
     assert composed.path.exists()
+
+
+# --- a failing apply step reports what is done and what remains ---------------
+
+
+def report_lines(err: str, key: str) -> list[str]:
+    prefix = f"{key}: "
+    return [
+        line.removeprefix(prefix)
+        for line in err.splitlines()
+        if line.startswith(prefix)
+    ]
+
+
+def fail_the_gate_removal(composed, monkeypatch) -> None:
+    gate = composed.path / GATE_RELATIVE_PATH
+    real = Path.unlink
+
+    def unlink(self, *args, **kwargs):
+        if self == gate:
+            raise PermissionError("denied")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", unlink)
+
+
+def fail_git_step(prefix):
+    def inject(composed, monkeypatch):
+        return InjectedGitFailure(monkeypatch, prefix)
+
+    return inject
+
+
+#: step -> (how the failure is injected, steps done, gate file present at failure)
+FAILING_STEPS = {
+    "fast-forward": (fail_git_step(["merge", "--ff-only"]), [], True),
+    "gate unlink": (fail_the_gate_removal, ["fast-forward"], True),
+    "worktree removal": (
+        fail_git_step(["worktree", "remove"]),
+        ["fast-forward", "gate file removal"],
+        False,
+    ),
+    "branch deletion": (
+        fail_git_step(["update-ref", "-d"]),
+        ["fast-forward", "gate file removal", "worktree removal"],
+        False,
+    ),
+}
+
+
+def remaining_commands(composed, head: str) -> list[str]:
+    """Every apply command in order, as `remaining:` shows it."""
+    trunk = composed.repo.path.resolve()
+    return [
+        f"git -C {trunk} merge --ff-only --no-overwrite-ignore {head}",
+        f"rm -- {composed.path / GATE_RELATIVE_PATH}",
+        f"git -C {trunk} worktree remove {composed.path}",
+        f"git -C {trunk} update-ref -d refs/heads/{composed.name} {head}",
+    ]
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        pytest.param(step, marks=covers("integrate step failed"))
+        for step in FAILING_STEPS
+    ],
+)
+def test_integrate_a_failing_step_reports_done_and_remaining(
+    step, composed_without_remote, capsys, monkeypatch
+):
+    composed = composed_without_remote
+    inject, done, gate_present = FAILING_STEPS[step]
+    head = git(composed.path, "rev-parse", "HEAD")
+    failure = inject(composed, monkeypatch)
+    names = ["fast-forward", "gate unlink", "worktree removal", "branch deletion"]
+    failed_index = names.index(step)
+
+    code, out, err = run_integrate(composed, capsys)
+
+    (block,) = parse_blocks(err)
+    assert (code, out) == (1, "")
+    assert block["refused"] == "integrate step failed"
+    assert "re-running integrate is not the fix" in block["how"]
+    assert report_lines(err, "done") == (done or ["nothing"])
+    assert (
+        report_lines(err, "remaining")
+        == remaining_commands(composed, head)[failed_index:]
+    )
+    assert block["why"].count("(command: ") == 1
+    assert remaining_commands(composed, head)[failed_index] in block["why"]
+    assert (composed.path / GATE_RELATIVE_PATH).exists() == gate_present
+    if failure is not None:
+        (attempt,) = failure.matching
+        assert attempt[0] == "git"
+    assert (git(composed.repo.path, "rev-parse", "main") == head) == bool(done)
+    assert composed.path.exists() == (failed_index <= 2)
+    assert branch_exists_in(composed.repo.path, composed.name)
+
+
+def test_integrate_a_failing_step_names_git_s_own_message(
+    composed_without_remote, capsys, monkeypatch
+):
+    InjectedGitFailure(monkeypatch, ["worktree", "remove"])
+
+    _, _, err = run_integrate(composed_without_remote, capsys)
+
+    (block,) = parse_blocks(err)
+    assert "injected failure" in block["why"]
+
+
+def test_integrate_a_step_after_a_failure_does_not_run(
+    composed_without_remote, capsys, monkeypatch
+):
+    composed = composed_without_remote
+    failure = InjectedGitFailure(monkeypatch, ["worktree", "remove"])
+    seen = []
+    real = lane_core._run
+    monkeypatch.setattr(
+        lane_core,
+        "_run",
+        lambda argv, cwd: (seen.append(list(argv)), real(argv, cwd))[1],
+    )
+
+    run_integrate(composed, capsys)
+
+    assert len(failure.matching) == 1
+    assert not any(argv[1:2] == ["update-ref"] for argv in seen)
+
+
+# --- full flows ---------------------------------------------------------------
+
+
+def test_a_second_lane_integrates_after_the_first(repo_with_origin, capsys):
+    repo = repo_with_origin
+    first = composed_gated_lane(repo, capsys, name="first", lane_file="first.txt")
+    code, _, err = run_integrate(first, capsys, "--local-trunk")
+    assert (code, err) == (0, "")
+    assert git(repo.path, "rev-parse", "main") != git(
+        repo.path, "rev-parse", "origin/main"
+    )
+
+    second = composed_gated_lane(repo, capsys, name="second", lane_file="second.txt")
+    code, out, err = run_integrate(second, capsys, "--local-trunk")
+
+    assert (code, err) == (0, "")
+    assert git(repo.path, "rev-parse", "main") == parse_output(out)["former-head"]
+    assert (repo.path / "first.txt").is_file()
+    assert (repo.path / "second.txt").is_file()
+    assert not second.path.exists()
+
+
+def test_a_github_origin_integrates_end_to_end_with_local_trunk_and_no_network(
+    tmp_path, capsys, argv_spy
+):
+    composed = composed_with_origin_kind(tmp_path, capsys, "github")
+    start = len(argv_spy.records)
+
+    code, out, err = run_integrate(composed, capsys, "--local-trunk")
+
+    assert (code, err) == (0, "")
+    assert (
+        git(composed.repo.path, "rev-parse", "main") == parse_output(out)["former-head"]
+    )
+    network = [
+        argv
+        for argv in argv_spy.records[start:]
+        for prefix in NETWORK_ARGV_PREFIXES
+        if argv[: len(prefix)] == prefix
+    ]
+    assert network == []
+
+
+def test_the_real_script_runs_from_inside_the_lane_it_removes(
+    composed_without_remote,
+):
+    composed = composed_without_remote
+    head = git(composed.path, "rev-parse", "HEAD")
+    script = SCRIPTS_DIR / "lane.py"
+
+    done = subprocess.run(
+        [sys.executable, str(script), *integrate_argv(composed)],
+        cwd=composed.path,
+        env=git_env(composed.path),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert (done.returncode, done.stderr) == (0, "")
+    assert parse_output(done.stdout)["former-head"] == head
+    assert git(composed.repo.path, "rev-parse", "main") == head
+    assert not composed.path.exists()
+
+
+def test_the_pr_hook_accepts_a_lane_composed_against_a_bare_origin(
+    repo_with_origin, capsys, monkeypatch
+):
+    composed = composed_gated_lane(repo_with_origin, capsys, gate=False)
+    gate_hash = branch_diff_gate_hash("origin/main", cwd=composed.path)
+    write_gate_file(composed.path, gate_hash)
+    append_ledger(
+        composed.path,
+        [dispatch_row(agent, gate_hash, 60) for agent in GATE_DISPATCH_AGENTS],
+    )
+
+    assert hook_exit_code(composed, monkeypatch) == 0
+
+
+# --- the argv record -----------------------------------------------------------
+
+
+def test_the_argv_record_sees_calls_made_inside_imported_modules(
+    composed_without_remote, capsys, argv_spy
+):
+    start = len(argv_spy.records)
+
+    run_integrate(composed_without_remote, capsys)
+
+    # `git ... diff` is run by git_safe_diff (an imported module), never by lane.py.
+    assert any(argv[0] == "git" and "diff" in argv for argv in argv_spy.records[start:])
+    assert argv_spy.violations() == []
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["git", "push", "origin", "main"],
+        ["git", "commit", "--no-verify", "-m", "x"],
+        ["git", "-c", "core.hooksPath=/dev/null", "status"],
+        ["git", "merge", "--force", "x"],
+    ],
+)
+def test_the_argv_record_would_catch_a_forbidden_call(argv, argv_spy):
+    argv_spy.records.append(argv)
+
+    assert argv_spy.violations() == [argv]
+
+    argv_spy.records.clear()
+
+
+def test_the_done_and_remaining_lines_show_control_characters_escaped(capsys):
+    refusal = lane_core.integrate_step_failed_refusal("worktree removal", "git x", "no")
+    failed = lane.ApplyFailed(
+        refusal, done=["fast-forward"], remaining=["git -C /trunk\nremaining: forged"]
+    )
+
+    assert lane._emit_apply_failure(failed) == 1
+
+    err = capsys.readouterr().err
+    assert report_lines(err, "remaining") == ["git -C /trunk\\x0aremaining: forged"]

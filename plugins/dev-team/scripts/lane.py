@@ -890,18 +890,44 @@ def _plan_integrate(ctx: CheckContext) -> IntegratePlan:
 # The apply steps. Each is one named unit, run in this order by `_apply`, and
 # each git call takes `plan.trunk_worktree` as its cwd: the process may be
 # running inside the lane that the third step removes, and the process cwd is
-# never changed.
+# never changed. A step that cannot finish raises `StepFailed`.
 
 
-def _fast_forward(plan: IntegratePlan) -> str:
-    """Move the trunk branch to the lane's HEAD; return the branch's new tip.
+class StepFailed(Exception):
+    """An apply step could not finish; the message is why."""
+
+
+def _fast_forward_args(plan: IntegratePlan) -> list[str]:
+    return [*FAST_FORWARD_ARGS, plan.former_head]
+
+
+def _worktree_removal_args(plan: IntegratePlan) -> list[str]:
+    return ["worktree", "remove", str(plan.lane_path)]
+
+
+def _branch_deletion_args(plan: IntegratePlan) -> list[str]:
+    ref = f"{lane_core.HEAD_REFS_PREFIX}{plan.lane_branch}"
+    return ["update-ref", "-d", ref, plan.former_head]
+
+
+def _gate_removal_command(plan: IntegratePlan) -> str:
+    return shlex.join(["rm", "--", str(plan.gate_file)])
+
+
+def _run_step_git(args: Sequence[str], plan: IntegratePlan) -> None:
+    attempt = lane_core.git_attempt(args, plan.trunk_worktree)
+    if not attempt.ok:
+        raise StepFailed(attempt.detail)
+
+
+def _fast_forward(plan: IntegratePlan) -> None:
+    """Move the trunk branch to the lane's HEAD.
 
     `--ff-only` leaves the branch at exactly the commit it was given, so the
-    new tip is `former_head` and is not read back: a failed read after a
+    new tip is `former_head` and is never read back: a failed read after a
     completed fast-forward must not be reported as a failed fast-forward.
     """
-    lane_core.git_text([*FAST_FORWARD_ARGS, plan.former_head], plan.trunk_worktree)
-    return plan.former_head
+    _run_step_git(_fast_forward_args(plan), plan)
 
 
 def _remove_gate_file(plan: IntegratePlan) -> None:
@@ -916,18 +942,12 @@ def _remove_gate_file(plan: IntegratePlan) -> None:
     try:
         plan.gate_file.unlink(missing_ok=True)
     except OSError as failure:
-        raise lane_core.RefusalError(
-            lane_core.integrate_step_failed_refusal(
-                "gate file removal",
-                shlex.join(["rm", "--", str(plan.gate_file)]),
-                str(failure),
-            )
-        ) from failure
+        raise StepFailed(str(failure)) from failure
 
 
 def _remove_worktree(plan: IntegratePlan) -> None:
     """Without `--force`: git refuses a worktree that is not clean."""
-    lane_core.git_text(["worktree", "remove", str(plan.lane_path)], plan.trunk_worktree)
+    _run_step_git(_worktree_removal_args(plan), plan)
 
 
 def _delete_branch(plan: IntegratePlan) -> None:
@@ -939,39 +959,112 @@ def _delete_branch(plan: IntegratePlan) -> None:
     `update-ref -d` takes the lane's former HEAD as the old value, so a branch
     that moved since the plan is not deleted.
     """
-    ref = f"{lane_core.HEAD_REFS_PREFIX}{plan.lane_branch}"
-    args = ["update-ref", "-d", ref, plan.former_head]
     tip = lane_core.head_commit(plan.trunk_worktree)
     if not lane_core.is_ancestor_strict(plan.former_head, tip, plan.trunk_worktree):
-        raise lane_core.RefusalError(
-            lane_core.integrate_step_failed_refusal(
-                "branch deletion",
-                shlex.join(["git", *args]),
-                f"the lane's former HEAD {plan.former_head} is not contained in "
-                f"{plan.trunk_branch}",
-            )
+        raise StepFailed(
+            f"the lane's former HEAD {plan.former_head} is not contained in "
+            f"{plan.trunk_branch}"
         )
-    lane_core.git_text(args, plan.trunk_worktree)
+    _run_step_git(_branch_deletion_args(plan), plan)
 
 
-def _apply(plan: IntegratePlan) -> str:
-    """Run the apply steps in order; return the trunk branch's new tip."""
-    now_at = _fast_forward(plan)
-    _remove_gate_file(plan)
-    _remove_worktree(plan)
-    _delete_branch(plan)
-    return now_at
+def _trunk_git_command(args: Sequence[str], plan: IntegratePlan) -> str:
+    """`args` as a person types it from any directory: `git -C <trunk worktree> ...`."""
+    return shlex.join(["git", "-C", str(plan.trunk_worktree), *args])
 
 
-def _print_integrated(plan: IntegratePlan, now_at: str) -> None:
+@dataclass(frozen=True)
+class ApplyStep:
+    """One apply step: its name for `done:`, the command a person would type for
+    `remaining:`, and what runs."""
+
+    name: str
+    command: str
+    run: Callable[[IntegratePlan], None]
+
+
+def _apply_steps(plan: IntegratePlan) -> list[ApplyStep]:
+    """The apply sequence, in the order it runs. Looked up when called, so each
+    step is the module's current function."""
+    return [
+        ApplyStep(
+            "fast-forward",
+            _trunk_git_command(_fast_forward_args(plan), plan),
+            _fast_forward,
+        ),
+        ApplyStep("gate file removal", _gate_removal_command(plan), _remove_gate_file),
+        ApplyStep(
+            "worktree removal",
+            _trunk_git_command(_worktree_removal_args(plan), plan),
+            _remove_worktree,
+        ),
+        ApplyStep(
+            "branch deletion",
+            _trunk_git_command(_branch_deletion_args(plan), plan),
+            _delete_branch,
+        ),
+    ]
+
+
+class ApplyFailed(Exception):
+    """A step failed after the checks passed. `done` are the names of the steps
+    that finished; `remaining` are the commands of the failed step and every
+    step after it."""
+
+    def __init__(
+        self, refusal: lane_core.Refusal, done: list[str], remaining: list[str]
+    ) -> None:
+        super().__init__(refusal.what)
+        self.refusal = refusal
+        self.done = done
+        self.remaining = remaining
+
+
+def _failure_detail(failure: StepFailed | lane_core.RefusalError) -> str:
+    """Why a step failed: its own message, or the refusal a git read raised."""
+    if isinstance(failure, lane_core.RefusalError):
+        return failure.refusal.why
+    return str(failure)
+
+
+def _apply(plan: IntegratePlan) -> None:
+    """Run the apply steps in order. The first failure stops the sequence (nothing
+    is retried) and raises `ApplyFailed` naming what is done and what remains."""
+    steps = _apply_steps(plan)
+    for index, step in enumerate(steps):
+        try:
+            step.run(plan)
+        except (StepFailed, lane_core.RefusalError) as failure:
+            raise ApplyFailed(
+                lane_core.integrate_step_failed_refusal(
+                    step.name, step.command, _failure_detail(failure)
+                ),
+                done=[earlier.name for earlier in steps[:index]],
+                remaining=[later.command for later in steps[index:]],
+            ) from failure
+
+
+def _emit_apply_failure(failed: ApplyFailed) -> int:
+    """The failure block, then what is done and what remains. Returns exit 1."""
+    code = lane_core.emit_refusals([failed.refusal])
+    done = failed.done or ["nothing"]
+    lines = [f"done: {name}" for name in done]
+    lines += [f"remaining: {command}" for command in failed.remaining]
+    shown = "\n".join(lane_core.display_text(line) for line in lines)
+    sys.stderr.write(f"\n{shown}\n")
+    return code
+
+
+def _print_integrated(plan: IntegratePlan) -> None:
     """The success lines. Branch names and paths come from git and the file
     system: each line is shown through `display_text`, so a control character
-    in one cannot forge a line or rewrite the terminal."""
+    in one cannot forge a line or rewrite the terminal. `now-at` is
+    `former-head`: the fast-forward moved the trunk branch to exactly it."""
     recover = shlex.join(["git", "branch", plan.lane_branch, plan.former_head])
     lines = (
         f"trunk: {plan.trunk_branch}",
         f"former-head: {plan.former_head}",
-        f"now-at: {now_at}",
+        f"now-at: {plan.former_head}",
         f"continue-in: {plan.trunk_worktree}",
         f"recover: {recover}",
         PUSHED_NOTHING,
@@ -1002,8 +1095,11 @@ def cmd_integrate(args: argparse.Namespace, cwd: Path) -> int:
     if checked.refusals:
         return emit_integrate_refusals(checked.refusals)
     plan = _plan_integrate(checked.context)
-    now_at = _apply(plan)
-    _print_integrated(plan, now_at)
+    try:
+        _apply(plan)
+    except ApplyFailed as failed:
+        return _emit_apply_failure(failed)
+    _print_integrated(plan)
     return lane_core.EXIT_OK
 
 

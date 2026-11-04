@@ -621,7 +621,7 @@ def integrate_step_failed_refusal(step: str, command: str, detail: str) -> Refus
         what=WHAT_INTEGRATE_STEP_FAILED,
         why=f"{step} failed: {detail.strip() or NO_GIT_MESSAGE} (command: {command})",
         how=(
-            "finish the failed step and the steps after it by hand; "
+            "run the remaining commands listed below by hand, in order; "
             "re-running integrate is not the fix"
         ),
     )

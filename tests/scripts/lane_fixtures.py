@@ -728,3 +728,132 @@ def composed_gated_lane(
         expected_trunk=printed["expected-trunk"],
         expected_tree=printed["expected-tree"],
     )
+
+
+# --- builders and probes shared by the integrate tests ----------------------
+
+GITHUB_URL = "https://github.com/acme/widgets.git"
+
+#: Git subcommands that talk to a remote. An `integrate` run starts none.
+NETWORK_ARGV_PREFIXES = (
+    ["git", "fetch"],
+    ["git", "pull"],
+    ["git", "ls-remote"],
+    ["git", "push"],
+    ["git", "clone"],
+    ["git", "remote", "update"],
+)
+
+
+def use_github_origin(repo: Repo, url: str = GITHUB_URL) -> None:
+    """Point the repository's `origin` at a GitHub URL (nothing is contacted)."""
+    git(repo.path, "remote", "set-url", "origin", url)
+
+
+def leave_untracked_file(worktree: Path) -> None:
+    (worktree / "scratch.txt").write_text("x\n", encoding="utf-8")
+
+
+def edit_tracked_file(worktree: Path) -> None:
+    (worktree / "base.txt").write_text("edited\n", encoding="utf-8")
+
+
+def branch_exists_in(repo_path: Path, branch: str) -> bool:
+    return git_succeeds(
+        repo_path, "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"
+    )
+
+
+def claude_snapshot(worktree: Path) -> list[tuple[str, bool, bytes | None]]:
+    """Every entry under `<worktree>/.claude`: (relative path, is a directory, bytes).
+
+    `unchanged_state` collapses an ignored directory to one status line, so it
+    cannot see a file written or changed inside `.claude/`; this can.
+    """
+    root = worktree / ".claude"
+    if not root.exists():
+        return []
+    return sorted(
+        (
+            str(entry.relative_to(root)),
+            entry.is_dir(),
+            None if entry.is_dir() else entry.read_bytes(),
+        )
+        for entry in root.rglob("*")
+    )
+
+
+def integrate_argv(
+    composed: ComposedLane, *extra: str, **identities: str | None
+) -> list[str]:
+    """`integrate` with the composed identities; `expected_trunk=` / `expected_tree=`
+    override one (a value of None leaves its flag out)."""
+    given = {
+        "expected_trunk": composed.expected_trunk,
+        "expected_tree": composed.expected_tree,
+        **identities,
+    }
+    argv = ["integrate"]
+    for key, flag in (
+        ("expected_trunk", "--expected-trunk"),
+        ("expected_tree", "--expected-tree"),
+    ):
+        if given[key] is not None:
+            argv += [flag, given[key]]
+    return [*argv, *extra]
+
+
+def run_integrate(composed: ComposedLane, capsys, *extra: str, cwd=None, **identities):
+    """`main(["integrate", ...])` in the lane; `(exit code, stdout, stderr)`."""
+    argv = integrate_argv(composed, *extra, **identities)
+    return run_main(argv, cwd or composed.path, capsys)
+
+
+class InjectedGitFailure:
+    """Make the nth `lane_core._run` call whose git arguments start with `prefix`
+    fail (exit 1, "injected failure") without running it.
+
+    `matching` records every argv that matched, run or not, so a test can assert
+    the failed command was attempted once and never retried. Every other call
+    runs for real.
+    """
+
+    def __init__(self, monkeypatch, prefix: Sequence[str], nth: int = 1) -> None:
+        self.matching: list[list[str]] = []
+        real = lane_core._run
+
+        def run(argv, cwd):
+            if list(argv[1 : 1 + len(prefix)]) == list(prefix):
+                self.matching.append(list(argv))
+                if len(self.matching) == nth:
+                    return subprocess.CompletedProcess(
+                        argv, 1, stdout="", stderr="injected failure\n"
+                    )
+            return real(argv, cwd)
+
+        monkeypatch.setattr(lane_core, "_run", run)
+
+
+def observed_state(composed: ComposedLane) -> dict[str, object]:
+    """What must be equal before and after a refused run: both worktrees (git
+    state and everything under their `.claude/`), and the gate file's bytes
+    (None when absent)."""
+    gate = composed.path / GATE_RELATIVE_PATH
+    return {
+        "lane": unchanged_state(composed.path),
+        "trunk": unchanged_state(composed.repo.path),
+        "lane .claude": claude_snapshot(composed.path),
+        "trunk .claude": claude_snapshot(composed.repo.path),
+        "gate": gate.read_bytes() if gate.is_file() else None,
+    }
+
+
+def composed_with_origin_kind(tmp_path, capsys, origin: str, url: str | None = None):
+    """A composed, gated lane whose origin is `github`, `other` or `none`."""
+    if origin == "none":
+        return composed_gated_lane(build_repo_without_remote(tmp_path), capsys)
+    repo = build_repo_with_origin(tmp_path)
+    composed = composed_gated_lane(repo, capsys)
+    if origin == "github":
+        use_github_origin(repo, url or GITHUB_URL)
+    return composed

@@ -51,6 +51,7 @@ from lane_fixtures import (
     single_refusal,
     stub_git_call,
     unchanged_state,
+    use_github_origin,
 )
 
 from _repo_root import REPO_ROOT
@@ -1034,13 +1035,12 @@ def test_compose_merges_each_target_at_most_once_and_only_when_it_is_missing(
 
 # --- open and compose behave the same on every origin ------------------------
 
-GITHUB_URL = "https://github.com/acme/widgets.git"
 PR_NEXT_STEP = "open a PR with /pr (or pass --local-trunk to integrate locally)"
 
 
 def origin_github(root):
     repo = build_repo_with_origin(root)
-    git(repo.path, "remote", "set-url", "origin", GITHUB_URL)
+    use_github_origin(repo)
     return repo
 
 
