@@ -49,6 +49,7 @@ INSTALL_FIX = "claude plugin install dev-team@bfinster"
 REPORT_FIX = f"report this at {ISSUES_URL}"
 
 DEFAULT_PROBE_TIMEOUT_SECONDS = 20
+GIT_TIMEOUT_SECONDS = 10
 
 #: Where each plugin helper module lives, relative to the plugin root.
 HELPER_DIRS = {
@@ -85,18 +86,20 @@ def _format_internal_error(exc: Exception) -> str:
 def _run_isolated(check_id: str, check_fn: Callable[..., Check], ctx) -> Check:
     """Run one check under the id the table gives it.
 
-    An exception becomes that check's ``fail`` result; whatever id the check
-    function put on its result is replaced, so ``CHECKS`` is the only place an
-    id is spelled.
+    An exception, or a result that is not a ``Check``, becomes that check's
+    ``fail`` result; whatever id the check function put on its result is
+    replaced, so ``CHECKS`` is the only place an id is spelled.
     """
-    status = _status()
+    Status = _status()
     try:
         result = check_fn(ctx)
+        if not isinstance(result, _model().Check):
+            raise TypeError(f"check returned {type(result).__name__}, not a Check")
     except ImportError as exc:
         # A plugin helper module is missing: the install is incomplete.
-        result = _make_check(status.FAIL, _format_internal_error(exc), UPGRADE_FIX)
+        result = _make_check(Status.FAIL, _format_internal_error(exc), UPGRADE_FIX)
     except Exception as exc:  # noqa: BLE001 -- isolation: any check failure becomes that check's fail result
-        result = _make_check(status.FAIL, _format_internal_error(exc), REPORT_FIX)
+        result = _make_check(Status.FAIL, _format_internal_error(exc), REPORT_FIX)
     return dataclasses.replace(result, id=check_id)
 
 
@@ -144,31 +147,25 @@ def _plugin_root(env: Mapping[str, str]) -> Path:
     return _HERE.parent
 
 
-def _resolve_project_root(plugin_root: Path, start: Path) -> tuple[Path, bool]:
-    """``(root, helper_loaded)``: the git toplevel of ``start``, else ``start``.
+def _resolve_project(start: Path, run_process: Callable[..., Any]) -> tuple[Path, bool]:
+    """``(project_root, in_git)`` from one ``git rev-parse --show-toplevel`` call.
 
-    ``helper_loaded`` is False when ``artifact_paths`` cannot be loaded; the
-    root is then ``start`` and nothing was asked of git.
+    Exit 0: git's toplevel and True. A non-zero exit, git absent or a timeout:
+    ``start`` itself and False.
     """
     try:
-        resolve = _helper(plugin_root, "artifact_paths").project_root
-    except ImportError:
-        return start, False
-    return Path(resolve(start=start)), True
-
-
-def _is_inside_git(project_root: Path, run_process: Callable[..., Any]) -> bool:
-    """True when git resolves a toplevel for ``project_root``; git absent is False."""
-    try:
         completed = run_process(
-            ["git", "-C", str(project_root), "rev-parse", "--show-toplevel"],
+            ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
             capture_output=True,
-            timeout=DEFAULT_PROBE_TIMEOUT_SECONDS,
+            text=True,
+            timeout=GIT_TIMEOUT_SECONDS,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return False
-    return completed.returncode == 0
+        return start, False
+    if completed.returncode != 0:
+        return start, False
+    return Path(completed.stdout.strip()).resolve(), True
 
 
 def _probe_write(directory: Path) -> None:
@@ -222,18 +219,18 @@ class Context:
     ) -> Context:
         """Resolve the roots, config dir and git membership from ``args`` and ``env``.
 
-        ``run_process`` is how the one git membership call is made; tests inject
-        a fake so no git runs.
+        ``run_process`` makes the one git call both ``project_root`` and
+        ``in_git`` come from; tests inject a fake so no git runs.
         """
         plugin_root = _plugin_root(env)
         start = (args.project or Path.cwd()).resolve()
-        project_root, helper_loaded = _resolve_project_root(plugin_root, start)
+        project_root, in_git = _resolve_project(start, run_process)
         return cls(
             plugin_root=plugin_root,
             project_root=project_root,
             config_dir=Path(env.get(CONFIG_DIR_ENV) or Path.home() / ".claude"),
             env=env,
-            in_git=helper_loaded and _is_inside_git(project_root, run_process),
+            in_git=in_git,
         )
 
 
@@ -255,41 +252,41 @@ def _call_or_none(call, *args):
 
 def check_plugin_version(ctx: Context) -> Check:
     """Compare the installed plugin version with the cached marketplace catalog."""
-    status = _status()
+    Status = _status()
     drift = _helper(ctx.plugin_root, "check_version_drift")
     record_path = ctx.config_dir / "plugins" / "installed_plugins.json"
     if not record_path.is_file():
         return _make_check(
-            status.WARN, f"no install record ({record_path})", INSTALL_FIX
+            Status.WARN, f"no install record ({record_path})", INSTALL_FIX
         )
     installed_version, marketplace = _call_or_none(
         drift.installed, str(ctx.config_dir)
     ) or (None, None)
     if not installed_version:
         return _make_check(
-            status.WARN,
+            Status.WARN,
             f"{record_path.name}: no usable version for dev-team",
             INSTALL_FIX,
         )
     catalog_version = _call_or_none(drift.latest, str(ctx.config_dir), marketplace)
     if not catalog_version:
         return _make_check(
-            status.OK, f"{installed_version} installed; catalog not cached"
+            Status.OK, f"{installed_version} installed; catalog not cached"
         )
     installed_tuple = _version_tuple(installed_version)
     offered_tuple = _version_tuple(catalog_version)
     if installed_tuple is None or offered_tuple is None:
         return _make_check(
-            status.OK, f"cannot compare {installed_version} to {catalog_version}"
+            Status.OK, f"cannot compare {installed_version} to {catalog_version}"
         )
     if offered_tuple > installed_tuple:
         return _make_check(
-            status.WARN,
+            Status.WARN,
             f"{installed_version} installed, {catalog_version} available",
             UPGRADE_FIX,
         )
     return _make_check(
-        status.OK, f"{installed_version} installed (catalog {catalog_version})"
+        Status.OK, f"{installed_version} installed (catalog {catalog_version})"
     )
 
 
@@ -373,23 +370,23 @@ def _missing_scripts(plugin_root: Path, commands: list[str]) -> list[str]:
 
 def check_hook_registration(ctx: Context) -> Check:
     """Every script a registered hook command names must exist."""
-    status = _status()
+    Status = _status()
     label = "hooks/hooks.json"
     loaded = _load_json(ctx.plugin_root / "hooks" / "hooks.json")
     if loaded.kind is not LoadKind.OK:
         phrase = UNLOADABLE_PHRASES[loaded.kind]
-        return _make_check(status.FAIL, f"{label}: {phrase}", UPGRADE_FIX)
+        return _make_check(Status.FAIL, f"{label}: {phrase}", UPGRADE_FIX)
     hooks = loaded.data.get("hooks")
     if not isinstance(hooks, dict):
-        return _make_check(status.FAIL, f"{label}: no hooks object", UPGRADE_FIX)
+        return _make_check(Status.FAIL, f"{label}: no hooks object", UPGRADE_FIX)
     commands = _commands(hooks)
     if not commands:
-        return _make_check(status.FAIL, f"{label}: no hook commands", UPGRADE_FIX)
+        return _make_check(Status.FAIL, f"{label}: no hook commands", UPGRADE_FIX)
     missing = _missing_scripts(ctx.plugin_root, commands)
     if missing:
-        return _make_check(status.FAIL, f"missing: {', '.join(missing)}", UPGRADE_FIX)
+        return _make_check(Status.FAIL, f"missing: {', '.join(missing)}", UPGRADE_FIX)
     return _make_check(
-        status.OK, f"{len(commands)} hook commands, every script present"
+        Status.OK, f"{len(commands)} hook commands, every script present"
     )
 
 
@@ -470,26 +467,26 @@ def _run_probe(ctx: Context) -> ProbeResult:
 
 def check_interpreter(ctx: Context) -> Check:
     """py.sh must resolve a Python 3 that answers the ``--probe`` request."""
-    status = _status()
+    Status = _status()
     probe = ctx.probe()
     if not probe.resolved:
-        return _make_check(status.FAIL, probe.detail, INTERPRETER_FIX)
-    return _make_check(status.OK, f"py.sh resolved {probe.path}")
+        return _make_check(Status.FAIL, probe.detail, INTERPRETER_FIX)
+    return _make_check(Status.OK, f"py.sh resolved {probe.path}")
 
 
 def check_python_floor(ctx: Context) -> Check:
     """The interpreter py.sh resolves must meet the shipped Python floor."""
-    status = _status()
+    Status = _status()
     probe = ctx.probe()
     if probe.version is None:
-        return _make_check(status.FAIL, "no interpreter resolved", FLOOR_FIX)
+        return _make_check(Status.FAIL, "no interpreter resolved", FLOOR_FIX)
     dotted = ".".join(str(part) for part in probe.version)
     if probe.version[:2] < PYTHON_FLOOR:
         floor = ".".join(str(part) for part in PYTHON_FLOOR)
         return _make_check(
-            status.FAIL, f"{probe.path} is {dotted}; floor is {floor}", FLOOR_FIX
+            Status.FAIL, f"{probe.path} is {dotted}; floor is {floor}", FLOOR_FIX
         )
-    return _make_check(status.OK, f"{probe.path} is {dotted}")
+    return _make_check(Status.OK, f"{probe.path} is {dotted}")
 
 
 REQUIRED_TOOLS = ("jq",)
@@ -510,12 +507,12 @@ def _join_or_none(names: list[str]) -> str:
 
 def check_required_tools(ctx: Context) -> Check:
     """``jq`` backs the shell hooks; its absence degrades them, so it only warns."""
-    status = _status()
+    Status = _status()
     present, absent = _partition_by_availability(ctx, REQUIRED_TOOLS)
     if not absent:
-        return _make_check(status.OK, f"{', '.join(present)} on PATH")
+        return _make_check(Status.OK, f"{', '.join(present)} on PATH")
     return _make_check(
-        status.WARN,
+        Status.WARN,
         f"{', '.join(absent)} not on PATH (manual: brew install {' '.join(absent)})",
         SETUP_FIX,
     )

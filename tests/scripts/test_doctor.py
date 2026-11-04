@@ -20,7 +20,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from test_codebase_recon import _hermetic_git_env
+from _mutation_test_helpers import hermetic_git_env
 
 from _repo_root import REPO_ROOT
 
@@ -168,7 +168,7 @@ def test_the_table_id_replaces_whatever_id_a_check_function_returns(tmp_path):
     assert [c.id for c in report.checks] == ["from-table", "also-from-table"]
 
 
-def _nine_checks_with(failing_id: str, exc: Exception):
+def _every_check_with(failing_id: str, exc: Exception):
     return tuple(
         (cid, _raising(exc) if cid == failing_id else _constant_check(Status.OK))
         for cid in CHECK_IDS
@@ -178,7 +178,7 @@ def _nine_checks_with(failing_id: str, exc: Exception):
 def test_a_raising_check_is_fail_with_the_issue_tracker_fix_and_others_still_report(
     tmp_path,
 ):
-    table = _nine_checks_with("hook-registration", OSError("boom"))
+    table = _every_check_with("hook-registration", OSError("boom"))
 
     report = doctor.run(_context(tmp_path), checks=table)
 
@@ -193,7 +193,7 @@ def test_a_raising_check_is_fail_with_the_issue_tracker_fix_and_others_still_rep
 
 
 def test_a_check_raising_import_error_points_at_upgrade(tmp_path):
-    table = _nine_checks_with("plugin-version", ImportError("no module"))
+    table = _every_check_with("plugin-version", ImportError("no module"))
 
     report = doctor.run(_context(tmp_path), checks=table)
 
@@ -201,6 +201,25 @@ def test_a_check_raising_import_error_points_at_upgrade(tmp_path):
     assert check.status is Status.FAIL
     assert check.summary == "internal error: ImportError: no module"
     assert check.fix == "/upgrade"
+
+
+def test_a_check_returning_none_is_fail_under_its_table_id_and_others_still_report(
+    tmp_path,
+):
+    table = (
+        ("first", _constant_check(Status.OK)),
+        ("returns-none", lambda ctx: None),
+        ("last", _constant_check(Status.OK)),
+    )
+
+    report = doctor.run(_context(tmp_path), checks=table)
+
+    by_id = {c.id: c for c in report.checks}
+    assert [c.id for c in report.checks] == ["first", "returns-none", "last"]
+    assert by_id["returns-none"].status is Status.FAIL
+    assert by_id["returns-none"].summary.startswith("internal error: TypeError: ")
+    assert by_id["returns-none"].fix == f"report this at {ISSUES_URL}"
+    assert [by_id["first"].status, by_id["last"].status] == [Status.OK, Status.OK]
 
 
 def test_isolation_does_not_catch_keyboard_interrupt(tmp_path):
@@ -369,6 +388,22 @@ def test_an_uncached_or_incomparable_catalog_is_ok(
     assert summary in check.summary
 
 
+@pytest.mark.parametrize(
+    "catalog_bytes",
+    [b"\xff", b'{"plugins": 5}'],
+    ids=["not-utf-8", "plugins-not-a-list"],
+)
+def test_an_unreadable_catalog_is_ok_and_not_cached(tmp_path, catalog_bytes):
+    config = _config_dir(tmp_path, installed="14.0.1", catalog="14.0.1")
+    market_json = tmp_path / "marketplace" / ".claude-plugin" / "marketplace.json"
+    market_json.write_bytes(catalog_bytes)
+
+    check = doctor.check_plugin_version(_context(tmp_path, config_dir=config))
+
+    assert (check.status, check.fix) == (Status.OK, None)
+    assert "catalog not cached" in check.summary
+
+
 def test_a_missing_install_record_is_warn_with_the_install_command(tmp_path):
     check = _plugin_version(tmp_path)
 
@@ -519,36 +554,14 @@ def test_a_check_version_drift_that_raises_at_import_is_fail_naming_the_helper(
     assert "cannot load check_version_drift" in check.summary
 
 
-def _completed(returncode: int) -> SimpleNamespace:
-    return SimpleNamespace(returncode=returncode)
-
-
-def _no_git_on_path(tmp_path: Path, monkeypatch) -> None:
-    """Git cannot be started: PATH names an empty directory."""
-    empty = tmp_path / "no-git-bin"
-    empty.mkdir()
-    monkeypatch.setenv("PATH", str(empty))
+def _completed(returncode: int, stdout: str = "") -> SimpleNamespace:
+    return SimpleNamespace(returncode=returncode, stdout=stdout)
 
 
 def _project_dir(tmp_path: Path) -> Path:
     project = tmp_path / "project"
     project.mkdir()
     return project
-
-
-def test_git_absent_means_not_in_git_and_the_human_output_notes_it(
-    tmp_path, monkeypatch
-):
-    _no_git_on_path(tmp_path, monkeypatch)
-    project = _project_dir(tmp_path)
-
-    context = doctor.Context.from_args(_args(project), {})
-    text = format_human(doctor.run(context, checks=()), context.in_git)
-
-    assert (context.project_root, context.in_git) == (project.resolve(), False)
-    assert (
-        f"note: {project.resolve()} is not inside a git repository" in text.splitlines()
-    )
 
 
 def _raising_run(exc: Exception):
@@ -558,41 +571,107 @@ def _raising_run(exc: Exception):
     return run_process
 
 
-@pytest.mark.parametrize(
-    ("run_process", "expected"),
-    [
-        (lambda *a, **k: _completed(0), True),
-        (lambda *a, **k: _completed(128), False),
-        (_raising_run(subprocess.TimeoutExpired("git", 1)), False),
-        (_raising_run(FileNotFoundError("git")), False),
-    ],
-    ids=["toplevel-resolved", "not-a-repository", "timeout", "git-missing"],
-)
-def test_in_git_follows_the_one_git_membership_call(
-    tmp_path, monkeypatch, run_process, expected
-):
-    _no_git_on_path(tmp_path, monkeypatch)  # the helper's own git lookup finds nothing
-
-    context = doctor.Context.from_args(
-        _args(_project_dir(tmp_path)), {}, run_process=run_process
-    )
-
-    assert context.in_git is expected
-
-
-def test_an_unloadable_artifact_paths_falls_back_to_start_and_is_not_in_git(tmp_path):
-    root = tmp_path / "plugin"
-    (root / "hooks" / "lib").mkdir(parents=True)
-    (root / "hooks" / "lib" / "artifact_paths.py").write_text("def broken(:\n")
+def test_git_absent_means_not_in_git_and_the_human_output_notes_it(tmp_path):
     project = _project_dir(tmp_path)
 
     context = doctor.Context.from_args(
-        _args(project),
-        {doctor.PLUGIN_ROOT_ENV: str(root)},
-        run_process=lambda *a, **k: _completed(0),
+        _args(project), {}, run_process=_raising_run(FileNotFoundError("git"))
     )
+    text = format_human(doctor.run(context, checks=()), context.in_git)
 
     assert (context.project_root, context.in_git) == (project.resolve(), False)
+    assert (
+        f"note: {project.resolve()} is not inside a git repository" in text.splitlines()
+    )
+
+
+def test_a_git_free_path_reports_the_project_outside_git_end_to_end(tmp_path):
+    project = _project_dir(tmp_path)
+    no_git_bin = tmp_path / "no-git-bin"
+    no_git_bin.mkdir()
+    env = {"PATH": str(no_git_bin), "CLAUDE_PLUGIN_ROOT": str(PLUGIN)}
+
+    completed = _run_script(
+        DOCTOR, "--project", str(project), "--json", cwd=tmp_path, env=env
+    )
+
+    assert json.loads(completed.stdout)["project_root"] == str(project.resolve())
+    as_text = _run_script(DOCTOR, "--project", str(project), cwd=tmp_path, env=env)
+    assert (
+        f"note: {project.resolve()} is not inside a git repository"
+        in as_text.stdout.splitlines()
+    )
+
+
+def test_a_git_toplevel_is_the_project_root_and_in_git(tmp_path):
+    top = tmp_path / "top"
+    top.mkdir()
+
+    context = doctor.Context.from_args(
+        _args(_project_dir(tmp_path)),
+        {},
+        run_process=lambda *a, **k: _completed(0, f"{top}\n"),
+    )
+
+    assert (context.project_root, context.in_git) == (top.resolve(), True)
+
+
+@pytest.mark.parametrize(
+    "run_process",
+    [
+        lambda *a, **k: _completed(128),
+        _raising_run(subprocess.TimeoutExpired("git", 1)),
+        _raising_run(FileNotFoundError("git")),
+    ],
+    ids=["not-a-repository", "timeout", "git-missing"],
+)
+def test_no_git_toplevel_means_the_directory_itself_and_not_in_git(
+    tmp_path, run_process
+):
+    project = _project_dir(tmp_path)
+
+    context = doctor.Context.from_args(_args(project), {}, run_process=run_process)
+
+    assert (context.project_root, context.in_git) == (project.resolve(), False)
+
+
+def test_from_args_makes_exactly_one_git_call_with_its_own_timeout(tmp_path):
+    calls = []
+
+    def run_process(command, **kwargs):
+        calls.append((command, kwargs))
+        return _completed(0, f"{tmp_path}\n")
+
+    project = _project_dir(tmp_path)
+
+    doctor.Context.from_args(_args(project), {}, run_process=run_process)
+
+    ((command, kwargs),) = calls
+    assert command == [
+        "git",
+        "-C",
+        str(project.resolve()),
+        "rev-parse",
+        "--show-toplevel",
+    ]
+    assert kwargs["timeout"] == doctor.GIT_TIMEOUT_SECONDS == 10
+    assert doctor.GIT_TIMEOUT_SECONDS != doctor.DEFAULT_PROBE_TIMEOUT_SECONDS
+
+
+def test_an_unloadable_artifact_paths_does_not_change_the_git_answer(tmp_path):
+    root = tmp_path / "plugin"
+    (root / "hooks" / "lib").mkdir(parents=True)
+    (root / "hooks" / "lib" / "artifact_paths.py").write_text("def broken(:\n")
+    top = tmp_path / "top"
+    top.mkdir()
+
+    context = doctor.Context.from_args(
+        _args(_project_dir(tmp_path)),
+        {doctor.PLUGIN_ROOT_ENV: str(root)},
+        run_process=lambda *a, **k: _completed(0, f"{top}\n"),
+    )
+
+    assert (context.project_root, context.in_git) == (top.resolve(), True)
 
 
 def test_the_default_probe_write_removes_its_file_and_leaves_a_stale_probe(tmp_path):
@@ -1364,7 +1443,7 @@ def _git_repo(path: Path) -> None:
         ["git", "init", "-q", str(path)],
         check=True,
         capture_output=True,
-        env=_hermetic_git_env(path.parent),
+        env=hermetic_git_env(home=path.parent),
     )
 
 

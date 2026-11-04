@@ -87,8 +87,8 @@ def format_human(report: Report, in_git_repository: bool, fix_ran: bool = False)
     if not in_git_repository:
         lines.append(f"note: {report.project_root} is not inside a git repository")
     for check in report.checks:
-        status = f"{check.status.value:<{STATUS_COLUMN_WIDTH}}"
-        lines.append(f"{status}{COLUMN_GAP}{check.id}{COLUMN_GAP}{check.summary}")
+        status_cell = f"{check.status.value:<{STATUS_COLUMN_WIDTH}}"
+        lines.append(f"{status_cell}{COLUMN_GAP}{check.id}{COLUMN_GAP}{check.summary}")
         if check.fix is not None:
             lines.append(f"{FIX_INDENT}fix: {check.fix}")
     if fix_ran:
