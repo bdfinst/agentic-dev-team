@@ -453,6 +453,25 @@ def test_collect_a_hook_that_loaded_degraded_cannot_vouch_for_the_gate(
 
 
 @covers("review gate stale or missing")
+def test_collect_a_hook_with_another_gate_file_name_is_refused_not_trusted(
+    composed_with_origin, stand_in_hook, capsys
+):
+    stand_in_hook(
+        "from review_gate_hash import branch_diff_gate_hash\n"
+        '_GATE_FILE_NAME = ".some-other-gate"\n'
+        "def _evaluate_gate(*_args):\n"
+        "    raise AssertionError('a hook with another gate file must not be asked')\n",
+        with_preamble=False,
+    )
+
+    block = only_block(composed_with_origin, capsys)
+
+    assert block["refused"] == WHAT_REVIEW_GATE
+    assert ".some-other-gate" in block["why"]
+    assert ".pr-review-passed" in block["why"]
+
+
+@covers("review gate stale or missing")
 def test_collect_a_rule_the_lane_has_no_wording_for_still_names_the_rule(
     composed_with_origin, stand_in_hook, capsys
 ):
@@ -604,6 +623,27 @@ def test_collect_a_local_trunk_commit_the_lane_lacks_is_not_an_ancestor(
     assert "not an ancestor" in block["why"]
     assert "run compose" in block["how"]
     assert "/code-review --since origin/main" in block["how"]
+
+
+def test_collect_check_5_tests_the_head_it_read_once_not_the_live_head(
+    composed_without_remote, monkeypatch
+):
+    composed = composed_without_remote
+    head_read = git(composed.path, "rev-parse", "HEAD")
+    advance_trunk(composed.repo)
+    # After the lane's HEAD was read, the lane merges the trunk: the live HEAD
+    # now holds the trunk tip, the commit the checks are bound to does not.
+    raced = GitFailure(
+        monkeypatch,
+        ["rev-parse", "--verify", f"{head_read}^{{tree}}"],
+        then=lambda _argv, _cwd: git(composed.path, "merge", "-q", "--no-edit", TRUNK),
+    )
+
+    refusals = collect(composed)
+
+    assert len(raced.matching) == 1, "the race did not happen"
+    assert git(composed.path, "rev-parse", "HEAD") != head_read
+    assert WHAT_FAST_FORWARD in [refusal.what for refusal in refusals]
 
 
 @covers("trunk cannot fast-forward")

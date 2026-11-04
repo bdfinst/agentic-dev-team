@@ -346,6 +346,19 @@ def test_compose_refuses_a_lane_with_any_uncommitted_change(
 
 
 @covers("lane has uncommitted changes")
+def test_a_dirty_path_with_a_bidi_control_is_shown_escaped(repo_without_remote, capsys):
+    lane_path = lane_with_commit(repo_without_remote)
+    advance_trunk(repo_without_remote)
+    (lane_path / "gnp\u202etxt.exe").write_text("x\n", encoding="utf-8")
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "lane has uncommitted changes")
+    assert "\u202e" not in err
+    assert "gnp\\u202etxt.exe" in block["why"]
+
+
+@covers("lane has uncommitted changes")
 def test_compose_refuses_a_lane_with_a_merge_in_progress_and_leaves_it_alone(
     repo_without_remote, capsys
 ):

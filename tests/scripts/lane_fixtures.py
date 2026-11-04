@@ -86,7 +86,7 @@ ORACLE_FORCE_REFSPEC_PREFIX = "+"
 ORACLE_LONG_OPTIONS = tuple(
     sorted(token for token in ORACLE_FORBIDDEN_TOKENS if token.startswith("--"))
 )
-ORACLE_MIN_ABBREVIATION = 3
+ORACLE_MIN_ABBREVIATION = 1
 ORACLE_CLUSTER = re.compile(r"-[A-Za-z]+")
 ORACLE_NO_VERIFY_SUBCOMMANDS = frozenset({"commit", "merge", "am", "rebase"})
 ORACLE_FORCE_UPPER_SUBCOMMANDS = frozenset({"branch", "worktree", "checkout", "switch"})

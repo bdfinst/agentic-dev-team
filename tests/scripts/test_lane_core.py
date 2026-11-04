@@ -189,6 +189,15 @@ GUARD_CASES = {
     ),
     "abbrev-force-i": (["fetch", "--force-i"], "abbreviates --force-if-includes"),
     "abbrev-forc": (["branch", "--forc", "x"], "abbreviates --force"),
+    # Git takes any unambiguous prefix, however short.
+    "abbrev-f-worktree-remove": (
+        ["worktree", "remove", "--f", "/p"],
+        "abbreviates --force",
+    ),
+    "abbrev-fo-worktree-remove": (
+        ["worktree", "remove", "--fo", "/p"],
+        "abbreviates --force",
+    ),
     # Short-option clusters that contain -f.
     "cluster-fd": (["clean", "-fd"], "contains -f"),
     "cluster-ff": (["clean", "-ff"], "contains -f"),
@@ -380,12 +389,36 @@ def test_render_block_is_three_plain_lines():
         ("a\x9bb", "a\\x9bb"),
         ("a\u2028b", "a\\u2028b"),
         ("a\u2029b", "a\\u2029b"),
+        ("a\u202eb", "a\\u202eb"),
+        ("a\u2066b\u2069c", "a\\u2066b\\u2069c"),
+        ("a\u200eb\u200fc", "a\\u200eb\\u200fc"),
         ("a\x1cb\x0bc\x0cd", "a\\x1cb\\x0bc\\x0cd"),
     ],
 )
 def test_display_text_shows_every_control_and_line_break_as_an_escape(raw, shown):
     assert lane_core.display_text(raw) == shown
     assert len(lane_core.display_text(raw).splitlines()) == 1
+
+
+@pytest.mark.parametrize(
+    ("reason", "how_contains"),
+    [
+        (lane_core.NOT_REPEATABLE_BRANCH_KEPT, "lane branch is kept because"),
+        (lane_core.NOT_REPEATABLE_TRUNK_NOT_AT_LANE_HEAD, "look at the trunk worktree"),
+    ],
+)
+def test_a_not_repeatable_step_takes_its_how_from_the_reason(reason, how_contains):
+    refusal = lane_core.integrate_step_not_repeatable_refusal(
+        "branch deletion", "d", reason
+    )
+
+    assert refusal.what == "integrate step failed"
+    assert how_contains in refusal.how
+
+
+def test_a_not_repeatable_step_with_an_unknown_reason_fails_loudly():
+    with pytest.raises(KeyError):
+        lane_core.integrate_step_not_repeatable_refusal("s", "d", "made up")
 
 
 def test_display_text_leaves_ordinary_text_alone():
@@ -753,6 +786,8 @@ def test_lane_core_never_imports_lane():
         ["git", "fetch", "--force-if-includes"],
         ["git", "commit", "--no-verif"],
         ["git", "commit", "--no-gpg"],
+        ["git", "worktree", "remove", "--f", "/p"],
+        ["git", "worktree", "remove", "--fo", "/p"],
         ["git", "fetch", "--force-w"],
         ["git", "clean", "-fd"],
         ["git", "clean", "-qf"],
@@ -787,6 +822,12 @@ def test_the_oracle_flags_a_forbidden_call(argv):
         ["git", "commit", "-q", "-m", "fix: format"],
         ["git", "merge", "--no-ff", "x"],
         ["git", "merge", "--ff", "--no-edit", "x"],
+        ["git", "merge", "--ff-only", "--no-overwrite-ignore", "x"],
+        ["git", "worktree", "remove", "/p"],
+        ["git", "rev-parse", "--verify", "--quiet", "MERGE_HEAD"],
+        ["git", "merge-base", "--is-ancestor", "a", "b"],
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        ["git", "diff-tree", "-r", "--name-only", "--no-renames", "-z", "a", "b"],
         ["git", "-c", "diff.relative=false", "diff", "--name-only"],
         ["git", "format-patch", "--format=short"],
     ],
@@ -1553,6 +1594,19 @@ def test_merge_in_progress_is_false_again_after_the_merge_is_aborted(
     git(repo, "merge", "--abort")
 
     assert not lane_core.merge_in_progress(repo)
+
+
+def test_worktree_state_reads_dirty_paths_and_an_unfinished_merge(
+    repo_without_remote,
+):
+    repo = merging_a_conflicting_lane(repo_without_remote)
+    assert lane_core.worktree_state(repo) == ([], False)
+
+    start_the_conflicting_merge(repo)
+    dirty, merging = lane_core.worktree_state(repo)
+
+    assert merging
+    assert dirty == lane_core.dirty_paths(repo) != []
 
 
 def fail_every_git_call(monkeypatch):

@@ -800,6 +800,7 @@ def test_integrate_a_trunk_worktree_switched_during_the_fast_forward_deletes_not
     assert block["refused"] == WHAT_INTEGRATE_STEP_FAILED
     assert f"main is at {main_before}" in block["why"]
     assert report_lines(err, "remaining") == [], "no command is safe to run by hand"
+    assert report_lines(err, "recover") == [recover_command(composed, lane_head)]
     assert git(composed.repo.path, "rev-parse", TRUNK) == main_before
     assert git(composed.repo.path, "rev-parse", "other") == lane_head
     assert composed.path.exists()
@@ -891,6 +892,7 @@ def test_integrate_does_not_delete_a_branch_the_trunk_does_not_contain(
         "worktree removal",
     ]
     assert report_lines(err, "remaining") == [], "no command would be safe to run"
+    assert report_lines(err, "recover") == [recover_command(composed, lane_head)]
 
 
 def test_integrate_checks_the_trunk_branch_not_the_branch_the_trunk_worktree_holds_now(
@@ -947,13 +949,17 @@ def test_the_success_lines_show_control_characters_escaped(capsys):
 def test_the_done_and_remaining_lines_show_control_characters_escaped(capsys):
     refusal = lane_core.integrate_step_failed_refusal("worktree removal", "git x", "no")
     failed = lane.ApplyFailed(
-        refusal, done=["fast-forward"], remaining=["git -C /trunk\nremaining: forged"]
+        refusal,
+        done=["fast-forward"],
+        remaining=["git -C /trunk\nremaining: forged"],
+        recover="git branch a\nrecover: forged b",
     )
 
     assert lane._emit_apply_failure(failed) == 1
 
     err = capsys.readouterr().err
     assert report_lines(err, "remaining") == ["git -C /trunk\\x0aremaining: forged"]
+    assert report_lines(err, "recover") == ["git branch a\\x0arecover: forged b"]
 
 
 # --- the gate file: only inside the lane; a failure is a step failure ---------------
@@ -1037,14 +1043,22 @@ def test_integrate_a_gate_directory_that_loops_is_a_step_failure_not_a_traceback
 
 
 def apply_commands(composed: ComposedLane, head: str) -> dict[str, str]:
-    """Every apply command, as `remaining:` shows it."""
+    """Every apply command, as `remaining:` shows it. The branch deletion is
+    printed with the containment check `integrate` itself makes first."""
     trunk = composed.repo.path.resolve()
     return {
         "merge": f"git -C {trunk} merge --ff-only --no-overwrite-ignore {head}",
         "rm": f"rm -- {composed.path / GATE_RELATIVE_PATH}",
         "worktree": f"git -C {trunk} worktree remove {composed.path}",
-        "update-ref": f"git -C {trunk} update-ref -d refs/heads/{composed.name} {head}",
+        "update-ref": (
+            f"git -C {trunk} merge-base --is-ancestor {head} refs/heads/{TRUNK}"
+            f" && git -C {trunk} update-ref -d refs/heads/{composed.name} {head}"
+        ),
     }
+
+
+def recover_command(composed: ComposedLane, head: str) -> str:
+    return f"git branch {composed.name} {head}"
 
 
 def fail_git_step(prefix: list[str]):
@@ -1166,6 +1180,9 @@ def assert_apply_state(
     assert report_lines(err, "remaining") == [commands[key] for key in row.remaining], (
         f"{failing_step}: remaining commands"
     )
+    assert report_lines(err, "recover") == [recover_command(composed, head)], (
+        f"{failing_step}: recover command"
+    )
     assert block["why"].count("(command: ") == 1, failing_step
     assert commands[row.remaining[0]] in block["why"], f"{failing_step}: failed command"
     assert attempts == 1, (
@@ -1225,6 +1242,7 @@ def test_integrate_an_interrupt_during_the_worktree_removal_reports_then_propaga
         commands["worktree"],
         commands["update-ref"],
     ]
+    assert report_lines(err, "recover") == [recover_command(composed, head)]
     assert git(composed.repo.path, "rev-parse", TRUNK) == head
 
 

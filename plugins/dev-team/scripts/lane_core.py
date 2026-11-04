@@ -20,8 +20,9 @@ every command shares:
 - `worktrees`, `branch_exists`, `branch_commit`, `branch_worktree`,
   `branch_checked_out` and `primary_checkout`: the one worktree-listing parser and the questions built
   on it.
-- `dirty_paths`: the one reader of `git status`; `origin_url`: the one reader
-  of the `origin` remote.
+- `dirty_paths`: the one reader of `git status`; `worktree_state`: the one
+  reader of "is this work tree clean" (dirty paths and an unfinished merge);
+  `origin_url`: the one reader of the `origin` remote.
 - `head_commit`, `commit_tree`, `head_tree`, `is_ancestor`,
   `is_ancestor_strict`, `unmerged_paths`,
   `has_unmerged_entries` and `merge_in_progress`: one reader per fact about the
@@ -120,9 +121,10 @@ FORBIDDEN_LONG_OPTIONS = frozenset(
 #: same options are caught by the abbreviation and short-cluster rules.
 FORBIDDEN_TOKENS = FORBIDDEN_LONG_OPTIONS | {"-f"}
 
-#: Git accepts an unambiguous prefix of a long option. A prefix of a forbidden
-#: option at least this long (after `--`) is refused too.
-MIN_ABBREVIATION_LENGTH = 3
+#: Git accepts any unambiguous prefix of a long option, even `--f` or `--fo`
+#: for `--force` (under `worktree remove`). A prefix of a forbidden option at
+#: least this long (after `--`) is refused too; a bare `--` is not a prefix.
+MIN_ABBREVIATION_LENGTH = 1
 
 #: A short-option cluster such as `-fd` or `-qf`.
 SHORT_CLUSTER_PATTERN = re.compile(r"-[A-Za-z]+")
@@ -191,13 +193,31 @@ STEP_GATE_FILE_REMOVAL = "gate file removal"
 STEP_WORKTREE_REMOVAL = "worktree removal"
 STEP_BRANCH_DELETION = "branch deletion"
 
+#: Why an apply step cannot be repeated by hand; the key into `NOT_REPEATABLE_HOW`.
+#: The branch deletion's own safety check declined: the lane branch is kept.
+NOT_REPEATABLE_BRANCH_KEPT = "branch kept"
+#: The fast-forward ran but the trunk branch is not at the lane's HEAD.
+NOT_REPEATABLE_TRUNK_NOT_AT_LANE_HEAD = "trunk not at lane head"
+NOT_REPEATABLE_HOW = {
+    NOT_REPEATABLE_BRANCH_KEPT: (
+        "the lane branch is kept because the trunk branch does not contain its "
+        "HEAD; check where the trunk branch is, and delete the lane branch only "
+        "when its commits are safe"
+    ),
+    NOT_REPEATABLE_TRUNK_NOT_AT_LANE_HEAD: (
+        "the lane and its branch are kept; look at the trunk worktree and the "
+        "trunk branch with git before doing anything else"
+    ),
+}
+
 #: `git merge-base --is-ancestor` and `git rev-parse --quiet` answer with these.
 GIT_ANSWER_YES = 0
 GIT_ANSWER_NO = 1
 
-#: Unicode categories `display_text` escapes: control (C0, DEL, C1), line
-#: separator (U+2028) and paragraph separator (U+2029).
-DISPLAY_ESCAPED_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
+#: Unicode categories `display_text` escapes: control (C0, DEL, C1), format
+#: (bidi controls such as U+202E, zero-width marks), line separator (U+2028)
+#: and paragraph separator (U+2029).
+DISPLAY_ESCAPED_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
 
 #: Paths named in a dirty-tree refusal before it says "and N more".
 MAX_LISTED_PATHS = 10
@@ -672,23 +692,27 @@ def integrate_step_failed_refusal(step: str, command: str, detail: str) -> Refus
 
 
 @_building(WHAT_INTEGRATE_STEP_FAILED)
-def integrate_step_not_repeatable_refusal(step: str, detail: str, how: str) -> Refusal:
+def integrate_step_not_repeatable_refusal(
+    step: str, detail: str, reason: str
+) -> Refusal:
     """A step declined, or left the trunk somewhere unexpected: running it, or
     the steps after it, by hand would do what the step refused to do. No command
-    is offered; `how` says what to look at."""
+    is offered; the `how` for `reason` (one of the `NOT_REPEATABLE_*` constants)
+    says what to look at. An unknown `reason` raises `KeyError`."""
     return Refusal(
         what=WHAT_INTEGRATE_STEP_FAILED,
         why=f"{step} failed: {detail.strip() or NO_GIT_MESSAGE}",
-        how=how,
+        how=NOT_REPEATABLE_HOW[reason],
     )
 
 
 def display_text(value: str) -> str:
     """`value` with every control or line-breaking character shown as an escape.
 
-    A path or a git message is data from outside this tool. A raw newline, ESC
-    or U+2028 in it could forge a `why:` line or rewrite the terminal. Newline
-    becomes `\\x0a`, ESC `\\x1b`, U+2028 `\\u2028`. Nothing else changes.
+    A path or a git message is data from outside this tool. A raw newline, ESC,
+    U+2028 or bidi control (U+202E) in it could forge a `why:` line, rewrite the
+    terminal or reorder what the reader sees. Newline becomes `\\x0a`, ESC
+    `\\x1b`, U+2028 `\\u2028`, U+202E `\\u202e`. Nothing else changes.
     """
     return "".join(_visible(char) for char in value)
 
@@ -981,6 +1005,15 @@ def dirty_paths(cwd: Path) -> list[str]:
         if set(entry[:2]) & PORCELAIN_ORIGIN_FOLLOWS:
             index += 1
     return paths
+
+
+def worktree_state(cwd: Path) -> tuple[list[str], bool]:
+    """`(dirty paths, merge in progress)`: the one reading of "is this work tree clean".
+
+    Clean is no dirty path and no unfinished merge. A git failure in either
+    read raises.
+    """
+    return dirty_paths(cwd), merge_in_progress(cwd)
 
 
 def head_commit(cwd: Path) -> str:

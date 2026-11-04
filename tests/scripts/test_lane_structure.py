@@ -126,3 +126,31 @@ def test_every_rule_the_hook_can_log_has_lane_wording():
 )
 def test_the_gate_file_name_is_the_hooks(name):
     assert name == load_pr_hook()._GATE_FILE_NAME
+
+
+def functions_calling(source: str, callee: str) -> set[str]:
+    """Names of the functions that call a module-level function named `callee`."""
+    return {
+        function.name
+        for function in ast.walk(ast.parse(source))
+        if isinstance(function, ast.FunctionDef)
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == callee
+    }
+
+
+def test_the_gate_file_is_resolved_by_one_function_for_the_check_and_the_apply():
+    source = (SCRIPTS_DIR / "lane.py").read_text(encoding="utf-8")
+
+    assert functions_calling(source, "_gate_file") == {
+        "_review_gate_refusal",
+        "_plan_integrate",
+    }
+    resolvers = {
+        function.name
+        for function in ast.walk(ast.parse(source))
+        if isinstance(function, ast.FunctionDef)
+        for node in ast.walk(function)
+        if isinstance(node, ast.Attribute) and node.attr == "resolve_file"
+    }
+    assert resolvers == {"_gate_file"}
