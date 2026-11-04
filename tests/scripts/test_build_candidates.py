@@ -777,6 +777,123 @@ def test_collect_counts_binary_files_as_zero_diff_lines(candidate_repo) -> None:
     assert out["diff_lines"] == 0
 
 
+# --- cleanup ----------------------------------------------------------------
+
+
+@pytest.fixture
+def cleanup_repo(tmp_path):
+    """Repo on branch `build` with candidate branches c1 and c2 checked out in
+    worktrees and an unrelated branch `keep` (also in a worktree)."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _git(repo, "checkout", "-q", "-b", "build")
+    (repo / "f.txt").write_text("x\n", encoding="utf-8")
+    _commit_all(repo, "base")
+    paths = {}
+    for name in ("c1", "c2", "keep"):
+        paths[name] = tmp_path / f"wt-{name}"
+        _git(repo, "worktree", "add", "-q", "-b", name, str(paths[name]))
+    return {"repo": repo, "paths": paths}
+
+
+def _cleanup(fx, *branches: str, repo=None):
+    return _run("cleanup", "--repo", str(repo or fx["repo"]), "--remove", *branches)
+
+
+def _branches(repo) -> list[str]:
+    return _git(repo, "branch", "--format=%(refname:short)").splitlines()
+
+
+def test_cleanup_removes_only_the_listed_branches_and_their_worktrees(
+    cleanup_repo,
+) -> None:
+    repo = cleanup_repo["repo"]
+    r = _cleanup(cleanup_repo, "c2", "c1")
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == {"absent": [], "removed": ["c1", "c2"]}
+    assert sorted(_branches(repo)) == ["build", "keep"]
+    assert not cleanup_repo["paths"]["c1"].exists()
+    assert not cleanup_repo["paths"]["c2"].exists()
+    assert cleanup_repo["paths"]["keep"].exists()
+
+
+def test_cleanup_second_run_is_a_no_op_listing_the_branches_as_absent(
+    cleanup_repo,
+) -> None:
+    _cleanup(cleanup_repo, "c1", "c2")
+    r = _cleanup(cleanup_repo, "c1", "c2")
+    assert r.returncode == 0
+    assert json.loads(r.stdout) == {"absent": ["c1", "c2"], "removed": []}
+
+
+def test_cleanup_reports_a_mix_of_removed_and_absent_branches(cleanup_repo) -> None:
+    r = _cleanup(cleanup_repo, "c1", "never-existed")
+    assert json.loads(r.stdout) == {"absent": ["never-existed"], "removed": ["c1"]}
+
+
+def test_cleanup_removes_a_worktree_holding_uncommitted_and_untracked_files(
+    cleanup_repo,
+) -> None:
+    (cleanup_repo["paths"]["c1"] / "f.txt").write_text("dirty\n", encoding="utf-8")
+    (cleanup_repo["paths"]["c1"] / "new.txt").write_text("new\n", encoding="utf-8")
+    r = _cleanup(cleanup_repo, "c1")
+    assert r.returncode == 0, r.stderr
+    assert not cleanup_repo["paths"]["c1"].exists()
+
+
+def test_cleanup_removes_a_branch_that_has_no_worktree(cleanup_repo) -> None:
+    _git(cleanup_repo["repo"], "branch", "loose")
+    r = _cleanup(cleanup_repo, "loose")
+    assert json.loads(r.stdout)["removed"] == ["loose"]
+
+
+def _add_early_sorting_branch(fx) -> None:
+    """A branch that sorts before `build`, so a missing refusal guard would
+    remove it before git itself rejects `build`."""
+    path = fx["repo"].parent / "wt-aaa"
+    _git(fx["repo"], "worktree", "add", "-q", "-b", "aaa", str(path))
+
+
+def test_cleanup_refuses_the_current_branch_and_removes_nothing(cleanup_repo) -> None:
+    repo = cleanup_repo["repo"]
+    _add_early_sorting_branch(cleanup_repo)
+    r = _cleanup(cleanup_repo, "aaa", "build", "c1")
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "build" in r.stderr
+    assert sorted(_branches(repo)) == ["aaa", "build", "c1", "c2", "keep"]
+    assert cleanup_repo["paths"]["c1"].exists()
+
+
+def test_cleanup_refuses_the_main_worktree_branch_when_run_from_a_worktree(
+    cleanup_repo,
+) -> None:
+    _add_early_sorting_branch(cleanup_repo)
+    r = _cleanup(cleanup_repo, "aaa", "build", repo=cleanup_repo["paths"]["c1"])
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "build" in r.stderr
+    assert "aaa" in _branches(cleanup_repo["repo"])
+
+
+def test_cleanup_refuses_the_branch_of_the_worktree_it_runs_from(cleanup_repo) -> None:
+    _add_early_sorting_branch(cleanup_repo)
+    r = _cleanup(cleanup_repo, "aaa", "c1", repo=cleanup_repo["paths"]["c1"])
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "c1" in r.stderr
+    assert "aaa" in _branches(cleanup_repo["repo"])
+    assert cleanup_repo["paths"]["c1"].exists()
+
+
+def test_cleanup_requires_at_least_one_branch(cleanup_repo) -> None:
+    r = _run("cleanup", "--repo", str(cleanup_repo["repo"]), "--remove")
+    assert (r.returncode, r.stdout) == (2, "")
+
+
+def test_cleanup_on_a_path_that_is_not_a_repository_exits_one(tmp_path) -> None:
+    r = _run("cleanup", "--repo", str(tmp_path), "--remove", "c1")
+    assert (r.returncode, r.stdout) == (1, "")
+    assert r.stderr.startswith("cleanup:")
+
+
 # --- floor slice exemption (the module's own pass is run alongside this file) -
 
 

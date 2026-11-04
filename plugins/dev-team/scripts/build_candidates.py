@@ -627,6 +627,81 @@ def _cmd_reconcile(args: argparse.Namespace) -> int:
     return EXIT_OK if result["merged"] else EXIT_INVALID_DATA
 
 
+def _worktree_entries(repo: str) -> list[tuple[str, str | None]]:
+    """`(path, branch)` per worktree from `git worktree list --porcelain`,
+    main worktree first; branch is None for a detached HEAD."""
+    result = _git(repo, "worktree", "list", "--porcelain")
+    if result.returncode != 0:
+        raise DataError(f"cleanup: git worktree list failed: {result.stderr.strip()}")
+    entries: list[tuple[str, str | None]] = []
+    for block in result.stdout.split("\n\n"):
+        path, branch = None, None
+        for line in block.splitlines():
+            if line.startswith("worktree "):
+                path = line[len("worktree ") :]
+            elif line.startswith("branch refs/heads/"):
+                branch = line[len("branch refs/heads/") :]
+        if path is not None:
+            entries.append((path, branch))
+    return entries
+
+
+def _branch_exists(repo: str, branch: str) -> bool:
+    return (
+        _git(
+            repo, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"
+        ).returncode
+        == 0
+    )
+
+
+def _git_or_fail(repo: str, branch: str, *args: str) -> None:
+    result = _git(repo, *args)
+    if result.returncode != 0:
+        raise DataError(
+            f"cleanup: git {' '.join(args)} failed for branch '{branch}': "
+            f"{result.stderr.strip()}"
+        )
+
+
+def cleanup(*, repo: str, branches: Sequence[str]) -> dict:
+    """Remove each listed branch and its worktree. Refuses (removing nothing)
+    when a listed branch is checked out in `repo` or in the main worktree. A
+    branch that is already gone is reported as absent."""
+    entries = _worktree_entries(repo)
+    protected = {_current_branch(repo), entries[0][1] if entries else None}
+    wanted = sorted(set(branches))
+    for branch in wanted:
+        if branch in protected:
+            raise DataError(
+                f"cleanup: refusing to remove '{branch}': it is checked out in "
+                f"the build or main worktree; nothing was removed"
+            )
+    worktree_of = {branch: path for path, branch in entries if branch}
+    removed: list[str] = []
+    absent: list[str] = []
+    for branch in wanted:
+        if not _branch_exists(repo, branch):
+            absent.append(branch)
+            continue
+        if branch in worktree_of:
+            _git_or_fail(
+                repo, branch, "worktree", "remove", "--force", worktree_of[branch]
+            )
+        _git_or_fail(repo, branch, "branch", "-D", "--", branch)
+        removed.append(branch)
+    return {"absent": absent, "removed": removed}
+
+
+def _cmd_cleanup(args: argparse.Namespace) -> int:
+    try:
+        result = cleanup(repo=args.repo, branches=args.remove)
+    except DataError as exc:
+        return _fail(EXIT_INVALID_DATA, str(exc))
+    _emit(result)
+    return EXIT_OK
+
+
 def _cmd_rank(args: argparse.Namespace) -> int:
     try:
         result = rank(_load_candidates(args.candidates))
@@ -670,6 +745,11 @@ def _build_parser() -> argparse.ArgumentParser:
     reconciling.add_argument("--test-cmd", required=True)
     reconciling.add_argument("branch")
     reconciling.set_defaults(handler=_cmd_reconcile)
+
+    cleaning = sub.add_parser("cleanup", help="remove candidate branches and worktrees")
+    cleaning.add_argument("--repo", required=True)
+    cleaning.add_argument("--remove", required=True, nargs="+", metavar="BRANCH")
+    cleaning.set_defaults(handler=_cmd_cleanup)
 
     ranking = sub.add_parser("rank", help="rank candidates and pick a winner")
     ranking.add_argument("--candidates", required=True, help="candidates JSON file")

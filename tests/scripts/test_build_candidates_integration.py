@@ -170,3 +170,61 @@ def test_restore_aborts_a_merge_left_in_progress_before_resetting(build_repo) ->
     build_candidates._restore_branch(str(repo), build_repo["pre"])
     assert not (repo / ".git" / "MERGE_HEAD").exists()
     assert _git(repo, "rev-parse", "HEAD") == build_repo["pre"]
+
+
+def _worktree_candidate(repo, tmp_path, cid: int, base: str) -> str:
+    """Create candidate `cid` on its own worktree branch with one commit that
+    adds `cand<cid>.txt`; return the branch name."""
+    branch = f"cand-{cid}"
+    path = tmp_path / f"wt-{cid}"
+    _git(repo, "worktree", "add", "-q", "-b", branch, str(path), base)
+    (path / f"cand{cid}.txt").write_text(f"candidate {cid}\n", encoding="utf-8")
+    _commit_all(path, f"candidate {cid} work")
+    return branch
+
+
+def _candidate_entry(cid: int, branch: str, met: int) -> dict:
+    return {
+        "id": cid,
+        "branch": branch,
+        "suite_green": True,
+        "scenarios_total": 5,
+        "scenarios_unmet": 5 - met,
+        "errors": 0,
+        "warnings": 0,
+        "diff_lines": 1,
+        "cost_usd": 0.5,
+        "screening": "ok",
+    }
+
+
+def test_the_whole_lifecycle_merges_the_winner_and_leaves_the_repository_clean(
+    build_repo, tmp_path
+) -> None:
+    repo = build_repo["repo"]
+    branches = {
+        i: _worktree_candidate(repo, tmp_path, i, build_repo["base"]) for i in (1, 2)
+    }
+    candidates = tmp_path / "candidates.json"
+    candidates.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    _candidate_entry(1, branches[1], met=3),
+                    _candidate_entry(2, branches[2], met=5),
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    ranked = json.loads(_run("rank", "--candidates", str(candidates)).stdout)
+    winner = branches[ranked["winner"]]
+    merged = _reconcile(build_repo, winner, "true")
+    cleaned = _run("cleanup", "--repo", str(repo), "--remove", branches[1], branches[2])
+
+    assert (ranked["winner"], merged.returncode, cleaned.returncode) == (2, 0, 0)
+    assert {"cand2.txt"} <= _files_in_head(repo)
+    assert "cand1.txt" not in _files_in_head(repo)
+    assert _git(repo, "worktree", "list", "--porcelain").count("worktree ") == 1
+    assert _git(repo, "branch", "--format=%(refname:short)").split() == [BUILD]
