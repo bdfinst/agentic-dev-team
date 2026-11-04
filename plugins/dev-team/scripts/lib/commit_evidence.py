@@ -161,21 +161,51 @@ def branch_base_sha(repo_root: str) -> str | None:
     return None
 
 
+def _git_succeeds(args: list[str], cwd: str) -> tuple[str, bool]:
+    """Return `(stdout, succeeded)`. Unlike `run_git`, a non-zero exit, a
+    missing git or a missing directory is reported, not folded into ''."""
+    try:
+        result = subprocess.run(
+            ["git"] + args, capture_output=True, text=True, cwd=cwd, check=False
+        )
+    except (FileNotFoundError, OSError):
+        return "", False
+    return result.stdout, result.returncode == 0
+
+
+def _range_commits(repo_root: str, base_sha: str) -> tuple[list[str], set[str], bool]:
+    range_arg = f"{base_sha}..HEAD"
+    subjects_out, log_ok = _git_succeeds(
+        ["log", "--no-merges", "--format=%s", range_arg], repo_root
+    )
+    subjects = [s.lower() for s in subjects_out.strip().splitlines() if s.strip()]
+    if not subjects:
+        return [], set(), log_ok
+    diff_out, diff_ok = _git_succeeds(["diff", "--name-only", range_arg], repo_root)
+    files = {p for p in diff_out.strip().splitlines() if p.strip()}
+    return subjects, files, log_ok and diff_ok
+
+
 def commits_since(repo_root: str, base_sha: str) -> tuple[list[str], set[str]]:
     """Return `(subjects, files)` for the commits in `<base_sha>..HEAD`.
 
     `subjects` are lower-cased, non-blank, merges excluded. `files` is the
     set of paths the range touches. Both are empty when git fails or the
-    range holds no commit. The whole-history view (no base) is the
-    guardian's own fallback and is not offered here.
+    range holds no commit; use `checked_commits_since` to tell the two
+    apart. The whole-history view (no base) is the guardian's own fallback
+    and is not offered here.
     """
-    range_arg = f"{base_sha}..HEAD"
-    subjects_out = run_git(["log", "--no-merges", "--format=%s", range_arg], repo_root)
-    subjects = [s.lower() for s in subjects_out.strip().splitlines() if s.strip()]
-    if not subjects:
-        return [], set()
-    diff_out = run_git(["diff", "--name-only", range_arg], repo_root)
-    return subjects, {p for p in diff_out.strip().splitlines() if p.strip()}
+    subjects, files, _ok = _range_commits(repo_root, base_sha)
+    return subjects, files
+
+
+def checked_commits_since(
+    repo_root: str, base_sha: str
+) -> tuple[list[str], set[str]] | None:
+    """`commits_since`, or None when either git command failed, so a partial
+    answer (subjects without the files they touched) is never used as evidence."""
+    subjects, files, ok = _range_commits(repo_root, base_sha)
+    return (subjects, files) if ok else None
 
 
 def item_backed(

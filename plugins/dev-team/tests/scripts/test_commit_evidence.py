@@ -7,7 +7,6 @@ record share. Every git case runs against a real temporary repository.
 from __future__ import annotations
 
 import ast
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -19,66 +18,36 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 _SCRIPTS = _REPO_ROOT / "plugins" / "dev-team" / "scripts"
 _LIB = _SCRIPTS / "lib"
 sys.path.insert(0, str(_LIB))
+# importlib import mode does not put this directory on sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import commit_evidence
-
-_GIT_SCRUB = (
-    "GIT_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_WORK_TREE",
-    "GIT_PREFIX",
-    "GIT_REFLOG_ACTION",
-)
-
-
-def _env() -> dict[str, str]:
-    env = {k: v for k, v in os.environ.items() if k not in _GIT_SCRUB}
-    env["GIT_CONFIG_GLOBAL"] = "/dev/null"
-    env["GIT_CONFIG_SYSTEM"] = "/dev/null"
-    return env
-
-
-def _git(cwd: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True, env=_env()
-    )
-    return result.stdout.strip()
-
-
-def _init(cwd: Path, branch: str = "main") -> None:
-    _git(cwd, "init", "-q", f"--initial-branch={branch}")
-    _git(cwd, "config", "user.email", "test@test.com")
-    _git(cwd, "config", "user.name", "Test")
-
-
-def _commit(cwd: Path, name: str | None, message: str) -> None:
-    if name is None:
-        _git(cwd, "commit", "-q", "--allow-empty", "-m", message)
-        return
-    target = cwd / name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("work\n")
-    _git(cwd, "add", name)
-    _git(cwd, "commit", "-q", "-m", message)
+from git_fixtures import commit as _commit
+from git_fixtures import git as _git
+from git_fixtures import init as _init
+from git_fixtures import isolate_git, remove_loose_object
 
 
 @pytest.fixture(autouse=True)
-def _hermetic_git(monkeypatch):
+def _hermetic_git(monkeypatch, tmp_path):
     """`run_git` inherits the process environment; keep it away from the host's
-    git config and from any GIT_DIR the test runner was started under."""
-    for key in _GIT_SCRUB:
-        monkeypatch.delenv(key, raising=False)
-    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-    monkeypatch.setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+    git config, from any GIT_DIR the test runner was started under, and from
+    any repository above the temporary directory."""
+    isolate_git(monkeypatch, [tmp_path.parent])
+
+
+def _repo_on(root: Path, trunk: str) -> Path:
+    """`trunk` holds one seed commit; HEAD is on `feature` at the same commit."""
+    root.mkdir(parents=True, exist_ok=True)
+    _init(root, branch=trunk)
+    _commit(root, "seed.txt", "chore: seed")
+    _git(root, "checkout", "-q", "-b", "feature")
+    return root
 
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    """`main` holds one seed commit; HEAD is on `feature` at the same commit."""
-    _init(tmp_path)
-    _commit(tmp_path, "seed.txt", "chore: seed")
-    _git(tmp_path, "checkout", "-q", "-b", "feature")
-    return tmp_path
+    return _repo_on(tmp_path / "repo", "main")
 
 
 # ---------------------------------------------------------------------------
@@ -113,10 +82,12 @@ def test_run_git_returns_empty_text_when_git_is_not_installed(tmp_path, monkeypa
 # ---------------------------------------------------------------------------
 
 
-def test_the_base_is_the_commit_the_branch_left_trunk_at(repo):
-    seed = _git(repo, "rev-parse", "main")
-    _commit(repo, "a.py", "feat: work")
-    assert commit_evidence.branch_base_sha(str(repo)) == seed
+@pytest.mark.parametrize("trunk", ["main", "master"])
+def test_the_base_is_the_commit_the_branch_left_trunk_at(trunk, tmp_path):
+    root = _repo_on(tmp_path / "repo", trunk)
+    seed = _git(root, "rev-parse", trunk)
+    _commit(root, "a.py", "feat: work")
+    assert commit_evidence.branch_base_sha(str(root)) == seed
 
 
 def test_the_base_is_none_on_trunk_itself(repo):
@@ -229,8 +200,39 @@ def test_commits_since_is_empty_for_an_unknown_base(repo):
     assert commit_evidence.commits_since(str(repo), "0" * 40) == ([], set())
 
 
-def test_commits_since_is_empty_outside_a_repository(tmp_path):
-    assert commit_evidence.commits_since(str(tmp_path), "0" * 40) == ([], set())
+def test_commits_since_is_empty_outside_a_repository(repo, tmp_path):
+    real_sha = _git(repo, "rev-parse", "HEAD")
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    assert commit_evidence.commits_since(str(plain), real_sha) == ([], set())
+    assert commit_evidence.checked_commits_since(str(plain), real_sha) is None
+
+
+def test_checked_commits_since_matches_commits_since_on_success(repo):
+    seed = _git(repo, "rev-parse", "main")
+    _commit(repo, "docs/a.md", "feat: parse")
+    assert commit_evidence.checked_commits_since(str(repo), seed) == (
+        commit_evidence.commits_since(str(repo), seed)
+    )
+
+
+def test_checked_commits_since_is_empty_not_none_for_a_range_with_no_commit(repo):
+    seed = _git(repo, "rev-parse", "main")
+    assert commit_evidence.checked_commits_since(str(repo), seed) == ([], set())
+
+
+def test_checked_commits_since_is_none_when_the_file_listing_fails(repo):
+    seed = _git(repo, "rev-parse", "main")
+    _commit(repo, "docs/a.md", "feat: parse")
+    remove_loose_object(repo, _git(repo, "rev-parse", "HEAD^{tree}"))
+    # The log still works (it needs commits only); the diff needs the tree.
+    subjects, files = commit_evidence.commits_since(str(repo), seed)
+    assert subjects == ["feat: parse"] and files == set()
+    assert commit_evidence.checked_commits_since(str(repo), seed) is None
+
+
+def test_checked_commits_since_is_none_for_an_unknown_base(repo):
+    assert commit_evidence.checked_commits_since(str(repo), "0" * 40) is None
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +289,13 @@ def test_an_inline_layout_slice_reads_its_files_from_the_checkbox_block():
     assert not commit_evidence.item_backed(
         "Slice 1: Parse", plan, ["slice 1: parse"], {"b.py"}
     )
+
+
+def test_an_inline_files_line_after_another_checkbox_belongs_to_that_checkbox():
+    plan = "- [x] Slice 1: Parse\n- [x] Slice 2: Build\n\n**Files:** `b.py`\n"
+    assert commit_evidence.parse_slice_files(plan, "Slice 1: Parse") == []
+    assert commit_evidence.parse_slice_files(plan, "Slice 2: Build") == ["b.py"]
+    assert not commit_evidence.item_backed("Slice 1: Parse", plan, [], {"b.py"})
 
 
 def test_an_item_is_not_backed_when_there_are_no_commits_and_no_files():
@@ -355,37 +364,6 @@ def test_commit_evidence_imports_neither_the_guardian_nor_the_record():
 def test_commit_evidence_imports_only_the_standard_library():
     imported = _imported_modules(_LIB / "commit_evidence.py")
     assert imported <= set(sys.stdlib_module_names)
-
-
-_ONE_MODULE_PROBE = """
-import sys
-sys.path.insert(0, {scripts!r})
-{imports}
-def count(name):
-    return [k for k in sys.modules if k.split('.')[-1] == name]
-print(count('commit_evidence'), count('plan_parse'))
-assert len(count('commit_evidence')) == 1, count('commit_evidence')
-assert len(count('plan_parse')) == 1, count('plan_parse')
-"""
-
-
-@pytest.mark.parametrize(
-    "imports",
-    [
-        "import progress_guardian\nimport feature_record",
-        "import feature_record\nimport progress_guardian",
-    ],
-    ids=["guardian-first", "record-first"],
-)
-def test_sys_modules_holds_one_plan_parse_and_one_commit_evidence(imports):
-    script = _ONE_MODULE_PROBE.format(scripts=str(_SCRIPTS), imports=imports)
-    result = subprocess.run(
-        [sys.executable, "-I", "-c", script],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
 
 
 def test_the_guardian_uses_the_one_commit_evidence_module():

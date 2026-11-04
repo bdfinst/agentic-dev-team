@@ -29,7 +29,10 @@ PG = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "progress_guardian.py"
 
 _GIT_SCRUB_ENV_VARS = (
     "GIT_DIR",
+    "GIT_COMMON_DIR",
     "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_NAMESPACE",
     "GIT_WORK_TREE",
     "GIT_PREFIX",
     "GIT_REFLOG_ACTION",
@@ -40,6 +43,7 @@ def _hermetic_env() -> dict:
     env = {k: v for k, v in os.environ.items() if k not in _GIT_SCRUB_ENV_VARS}
     env["GIT_CONFIG_GLOBAL"] = "/dev/null"
     env["GIT_CONFIG_SYSTEM"] = "/dev/null"
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
     return env
 
 
@@ -65,6 +69,7 @@ def run_pg(plan: Path, *args: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         check=False,
+        env=_hermetic_env(),
     )
 
 
@@ -1108,4 +1113,100 @@ def test_3_1_pin_check_scope_still_flags_a_file_outside_a_declared_glob(
     result = run_pg(plan, "--skip-llm")
     assert result.returncode == 2, result.stdout
     issues = json.loads(result.stdout)["issues"]
-    assert any(i.get("rule_id") == "llm-skipped" for i in issues), issues
+    skipped = [i for i in issues if i.get("rule_id") == "llm-skipped"]
+    assert len(skipped) == 1, issues
+    assert "1 file(s) not declared in plan" in skipped[0]["message"]
+
+
+def test_3_1_pin_a_range_of_only_merge_commits_is_a_warning_not_an_error(
+    tmp_path: Path,
+) -> None:
+    # The base resolves (main moved on), but `--no-merges` leaves the range
+    # with no subject: the zero-commit warning, not a matching error.
+    _init_trunk_and_feature(tmp_path)
+    _git(tmp_path, "checkout", "-q", "main")
+    _commit_file(tmp_path, "a.py", "feat: lands on main")
+    _git(tmp_path, "checkout", "-q", "feature")
+    _git(tmp_path, "merge", "-q", "--no-ff", "-m", "Merge main", "main")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 2, result.stdout
+    issues = json.loads(result.stdout)["issues"]
+    assert [(i["severity"], i["message"]) for i in issues] == [
+        (
+            "warning",
+            "No commits found on this branch — cannot verify commit discipline.",
+        )
+    ]
+
+
+def test_3_1_pin_a_branch_level_with_trunk_matches_against_whole_history(
+    tmp_path: Path,
+) -> None:
+    # Branch and trunk share HEAD, so no base diverges: whole history applies,
+    # and the declared file is in the seed commit.
+    _git(tmp_path, "init", "-q", "--initial-branch=main")
+    _git(tmp_path, "config", "user.email", "test@test.com")
+    _git(tmp_path, "config", "user.name", "Test")
+    _commit_file(tmp_path, "a.py", "chore: seed")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def _init_orphan(cwd: Path) -> None:
+    _git(cwd, "init", "-q", "--initial-branch=dev")
+    _git(cwd, "config", "user.email", "test@test.com")
+    _git(cwd, "config", "user.name", "Test")
+    _commit_file(cwd, "other.py", "chore: root")
+    _git(cwd, "commit", "-q", "--allow-empty", "-m", "chore: later")
+
+
+def test_3_1_pin_orphan_head_with_a_declared_file_never_committed_fails(
+    tmp_path: Path,
+) -> None:
+    _init_orphan(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 1, result.stdout
+    messages = [
+        i["message"]
+        for i in json.loads(result.stdout)["issues"]
+        if i["severity"] == "error"
+    ]
+    assert messages == [
+        (
+            "Done step 'Slice 1: do thing' has no matching commit in git log. "
+            "Expected a commit on this branch that touched one of: a.py"
+        )
+    ]
+
+
+def test_3_1_pin_orphan_head_with_a_subject_that_matches_nothing_fails(
+    tmp_path: Path,
+) -> None:
+    _init_orphan(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] add the parser\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 1, result.stdout
+    messages = [
+        i["message"]
+        for i in json.loads(result.stdout)["issues"]
+        if i["severity"] == "error"
+    ]
+    assert messages == [
+        (
+            "Done step 'add the parser' has no matching commit in git log. "
+            "Expected a commit whose subject contains: 'add the parser'"
+        )
+    ]

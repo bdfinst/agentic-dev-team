@@ -7,6 +7,7 @@ Fixtures live in tests/scripts/fixtures/feature_record/.
 from __future__ import annotations
 
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -40,13 +41,16 @@ def _swap(text: str, old: str, new: str) -> str:
 
 
 @pytest.fixture(autouse=True)
-def _no_enclosing_repository(monkeypatch):
+def _no_enclosing_repository(monkeypatch, tmp_path):
     """The fixtures sit inside this repository. `check` and `view` read git for
     the commit invariant, so stop git's upward search at the repository root:
     these tests are about the structural invariants, whatever branch the suite
     runs on. The commit invariant is tested in test_feature_record_commits.py
     against repositories built for the purpose."""
-    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(_REPO_ROOT))
+    monkeypatch.setenv(
+        "GIT_CEILING_DIRECTORIES",
+        os.pathsep.join([str(_REPO_ROOT), str(tmp_path.parent)]),
+    )
 
 
 def _run(argv: list[str], capsys) -> tuple[int, str, str]:
@@ -454,9 +458,10 @@ PINNED_COPY = {
         "how": 'Add "<heading>" with at least one line of text.',
     },
     "tick-without-commit": {
-        "what": "Step <id> is ticked done and no commit on this branch backs it. [tick-without-commit]",
+        "what": "<label> <id> is ticked done and no commit on this branch backs it. [tick-without-commit]",
         "why": "A tick with no commit claims work the history does not show.",
-        "how": "Commit the step (touching <declared files>), or untick it under ## Build Progress.",
+        "how": "Commit the work (touching <declared files>), or untick it under ## Build Progress.",
+        "how_no_files": 'Commit the work with "<header>" in the commit subject, or untick it under ## Build Progress.',
     },
 }
 
@@ -486,6 +491,35 @@ def test_make_violation_names_the_slice_in_every_place_it_appears():
     assert found["how"] == (
         'Resolve the blocker and add "**Resolved blocker**: Slice 2 - <text>" under '
         "## Plan Review Summary, or untick Slice 2 under ## Build Progress."
+    )
+
+
+def test_make_violation_names_the_declared_files_in_a_tick_violation():
+    found = feature_record.make_violation(
+        "tick-without-commit",
+        "Slice 2",
+        label="Slice",
+        id="2",
+        header="Slice 2: Build",
+        files="docs/b.md, docs/c.md",
+    )
+    assert found["what"] == (
+        "Slice 2 is ticked done and no commit on this branch backs it. "
+        "[tick-without-commit]"
+    )
+    assert found["how"] == (
+        "Commit the work (touching docs/b.md, docs/c.md), or untick it "
+        "under ## Build Progress."
+    )
+
+
+def test_make_violation_asks_for_the_header_in_the_subject_when_no_files_are_declared():
+    found = feature_record.make_violation(
+        "tick-without-commit", "Step 1.1", label="Step", id="1.1", header="Parse a line"
+    )
+    assert found["how"] == (
+        'Commit the work with "Parse a line" in the commit subject, or untick it '
+        "under ## Build Progress."
     )
 
 

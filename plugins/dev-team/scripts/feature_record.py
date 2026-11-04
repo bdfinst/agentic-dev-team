@@ -263,12 +263,17 @@ COPY: dict[str, dict[str, str]] = {
     },
     "tick-without-commit": {
         "what": (
-            "Step <id> is ticked done and no commit on this branch backs it. "
+            "<label> <id> is ticked done and no commit on this branch backs it. "
             "[tick-without-commit]"
         ),
         "why": "A tick with no commit claims work the history does not show.",
         "how": (
-            "Commit the step (touching <declared files>), or untick it "
+            "Commit the work (touching <declared files>), or untick it "
+            "under ## Build Progress."
+        ),
+        # Used instead of "how" when the item's header declares no files.
+        "how_no_files": (
+            'Commit the work with "<header>" in the commit subject, or untick it '
             "under ## Build Progress."
         ),
     },
@@ -281,6 +286,8 @@ _PLACEHOLDERS = {
     "heading": "<heading>",
     "id": "<id>",
     "files": "<declared files>",
+    "label": "<label>",
+    "header": "<header>",
 }
 _PLACEHOLDER_RE = re.compile("|".join(re.escape(p) for p in _PLACEHOLDERS.values()))
 _CRITERION_TEXT_LIMIT = 60
@@ -290,7 +297,8 @@ def make_violation(violation_id: str, subject: str, **fields: str) -> dict[str, 
     """Return `{id, subject, what, why, how}` with the copy filled from `fields`.
 
     `fields` are the keys of `_PLACEHOLDERS`. The substitution is one pass, so
-    a value that itself contains `<n>` is not expanded again.
+    a value that itself contains `<n>` is not expanded again. A row with a
+    `how_no_files` variant uses it when `files` is not given.
     """
     values = {_PLACEHOLDERS[k]: v for k, v in fields.items() if k in _PLACEHOLDERS}
     if "text" in fields:
@@ -302,12 +310,13 @@ def make_violation(violation_id: str, subject: str, **fields: str) -> dict[str, 
         )
 
     copy = COPY[violation_id]
+    how = copy["how"] if "files" in fields else copy.get("how_no_files", copy["how"])
     return {
         "id": violation_id,
         "subject": subject,
         "what": fill(copy["what"]),
         "why": fill(copy["why"]),
-        "how": fill(copy["how"]),
+        "how": fill(how),
     }
 
 
@@ -374,7 +383,7 @@ def _commit_violations(progress: dict) -> list[dict[str, str]]:
         if not (item["done"] and item["commit_backed"] is False):
             continue
         label = "Slice" if item["kind"] == "slice" else "Step"
-        fields = {"id": item["id"]}
+        fields = {"label": label, "id": item["id"], "header": item["header"]}
         declared = item.get("declared_files")
         if declared:
             fields["files"] = ", ".join(declared)
@@ -571,7 +580,8 @@ def _commit_evidence_callback(plan_path: str, plan_text: str) -> CommitEvidence:
     Imported here, not at module level: only the CLI runs git. The callback
     answers None (unverifiable) whenever the evidence cannot be established:
     no git or no repository, no resolvable branch base (an orphan or detached
-    HEAD with no trunk ref), a git error, or no commit past the base. The
+    HEAD with no trunk ref), a git error (including a failed file listing), or
+    no commit past the base. The
     progress guardian keeps its own policy for those cases. History is read
     once, on the first ticked item.
     """
@@ -587,8 +597,8 @@ def _commit_evidence_callback(plan_path: str, plan_text: str) -> CommitEvidence:
         base = commit_evidence.branch_base_sha(root) if root else None
         if base is None:
             return None
-        subjects, files = commit_evidence.commits_since(root, base)
-        return (subjects, files) if subjects else None
+        evidence = commit_evidence.checked_commits_since(root, base)
+        return evidence if evidence and evidence[0] else None
 
     def backed(item: dict[str, object]) -> bool | None:
         if not history:

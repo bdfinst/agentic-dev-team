@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -20,8 +21,14 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 _SCRIPTS = _REPO_ROOT / "plugins" / "dev-team" / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 sys.path.insert(0, str(_SCRIPTS / "lib"))
+# importlib import mode does not put this directory on sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import feature_record
+from git_fixtures import commit as _commit
+from git_fixtures import git as _git
+from git_fixtures import init as _init
+from git_fixtures import isolate_git, remove_loose_object
 
 # Unindented items, as the guardian reads them: a slice and two steps.
 PLAN = """# Plan: sample
@@ -51,7 +58,7 @@ def _commit_backed(record) -> dict[str, bool | None]:
     return {i["id"]: i["commit_backed"] for i in record["build_progress"]["items"]}
 
 
-def _ids(found) -> list[str]:
+def _subjects(found) -> list[str]:
     return [v["subject"] for v in found if v["id"] == "tick-without-commit"]
 
 
@@ -60,7 +67,7 @@ def test_without_a_callback_every_item_is_null_and_not_evaluated():
     assert set(_commit_backed(record).values()) == {None}
     assert record["applicability"]["commit_evidence"] == "not-evaluated"
     assert feature_record.unverifiable(record) == []
-    assert _ids(feature_record.violations(record)) == []
+    assert _subjects(feature_record.violations(record)) == []
 
 
 def test_a_callback_marks_the_record_evaluated():
@@ -132,20 +139,21 @@ def test_an_unbacked_ticked_item_is_a_violation_naming_it():
     found = feature_record.violations(
         feature_record.build_record(PLAN, commit_evidence=callback)
     )
-    assert _ids(found) == ["Step 1.1"]
-    violation = found[0]
-    assert violation["what"] == (
-        "Step 1.1 is ticked done and no commit on this branch backs it. "
-        "[tick-without-commit]"
-    )
-    assert (
-        violation["why"]
-        == "A tick with no commit claims work the history does not show."
-    )
-    assert violation["how"] == (
-        "Commit the step (touching <declared files>), or untick it "
-        "under ## Build Progress."
-    )
+    assert found == [
+        {
+            "id": "tick-without-commit",
+            "subject": "Step 1.1",
+            "what": (
+                "Step 1.1 is ticked done and no commit on this branch backs it. "
+                "[tick-without-commit]"
+            ),
+            "why": "A tick with no commit claims work the history does not show.",
+            "how": (
+                'Commit the work with "Parse a line" in the commit subject, '
+                "or untick it under ## Build Progress."
+            ),
+        }
+    ]
 
 
 def test_an_unbacked_slice_item_is_named_as_the_slice():
@@ -153,7 +161,7 @@ def test_an_unbacked_slice_item_is_named_as_the_slice():
     found = feature_record.violations(
         feature_record.build_record(PLAN, commit_evidence=callback)
     )
-    assert _ids(found) == ["Slice 1"]
+    assert _subjects(found) == ["Slice 1"]
 
 
 def test_declared_files_on_an_item_fill_the_how_text():
@@ -162,14 +170,49 @@ def test_declared_files_on_an_item_fill_the_how_text():
         commit_evidence=_backed({"1": False, "1.1": True, "Add the builder": True}),
     )
     record["build_progress"]["items"][0]["declared_files"] = ["docs/b.md", "docs/c.md"]
-    (found,) = feature_record.violations(record)
-    assert "touching docs/b.md, docs/c.md" in found["how"]
+    assert feature_record.violations(record) == [
+        {
+            "id": "tick-without-commit",
+            "subject": "Slice 1",
+            "what": (
+                "Slice 1 is ticked done and no commit on this branch backs it. "
+                "[tick-without-commit]"
+            ),
+            "why": "A tick with no commit claims work the history does not show.",
+            "how": (
+                "Commit the work (touching docs/b.md, docs/c.md), or untick it "
+                "under ## Build Progress."
+            ),
+        }
+    ]
+
+
+def test_an_unprefixed_step_is_named_by_its_header_and_asks_for_it_in_the_subject():
+    record = feature_record.build_record(
+        PLAN,
+        commit_evidence=_backed({"1": True, "1.1": True, "Add the builder": False}),
+    )
+    assert feature_record.violations(record) == [
+        {
+            "id": "tick-without-commit",
+            "subject": "Step Add the builder",
+            "what": (
+                "Step Add the builder is ticked done and no commit on this branch "
+                "backs it. [tick-without-commit]"
+            ),
+            "why": "A tick with no commit claims work the history does not show.",
+            "how": (
+                'Commit the work with "Add the builder" in the commit subject, '
+                "or untick it under ## Build Progress."
+            ),
+        }
+    ]
 
 
 def test_a_backed_or_unverifiable_item_is_not_a_violation():
     callback = _backed({"1": True, "1.1": None, "Add the builder": True})
     record = feature_record.build_record(PLAN, commit_evidence=callback)
-    assert _ids(feature_record.violations(record)) == []
+    assert _subjects(feature_record.violations(record)) == []
     assert feature_record.unverifiable(record) == ["1.1"]
 
 
@@ -177,7 +220,7 @@ def test_an_unticked_item_with_false_evidence_is_not_a_violation():
     record = feature_record.build_record(PLAN)
     record["applicability"]["commit_evidence"] = "evaluated"
     record["build_progress"]["items"][3]["commit_backed"] = False  # "- [ ] Step 2.1"
-    assert _ids(feature_record.violations(record)) == []
+    assert _subjects(feature_record.violations(record)) == []
 
 
 def test_the_commit_violation_comes_after_the_structural_ones():
@@ -204,63 +247,33 @@ def test_the_record_with_evidence_is_json_serialisable():
     assert json.loads(json.dumps(record)) == record
 
 
-@pytest.mark.parametrize("text", ["", "x", "- [x] a\n" * 3, "\x00\x01- [x] b"])
-def test_build_record_with_a_callback_is_total(text):
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("", []),
+        ("x", []),
+        ("\x00\x01- [x] b", []),
+        ("- [x] a\n- [x] b\n", ["Step a", "Step b"]),
+        # One violation per (id, subject): three identical ticks name one step.
+        ("- [x] a\n" * 3, ["Step a"]),
+        ("- [ ] a\n- [x] b\n", ["Step b"]),
+    ],
+)
+def test_build_record_with_a_callback_is_total(text, expected):
     record = feature_record.build_record(text, commit_evidence=lambda item: False)
-    feature_record.violations(record)
+    assert _subjects(feature_record.violations(record)) == expected
 
 
 # ---------------------------------------------------------------------------
 # view and check against real git repositories
 # ---------------------------------------------------------------------------
 
-_GIT_SCRUB = (
-    "GIT_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_WORK_TREE",
-    "GIT_PREFIX",
-    "GIT_REFLOG_ACTION",
-)
-
 
 @pytest.fixture(autouse=True)
 def _hermetic_git(monkeypatch, tmp_path):
-    for key in _GIT_SCRUB:
-        monkeypatch.delenv(key, raising=False)
-    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-    monkeypatch.setenv("GIT_CONFIG_SYSTEM", "/dev/null")
     # A temporary directory is outside any repository, even on a host whose
     # temp root sits inside one.
-    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
-
-
-def _git(cwd: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        check=True,
-        capture_output=True,
-        text=True,
-        env=dict(os.environ),
-    )
-    return result.stdout.strip()
-
-
-def _init(cwd: Path, branch: str = "main") -> None:
-    _git(cwd, "init", "-q", f"--initial-branch={branch}")
-    _git(cwd, "config", "user.email", "test@test.com")
-    _git(cwd, "config", "user.name", "Test")
-
-
-def _commit(cwd: Path, name: str | None, message: str) -> None:
-    if name is None:
-        _git(cwd, "commit", "-q", "--allow-empty", "-m", message)
-        return
-    target = cwd / name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("work\n")
-    _git(cwd, "add", name)
-    _git(cwd, "commit", "-q", "-m", message)
+    isolate_git(monkeypatch, [tmp_path.parent])
 
 
 @pytest.fixture
@@ -341,6 +354,79 @@ def test_a_ticked_slice_with_no_commit_on_its_declared_file_is_a_violation(
     (violation,) = result["violations"]
     assert "docs/b.md" in violation["how"]
     assert err.strip() == "1 violations, 0 unverifiable"
+
+
+WHY = "A tick with no commit claims work the history does not show."
+TICK_SUFFIX = (
+    " is ticked done and no commit on this branch backs it. [tick-without-commit]"
+)
+UNTICK = " or untick it under ## Build Progress."
+
+
+@pytest.mark.parametrize(
+    "plan, expected",
+    [
+        pytest.param(
+            _slice_plan(("Parse", "`docs/b.md`", True)),
+            {
+                "id": "tick-without-commit",
+                "subject": "Slice 1",
+                "what": "Slice 1" + TICK_SUFFIX,
+                "why": WHY,
+                "how": "Commit the work (touching docs/b.md)," + UNTICK,
+            },
+            id="slice-with-declared-files",
+        ),
+        pytest.param(
+            "## Build Progress\n\n- [x] Slice 1: Parse\n",
+            {
+                "id": "tick-without-commit",
+                "subject": "Slice 1",
+                "what": "Slice 1" + TICK_SUFFIX,
+                "why": WHY,
+                "how": 'Commit the work with "Slice 1: Parse" in the commit subject,'
+                + UNTICK,
+            },
+            id="slice-without-declared-files",
+        ),
+        pytest.param(
+            "## Build Progress\n\n- [x] Add the builder\n",
+            {
+                "id": "tick-without-commit",
+                "subject": "Step Add the builder",
+                "what": "Step Add the builder" + TICK_SUFFIX,
+                "why": WHY,
+                "how": 'Commit the work with "Add the builder" in the commit subject,'
+                + UNTICK,
+            },
+            id="unprefixed-step",
+        ),
+        pytest.param(
+            "## Build Progress\n\n- [x] Step 1.1: Parse a line\n",
+            {
+                "id": "tick-without-commit",
+                "subject": "Step 1.1",
+                "what": "Step 1.1" + TICK_SUFFIX,
+                "why": WHY,
+                "how": 'Commit the work with "Parse a line" in the commit subject,'
+                + UNTICK,
+            },
+            id="prefixed-step",
+        ),
+    ],
+)
+def test_an_unbacked_tick_carries_its_exact_wording_through_check_and_view(
+    plan, expected, repo, capsys
+):
+    _commit(repo, "docs/a.md", "feat: something else")
+    path = _write(repo, plan)
+    code, result, _ = _check(path, capsys)
+    assert code == 1
+    assert result["violations"] == [expected]
+    # The record is the same through `view`, and the library agrees on the words.
+    record = _view(path, capsys)
+    assert [i["commit_backed"] for i in record["build_progress"]["items"]] == [False]
+    assert feature_record.violations(record) == [expected]
 
 
 def test_the_violation_names_every_declared_file(repo, capsys):
@@ -459,6 +545,10 @@ def _detached_with_no_base(root: Path, monkeypatch) -> None:
 
 
 def _git_error(root: Path, monkeypatch) -> None:
+    # A corrupt .git/HEAD makes git stop recognising the directory as a
+    # repository, so `rev-parse --show-toplevel` fails: the callback sees the
+    # same thing as "no repository". The failure of a later git command, with
+    # the repository still recognised, is the next test.
     _commit(root, "docs/a.md", "feat: parse")
     (root / ".git" / "HEAD").write_text("garbage\n")
 
@@ -512,36 +602,59 @@ def test_every_unbacked_tick_is_reported_and_sets_the_exit_code(repo, capsys):
     assert _unbacked(result) == ["Slice 1", "Slice 2"]
 
 
-def test_git_is_not_run_when_nothing_is_ticked(repo, monkeypatch, capsys):
-    import commit_evidence
+def test_a_failed_file_listing_leaves_the_item_unverifiable(repo, capsys):
+    # `git log` still works (it reads commits); `git diff --name-only` needs the
+    # tree of the branch's commit, which this removes. Subjects alone are not
+    # evidence of which files a commit touched.
+    _commit(repo, "docs/a.md", "feat: parse")
+    remove_loose_object(repo, _git(repo, "rev-parse", "HEAD^{tree}"))
+    plan = _write(repo, _slice_plan(PARSE))
+    code, result, err = _check(plan, capsys)
+    assert code == 0
+    assert result["violations"] == []
+    assert result["unverifiable"] == ["1"]
+    assert err.strip() == "0 violations, 1 unverifiable"
 
-    def fail(*args, **kwargs):
-        raise AssertionError("git ran for a plan with no ticked item")
 
-    monkeypatch.setattr(commit_evidence, "run_git", fail)
+@pytest.fixture
+def git_calls(tmp_path, monkeypatch):
+    """Put a `git` first on PATH that logs one line per invocation and runs the
+    real git. Returns the log file; create repositories before reading it."""
+    real = shutil.which("git")
+    assert real, "git is required for these tests"
+    bin_dir = tmp_path / "fake-bin"
+    bin_dir.mkdir()
+    log = tmp_path / "git-calls.log"
+    wrapper = bin_dir / "git"
+    wrapper.write_text(f'#!/bin/sh\necho "$*" >> "{log}"\nexec "{real}" "$@"\n')
+    wrapper.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    log.touch()
+    return log
+
+
+def _calls(log: Path) -> list[str]:
+    return log.read_text().splitlines()
+
+
+def test_git_is_not_run_when_nothing_is_ticked(repo, git_calls, capsys):
     plan = _write(repo, _slice_plan(("Parse", "`docs/a.md`", False)))
+    git_calls.write_text("")
     code, result, _ = _check(plan, capsys)
     assert code == 0 and result["unverifiable"] == []
+    assert _calls(git_calls) == []
 
 
-def test_git_is_read_once_however_many_items_are_ticked(repo, monkeypatch, capsys):
-    import commit_evidence
-
+def test_git_is_read_once_however_many_items_are_ticked(repo, git_calls, capsys):
     _commit(repo, "docs/a.md", "feat: parse")
-    calls: list[list[str]] = []
-    real = commit_evidence.run_git
-
-    def counting(args, cwd):
-        calls.append(args)
-        return real(args, cwd)
-
-    monkeypatch.setattr(commit_evidence, "run_git", counting)
+    git_calls.write_text("")
     _check(_write(repo, _slice_plan(PARSE)), capsys)
-    for_one_item = len(calls)
-    calls.clear()
+    for_one_item = _calls(git_calls)
+    git_calls.write_text("")
     _check(_write(repo, _slice_plan(PARSE, ("Build", "`docs/a.md`", True))), capsys)
-    assert for_one_item > 0
-    assert len(calls) == for_one_item
+    for_two_items = _calls(git_calls)
+    assert for_one_item, "the wrapper saw no git call"
+    assert len(for_two_items) == len(for_one_item)
 
 
 def test_the_script_exits_1_for_an_unbacked_tick_in_a_real_repository(repo):
@@ -601,7 +714,6 @@ def test_the_two_modules_share_one_plan_parse_and_one_commit_evidence(
         "    return [k for k in sys.modules if k.split('.')[-1] == name]\n"
         "assert count('plan_parse') == ['plan_parse'], count('plan_parse')\n"
         "assert count('commit_evidence') == ['commit_evidence'], count('commit_evidence')\n"
-        "assert progress_guardian.commit_evidence is sys.modules['commit_evidence']\n"
     )
     result = subprocess.run(
         [sys.executable, "-I", "-c", script],
