@@ -162,6 +162,7 @@ SLICE_EXCLUSIONS = {
     "autoship_group.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
     "autoship_proposals.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
     "autoship_queue.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
+    "build_candidates.py": "stdlib argparse/dataclasses/json/pathlib/subprocess only; no floor-sensitive runtime API",
     "build_jobs.py": "stdlib os/sys only; no floor-sensitive runtime API",
     "build_rollback_point.py": (
         "stdlib argparse/json/subprocess/pathlib only; its datetime usage is "
