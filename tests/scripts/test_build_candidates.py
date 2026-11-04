@@ -12,9 +12,11 @@ import sys
 import pytest
 from _build_candidates_test_helpers import (
     SCENARIOS_TOTAL,
+    SCRIPT_PY,
     SCRIPTS_DIR,
     make_candidate,
     run_cli,
+    run_script,
 )
 
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -808,3 +810,140 @@ def test_project_requires_every_argument() -> None:
     r = run_cli("project", "--cap", "10")
     assert (r.returncode, r.stdout) == (2, "")
     assert "the following arguments are required" in r.stderr
+
+
+# --- no-commits -------------------------------------------------------------
+
+NO_COMMITS_PLAN = """# Plan: demo
+
+### Slice 1: First
+
+```gherkin
+Feature: one
+  Scenario: first
+  Scenario Outline: second
+```
+
+#### Step 1.1: do it
+"""
+
+NO_COMMITS_FLAGS = ("--id", "--branch", "--plan", "--step", "--cost-usd")
+
+
+@pytest.fixture
+def no_commits_plan(tmp_path) -> str:
+    path = tmp_path / "plan.md"
+    path.write_text(NO_COMMITS_PLAN, encoding="utf-8")
+    return str(path)
+
+
+def _no_commits(plan: str, *, candidate_id="3", branch="", step="1.1", cost="1.5"):
+    return run_cli(
+        "no-commits",
+        "--id",
+        candidate_id,
+        f"--branch={branch}",
+        "--plan",
+        plan,
+        "--step",
+        step,
+        "--cost-usd",
+        cost,
+    )
+
+
+def test_no_commits_prints_a_red_all_unmet_candidate_sized_from_the_plan(
+    no_commits_plan,
+) -> None:
+    r = _no_commits(no_commits_plan)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == {
+        "id": 3,
+        "branch": "",
+        "suite_green": False,
+        "scenarios_total": 2,
+        "scenarios_unmet": 2,
+        "errors": 0,
+        "warnings": 0,
+        "diff_lines": 0,
+        "cost_usd": 1.5,
+        "screening": "ok",
+    }
+
+
+def test_no_commits_keeps_a_named_branch(no_commits_plan) -> None:
+    r = _no_commits(no_commits_plan, branch="worktree-c3")
+    assert json.loads(r.stdout)["branch"] == "worktree-c3"
+
+
+def test_no_commits_output_is_a_rankable_disqualified_candidate(
+    no_commits_plan,
+) -> None:
+    candidate = build_candidates.Candidate.from_dict(
+        json.loads(_no_commits(no_commits_plan).stdout)
+    )
+    assert candidate.disqualification_reason == "red suite"
+
+
+def test_no_commits_rejects_a_step_outside_any_slice(no_commits_plan) -> None:
+    r = _no_commits(no_commits_plan, step="9.1")
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "step 9.1 is outside any slice" in r.stderr
+
+
+def test_no_commits_rejects_a_missing_plan_file(tmp_path) -> None:
+    r = _no_commits(str(tmp_path / "no-plan.md"))
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "cannot read plan" in r.stderr
+
+
+@pytest.mark.parametrize(
+    "overrides,flag",
+    [
+        ({"candidate_id": "0"}, "--id"),
+        ({"step": "one"}, "--step"),
+        ({"cost": "-1"}, "--cost-usd"),
+        ({"cost": "nan"}, "--cost-usd"),
+    ],
+    ids=["zero-id", "bad-step", "negative-cost", "nan-cost"],
+)
+def test_no_commits_rejects_invalid_arguments_as_a_usage_error(
+    no_commits_plan, overrides, flag
+) -> None:
+    r = _no_commits(no_commits_plan, **overrides)
+    assert (r.returncode, r.stdout) == (2, "")
+    assert f"argument {flag}:" in r.stderr
+
+
+def test_no_commits_help_lists_every_flag() -> None:
+    r = run_cli("no-commits", "--help")
+    assert r.returncode == 0
+    assert [flag for flag in NO_COMMITS_FLAGS if flag not in r.stdout] == []
+
+
+def test_the_top_level_help_lists_no_commits() -> None:
+    assert "no-commits" in run_cli("--help").stdout
+
+
+# --- isolated interpreter (-I) ----------------------------------------------
+
+
+def test_validate_flags_runs_under_an_isolated_interpreter() -> None:
+    r = run_script(SCRIPT_PY, "validate-flags", python_flags=("-I",))
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == UNCHANGED_BUILD
+
+
+def test_no_commits_runs_under_an_isolated_interpreter(no_commits_plan) -> None:
+    r = run_script(
+        SCRIPT_PY,
+        "no-commits",
+        "--id=3",
+        "--branch=",
+        f"--plan={no_commits_plan}",
+        "--step=1.1",
+        "--cost-usd=1.5",
+        python_flags=("-I",),
+    )
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)["scenarios_total"] == 2

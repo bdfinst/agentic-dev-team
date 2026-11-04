@@ -212,7 +212,8 @@ class Candidate:
         unmet = sum(
             1
             for issue in spec_issues or []
-            if issue.get("category") in _UNMET_SCENARIO_CATEGORIES
+            if isinstance(issue.get("category"), str)
+            and issue["category"] in _UNMET_SCENARIO_CATEGORIES
         )
 
         def severity_count(severity: str) -> int:

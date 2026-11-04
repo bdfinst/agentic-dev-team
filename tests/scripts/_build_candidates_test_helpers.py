@@ -12,11 +12,14 @@ environment, so no test writes per-repository config.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -32,6 +35,7 @@ SCRIPT_PY = SCRIPTS_DIR / "build_candidates.py"
 SCENARIOS_TOTAL = 5
 
 CLI_TIMEOUT_SECONDS = 60
+_KILL_DRAIN_SECONDS = 5
 
 _IDENTITY = {
     "GIT_AUTHOR_NAME": "Test",
@@ -72,19 +76,60 @@ def run_script(
     """Run `script` with `args` under this interpreter (`python_flags` go
     before the script path), in the hermetic environment unless `env` is
     given; fail the test, naming the argv, when it does not finish within
-    `timeout` seconds."""
+    `timeout` seconds. The script runs as a session leader; on a timeout its
+    whole process group is killed first, so no descendant outlives the test."""
     argv = [sys.executable, *python_flags, str(script), *args]
+    with subprocess.Popen(
+        argv,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=hermetic_env() if env is None else env,
+        start_new_session=True,
+    ) as process:
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _kill_process_tree(process)
+            pytest.fail(f"timed out after {timeout}s: {argv}")
+    return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
+
+
+def _kill_process_tree(process: subprocess.Popen) -> None:
+    """SIGKILL the process group of `process` (POSIX), else the process, then
+    drain its pipes for a bounded time."""
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        if hasattr(os, "killpg"):
+            os.killpg(process.pid, signal.SIGKILL)
+        else:  # pragma: no cover - Windows has no process groups
+            process.kill()
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        process.communicate(timeout=_KILL_DRAIN_SECONDS)
+
+
+def process_is_gone(pid: int) -> bool:
+    """True when `pid` no longer runs. A zombie still answers signal 0 until
+    its parent reaps it, so where /proc exists its state is read too."""
     try:
-        return subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
-            env=hermetic_env() if env is None else env,
-        )
-    except subprocess.TimeoutExpired:
-        pytest.fail(f"timed out after {timeout}s: {argv}")
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as stat_file:
+            return stat_file.read().rpartition(") ")[2][:1] == "Z"
+    except FileNotFoundError:
+        # Gone between the two calls, unless this platform has no /proc.
+        return os.path.isdir("/proc")
+    except OSError:
+        return False
+
+
+def wait_until_gone(pid: int, seconds: float = 2.0) -> bool:
+    """Poll for up to `seconds` until `pid` is gone; return whether it is."""
+    deadline = time.monotonic() + seconds
+    while not process_is_gone(pid) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    return process_is_gone(pid)
 
 
 def run_cli(*args: str, timeout: int = CLI_TIMEOUT_SECONDS):
@@ -102,6 +147,7 @@ def git_output(repo, *args: str, stdin: str | None = None) -> str:
         text=True,
         check=True,
         env=hermetic_env(),
+        timeout=CLI_TIMEOUT_SECONDS,
     ).stdout.strip()
 
 

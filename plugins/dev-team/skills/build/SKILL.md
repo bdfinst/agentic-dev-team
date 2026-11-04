@@ -166,7 +166,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py" --wave-width <W> [--jobs N
 
 **Concurrent dispatch (effective concurrency > 1):**
 
-1. Dispatch each independent slice in the wave to its **own** git worktree (`isolation: "worktree"`), up to the effective concurrency. Each slice's changes stay isolated until reconcile, and each slice still runs its full per-behavior cycle and inline review gates.
+1. Dispatch each independent slice in the wave to its **own** git worktree (`isolation: "worktree"`), up to the effective concurrency. Each slice's changes stay isolated until reconcile, and each slice still runs its full per-behavior cycle and inline review gates. When two slices in the wave each hold a speculative step, dispatch those two steps one after another (see Speculative dispatch below).
 2. **Report the concrete level and cost** — name the slice count and the resulting multiplier, e.g. *"building wave 2 — 5 slices concurrently; ~5× wall-clock speedup, but burns your token budget faster — roughly 5× for 5 concurrent slices."* The cost is reported, never auto-throttled: cap it yourself with `--jobs N` or `DEV_TEAM_MAX_PARALLEL_BUILDS` if the burn rate is too high (#1170).
 3. **Barrier + reconcile** once the wave's slices finish: `build_wave_reconcile.py --into <integration> --base <ref> --test-cmd "<full suite>" <slice-branch>...` merges them order-independently and gates on the full suite before any next-wave slice starts.
 4. **Loud halt, never silent:**

@@ -55,6 +55,8 @@ _RECONCILE_SCRIPT = _HERE / "build_wave_reconcile.py"
 _KILL_DRAIN_SECONDS = 5.0
 
 _SCENARIO_LINE_RE = re.compile(r"^\s*Scenario( Outline)?:")
+_WORKTREE_PREFIX = "worktree "
+_BRANCH_PREFIX = "branch refs/heads/"
 
 
 def _git(repo: str, *args: str) -> subprocess.CompletedProcess:
@@ -177,6 +179,19 @@ def collect(
     return asdict(candidate)
 
 
+def no_commits_candidate(
+    *, candidate_id: int, branch: str, plan: str, step: str, cost_usd: float
+) -> dict:
+    """Build the candidate dict for a dispatch that left no commit beyond the
+    base: the scenario count comes from the plan slice, as in `collect`."""
+    total = _count_scenarios_in_slice(plan, step)
+    try:
+        candidate = Candidate.no_commits(candidate_id, branch, total, cost_usd)
+    except ValueError as exc:
+        raise DataError(f"no-commits: {exc}") from None
+    return asdict(candidate)
+
+
 def _head_sha(repo: str) -> str:
     result = _git(repo, "rev-parse", "HEAD")
     if result.returncode != 0:
@@ -209,26 +224,30 @@ def reconcile_timeout_seconds() -> float:
 
 def _signal_process_group(process: subprocess.Popen) -> None:
     """SIGKILL `process` and, where the platform has process groups, everything
-    it started (it runs as a session leader). Gone already is fine."""
+    it started (it runs as a session leader). Gone already is fine: a missing
+    group, or a zombie-only group that Darwin reports as EPERM."""
     try:
         if hasattr(os, "killpg"):
             os.killpg(process.pid, signal.SIGKILL)
         else:  # pragma: no cover - Windows has no process groups
             process.kill()
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
 
 
-def _kill_process_group(process: subprocess.Popen) -> None:
+def _kill_process_group(process: subprocess.Popen) -> str:
     """Kill the group, then drain the pipes for at most _KILL_DRAIN_SECONDS;
-    close them if a descendant outside the group still holds them open."""
+    close them if a descendant outside the group still holds them open.
+    Return the drained stderr, empty when the drain timed out."""
     _signal_process_group(process)
     try:
-        process.communicate(timeout=_KILL_DRAIN_SECONDS)
+        _stdout, stderr = process.communicate(timeout=_KILL_DRAIN_SECONDS)
     except subprocess.TimeoutExpired:
         for pipe in (process.stdout, process.stderr):
             if pipe is not None:
                 pipe.close()
+        return ""
+    return stderr or ""
 
 
 def _run_reconcile_script(
@@ -263,7 +282,7 @@ def _run_reconcile_script(
         try:
             _stdout, stderr = process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            _kill_process_group(process)
+            sys.stderr.write(_kill_process_group(process))
             print(
                 f"reconcile: build_wave_reconcile.py timed out after {timeout:g}s",
                 file=sys.stderr,
@@ -367,10 +386,10 @@ def _worktree_entries(repo: str) -> list[tuple[str, str | None]]:
     for block in result.stdout.split("\n\n"):
         path, branch = None, None
         for line in block.splitlines():
-            if line.startswith("worktree "):
-                path = line[len("worktree ") :]
-            elif line.startswith("branch refs/heads/"):
-                branch = line[len("branch refs/heads/") :]
+            if line.startswith(_WORKTREE_PREFIX):
+                path = line[len(_WORKTREE_PREFIX) :]
+            elif line.startswith(_BRANCH_PREFIX):
+                branch = line[len(_BRANCH_PREFIX) :]
         if path is not None:
             entries.append((path, branch))
     return entries

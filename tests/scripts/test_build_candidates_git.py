@@ -6,6 +6,7 @@ scenarios live in test_build_candidates_integration.py.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -252,6 +253,20 @@ def test_collect_treats_a_structurally_wrong_spec_lens_as_unparseable(
     out = json.loads(_collect(candidate_repo, spec=str(path)).stdout)
     assert out["screening"] == "unparseable: spec-compliance-review"
     assert out["scenarios_unmet"] == 0
+
+
+@pytest.mark.parametrize(
+    "category",
+    [["uncovered-scenario"], {}, None, 7],
+    ids=["list", "dict", "null", "number"],
+)
+def test_collect_ignores_a_spec_issue_whose_category_is_not_a_string(
+    candidate_repo, category
+) -> None:
+    spec = _lens(candidate_repo["tmp"], "spec-cat.json", [{"category": category}])
+    r = _collect(candidate_repo, spec=spec)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)["scenarios_unmet"] == 0
 
 
 def test_collect_treats_a_missing_spec_lens_file_as_unparseable(candidate_repo) -> None:
@@ -541,6 +556,7 @@ def test_git_turns_a_failure_to_run_into_a_git_error(monkeypatch, exc) -> None:
 def test_restore_branch_names_the_pre_merge_sha_when_git_cannot_run(
     monkeypatch,
 ) -> None:
+    # double-waiver: B1 — _git wraps the git subprocess; here git cannot be run
     monkeypatch.setattr(
         build_candidates_git, "_git", _raising(build_candidates_git.GitError("down"))
     )
@@ -552,6 +568,7 @@ def test_restore_branch_names_the_pre_merge_sha_when_git_cannot_run(
 
 def test_git_path_raises_when_rev_parse_fails(monkeypatch) -> None:
     failed = SimpleNamespace(returncode=1, stdout="", stderr="fatal: not a repo")
+    # double-waiver: B1 — _git wraps the git subprocess; here its rev-parse fails
     monkeypatch.setattr(build_candidates_git, "_git", lambda *_a: failed)
     with pytest.raises(build_candidates_git.GitError, match="fatal: not a repo"):
         build_candidates_git._git_path("/repo", "MERGE_HEAD")
@@ -579,8 +596,29 @@ class _StuckProcess:
 def test_kill_process_group_gives_up_on_pipes_an_escaped_descendant_holds(
     monkeypatch,
 ) -> None:
+    # double-waiver: B1 — _signal_process_group wraps os.killpg on a process group
     monkeypatch.setattr(build_candidates_git, "_signal_process_group", lambda _p: None)
     process = _StuckProcess()
-    build_candidates_git._kill_process_group(process)
+    drained = build_candidates_git._kill_process_group(process)
     assert process.drain_timeouts == [build_candidates_git._KILL_DRAIN_SECONDS]
     assert (process.stdout.closed, process.stderr.closed) == (True, True)
+    assert drained == ""
+
+
+def test_signal_process_group_treats_a_permission_error_as_already_gone(
+    monkeypatch,
+) -> None:
+    """Darwin reports EPERM for a group that holds only zombies."""
+    monkeypatch.setattr(
+        os, "killpg", _raising(PermissionError("zombie group")), raising=False
+    )
+    build_candidates_git._signal_process_group(SimpleNamespace(pid=1))
+
+
+def test_signal_process_group_treats_a_missing_group_as_already_gone(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        os, "killpg", _raising(ProcessLookupError("gone")), raising=False
+    )
+    build_candidates_git._signal_process_group(SimpleNamespace(pid=1))

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """build_candidates.py — candidate lifecycle for `/build --candidates N`.
 
-Subcommands: validate-flags, collect, rank, project, reconcile, cleanup.
+Subcommands: validate-flags, collect, no-commits, rank, project, reconcile,
+cleanup.
 
 This is the one command-line entry point. The data model and ranking live in
 `build_candidates_model`, the git-facing operations in `build_candidates_git`;
@@ -42,6 +43,7 @@ from build_candidates_git import (
     RestoreFailedError,
     cleanup,
     collect,
+    no_commits_candidate,
     reconcile,
     restore_branch,
 )
@@ -74,6 +76,7 @@ __all__ = [
     "load_candidates",
     "load_json_object",
     "main",
+    "no_commits_candidate",
     "project",
     "rank",
     "reconcile",
@@ -316,6 +319,19 @@ def _cmd_collect(args: argparse.Namespace) -> int:
     )
 
 
+def _cmd_no_commits(args: argparse.Namespace) -> int:
+    return _emit_or_fail(
+        lambda: no_commits_candidate(
+            candidate_id=args.id,
+            branch=args.branch,
+            plan=args.plan,
+            step=args.step,
+            cost_usd=args.cost_usd,
+        ),
+        {DataError: EXIT_INVALID_DATA},
+    )
+
+
 def _cmd_rank(args: argparse.Namespace) -> int:
     return _emit_or_fail(
         lambda: rank(load_candidates(args.candidates_json)),
@@ -395,6 +411,31 @@ def _build_parser() -> argparse.ArgumentParser:
         help="dispatch cost attributed to this candidate, in dollars",
     )
     collecting.set_defaults(handler=_cmd_collect)
+
+    no_commit = sub.add_parser(
+        "no-commits",
+        help="build the candidate for a dispatch that left no commit",
+    )
+    no_commit.add_argument(
+        "--id", required=True, type=_argparse_positive_int, help="candidate id"
+    )
+    no_commit.add_argument(
+        "--branch", required=True, help="candidate branch name; may be empty"
+    )
+    no_commit.add_argument("--plan", required=True, help="plan file path")
+    no_commit.add_argument(
+        "--step",
+        required=True,
+        type=_argparse_step_id,
+        help="plan step the candidate implements, as N.M",
+    )
+    no_commit.add_argument(
+        "--cost-usd",
+        required=True,
+        type=_argparse_finite_non_negative,
+        help="dispatch cost attributed to this candidate, in dollars",
+    )
+    no_commit.set_defaults(handler=_cmd_no_commits)
 
     reconciling = sub.add_parser(
         "reconcile",

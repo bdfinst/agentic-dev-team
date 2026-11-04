@@ -113,6 +113,7 @@ SINGLE_DISPATCH_START = "For each step within a slice, dispatch"
 TRIVIAL_BULLET_START = "- **trivial**:"
 STANDARD_BULLET_START = "- **standard**:"
 COMPLEX_BULLET_START = "- **complex**:"
+WAVE_DISPATCH_ITEM_1_START = "1. Dispatch each independent slice in the wave"
 #: H2 headings of the fixture, in file order; each heads one fenced passage.
 FIXTURE_PASSAGES = (
     "trivial bullet",
@@ -190,6 +191,11 @@ def _complex_checkpoint(text: str) -> str:
     return _line_starting(_step_4(text), COMPLEX_BULLET_START)
 
 
+def _wave_dispatch_item_1(text: str) -> str:
+    """Item 1 of Step 4's "Concurrent dispatch" list."""
+    return _line_starting(_step_4(text), WAVE_DISPATCH_ITEM_1_START)
+
+
 #: Keys ending in `_bullet` are Parse Arguments bullets; the bullet-swap test
 #: selects their Facts by that suffix.
 SECTIONS: dict[str, Callable[[str], str]] = {
@@ -199,6 +205,7 @@ SECTIONS: dict[str, Callable[[str], str]] = {
     "validation": _validation_paragraph,
     "step_1": _step_1,
     "complex_checkpoint": _complex_checkpoint,
+    "wave_dispatch_item_1": _wave_dispatch_item_1,
 }
 
 FACTS = [
@@ -391,6 +398,18 @@ FACTS = [
         "step_1_prints_only_when_validation_reported_speculative",
         "step_1",
         literal_required=(STEP_1_PRINT_CONDITION,),
+    ),
+    # Concurrent dispatch
+    Fact(
+        "wave_dispatch_serializes_two_speculative_steps_of_one_wave",
+        "wave_dispatch_item_1",
+        literal_required=(
+            (
+                "When two slices in the wave each hold a speculative step, "
+                "dispatch those two steps one after another "
+                "(see Speculative dispatch below)."
+            ),
+        ),
     ),
 ]
 
