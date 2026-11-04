@@ -21,10 +21,12 @@ from pathlib import Path
 
 import pytest
 from lane_fixtures import (
+    GIT_FAILED,
     ORACLE_FORBIDDEN_TOKENS,
     ArgvSpy,
     add_linked_worktree,
     argv_spy,
+    bare_clone_of,
     commit_file,
     covered_whats,
     enforce_covers,
@@ -34,6 +36,7 @@ from lane_fixtures import (
     imported_modules,
     non_stdlib,
     repo_with_origin,
+    repo_without_default_branch,
     repo_without_remote,
     skipped_covers,
     skipped_covers_in,
@@ -73,8 +76,6 @@ FINAL_VOCABULARY = frozenset(
         "git command failed",
     }
 )
-
-GIT_FAILED = "git command failed"
 
 #: Sample constructor arguments for every registered refusal.
 SAMPLE_ARGUMENTS = {
@@ -437,7 +438,7 @@ def test_a_git_call_that_hangs_is_a_refusal_after_the_timeout(monkeypatch, tmp_p
     assert "git fetch" in refusal.why
 
 
-def test_git_runs_with_a_timeout_and_no_stdin(monkeypatch, tmp_path):
+def _captured_kwargs(monkeypatch, tmp_path) -> dict:
     seen: dict[str, object] = {}
 
     def capture(argv, **kwargs):
@@ -445,23 +446,15 @@ def test_git_runs_with_a_timeout_and_no_stdin(monkeypatch, tmp_path):
         return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, "run", capture)
-
     lane_core._git(["status"], tmp_path)
+    return seen
+
+
+def test_git_runs_with_a_timeout_and_no_stdin(monkeypatch, tmp_path):
+    seen = _captured_kwargs(monkeypatch, tmp_path)
 
     assert seen["timeout"] == lane_core.GIT_TIMEOUT_SECONDS
     assert seen["stdin"] is subprocess.DEVNULL
-
-
-def _captured_env(monkeypatch, tmp_path) -> dict[str, str]:
-    seen: dict[str, object] = {}
-
-    def capture(argv, **kwargs):
-        seen.update(kwargs)
-        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
-
-    monkeypatch.setattr(subprocess, "run", capture)
-    lane_core._git(["status"], tmp_path)
-    return seen["env"]  # type: ignore[return-value]
 
 
 def test_git_does_not_inherit_config_injected_through_the_environment(
@@ -478,7 +471,7 @@ def test_git_does_not_inherit_config_injected_through_the_environment(
     for name, value in injected.items():
         monkeypatch.setenv(name, value)
 
-    env = _captured_env(monkeypatch, tmp_path)
+    env = _captured_kwargs(monkeypatch, tmp_path)["env"]
 
     assert set(injected) & set(env) == set()
 
@@ -487,13 +480,13 @@ def test_git_does_not_inherit_config_injected_through_the_environment(
 def test_git_does_not_inherit_a_redirecting_variable(name, monkeypatch, tmp_path):
     monkeypatch.setenv(name, "/elsewhere")
 
-    assert name not in _captured_env(monkeypatch, tmp_path)
+    assert name not in _captured_kwargs(monkeypatch, tmp_path)["env"]
 
 
 def test_git_keeps_the_rest_of_the_environment(monkeypatch, tmp_path):
     monkeypatch.setenv("LANE_PROBE", "kept")
 
-    env = _captured_env(monkeypatch, tmp_path)
+    env = _captured_kwargs(monkeypatch, tmp_path)["env"]
 
     assert env["LANE_PROBE"] == "kept"
     assert env["GIT_CONFIG_GLOBAL"] == "/dev/null"
@@ -788,12 +781,9 @@ def test_resolve_trunk_commit_names_a_dangling_default_ref(repo_without_remote):
     assert "default" in caught.value.refusal.why
 
 
-def test_resolve_trunk_commit_says_so_when_no_default_exists(tmp_path):
-    repo_without_default_branch = tmp_path / "odd"
-    repo_without_default_branch.mkdir()
-    git(repo_without_default_branch, "init", "-q", "-b", "elsewhere", home=tmp_path)
-    commit_file(repo_without_default_branch, "a.txt", "a\n", "a")
-
+def test_resolve_trunk_commit_says_so_when_no_default_exists(
+    repo_without_default_branch,
+):
     with pytest.raises(lane_core.RefusalError) as caught:
         lane_core.resolve_trunk_commit(None, repo_without_default_branch)
 
@@ -1017,7 +1007,7 @@ def test_a_separate_git_dir_checkout_gets_the_primary_git_lists(tmp_path):
 
 def test_a_bare_primary_is_the_bare_repository(repo_without_remote, tmp_path):
     bare = tmp_path / "bare.git"
-    git(tmp_path, "clone", "-q", "--bare", str(repo_without_remote.path), str(bare))
+    bare_clone_of(repo_without_remote.path, bare, tmp_path)
     from_bare = tmp_path / "from-bare"
     git(bare, "worktree", "add", "-q", "-b", "feat", str(from_bare), "main")
 
@@ -1047,7 +1037,7 @@ def test_worktrees_gives_none_for_a_detached_head(repo_without_remote):
 
 def test_worktrees_gives_none_for_a_bare_repository(repo_without_remote, tmp_path):
     bare = tmp_path / "bare.git"
-    git(tmp_path, "clone", "-q", "--bare", str(repo_without_remote.path), str(bare))
+    bare_clone_of(repo_without_remote.path, bare, tmp_path)
 
     assert lane_core.worktrees(bare) == [(bare.resolve(), None)]
 
@@ -1105,6 +1095,6 @@ def test_without_a_listing_a_bare_directory_is_its_own_primary(
     repo_without_remote, tmp_path, without_worktree_listing
 ):
     bare = tmp_path / "bare.git"
-    git(tmp_path, "clone", "-q", "--bare", str(repo_without_remote.path), str(bare))
+    bare_clone_of(repo_without_remote.path, bare, tmp_path)
 
     assert lane_core.primary_checkout(bare) == bare.resolve()

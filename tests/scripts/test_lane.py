@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 from lane_fixtures import (
+    GIT_FAILED,
     add_linked_worktree,
     argv_spy,
     commit_file,
@@ -34,6 +35,7 @@ from lane_fixtures import (
     non_stdlib,
     parse_output,
     repo_with_origin,
+    repo_without_default_branch,
     repo_without_remote,
     single_refusal,
 )
@@ -46,8 +48,6 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import lane
 import lane_core
-
-GIT_FAILED = "git command failed"
 
 #: An invalid name and the part of the reason that says which check refused it.
 PATTERN_REASON = "safe characters"
@@ -517,11 +517,7 @@ def test_open_refuses_a_trunk_that_does_not_resolve(repo_without_remote, capsys)
 
 
 @covers("trunk ref cannot be resolved")
-def test_open_refuses_when_no_default_trunk_exists(tmp_path, capsys):
-    repo_without_default_branch = tmp_path / "odd"
-    repo_without_default_branch.mkdir()
-    git(repo_without_default_branch, "init", "-q", "-b", "elsewhere", home=tmp_path)
-    commit_file(repo_without_default_branch, "a.txt", "a\n", "a")
+def test_open_refuses_when_no_default_trunk_exists(repo_without_default_branch, capsys):
     state_before = lane_state(repo_without_default_branch)
 
     code, out, err = run_main(

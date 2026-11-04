@@ -100,7 +100,6 @@ FORCE_UPPER_LETTERS = frozenset("DMBC")
 
 #: The only global option lane_core's own calls may put before the subcommand.
 CONFIG_OPTION = "-c"
-CONFIG_ENV_OPTION = "--config-env"
 ALLOWED_CONFIG_OVERRIDE = "diff.relative=false"
 HOOKS_PATH_NAME = "core.hookspath"
 HOOKS_PATH_PREFIX = f"{HOOKS_PATH_NAME}="
@@ -462,6 +461,13 @@ def _remote_names(cwd: Path) -> list[str]:
     return git_text(["remote"], cwd).splitlines()
 
 
+def _branch_of_full_ref(full: str) -> str | None:
+    """`refs/heads/x` -> `x`; None when `full` is not a local-branch ref."""
+    if full.startswith(HEAD_REFS_PREFIX):
+        return full.removeprefix(HEAD_REFS_PREFIX)
+    return None
+
+
 def local_branch_of(ref: str, cwd: Path) -> str | None:
     """The local branch the trunk maps to: `origin/main` -> `main`, else None.
 
@@ -474,8 +480,9 @@ def local_branch_of(ref: str, cwd: Path) -> str | None:
         return None
     completed = _git(["rev-parse", "--symbolic-full-name", ref], cwd)
     full = completed.stdout.strip() if completed.returncode == 0 else ""
-    if full.startswith(HEAD_REFS_PREFIX):
-        return full.removeprefix(HEAD_REFS_PREFIX)
+    local = _branch_of_full_ref(full)
+    if local is not None:
+        return local
     if full.startswith(REMOTE_REFS_PREFIX):
         tracking = full.removeprefix(REMOTE_REFS_PREFIX)
         for remote in sorted(_remote_names(cwd), key=len, reverse=True):
@@ -510,12 +517,7 @@ def worktrees(cwd: Path) -> list[tuple[Path, str | None]]:
             path = Path(line.removeprefix(WORKTREE_LINE_PREFIX)).resolve()
             branch = None
         elif line.startswith(BRANCH_LINE_PREFIX) and path is not None:
-            ref = line.removeprefix(BRANCH_LINE_PREFIX)
-            branch = (
-                ref.removeprefix(HEAD_REFS_PREFIX)
-                if ref.startswith(HEAD_REFS_PREFIX)
-                else None
-            )
+            branch = _branch_of_full_ref(line.removeprefix(BRANCH_LINE_PREFIX))
     if path is not None:
         entries.append((path, branch))
     return entries
@@ -566,9 +568,7 @@ def lane_context(trunk_ref: str, cwd: Path) -> LaneContext | None:
         return None
     # The full ref: `--short` prints `heads/v1` when a tag `v1` also exists.
     head = _git(["symbolic-ref", "-q", "HEAD"], cwd).stdout.strip()
-    branch = (
-        head.removeprefix(HEAD_REFS_PREFIX) if head.startswith(HEAD_REFS_PREFIX) else ""
-    )
+    branch = _branch_of_full_ref(head) or ""
     trunk_branch = local_branch_of(trunk_ref, cwd)
     if not branch or (trunk_branch is not None and branch == trunk_branch):
         return None

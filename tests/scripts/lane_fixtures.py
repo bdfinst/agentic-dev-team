@@ -43,6 +43,7 @@ from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 TRUNK = "main"
 GITIGNORE = ".claude/\n"
+GIT_FAILED = "git command failed"
 LANE_DIR_INFIX = "-lane-"
 
 #: The oracle for "never pushes, never skips hooks". Deliberately written out
@@ -183,18 +184,21 @@ def build_repo_without_remote(root: Path) -> Repo:
     path = root / "repo"
     path.mkdir()
     git(path, "init", "-q", "-b", TRUNK, home=root)
-    (path / ".gitignore").write_text(GITIGNORE, encoding="utf-8")
     commit_file(path, "base.txt", "base\n", "base")
-    git(path, "add", ".gitignore")
-    git(path, "commit", "-q", "-m", "ignore .claude")
+    commit_file(path, ".gitignore", GITIGNORE, "ignore .claude")
     return Repo(path=path, origin=None)
+
+
+def bare_clone_of(source: Path, dest: Path, home: Path) -> Path:
+    """`git clone --bare source dest`; return `dest`."""
+    git(home, "clone", "-q", "--bare", str(source), str(dest), home=home)
+    return dest
 
 
 def build_repo_with_origin(root: Path) -> Repo:
     """`build_repo_without_remote` plus a bare non-github `origin` at the same tip."""
     repo = build_repo_without_remote(root)
-    origin = root / "origin.git"
-    git(root, "clone", "-q", "--bare", str(repo.path), str(origin), home=root)
+    origin = bare_clone_of(repo.path, root / "origin.git", root)
     git(repo.path, "remote", "add", "origin", str(origin))
     git(repo.path, "fetch", "-q", "origin")
     return Repo(path=repo.path, origin=origin)
@@ -398,3 +402,13 @@ def repo_without_remote(tmp_path) -> Repo:
 @pytest.fixture
 def repo_with_origin(tmp_path) -> Repo:
     return build_repo_with_origin(tmp_path)
+
+
+@pytest.fixture
+def repo_without_default_branch(tmp_path) -> Path:
+    """No remote and no `main`: nothing for a default trunk to resolve to."""
+    path = tmp_path / "odd"
+    path.mkdir()
+    git(path, "init", "-q", "-b", "elsewhere", home=tmp_path)
+    commit_file(path, "a.txt", "a\n", "a")
+    return path
