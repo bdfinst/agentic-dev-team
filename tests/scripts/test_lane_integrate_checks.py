@@ -1,6 +1,6 @@
 """Tests for the `lane.py integrate` check engine (`lane.check_lane`).
 
-The `test_collect_*` tests drive the checks through `collect` (the refusals
+The `test_refusals_for_*` tests drive the checks through `refusals_for` (the refusals
 `check_lane` gives) and print them with `lane_core.emit_refusals`. A check
 changes nothing. The gate parity table runs the PR hook's own `main()` beside the
 lane's gate check.
@@ -26,7 +26,9 @@ from pathlib import Path
 
 import pytest
 from lane_fixtures import (
+    COMPOSE_AGAIN,
     GITHUB_URL,
+    NOT_A_LANE_PLACES,
     TRUNK,
     GitFailure,
     add_linked_worktree,
@@ -49,7 +51,6 @@ from lane_fixtures_integrate import (
     build_composed_with_github_origin,
     build_composed_with_other_origin,
     build_composed_without_remote,
-    collect,
     commit_in,
     composed_gated_lane,
     composed_with_origin,
@@ -63,6 +64,7 @@ from lane_fixtures_integrate import (
     observed_state,
     only_block,
     printed_blocks,
+    refusals_for,
     seed_binary_garbage,
     seed_different_content,
     seed_dispatch_failure,
@@ -81,9 +83,9 @@ from lane_fixtures_integrate import (
 
 from _repo_root import REPO_ROOT
 
-SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+# `lane_fixtures` puts the lane scripts and `hooks/lib` on `sys.path`; import
+# them after it.
+# isort: split
 
 import lane
 import lane_core
@@ -131,13 +133,13 @@ def stand_in_hook(tmp_path, monkeypatch):
 def test_a_composed_lane_with_an_origin_in_good_standing_has_no_refusals(
     composed_with_origin,
 ):
-    assert collect(composed_with_origin) == []
+    assert refusals_for(composed_with_origin) == []
 
 
 def test_a_composed_lane_without_a_remote_in_good_standing_has_no_refusals(
     composed_without_remote,
 ):
-    assert collect(composed_without_remote) == []
+    assert refusals_for(composed_without_remote) == []
 
 
 def test_the_checks_are_registered_in_strictly_increasing_order():
@@ -150,7 +152,7 @@ def test_the_checks_are_registered_in_strictly_increasing_order():
 
 
 @covers("tree mismatch")
-def test_collect_a_lane_commit_after_compose_is_a_tree_mismatch_alone(
+def test_refusals_for_a_lane_commit_after_compose_is_a_tree_mismatch_alone(
     composed_with_origin, capsys
 ):
     old_tree = composed_with_origin.expected_tree
@@ -164,10 +166,10 @@ def test_collect_a_lane_commit_after_compose_is_a_tree_mismatch_alone(
     assert f"expected: {old_tree}" in block["why"]
     assert f"live: {live_tree}" in block["why"]
     assert "/code-review --since origin/main" in block["how"]
-    assert "compose again" in block["how"]
+    assert COMPOSE_AGAIN in block["how"]
 
 
-def test_collect_check_1_compares_the_tree_of_the_head_it_read_once(
+def test_refusals_for_check_1_compares_the_tree_of_the_head_it_read_once(
     composed_without_remote, monkeypatch
 ):
     composed = composed_without_remote
@@ -180,7 +182,7 @@ def test_collect_check_1_compares_the_tree_of_the_head_it_read_once(
         then=lambda _argv, _cwd: commit_in(composed.path),
     )
 
-    refusals = collect(composed)
+    refusals = refusals_for(composed)
 
     assert len(raced.matching) == 1, "the race did not happen"
     assert git(composed.path, "rev-parse", "HEAD") != head_read
@@ -201,13 +203,13 @@ def test_loading_the_hook_for_parity_leaves_sys_path_as_it_was():
 def test_the_checks_leave_sys_path_as_it_was(composed_with_origin):
     before = list(sys.path)
 
-    collect(composed_with_origin)
+    refusals_for(composed_with_origin)
 
     assert sys.path == before
 
 
 @covers("review gate stale or missing")
-def test_collect_a_deleted_gate_file_is_the_review_gate_block_alone(
+def test_refusals_for_a_deleted_gate_file_is_the_review_gate_block_alone(
     composed_with_origin, capsys
 ):
     (composed_with_origin.path / GATE_RELATIVE_PATH).unlink()
@@ -223,7 +225,7 @@ def test_a_gate_that_passes_is_left_in_place(composed_with_origin):
     gate = composed_with_origin.path / GATE_RELATIVE_PATH
     before = gate.read_bytes()
 
-    assert collect(composed_with_origin) == []
+    assert refusals_for(composed_with_origin) == []
 
     assert gate.read_bytes() == before
 
@@ -292,7 +294,9 @@ def seeded_lane(repo, capsys, state: GateState) -> ComposedLane:
 
 def review_gate_blocks(composed: ComposedLane, capsys) -> list[dict[str, str]]:
     """The printed review-gate blocks among the checks' refusals for `composed`."""
-    refusals = [item for item in collect(composed) if item.what == WHAT_REVIEW_GATE]
+    refusals = [
+        item for item in refusals_for(composed) if item.what == WHAT_REVIEW_GATE
+    ]
     return printed_blocks(refusals, capsys)
 
 
@@ -334,7 +338,7 @@ def assert_hook_blocks_and_lane_agrees(
 
 @covers("review gate stale or missing")
 @pytest.mark.parametrize("state_id", sorted(BLOCKING_GATE_STATES))
-def test_collect_a_gate_the_hook_blocks_is_blocked_by_the_lane_with_the_same_rule(
+def test_refusals_for_a_gate_the_hook_blocks_is_blocked_by_the_lane_with_the_same_rule(
     state_id, repo_with_origin, monkeypatch, capsys
 ):
     state = BLOCKING_GATE_STATES[state_id]
@@ -344,7 +348,7 @@ def test_collect_a_gate_the_hook_blocks_is_blocked_by_the_lane_with_the_same_rul
 
 
 @pytest.mark.parametrize("state_id", sorted(ACCEPTING_GATE_STATES))
-def test_collect_a_gate_the_hook_accepts_is_accepted_by_the_lane(
+def test_refusals_for_a_gate_the_hook_accepts_is_accepted_by_the_lane(
     state_id, repo_with_origin, monkeypatch, capsys
 ):
     composed = seeded_lane(repo_with_origin, capsys, ACCEPTING_GATE_STATES[state_id])
@@ -353,7 +357,7 @@ def test_collect_a_gate_the_hook_accepts_is_accepted_by_the_lane(
 
 
 @covers("review gate stale or missing")
-def test_collect_a_registry_that_cannot_be_read_is_the_hooks_registry_failure(
+def test_refusals_for_a_registry_that_cannot_be_read_is_the_hooks_registry_failure(
     repo_with_origin, monkeypatch, capsys
 ):
     composed = composed_gated_lane(repo_with_origin, capsys)
@@ -367,7 +371,7 @@ def test_collect_a_registry_that_cannot_be_read_is_the_hooks_registry_failure(
 
 
 @covers("review gate stale or missing")
-def test_collect_a_gate_in_the_legacy_location_only_is_where_the_lane_and_the_hook_differ(
+def test_refusals_for_a_gate_in_the_legacy_location_only_is_where_the_lane_and_the_hook_differ(
     repo_with_origin, monkeypatch, capsys
 ):
     """The one row of the parity outline where the two decisions differ, on purpose.
@@ -397,7 +401,7 @@ def test_collect_a_gate_in_the_legacy_location_only_is_where_the_lane_and_the_ho
 
 
 @covers("review gate stale or missing")
-def test_collect_an_empty_lane_says_it_has_no_diff_against_trunk(
+def test_refusals_for_an_empty_lane_says_it_has_no_diff_against_trunk(
     repo_with_origin, capsys
 ):
     composed = composed_gated_lane(repo_with_origin, capsys, gate=False, lane_file=None)
@@ -409,7 +413,7 @@ def test_collect_an_empty_lane_says_it_has_no_diff_against_trunk(
 
 
 @covers("review gate stale or missing")
-def test_collect_an_unloadable_gate_module_is_a_refusal_not_a_traceback(
+def test_refusals_for_an_unloadable_gate_module_is_a_refusal_not_a_traceback(
     composed_with_origin, stand_in_hook, capsys
 ):
     stand_in_hook('raise ImportError("no such hook")\n', with_preamble=False)
@@ -422,7 +426,7 @@ def test_collect_an_unloadable_gate_module_is_a_refusal_not_a_traceback(
 
 
 @covers("review gate stale or missing")
-def test_collect_a_gate_evaluator_that_raises_is_a_refusal(
+def test_refusals_for_a_gate_evaluator_that_raises_is_a_refusal(
     composed_with_origin, stand_in_hook, capsys
 ):
     stand_in_hook(
@@ -436,7 +440,7 @@ def test_collect_a_gate_evaluator_that_raises_is_a_refusal(
 
 
 @covers("review gate stale or missing")
-def test_collect_a_hook_that_loaded_degraded_cannot_vouch_for_the_gate(
+def test_refusals_for_a_hook_that_loaded_degraded_cannot_vouch_for_the_gate(
     composed_with_origin, stand_in_hook, capsys
 ):
     stand_in_hook(
@@ -450,10 +454,12 @@ def test_collect_a_hook_that_loaded_degraded_cannot_vouch_for_the_gate(
 
     assert block["refused"] == WHAT_REVIEW_GATE
     assert "degraded" in block["why"]
+    assert block["why"].startswith("the review-gate check loaded in degraded mode")
+    assert "the PR hook" not in block["why"]
 
 
 @covers("review gate stale or missing")
-def test_collect_a_hook_with_another_gate_file_name_is_refused_not_trusted(
+def test_refusals_for_a_hook_with_another_gate_file_name_is_refused_not_trusted(
     composed_with_origin, stand_in_hook, capsys
 ):
     stand_in_hook(
@@ -469,10 +475,12 @@ def test_collect_a_hook_with_another_gate_file_name_is_refused_not_trusted(
     assert block["refused"] == WHAT_REVIEW_GATE
     assert ".some-other-gate" in block["why"]
     assert ".pr-review-passed" in block["why"]
+    assert block["why"].startswith("the review-gate check's gate file is ")
+    assert "(from the PR hook)" in block["why"]
 
 
 @covers("review gate stale or missing")
-def test_collect_a_rule_the_lane_has_no_wording_for_still_names_the_rule(
+def test_refusals_for_a_rule_the_lane_has_no_wording_for_still_names_the_rule(
     composed_with_origin, stand_in_hook, capsys
 ):
     stand_in_hook(
@@ -486,11 +494,11 @@ def test_collect_a_rule_the_lane_has_no_wording_for_still_names_the_rule(
     block = only_block(composed_with_origin, capsys)
 
     assert "(rule: brand-new-rule)" in block["why"]
-    assert "the PR review gate rejected this lane" in block["why"]
+    assert "the review gate rejected this lane" in block["why"]
 
 
 @covers("review gate stale or missing")
-def test_collect_the_hooks_bypass_variable_is_ignored(
+def test_refusals_for_the_hooks_bypass_variable_is_ignored(
     composed_with_origin, monkeypatch, capsys
 ):
     monkeypatch.setenv("PR_GATE_BYPASS_REASON", "urgent")
@@ -514,7 +522,7 @@ def test_the_review_gate_ignores_an_exported_git_dir(
     other = other_repository(tmp_path)
     monkeypatch.setenv("GIT_DIR", str(other / ".git"))
 
-    assert collect(composed_with_origin) == []
+    assert refusals_for(composed_with_origin) == []
 
 
 def test_the_review_gate_restores_the_environment_it_swapped(
@@ -523,7 +531,7 @@ def test_the_review_gate_restores_the_environment_it_swapped(
     monkeypatch.setenv("GIT_DIR", str(other_repository(tmp_path) / ".git"))
     before = dict(os.environ)
 
-    collect(composed_with_origin)
+    refusals_for(composed_with_origin)
 
     assert dict(os.environ) == before
 
@@ -537,7 +545,7 @@ def test_the_review_gate_restores_the_environment_when_the_evaluation_raises(
     monkeypatch.setenv("GIT_DIR", str(other_repository(tmp_path) / ".git"))
     before = dict(os.environ)
 
-    collect(composed_with_origin)
+    refusals_for(composed_with_origin)
 
     assert dict(os.environ) == before
 
@@ -555,7 +563,7 @@ def test_the_review_gates_changed_file_list_runs_filtered_and_with_a_timeout(
 
     monkeypatch.setattr(lane.git_safe_diff, "run_safe_git_diff", spy)
 
-    collect(composed_with_origin)
+    refusals_for(composed_with_origin)
 
     ((kwargs, git_dir),) = seen
     assert kwargs["timeout"] == lane_core.GIT_TIMEOUT_SECONDS
@@ -565,7 +573,7 @@ def test_the_review_gates_changed_file_list_runs_filtered_and_with_a_timeout(
 @covers("tree mismatch")
 @covers("review gate stale or missing")
 @covers("trunk moved")
-def test_collect_tree_mismatch_stale_gate_and_moved_trunk_are_reported_together(
+def test_refusals_for_tree_mismatch_stale_gate_and_moved_trunk_are_reported_together(
     composed_with_origin, capsys
 ):
     old_tree = composed_with_origin.expected_tree
@@ -575,7 +583,7 @@ def test_collect_tree_mismatch_stale_gate_and_moved_trunk_are_reported_together(
     new_trunk = advance_origin(composed_with_origin.repo)
     before = observed_state(composed_with_origin)
 
-    blocks = printed_blocks(collect(composed_with_origin), capsys)
+    blocks = printed_blocks(refusals_for(composed_with_origin), capsys)
 
     assert [block["refused"] for block in blocks] == [
         WHAT_TREE_MISMATCH,
@@ -593,7 +601,7 @@ def test_collect_tree_mismatch_stale_gate_and_moved_trunk_are_reported_together(
 
 
 @covers("trunk moved")
-def test_collect_origin_advanced_by_a_fetch_is_trunk_moved_alone(
+def test_refusals_for_origin_advanced_by_a_fetch_is_trunk_moved_alone(
     composed_with_origin, capsys
 ):
     old_trunk = composed_with_origin.expected_trunk
@@ -612,7 +620,7 @@ def test_collect_origin_advanced_by_a_fetch_is_trunk_moved_alone(
 
 
 @covers("trunk cannot fast-forward")
-def test_collect_a_local_trunk_commit_the_lane_lacks_is_not_an_ancestor(
+def test_refusals_for_a_local_trunk_commit_the_lane_lacks_is_not_an_ancestor(
     composed_with_origin, capsys
 ):
     advance_trunk(composed_with_origin.repo)
@@ -625,7 +633,7 @@ def test_collect_a_local_trunk_commit_the_lane_lacks_is_not_an_ancestor(
     assert "/code-review --since origin/main" in block["how"]
 
 
-def test_collect_check_5_tests_the_head_it_read_once_not_the_live_head(
+def test_refusals_for_check_5_tests_the_head_it_read_once_not_the_live_head(
     composed_without_remote, monkeypatch
 ):
     composed = composed_without_remote
@@ -639,7 +647,7 @@ def test_collect_check_5_tests_the_head_it_read_once_not_the_live_head(
         then=lambda _argv, _cwd: git(composed.path, "merge", "-q", "--no-edit", TRUNK),
     )
 
-    refusals = collect(composed)
+    refusals = refusals_for(composed)
 
     assert len(raced.matching) == 1, "the race did not happen"
     assert git(composed.path, "rev-parse", "HEAD") != head_read
@@ -647,7 +655,7 @@ def test_collect_check_5_tests_the_head_it_read_once_not_the_live_head(
 
 
 @covers("trunk cannot fast-forward")
-def test_collect_trunk_checked_out_nowhere_is_named(composed_with_origin, capsys):
+def test_refusals_for_trunk_checked_out_nowhere_is_named(composed_with_origin, capsys):
     git(composed_with_origin.repo.path, "switch", "-q", "-c", "elsewhere")
 
     block = only_block(composed_with_origin, capsys)
@@ -658,7 +666,7 @@ def test_collect_trunk_checked_out_nowhere_is_named(composed_with_origin, capsys
 
 
 @covers("trunk cannot fast-forward")
-def test_collect_an_uncommitted_change_in_the_trunk_worktree_is_named(
+def test_refusals_for_an_uncommitted_change_in_the_trunk_worktree_is_named(
     composed_with_origin, capsys
 ):
     edit_tracked_file(composed_with_origin.repo.path)
@@ -672,7 +680,7 @@ def test_collect_an_uncommitted_change_in_the_trunk_worktree_is_named(
 
 
 @covers("trunk cannot fast-forward")
-def test_collect_a_tag_as_trunk_has_no_branch_to_fast_forward(
+def test_refusals_for_a_tag_as_trunk_has_no_branch_to_fast_forward(
     composed_with_origin, capsys
 ):
     git(composed_with_origin.repo.path, "tag", "v1", "origin/main")
@@ -686,7 +694,7 @@ def test_collect_a_tag_as_trunk_has_no_branch_to_fast_forward(
 
 
 @covers("trunk cannot fast-forward")
-def test_collect_a_remote_trunk_without_a_local_branch_does_not_exist(
+def test_refusals_for_a_remote_trunk_without_a_local_branch_does_not_exist(
     composed_with_origin, capsys
 ):
     primary = composed_with_origin.repo.path
@@ -703,7 +711,7 @@ def test_collect_a_remote_trunk_without_a_local_branch_does_not_exist(
 
 
 @covers("trunk cannot fast-forward")
-def test_collect_reports_the_first_failing_condition_when_several_fail(
+def test_refusals_for_reports_the_first_failing_condition_when_several_fail(
     composed_with_origin, capsys
 ):
     advance_trunk(composed_with_origin.repo)
@@ -716,13 +724,13 @@ def test_collect_reports_the_first_failing_condition_when_several_fail(
 
 @covers("trunk moved")
 @covers("trunk cannot fast-forward")
-def test_collect_a_trunk_moved_after_compose_with_no_remote_fails_both_checks(
+def test_refusals_for_a_trunk_moved_after_compose_with_no_remote_fails_both_checks(
     composed_without_remote, capsys
 ):
     new_trunk = advance_trunk(composed_without_remote.repo)
     before = observed_state(composed_without_remote)
 
-    refusals = collect(composed_without_remote)
+    refusals = refusals_for(composed_without_remote)
 
     first, second = printed_blocks(refusals, capsys)
     assert first["refused"] == WHAT_TRUNK_MOVED
@@ -733,7 +741,7 @@ def test_collect_a_trunk_moved_after_compose_with_no_remote_fails_both_checks(
 
 
 @covers("trunk cannot fast-forward")
-def test_collect_an_unfinished_merge_in_the_trunk_worktree_is_named(
+def test_refusals_for_an_unfinished_merge_in_the_trunk_worktree_is_named(
     composed_with_origin, capsys
 ):
     primary = composed_with_origin.repo.path
@@ -763,7 +771,7 @@ CHECK_5_READS = {
 
 @covers("git command failed")
 @pytest.mark.parametrize("read", sorted(CHECK_5_READS))
-def test_collect_a_git_failure_in_check_5_is_a_git_failure_not_a_sub_condition(
+def test_refusals_for_a_git_failure_in_check_5_is_a_git_failure_not_a_sub_condition(
     read, composed_with_origin, monkeypatch, capsys
 ):
     prefix, where = CHECK_5_READS[read]
@@ -774,7 +782,7 @@ def test_collect_a_git_failure_in_check_5_is_a_git_failure_not_a_sub_condition(
     }[where]
     GitFailure(monkeypatch, prefix, nth=None, cwd=cwd, **GIT_CANNOT_ANSWER)
 
-    (block,) = printed_blocks(collect(composed_with_origin), capsys)
+    (block,) = printed_blocks(refusals_for(composed_with_origin), capsys)
 
     assert block["refused"] == WHAT_GIT_FAILED
     assert "fatal: injected" in block["why"]
@@ -796,7 +804,7 @@ BUILD_COMPOSED_BY_ORIGIN = {
 
 
 @pytest.mark.parametrize(
-    ("origin", "local_trunk", "expected_whats"),
+    ("origin", "allow_local_integration", "expected_whats"),
     [
         ("github", False, [WHAT_PR_REPOSITORY]),
         ("github", True, []),
@@ -806,20 +814,20 @@ BUILD_COMPOSED_BY_ORIGIN = {
         ("none", True, []),
     ],
 )
-def test_collect_the_pr_repository_check_by_origin_kind_and_flag(
-    origin, local_trunk, expected_whats, tmp_path, capsys
+def test_refusals_for_the_pr_repository_check_by_origin_kind_and_flag(
+    origin, allow_local_integration, expected_whats, tmp_path, capsys
 ):
     composed = BUILD_COMPOSED_BY_ORIGIN[origin](tmp_path, capsys)
     before = observed_state(composed)
 
-    refusals = collect(composed, local_trunk=local_trunk)
+    refusals = refusals_for(composed, allow_local_integration=allow_local_integration)
 
     assert [refusal.what for refusal in refusals] == expected_whats
     assert observed_state(composed) == before
 
 
 @covers("PR repository")
-def test_collect_the_pr_repository_block_points_at_pr_and_at_local_trunk(
+def test_refusals_for_the_pr_repository_block_points_at_pr_and_at_local_trunk(
     tmp_path, capsys
 ):
     composed = build_composed_with_github_origin(tmp_path, capsys)
@@ -833,7 +841,7 @@ def test_collect_the_pr_repository_block_points_at_pr_and_at_local_trunk(
 
 @covers("PR repository")
 @pytest.mark.parametrize("form", sorted(PR_REPOSITORY_URLS))
-def test_collect_every_github_url_form_is_a_pr_repository(form, tmp_path, capsys):
+def test_refusals_for_every_github_url_form_is_a_pr_repository(form, tmp_path, capsys):
     composed = build_composed_with_github_origin(
         tmp_path, capsys, PR_REPOSITORY_URLS[form]
     )
@@ -844,12 +852,12 @@ def test_collect_every_github_url_form_is_a_pr_repository(form, tmp_path, capsys
     assert "github.com" not in block["why"] + block["how"]
 
 
-def test_collect_a_non_github_host_that_only_looks_like_one_is_not_a_pr_repository(
+def test_refusals_for_a_non_github_host_that_only_looks_like_one_is_not_a_pr_repository(
     tmp_path, capsys
 ):
     composed = build_composed_with_other_origin(tmp_path, capsys, LOOKALIKE_URL)
 
-    assert collect(composed) == []
+    assert refusals_for(composed) == []
 
 
 def printed_with_note(refusals, capsys) -> list[str]:
@@ -860,13 +868,13 @@ def printed_with_note(refusals, capsys) -> list[str]:
 
 @covers("PR repository")
 @covers("lane has uncommitted changes")
-def test_collect_a_pr_repository_refusal_with_others_ends_with_the_note_line(
+def test_refusals_for_a_pr_repository_refusal_with_others_ends_with_the_note_line(
     tmp_path, capsys
 ):
     composed = build_composed_with_github_origin(tmp_path, capsys)
     leave_untracked_file(composed.path)
 
-    refusals = collect(composed)
+    refusals = refusals_for(composed)
     lines = printed_with_note(refusals, capsys)
 
     assert [r.what for r in refusals] == [WHAT_UNCOMMITTED, WHAT_PR_REPOSITORY]
@@ -880,23 +888,23 @@ def test_collect_a_pr_repository_refusal_with_others_ends_with_the_note_line(
 
 
 @covers("PR repository")
-def test_collect_a_lone_pr_repository_refusal_has_no_note(tmp_path, capsys):
+def test_refusals_for_a_lone_pr_repository_refusal_has_no_note(tmp_path, capsys):
     composed = build_composed_with_github_origin(tmp_path, capsys)
 
-    lines = printed_with_note(collect(composed), capsys)
+    lines = printed_with_note(refusals_for(composed), capsys)
 
     assert not any(line.startswith("note:") for line in lines)
 
 
 @covers("lane has uncommitted changes")
 @covers("trunk moved")
-def test_collect_several_refusals_without_a_pr_repository_have_no_note(
+def test_refusals_for_several_refusals_without_a_pr_repository_have_no_note(
     composed_with_origin, capsys
 ):
     leave_untracked_file(composed_with_origin.path)
     advance_origin(composed_with_origin.repo)
 
-    refusals = collect(composed_with_origin)
+    refusals = refusals_for(composed_with_origin)
     lines = printed_with_note(refusals, capsys)
 
     assert [r.what for r in refusals] == [WHAT_TRUNK_MOVED, WHAT_UNCOMMITTED]
@@ -909,7 +917,7 @@ def test_collect_several_refusals_without_a_pr_repository_have_no_note(
     [(["remote"], 2), (["remote", "get-url"], 1)],
     ids=["remote listing", "remote get-url"],
 )
-def test_collect_a_failed_origin_lookup_on_a_github_repository_still_refuses(
+def test_refusals_for_a_failed_origin_lookup_on_a_github_repository_still_refuses(
     failing, nth, tmp_path, monkeypatch, capsys
 ):
     composed = build_composed_with_github_origin(tmp_path, capsys)
@@ -918,20 +926,22 @@ def test_collect_a_failed_origin_lookup_on_a_github_repository_still_refuses(
     GitFailure(monkeypatch, failing, nth=nth, **GIT_CANNOT_ANSWER)
     before = observed_state(composed)
 
-    (block,) = printed_blocks(collect(composed), capsys)
+    (block,) = printed_blocks(refusals_for(composed), capsys)
 
     assert block["refused"] == WHAT_GIT_FAILED
     assert "fatal: injected" in block["why"]
     assert observed_state(composed) == before
 
 
-def test_collect_local_trunk_does_not_read_the_origin(tmp_path, monkeypatch, capsys):
+def test_refusals_for_local_trunk_does_not_read_the_origin(
+    tmp_path, monkeypatch, capsys
+):
     composed = build_composed_with_github_origin(tmp_path, capsys)
     lookup = GitFailure(
         monkeypatch, ["remote", "get-url"], nth=None, **GIT_CANNOT_ANSWER
     )
 
-    assert collect(composed, local_trunk=True) == []
+    assert refusals_for(composed, allow_local_integration=True) == []
     assert lookup.matching == []
 
 
@@ -939,7 +949,7 @@ def test_one_run_of_the_checks_reads_the_origin_url_once(tmp_path, capsys, argv_
     composed = build_composed_with_github_origin(tmp_path, capsys)
     start = len(argv_spy.records)
 
-    collect(composed)
+    refusals_for(composed)
 
     lookups = [
         argv
@@ -953,7 +963,7 @@ def test_one_run_of_the_checks_reads_the_origin_url_once(tmp_path, capsys, argv_
 
 
 @covers("lane has uncommitted changes")
-def test_collect_an_untracked_file_in_the_lane_is_the_only_refusal(
+def test_refusals_for_an_untracked_file_in_the_lane_is_the_only_refusal(
     composed_with_origin, capsys
 ):
     leave_untracked_file(composed_with_origin.path)
@@ -968,13 +978,15 @@ def test_collect_an_untracked_file_in_the_lane_is_the_only_refusal(
 # --- early stops: one block, no checks ---------------------------------------
 
 
+@pytest.mark.parametrize("place", NOT_A_LANE_PLACES)
 @covers("not in a lane")
-def test_collect_the_primary_checkout_on_trunk_is_not_a_lane(
-    composed_without_remote, capsys
+def test_refusals_for_a_place_that_is_not_a_lane_is_one_not_in_a_lane_block(
+    place, composed_without_remote, capsys
 ):
+    cwd = place(composed_without_remote.repo)
     before = observed_state(composed_without_remote)
 
-    refusals = collect(composed_without_remote, cwd=composed_without_remote.repo.path)
+    refusals = refusals_for(composed_without_remote, cwd=cwd)
 
     (block,) = printed_blocks(refusals, capsys)
     assert block["refused"] == WHAT_NOT_IN_A_LANE
@@ -982,40 +994,8 @@ def test_collect_the_primary_checkout_on_trunk_is_not_a_lane(
     assert observed_state(composed_without_remote) == before
 
 
-@covers("not in a lane")
-def test_collect_a_detached_head_in_a_linked_worktree_is_not_a_lane(
-    composed_without_remote, capsys
-):
-    detached = add_linked_worktree(composed_without_remote.repo, "scratch")
-    git(detached, "switch", "-q", "--detach")
-    before = observed_state(composed_without_remote)
-
-    refusals = collect(composed_without_remote, cwd=detached)
-
-    (block,) = printed_blocks(refusals, capsys)
-    assert block["refused"] == WHAT_NOT_IN_A_LANE
-    assert observed_state(composed_without_remote) == before
-
-
-@covers("not in a lane")
-def test_collect_a_linked_worktree_on_the_trunk_branch_is_not_a_lane(
-    composed_without_remote, capsys
-):
-    repo = composed_without_remote.repo
-    git(repo.path, "switch", "-q", "-c", "elsewhere")
-    on_trunk = add_linked_worktree(repo, "main-copy", start=TRUNK)
-    git(on_trunk, "switch", "-q", TRUNK)
-    before = observed_state(composed_without_remote)
-
-    refusals = collect(composed_without_remote, cwd=on_trunk)
-
-    (block,) = printed_blocks(refusals, capsys)
-    assert block["refused"] == WHAT_NOT_IN_A_LANE
-    assert observed_state(composed_without_remote) == before
-
-
 @covers("trunk ref cannot be resolved")
-def test_collect_an_unresolvable_trunk_is_one_block_and_runs_no_check(
+def test_refusals_for_an_unresolvable_trunk_is_one_block_and_runs_no_check(
     composed_without_remote, capsys
 ):
     leave_untracked_file(composed_without_remote.path)
@@ -1027,10 +1007,10 @@ def test_collect_an_unresolvable_trunk_is_one_block_and_runs_no_check(
 
 
 @covers("not a git repository")
-def test_collect_outside_a_repository_is_one_block(
+def test_refusals_for_outside_a_repository_is_one_block(
     composed_without_remote, plain_directory, capsys
 ):
-    refusals = collect(composed_without_remote, cwd=plain_directory)
+    refusals = refusals_for(composed_without_remote, cwd=plain_directory)
 
     (block,) = printed_blocks(refusals, capsys)
     assert block["refused"] == "not a git repository"
@@ -1040,7 +1020,7 @@ def test_collect_outside_a_repository_is_one_block(
 
 
 @covers("lane has uncommitted changes")
-def test_collect_a_repository_that_does_not_ignore_claude_names_setup(
+def test_refusals_for_a_repository_that_does_not_ignore_claude_names_setup(
     repo_without_remote, capsys
 ):
     git(repo_without_remote.path, "rm", "-q", ".gitignore")
@@ -1058,11 +1038,11 @@ def test_collect_a_repository_that_does_not_ignore_claude_names_setup(
 
 
 @covers("git command failed")
-@covers("lane has uncommitted changes")
-def test_collect_a_git_failure_in_one_check_is_its_refusal_and_the_rest_still_run(
+def test_refusals_for_a_git_failure_in_a_check_is_its_block_and_the_later_checks_do_not_run(
     composed_without_remote, monkeypatch, capsys
 ):
     composed = composed_without_remote
+    # Check 4 would report this file if it ran.
     leave_untracked_file(composed.path)
     head = git(composed.path, "rev-parse", "HEAD")
     # Check 1 asks for the tree of the lane's HEAD commit: that read fails.
@@ -1073,9 +1053,11 @@ def test_collect_a_git_failure_in_one_check_is_its_refusal_and_the_rest_still_ru
         exit_code=128,
         stderr="fatal: boom\n",
     )
+    # `nth=0` never matches: this only records the calls of check 4 (`status`).
+    later_check = GitFailure(monkeypatch, ["status"], nth=0)
 
-    first, second = printed_blocks(collect(composed), capsys)
+    (block,) = printed_blocks(refusals_for(composed), capsys)
 
-    assert first["refused"] == WHAT_GIT_FAILED
-    assert "fatal: boom" in first["why"]
-    assert second["refused"] == WHAT_UNCOMMITTED
+    assert block["refused"] == WHAT_GIT_FAILED
+    assert "fatal: boom" in block["why"]
+    assert later_check.matching == []

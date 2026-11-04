@@ -23,6 +23,7 @@ import pytest
 from lane_fixtures import (
     GIT_FAILED,
     LANE_COMMAND_SOURCES,
+    GitFailure,
     add_linked_worktree,
     argv_spy,
     commit_file,
@@ -45,12 +46,14 @@ from lane_fixtures import (
 
 from _repo_root import REPO_ROOT
 
-SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+# `lane_fixtures` puts the lane scripts and `hooks/lib` on `sys.path`; import
+# them after it.
+# isort: split
 
 import lane
 import lane_core
+
+SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
 
 #: An invalid name and the part of the reason that says which check refused it.
 PATTERN_REASON = "safe characters"
@@ -86,28 +89,24 @@ def worktree_paths(cwd: Path) -> list[str]:
     ]
 
 
-def skip_first_call(monkeypatch, name: str) -> None:
-    """Make the first call to `lane.<name>` a no-op; later calls are real."""
-    real = getattr(lane, name)
-    calls: list[int] = []
-
-    def stub(*args):
-        if calls:
-            return real(*args)
-        calls.append(1)
-        return None
-
-    monkeypatch.setattr(lane, name, stub)
-
-
 # --- the command line -------------------------------------------------------
 
 
-def test_help_exits_zero_and_lists_open_among_the_commands(tmp_path, capsys):
+@pytest.mark.parametrize(
+    ("command", "summary"),
+    [
+        ("open", "create a lane"),
+        ("compose", "merge trunk into the lane"),
+        ("integrate", "fast-forward the local trunk"),
+    ],
+)
+def test_help_exits_zero_and_lists_each_command_with_its_summary(
+    command, summary, tmp_path, capsys
+):
     code, out, _ = run_main(["--help"], tmp_path, capsys)
 
     assert code == 0
-    assert re.search(r"^\s+open\s+create a lane", out, re.MULTILINE)
+    assert re.search(rf"^\s+{command}\s+{summary}", out, re.MULTILINE)
 
 
 def test_open_is_a_registered_command_with_its_own_arguments():
@@ -120,12 +119,6 @@ def test_compose_is_a_registered_command_that_takes_only_a_trunk():
     args = lane.build_parser().parse_args(["compose", "--trunk", "t"])
 
     assert (args.command, args.trunk) == ("compose", "t")
-
-
-def test_help_lists_compose(tmp_path, capsys):
-    _, out, _ = run_main(["--help"], tmp_path, capsys)
-
-    assert re.search(r"^\s+compose\s+merge trunk into the lane", out, re.MULTILINE)
 
 
 def test_every_registered_command_is_keyed_by_its_own_name():
@@ -300,6 +293,20 @@ def test_open_prints_worktree_and_branch_lines(repo_without_remote, capsys):
     assert out == f"worktree: {expected}\nbranch: feature-x\n"
 
 
+def test_open_shows_a_path_with_a_bidi_control_escaped(
+    repo_without_remote, tmp_path, capsys
+):
+    target = tmp_path / "lane\u202edir"
+
+    code, out, err = run_main(
+        ["open", "feature-y", "--path", str(target)], repo_without_remote.path, capsys
+    )
+
+    assert (code, err) == (0, "")
+    assert "\u202e" not in out
+    assert parse_output(out)["worktree"] == str(tmp_path / "lane\\u202edir")
+
+
 def test_open_maps_a_slash_in_the_name_to_a_dash_in_the_path(
     repo_without_remote, capsys
 ):
@@ -411,8 +418,10 @@ def test_open_resolves_a_relative_working_directory_once(
 ):
     monkeypatch.chdir(tmp_path)
 
+    relative_repo = repo_without_remote.path.relative_to(tmp_path)
+
     code, out, _ = run_main(
-        ["open", "feature-y", "--path", "lane-y"], Path("repo"), capsys
+        ["open", "feature-y", "--path", "lane-y"], relative_repo, capsys
     )
 
     expected = (repo_without_remote.path / "lane-y").resolve()
@@ -424,33 +433,50 @@ def test_open_resolves_a_relative_working_directory_once(
 # --- open: refusals ---------------------------------------------------------
 
 
-@pytest.mark.parametrize(("name", "reason"), INVALID_NAMES)
-@covers("invalid lane name")
-def test_open_refuses_an_invalid_name_and_says_which_check_refused_it(
-    name, reason, repo_without_remote, capsys, argv_spy
-):
-    state_before = unchanged_state(repo_without_remote.path)
+PATTERN_NAMES = [name for name, reason in INVALID_NAMES if reason == PATTERN_REASON]
+GIT_RULE_NAMES = [name for name, reason in INVALID_NAMES if reason == GIT_RULE_REASON]
+
+
+def refuse_invalid_name(name, repo, capsys, argv_spy):
+    """Run `open <name>`; return its single refusal block, the argv of every git
+    call that mentioned `name`, and whether the repository stayed unchanged."""
+    state_before = unchanged_state(repo.path)
     records_before = len(argv_spy.records)
 
-    code, out, err = run_main(["open", name], repo_without_remote.path, capsys)
+    code, out, err = run_main(["open", name], repo.path, capsys)
 
     block = single_refusal(code, out, err, "invalid lane name")
     assert repr(name) in block["why"]
-    assert reason in block["why"]
     assert "letters, digits" in block["how"]
-    assert unchanged_state(repo_without_remote.path) == state_before
-    mentioning = [
+    assert unchanged_state(repo.path) == state_before
+    return block, [
         argv
         for argv in argv_spy.records[records_before:]
         if any(name in token for token in argv)
     ]
-    # A pattern failure never reaches git. A name the pattern allows reaches
-    # git only in the check that refuses it.
-    if reason == PATTERN_REASON:
-        assert mentioning == []
-    else:
-        assert mentioning != []
-        assert all("check-ref-format" in argv for argv in mentioning)
+
+
+@pytest.mark.parametrize("name", PATTERN_NAMES)
+@covers("invalid lane name")
+def test_open_refuses_a_name_the_pattern_rejects_before_git_sees_it(
+    name, repo_without_remote, capsys, argv_spy
+):
+    block, mentioning = refuse_invalid_name(name, repo_without_remote, capsys, argv_spy)
+
+    assert PATTERN_REASON in block["why"]
+    assert mentioning == []
+
+
+@pytest.mark.parametrize("name", GIT_RULE_NAMES)
+@covers("invalid lane name")
+def test_open_refuses_a_name_git_rejects_in_the_ref_format_check_alone(
+    name, repo_without_remote, capsys, argv_spy
+):
+    block, mentioning = refuse_invalid_name(name, repo_without_remote, capsys, argv_spy)
+
+    assert GIT_RULE_REASON in block["why"]
+    assert mentioning != []
+    assert all("check-ref-format" in argv for argv in mentioning)
 
 
 @covers("invalid lane name")
@@ -607,30 +633,43 @@ def test_open_renders_a_failed_worktree_add_as_a_git_command_failed_block(
     assert str(blocker) in block["why"]
 
 
+# double-waiver: B1 - a race is a change that lands between the tool's checks and
+# its own `git worktree add`. The seam `lane_core._run` (via `GitFailure(then=...)`)
+# is the only place a test can act at that instant; no input makes it happen.
+
+
 @covers("branch exists")
 def test_a_branch_taken_while_open_runs_is_reported_as_branch_exists(
     repo_without_remote, capsys, monkeypatch
 ):
-    holder = add_linked_worktree(repo_without_remote, "taken")
-    skip_first_call(monkeypatch, "_require_free_branch")
+    other_path = default_lane_dir(repo_without_remote, "other")
+    GitFailure(
+        monkeypatch,
+        ["worktree", "add"],
+        then=lambda _argv, _cwd: add_linked_worktree(repo_without_remote, "taken"),
+    )
 
     code, out, err = run_main(
-        ["open", "taken", "--path", str(holder.parent / "other")],
+        ["open", "taken", "--path", str(other_path)],
         repo_without_remote.path,
         capsys,
     )
 
     block = single_refusal(code, out, err, "branch exists")
     assert "'taken'" in block["why"]
+    assert not other_path.exists()
 
 
 @covers("branch exists")
 def test_a_lane_opened_concurrently_under_the_same_name_is_reported_as_branch_exists(
     repo_without_remote, capsys, monkeypatch
 ):
-    add_linked_worktree(repo_without_remote, "taken")
-    skip_first_call(monkeypatch, "_require_free_branch")
-    skip_first_call(monkeypatch, "_require_free_path")
+    # The other open takes both the branch and the default path.
+    GitFailure(
+        monkeypatch,
+        ["worktree", "add"],
+        then=lambda _argv, _cwd: add_linked_worktree(repo_without_remote, "taken"),
+    )
 
     code, out, err = run_main(["open", "taken"], repo_without_remote.path, capsys)
 
@@ -643,9 +682,12 @@ def test_a_path_taken_while_open_runs_is_reported_as_path_exists(
     repo_without_remote, tmp_path, capsys, monkeypatch
 ):
     occupied = tmp_path / "occupied"
-    occupied.mkdir()
-    (occupied / "file.txt").write_text("keeps the directory non-empty\n")
-    skip_first_call(monkeypatch, "_require_free_path")
+
+    def occupy(_argv, _cwd):
+        occupied.mkdir()
+        (occupied / "file.txt").write_text("keeps the directory non-empty\n")
+
+    GitFailure(monkeypatch, ["worktree", "add"], then=occupy)
 
     code, out, err = run_main(
         ["open", "feature-x", "--path", str(occupied)], repo_without_remote.path, capsys

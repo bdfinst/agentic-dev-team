@@ -9,7 +9,6 @@ structural change, so they live apart from the behavior suites.
 from __future__ import annotations
 
 import ast
-import sys
 
 import pytest
 from lane_fixtures import LANE_SOURCES
@@ -17,11 +16,13 @@ from lane_fixtures_integrate import GATE_RELATIVE_PATH, PR_HOOK_PATH, load_pr_ho
 
 from _repo_root import REPO_ROOT
 
-SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+# `lane_fixtures` puts the lane scripts and `hooks/lib` on `sys.path`; import
+# them after it.
+# isort: split
 
 import lane
+
+SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
 
 
 def private_attribute_users(source: str, receiver: str) -> dict[str, set[str]]:

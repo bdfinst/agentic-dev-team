@@ -51,11 +51,13 @@ from lane_fixtures import (
 
 from _repo_root import REPO_ROOT
 
-SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+# `lane_fixtures` puts the lane scripts and `hooks/lib` on `sys.path`; import
+# them after it.
+# isort: split
 
 import lane_core
+
+SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
 
 TEST_DIR = Path(__file__).resolve().parent
 
@@ -368,6 +370,20 @@ def test_the_registry_only_holds_final_vocabulary_keys():
     assert set(lane_core.REFUSALS) <= FINAL_VOCABULARY
 
 
+def test_every_refusal_for_an_identity_that_no_longer_holds_gives_the_same_fix():
+    fix = (
+        "run compose again, run /code-review --since origin/main inside the lane, "
+        "then pass the new identities"
+    )
+
+    assert lane_core.tree_mismatch_refusal("a", "b", "origin/main").how == fix
+    assert lane_core.lane_head_moved_refusal("a", "b", "origin/main").how == fix
+    assert lane_core.trunk_moved_refusal("origin/main", "a", "b").how == fix
+    assert lane_core.trunk_not_an_ancestor_refusal(
+        "main", "origin/main"
+    ).how.startswith(fix)
+
+
 # --- renderer ---------------------------------------------------------------
 
 
@@ -393,6 +409,9 @@ def test_render_block_is_three_plain_lines():
         ("a\u2066b\u2069c", "a\\u2066b\\u2069c"),
         ("a\u200eb\u200fc", "a\\u200eb\\u200fc"),
         ("a\x1cb\x0bc\x0cd", "a\\x1cb\\x0bc\\x0cd"),
+        # Above U+FFFF: a 4-digit `\\u` escape would run into a following digit.
+        ("a\U000e0001" + "1b", "a\\U000e00011b"),
+        ("a\U000e007fb", "a\\U000e007fb"),
     ],
 )
 def test_display_text_shows_every_control_and_line_break_as_an_escape(raw, shown):
@@ -419,6 +438,14 @@ def test_a_not_repeatable_step_takes_its_how_from_the_reason(reason, how_contain
 def test_a_not_repeatable_step_with_an_unknown_reason_fails_loudly():
     with pytest.raises(KeyError):
         lane_core.integrate_step_not_repeatable_refusal("s", "d", "made up")
+
+
+def test_a_compose_conflict_names_the_first_ten_paths_and_counts_the_rest():
+    paths = [f"p{n}.txt" for n in range(1, 14)]
+
+    cause = lane_core.compose_conflict_cause(paths)
+
+    assert cause == f"conflicts in {', '.join(paths[:10])} and 3 more"
 
 
 def test_display_text_leaves_ordinary_text_alone():
@@ -550,6 +577,17 @@ def test_git_message_falls_back_to_the_last_stdout_line():
     completed = _completed(stdout="first\nCONFLICT (content)\n\n")
 
     assert lane_core.git_message(completed) == "CONFLICT (content)"
+
+
+def test_git_message_names_the_first_ten_lines_and_counts_the_rest():
+    completed = _completed(stderr="".join(f"line {n}\n" for n in range(1, 14)))
+
+    message = lane_core.git_message(completed)
+
+    assert message == (
+        "line 1; line 2; line 3; line 4; line 5; line 6; line 7; line 8; line 9; "
+        "line 10 and 3 more"
+    )
 
 
 def test_git_message_is_empty_when_git_said_nothing():
@@ -876,7 +914,7 @@ def test_the_spy_records_a_run_once(argv_spy):
 
 
 def test_inside_a_work_tree_is_accepted(repo_without_remote):
-    lane_core.require_work_tree(repo_without_remote.path)
+    assert lane_core.require_work_tree(repo_without_remote.path) is None
 
 
 def test_a_plain_directory_is_not_a_work_tree(plain_directory):
@@ -1423,7 +1461,7 @@ def test_an_unregistered_second_constructor_cannot_drift_from_its_what(monkeypat
 
 def test_the_restore_unverified_refusal_names_the_step_that_failed():
     refusal = lane_core.compose_restore_unverified_refusal(
-        lane_core.merge_step_failed("main"), "a" * 40, "a cause"
+        lane_core.merge_failure_step("main"), "a" * 40, "a cause"
     )
 
     assert refusal.why.startswith("merging main failed (a cause)")
@@ -1431,11 +1469,13 @@ def test_the_restore_unverified_refusal_names_the_step_that_failed():
 
 def test_the_compose_step_that_failed_names_only_what_was_merged():
     assert (
-        lane_core.compose_failed_after(["a", "b"])
+        lane_core.compose_failure_step_after(["a", "b"])
         == "compose failed after merging a and b"
     )
-    assert lane_core.compose_failed_after(["a"]) == "compose failed after merging a"
-    assert lane_core.compose_failed_after([]) == "compose failed"
+    assert (
+        lane_core.compose_failure_step_after(["a"]) == "compose failed after merging a"
+    )
+    assert lane_core.compose_failure_step_after([]) == "compose failed"
 
 
 def test_a_restored_refusal_keeps_the_cause_and_says_to_run_compose_again():
@@ -1521,6 +1561,18 @@ def test_unmerged_paths_lists_the_conflicted_paths_of_a_merge_in_progress(
     assert lane_core.unmerged_paths(repo) == ["base.txt"]
 
 
+def test_unmerged_paths_keeps_the_leading_space_of_the_first_path(
+    repo_without_remote,
+):
+    spaced = " spaced.txt"
+    lane_path = add_linked_worktree(repo_without_remote, "feature")
+    commit_file(lane_path, spaced, "lane\n", "lane writes it")
+    commit_file(repo_without_remote.path, spaced, "trunk\n", "trunk writes it")
+    assert not git_succeeds(repo_without_remote.path, "merge", "--no-edit", "feature")
+
+    assert lane_core.unmerged_paths(repo_without_remote.path) == [spaced]
+
+
 def test_has_unmerged_entries_is_false_before_a_merge(repo_without_remote):
     repo = merging_a_conflicting_lane(repo_without_remote)
 
@@ -1596,17 +1648,21 @@ def test_merge_in_progress_is_false_again_after_the_merge_is_aborted(
     assert not lane_core.merge_in_progress(repo)
 
 
-def test_worktree_state_reads_dirty_paths_and_an_unfinished_merge(
+def test_worktree_state_of_a_clean_tree_is_no_paths_and_no_merge(
     repo_without_remote,
 ):
     repo = merging_a_conflicting_lane(repo_without_remote)
+
     assert lane_core.worktree_state(repo) == ([], False)
 
-    start_the_conflicting_merge(repo)
-    dirty, merging = lane_core.worktree_state(repo)
 
-    assert merging
-    assert dirty == lane_core.dirty_paths(repo) != []
+def test_worktree_state_of_an_unfinished_merge_names_the_conflicted_path(
+    repo_without_remote,
+):
+    repo = merging_a_conflicting_lane(repo_without_remote)
+    start_the_conflicting_merge(repo)
+
+    assert lane_core.worktree_state(repo) == (["base.txt"], True)
 
 
 def fail_every_git_call(monkeypatch):
@@ -1614,15 +1670,28 @@ def fail_every_git_call(monkeypatch):
     GitFailure(monkeypatch, [], nth=None, exit_code=128, stderr="fatal: injected\n")
 
 
-def test_is_ancestor_strict_answers_like_is_ancestor_and_raises_on_a_git_failure(
-    repo_without_remote, monkeypatch
+def test_is_ancestor_strict_is_true_for_a_commit_in_the_history(repo_without_remote):
+    repo = repo_without_remote.path
+    older = git(repo, "rev-parse", "HEAD")
+    newer = commit_file(repo, "n.txt", "n\n", "newer")
+
+    assert lane_core.is_ancestor_strict(older, newer, repo) is True
+
+
+def test_is_ancestor_strict_is_false_for_a_commit_that_is_not_in_the_history(
+    repo_without_remote,
 ):
     repo = repo_without_remote.path
     older = git(repo, "rev-parse", "HEAD")
     newer = commit_file(repo, "n.txt", "n\n", "newer")
-    assert lane_core.is_ancestor_strict(older, newer, repo)
-    assert not lane_core.is_ancestor_strict(newer, older, repo)
 
+    assert lane_core.is_ancestor_strict(newer, older, repo) is False
+
+
+def test_is_ancestor_strict_raises_on_a_git_failure(repo_without_remote, monkeypatch):
+    repo = repo_without_remote.path
+    older = git(repo, "rev-parse", "HEAD")
+    newer = commit_file(repo, "n.txt", "n\n", "newer")
     fail_every_git_call(monkeypatch)
 
     with pytest.raises(lane_core.RefusalError) as failure:

@@ -13,7 +13,10 @@ every command shares:
   resolution), and the review-gate computation in `lane.py` (`_review_gate_refusal`:
   the gate hash, the changed-file list and the PR hook). The gate computation
   runs under `filtered_process_environment` and passes the timeout to the one
-  call that takes one; a runtime spy in the tests covers both.
+  call that takes one; a runtime spy in the tests covers both. Known limit,
+  tracked as a follow-up: the delegated calls (`branch_diff_gate_hash`,
+  `project_root`, `default_base_ref`) carry no lane timeout, and `_run` kills
+  only the direct git process on a timeout, not its process group.
 - `resolve_trunk_commit`, `local_branch_of` and `lane_context`: which ref is
   the trunk, which local branch it maps to (None for a tag or SHA), and
   whether the working directory is a lane.
@@ -27,6 +30,7 @@ every command shares:
   `is_ancestor_strict`, `unmerged_paths`,
   `has_unmerged_entries` and `merge_in_progress`: one reader per fact about the
   history and merge state of a work tree.
+- `local_ref`: the full ref of a local branch.
 - `local_files_a_merge_would_overwrite`: the ignored files a merge would clobber.
 - `git_attempt`: a git call whose failure the caller handles itself.
 - `git_message`: the one summary of a failed git call's output.
@@ -73,7 +77,8 @@ GIT_TIMEOUT_SECONDS = 120
 #: What a `git status -z` entry looks like: two status letters, a space, the
 #: path. A rename or copy entry (`R`, `C`) is followed by a second entry that
 #: names its origin.
-PORCELAIN_PATH_OFFSET = 3
+PORCELAIN_STATUS_WIDTH = 2
+PORCELAIN_PATH_OFFSET = PORCELAIN_STATUS_WIDTH + 1
 PORCELAIN_ORIGIN_FOLLOWS = frozenset("RC")
 
 #: Separates the paths of every `-z` listing.
@@ -121,6 +126,9 @@ FORBIDDEN_LONG_OPTIONS = frozenset(
 #: same options are caught by the abbreviation and short-cluster rules.
 FORBIDDEN_TOKENS = FORBIDDEN_LONG_OPTIONS | {"-f"}
 
+#: Starts a long option.
+LONG_OPTION_PREFIX = "--"
+
 #: Git accepts any unambiguous prefix of a long option, even `--f` or `--fo`
 #: for `--force` (under `worktree remove`). A prefix of a forbidden option at
 #: least this long (after `--`) is refused too; a bare `--` is not a prefix.
@@ -130,7 +138,8 @@ MIN_ABBREVIATION_LENGTH = 1
 SHORT_CLUSTER_PATTERN = re.compile(r"-[A-Za-z]+")
 FORCE_SHORT_LETTER = "f"
 
-#: `-n` is `--no-verify` for these subcommands.
+#: `-n` is refused for these subcommands as deliberate defence: it means
+#: `--no-verify` for commit and am, a different option for merge and rebase.
 NO_VERIFY_SHORT_SUBCOMMANDS = frozenset({"commit", "merge", "am", "rebase"})
 NO_VERIFY_SHORT_LETTER = "n"
 
@@ -218,6 +227,10 @@ GIT_ANSWER_NO = 1
 #: (bidi controls such as U+202E, zero-width marks), line separator (U+2028)
 #: and paragraph separator (U+2029).
 DISPLAY_ESCAPED_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
+
+#: The largest code point `display_text` shows as `\\xNN`, and as `\\uNNNN`.
+MAX_SINGLE_BYTE_CODE = 0xFF
+MAX_BMP_CODE = 0xFFFF
 
 #: Paths named in a dirty-tree refusal before it says "and N more".
 MAX_LISTED_PATHS = 10
@@ -372,11 +385,11 @@ def not_in_a_lane_refusal(cwd: Path, trunk_ref: str) -> Refusal:
     )
 
 
-def listed_paths(paths: Sequence[str]) -> str:
-    """The first `MAX_LISTED_PATHS` paths, then "and N more"."""
+def listed_paths(paths: Sequence[str], separator: str = ", ") -> str:
+    """The first `MAX_LISTED_PATHS` items joined by `separator`, then "and N more"."""
     extra = len(paths) - MAX_LISTED_PATHS
     more = f" and {extra} more" if extra > 0 else ""
-    return f"{', '.join(paths[:MAX_LISTED_PATHS])}{more}"
+    return f"{separator.join(paths[:MAX_LISTED_PATHS])}{more}"
 
 
 @_registered(WHAT_LANE_HAS_UNCOMMITTED_CHANGES)
@@ -405,12 +418,12 @@ def unfinished_merge_refusal(paths: Sequence[str] = ()) -> Refusal:
     )
 
 
-def merge_step_failed(target_label: str) -> str:
+def merge_failure_step(target_label: str) -> str:
     """The step that failed, for `compose_restore_unverified_refusal`."""
     return f"merging {target_label} failed"
 
 
-def compose_failed_after(merged_labels: Sequence[str]) -> str:
+def compose_failure_step_after(merged_labels: Sequence[str]) -> str:
     """The step that failed when no merge itself did: after the merges in `merged_labels`."""
     if not merged_labels:
         return "compose failed"
@@ -418,7 +431,7 @@ def compose_failed_after(merged_labels: Sequence[str]) -> str:
 
 
 def compose_conflict_cause(paths: Sequence[str]) -> str:
-    return f"conflicts in {', '.join(paths)}"
+    return f"conflicts in {listed_paths(paths)}"
 
 
 def compose_merge_failed_cause(command: str, detail: str) -> str:
@@ -462,7 +475,7 @@ def compose_merge_failed_refusal(
 def compose_restore_unverified_refusal(
     failed_step: str, pre_compose_head: str, cause: str
 ) -> Refusal:
-    """`failed_step` is `merge_step_failed` or `compose_failed_after`.
+    """`failed_step` is `merge_failure_step` or `compose_failure_step_after`.
 
     `cause` is why it failed, without any claim about the lane's state.
     """
@@ -600,11 +613,7 @@ def trunk_not_an_ancestor_refusal(branch: str, trunk_ref: str) -> Refusal:
     return Refusal(
         what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
         why=f"the trunk branch {branch} is not an ancestor of the lane HEAD",
-        how=(
-            "run compose, which merges the local trunk branch, then run "
-            f"/code-review --since {trunk_ref} inside the lane and pass the new "
-            "identities, because compose changes the tree"
-        ),
+        how=f"{_review_again_how(trunk_ref)}; compose merges {branch} into the lane",
     )
 
 
@@ -712,7 +721,9 @@ def display_text(value: str) -> str:
     A path or a git message is data from outside this tool. A raw newline, ESC,
     U+2028 or bidi control (U+202E) in it could forge a `why:` line, rewrite the
     terminal or reorder what the reader sees. Newline becomes `\\x0a`, ESC
-    `\\x1b`, U+2028 `\\u2028`, U+202E `\\u202e`. Nothing else changes.
+    `\\x1b`, U+2028 `\\u2028`, U+202E `\\u202e`, and a code point
+    above U+FFFF `\\U` plus eight digits (the `\\u` form would be ambiguous there).
+    Nothing else changes.
     """
     return "".join(_visible(char) for char in value)
 
@@ -721,7 +732,11 @@ def _visible(char: str) -> str:
     if unicodedata.category(char) not in DISPLAY_ESCAPED_CATEGORIES:
         return char
     code = ord(char)
-    return f"\\x{code:02x}" if code <= 0xFF else f"\\u{code:04x}"
+    if code <= MAX_SINGLE_BYTE_CODE:
+        return f"\\x{code:02x}"
+    if code <= MAX_BMP_CODE:
+        return f"\\u{code:04x}"
+    return f"\\U{code:08x}"
 
 
 def render_block(refusal: Refusal) -> str:
@@ -748,10 +763,11 @@ def _last_line(text: str) -> str:
 
 
 def git_message(completed: subprocess.CompletedProcess[str]) -> str:
-    """What git said about a failed call: all non-empty stderr lines joined with
-    `; `, else the last stdout line (git prints some failures there)."""
+    """What git said about a failed call: the non-empty stderr lines joined with
+    `; ` (the first `MAX_LISTED_PATHS`, then "and N more"), else the last stdout
+    line (git prints some failures there)."""
     lines = [line.strip() for line in completed.stderr.splitlines() if line.strip()]
-    return "; ".join(lines) or _last_line(completed.stdout)
+    return listed_paths(lines, "; ") or _last_line(completed.stdout)
 
 
 def _failure(argv: Sequence[str], detail: str) -> RefusalError:
@@ -802,6 +818,11 @@ def _run(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
 
     Git never reads stdin, runs with `_git_env()` and is abandoned after
     `GIT_TIMEOUT_SECONDS`.
+
+    Known limit (tracked as a follow-up): on a timeout only the direct git
+    process is killed, not its process group, so a hook that git spawned may
+    outlive the call. The delegated calls (`branch_diff_gate_hash`,
+    `project_root`, `default_base_ref`) carry no lane timeout at all.
     """
     try:
         return subprocess.run(
@@ -851,7 +872,11 @@ def _global_options_reason(args: Sequence[str]) -> tuple[int | None, str | None]
 
 def _forbidden_long_option(name: str) -> str | None:
     """The forbidden long option `name` is, or abbreviates; else None."""
-    if not name.startswith("--") or len(name) - 2 < MIN_ABBREVIATION_LENGTH:
+    prefix_length = len(LONG_OPTION_PREFIX)
+    if (
+        not name.startswith(LONG_OPTION_PREFIX)
+        or len(name) - prefix_length < MIN_ABBREVIATION_LENGTH
+    ):
         return None
     for option in sorted(FORBIDDEN_LONG_OPTIONS):
         if option.startswith(name):
@@ -1002,7 +1027,7 @@ def dirty_paths(cwd: Path) -> list[str]:
         if len(entry) <= PORCELAIN_PATH_OFFSET:
             continue
         paths.append(entry[PORCELAIN_PATH_OFFSET:])
-        if set(entry[:2]) & PORCELAIN_ORIGIN_FOLLOWS:
+        if set(entry[:PORCELAIN_STATUS_WIDTH]) & PORCELAIN_ORIGIN_FOLLOWS:
             index += 1
     return paths
 
@@ -1044,8 +1069,8 @@ def is_ancestor_strict(ancestor: str, descendant: str, cwd: Path) -> bool:
 
 def unmerged_paths(cwd: Path) -> list[str]:
     """Paths with unresolved merge conflicts."""
-    listed = git_text(["diff", "--name-only", "--diff-filter=U", "-z"], cwd)
-    return [path for path in listed.split(NUL) if path]
+    args = ["diff", "--name-only", "--diff-filter=U", "-z"]
+    return [path for path in _git_checked(args, cwd).stdout.split(NUL) if path]
 
 
 def has_unmerged_entries(cwd: Path) -> bool:
@@ -1081,13 +1106,18 @@ def merge_in_progress(cwd: Path) -> bool:
     return _git_yes_or_no(args, cwd).returncode == GIT_ANSWER_YES
 
 
+def local_ref(name: str) -> str:
+    """The full ref of local branch `name`."""
+    return f"{HEAD_REFS_PREFIX}{name}"
+
+
 def branch_commit(name: str, cwd: Path) -> str | None:
     """The commit local branch `name` points at.
 
     None only when the branch does not exist (or `name` is malformed and never
     reaches git). A git failure raises.
     """
-    ref = f"{HEAD_REFS_PREFIX}{name}"
+    ref = local_ref(name)
     if REF_PATTERN.fullmatch(ref) is None:
         return None
     args = ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"]
@@ -1194,7 +1224,7 @@ def worktrees(cwd: Path) -> list[tuple[Path, str | None]]:
 
 def branch_exists(name: str, cwd: Path) -> bool:
     """True when local branch `name` exists."""
-    return git_ok(["show-ref", "--verify", "--quiet", f"{HEAD_REFS_PREFIX}{name}"], cwd)
+    return git_ok(["show-ref", "--verify", "--quiet", local_ref(name)], cwd)
 
 
 def branch_worktree(name: str, cwd: Path) -> Path | None:

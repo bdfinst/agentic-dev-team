@@ -34,13 +34,13 @@ REGISTRY = PLUGIN_ROOT / "knowledge" / "agent-registry.md"
 SKILLS_CATALOG = PLUGIN_ROOT / "docs" / "skills.md"
 
 #: The exact tool grant. `git *` would pre-approve `git push`, which the skill
-#: forbids, so each git subcommand the flow runs is granted on its own.
+#: forbids. `git fetch` is granted without `*`: with arguments, `--upload-pack`
+#: runs a command, and `git status *` and `git log *` take `--output=<file>`, so
+#: the skill tells the reader to inspect with git (a normal prompt) instead.
 EXPECTED_GRANT = [
     "Read",
     f"Bash(python3 {LANE_COMMAND} *)",
-    "Bash(git fetch *)",
-    "Bash(git status *)",
-    "Bash(git log *)",
+    "Bash(git fetch)",
 ]
 
 
@@ -106,7 +106,18 @@ def test_allowed_tools_is_the_exact_grant(lane_text: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "forbidden", ["Bash(*)", "Bash(git *)", "git push", "Write", "Edit", "Bash,"]
+    "forbidden",
+    [
+        "Bash(*)",
+        "Bash(git *)",
+        "Bash(git fetch *)",
+        "Bash(git status *)",
+        "Bash(git log *)",
+        "git push",
+        "Write",
+        "Edit",
+        "Bash,",
+    ],
 )
 def test_allowed_tools_grants_no_broad_or_writing_tool(
     lane_text: str, forbidden: str
@@ -211,6 +222,7 @@ def test_the_flow_lists_the_steps_in_order(lane_text: str) -> None:
         "Work",
         "`git fetch`",
         "`compose`",
+        "Run the tests on the composed tree",
         "`/code-review --since <trunk>` inside the lane",
         "`integrate`",
     ]
@@ -259,11 +271,27 @@ def test_compose_merges_the_local_trunk_branch_when_it_has_commits_the_ref_lacks
     )
 
 
+def test_the_next_line_is_run_through_the_lane_script(lane_text: str) -> None:
+    integrate = step(lane_text, 3)
+    assert (
+        'Run it as `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lane.py" <next: arguments>`'
+        in integrate
+    )
+
+
+def test_the_tests_run_on_the_composed_tree_because_integrate_runs_none(
+    lane_text: str,
+) -> None:
+    assert "5. Run the tests on the composed tree. `integrate` runs none." in (
+        step(lane_text, 3)
+    )
+
+
 def test_integrate_example_is_run_with_compose_s_values_and_trunk(
     lane_text: str,
 ) -> None:
     integrate = step(lane_text, 3)
-    assert "Run it, or pass the same values to the command above" in integrate
+    assert "Or pass the same values to the command above" in integrate
     assert "with the same `--trunk` that you gave to `compose`." in integrate
 
 
@@ -325,6 +353,9 @@ def test_integrate_refuses_a_pr_repository(lane_text: str) -> None:
 )
 def test_origin_handling_is_stated_per_command(lane_text: str, claim: str) -> None:
     assert claim in step(lane_text, 4)
+
+
+def test_only_integrate_takes_the_local_trunk_flag() -> None:
     assert "--local-trunk" not in command_flags("compose")
     assert "--local-trunk" in command_flags("integrate")
 
@@ -352,9 +383,7 @@ def test_constraints_state_the_prohibition(lane_text: str, bullet: str) -> None:
 # --- partial failure ----------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "line", [lane.LINE_DONE, lane.LINE_REMAINING, lane.KEY_RECOVER]
-)
+@pytest.mark.parametrize("line", [lane.KEY_DONE, lane.KEY_REMAINING, lane.KEY_RECOVER])
 def test_partial_failure_names_its_lines(lane_text: str, line: str) -> None:
     assert f"- `{line}:`" in step(lane_text, 5)
 
@@ -370,7 +399,7 @@ def test_partial_failure_says_what_to_do_when_the_step_cannot_be_repeated(
 ) -> None:
     partial = step(lane_text, 5)
     assert (
-        f"When the step cannot be repeated by hand, no `{lane.LINE_REMAINING}:` "
+        f"When the step cannot be repeated by hand, no `{lane.KEY_REMAINING}:` "
         "lines are printed and `how:` says what to check instead."
     ) in partial
     assert (
@@ -417,6 +446,14 @@ def test_refusal_table_rows_have_a_cause_and_a_fix(lane_text: str) -> None:
             (
                 "When the branch is not an ancestor, run `compose`, then "
                 "`/code-review --since <trunk>` in the lane, and pass the new identities."
+            ),
+        ),
+        (
+            lane_core.WHAT_TRUNK_CANNOT_FAST_FORWARD,
+            (
+                "or its worktree switched to another branch. `why:` names which. | "
+                "Follow `how:`: pass `--trunk <branch>`, check out the branch, clean its "
+                "worktree, or switch it back to the trunk branch."
             ),
         ),
         (
@@ -476,24 +513,6 @@ OPTION_1_ORIGINAL = (
     "1. **Merge locally** — Integrate feature branch into base, run tests on "
     'merged result, delete feature branch, then call `ExitWorktree(action="remove")`'
 )
-#: Options 2 to 4, unchanged since `aa62e1f`.
-OPTIONS_2_TO_4_ORIGINAL = [
-    (
-        "2. **Push and create PR** — Push branch and create pull request via "
-        '`gh pr create`. Once the PR is opened, call `ExitWorktree(action="keep")` so '
-        "the worktree persists on disk while the session's CWD bookkeeping is closed"
-    ),
-    (
-        "3. **Keep as-is** — Preserve branch and worktree for later handling; call "
-        '`ExitWorktree(action="keep")` immediately after the option is confirmed — do '
-        'not leave the worktree silently "entered" for the rest of the session'
-    ),
-    (
-        "4. **Discard** — Permanently delete branch and all commits. **Requires the "
-        'human to type "discard" to confirm.** Never discard without typed confirmation. '
-        'After confirmation, call `ExitWorktree(action="remove", discard_changes=true)`'
-    ),
-]
 
 
 @pytest.fixture(scope="module")
@@ -546,10 +565,6 @@ def test_option_1_keeps_its_original_sentence_verbatim(
         line for line in options_lines(branch_workflow_text) if line.startswith("1. ")
     ]
     assert line.startswith(OPTION_1_ORIGINAL)
-
-
-def test_options_2_to_4_are_unchanged(branch_workflow_text: str) -> None:
-    assert options_lines(branch_workflow_text)[1:] == OPTIONS_2_TO_4_ORIGINAL
 
 
 def test_option_1_points_to_lane_integrate_at_the_lanes_section(

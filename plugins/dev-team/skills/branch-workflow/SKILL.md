@@ -44,7 +44,7 @@ Before creating the PR, verify:
 
 After confirming the base branch, present exactly four choices. If this session entered a worktree via `EnterWorktree` for this branch, each option's cleanup step is performed with the paired `ExitWorktree` call below — never raw `git worktree remove`. If no worktree was entered via `EnterWorktree` (branch-workflow can also run directly in the primary checkout), the `ExitWorktree` steps are a no-op — skip them.
 
-1. **Merge locally** — Integrate feature branch into base, run tests on merged result, delete feature branch, then call `ExitWorktree(action="remove")`. In a lane, `lane integrate` replaces this option; see [Lanes versus pull requests](#lanes-versus-pull-requests)
+1. **Merge locally** — Integrate feature branch into base, run tests on merged result, delete feature branch, then call `ExitWorktree(action="remove")`. In a lane, run the tests on the composed tree, then `lane integrate`, which replaces this option; see [Lanes versus pull requests](#lanes-versus-pull-requests)
 2. **Push and create PR** — Push branch and create pull request via `gh pr create`. Once the PR is opened, call `ExitWorktree(action="keep")` so the worktree persists on disk while the session's CWD bookkeeping is closed
 3. **Keep as-is** — Preserve branch and worktree for later handling; call `ExitWorktree(action="keep")` immediately after the option is confirmed — do not leave the worktree silently "entered" for the rest of the session
 4. **Discard** — Permanently delete branch and all commits. **Requires the human to type "discard" to confirm.** Never discard without typed confirmation. After confirmation, call `ExitWorktree(action="remove", discard_changes=true)`

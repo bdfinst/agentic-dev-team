@@ -61,6 +61,11 @@ from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 TRUNK = "main"
 GITIGNORE = ".claude/\n"
 GIT_FAILED = "git command failed"
+#: What a compose refusal says once the lane is verified restored, and how it
+#: says to continue. `test_lane_core` pins the exact wording; the other tests
+#: use these names.
+RESTORED_PHRASE = "the lane was restored to its state before compose"
+COMPOSE_AGAIN = "compose again"
 LANE_DIR_INFIX = "-lane-"
 
 #: The oracle for "never pushes, never skips hooks". Deliberately written out
@@ -518,6 +523,34 @@ def open_origin_lane(repo: Repo, name: str = "feature") -> Path:
     lane_path = add_linked_worktree(repo, name, start="origin/main")
     commit_file(lane_path, "lane.txt", "lane\n", "lane work")
     return lane_path
+
+
+def primary_on_trunk(repo: Repo) -> Path:
+    """A place that is not a lane: the primary checkout, on the trunk branch."""
+    return repo.path
+
+
+def detached_linked_worktree(repo: Repo) -> Path:
+    """A place that is not a lane: a linked worktree with a detached HEAD."""
+    lane_path = add_linked_worktree(repo, "scratch")
+    git(lane_path, "switch", "-q", "--detach")
+    return lane_path
+
+
+def linked_worktree_on_trunk(repo: Repo) -> Path:
+    """A place that is not a lane: a linked worktree on the trunk branch."""
+    git(repo.path, "switch", "-q", "-c", "elsewhere")
+    path = default_lane_dir(repo, "on-main")
+    git(repo.path, "worktree", "add", "-q", str(path), TRUNK)
+    return path
+
+
+#: The three places `NOT_A_LANE_PLACES` builds, for `parametrize("place", ...)`.
+NOT_A_LANE_PLACES = [
+    pytest.param(primary_on_trunk, id="primary-on-trunk"),
+    pytest.param(detached_linked_worktree, id="detached-head"),
+    pytest.param(linked_worktree_on_trunk, id="linked-worktree-on-trunk"),
+]
 
 
 def advance_trunk(repo: Repo, name: str = "trunk.txt", content: str = "trunk\n") -> str:

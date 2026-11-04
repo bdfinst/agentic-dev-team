@@ -18,10 +18,13 @@ from pathlib import Path
 
 import pytest
 from lane_fixtures import (
+    COMPOSE_AGAIN,
     FAILING_MERGE_NUMBER,
     GIT_FAILED,
     HOOK_SENTINEL,
+    NOT_A_LANE_PLACES,
     REJECT_HOOK,
+    RESTORED_PHRASE,
     GitFailure,
     add_linked_worktree,
     advance_origin,
@@ -42,6 +45,7 @@ from lane_fixtures import (
     lane_with_commit,
     merge_argvs,
     open_origin_lane,
+    parse_blocks,
     parse_output,
     plain_directory,
     rejecting_nth_merge_hook,
@@ -55,9 +59,9 @@ from lane_fixtures import (
 
 from _repo_root import REPO_ROOT
 
-SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+# `lane_fixtures` puts the lane scripts and `hooks/lib` on `sys.path`; import
+# them after it.
+# isort: split
 
 import lane
 import lane_core
@@ -103,6 +107,19 @@ def test_compose_prints_the_trunk_commit_and_the_head_tree_as_identities(
     assert printed["expected-trunk"] == trunk_tip
     assert printed["expected-tree"] == git(lane_path, "rev-parse", "HEAD^{tree}")
     assert (printed["lane"], printed["trunk"]) == ("feature", "main")
+
+
+def test_compose_shows_a_branch_name_with_a_bidi_control_escaped(
+    repo_without_remote, capsys
+):
+    # Git allows U+202E in a branch name; `open` would refuse it.
+    lane_path = lane_with_commit(repo_without_remote, "feat\u202eure")
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    assert (code, err) == (0, "")
+    assert "\u202e" not in out
+    assert parse_output(out)["lane"] == "feat\\u202eure"
 
 
 def test_compose_prints_a_ready_to_run_integrate_line(repo_without_remote, capsys):
@@ -271,28 +288,7 @@ def test_expected_trunk_is_the_commit_merged_even_when_the_trunk_moves_mid_compo
 # --- refusals outside a usable lane ----------------------------------------
 
 
-def primary_on_trunk(repo):
-    return repo.path
-
-
-def detached_linked_worktree(repo):
-    lane_path = add_linked_worktree(repo, "feature")
-    git(lane_path, "switch", "-q", "--detach")
-    return lane_path
-
-
-def linked_worktree_on_trunk(repo):
-    git(repo.path, "switch", "-q", "-c", "elsewhere")
-    path = default_lane_dir(repo, "on-main")
-    git(repo.path, "worktree", "add", "-q", str(path), "main")
-    return path
-
-
-@pytest.mark.parametrize(
-    "place",
-    [primary_on_trunk, detached_linked_worktree, linked_worktree_on_trunk],
-    ids=["primary-on-trunk", "detached-head", "linked-worktree-on-trunk"],
-)
+@pytest.mark.parametrize("place", NOT_A_LANE_PLACES)
 @covers("not in a lane")
 def test_compose_refuses_outside_a_lane(place, repo_without_remote, capsys):
     cwd = place(repo_without_remote)
@@ -416,9 +412,9 @@ def test_a_merge_conflict_leaves_the_lane_as_it_was(repo_without_remote, capsys)
     block = single_refusal(code, out, err, "compose conflict")
     assert "merging main into the lane" in block["why"]
     assert "base.txt" in block["why"]
-    assert "the lane was restored to its state before compose" in block["why"]
+    assert RESTORED_PHRASE in block["why"]
     assert "merge main by hand" in block["how"]
-    assert "compose again" in block["how"]
+    assert COMPOSE_AGAIN in block["how"]
     assert unchanged_state(lane_path) == before
     assert not has_unfinished_merge(lane_path)
 
@@ -457,9 +453,9 @@ def test_a_rejected_merge_leaves_the_lane_as_it_was(repo_without_remote, capsys)
     block = single_refusal(code, out, err, "compose merge failed")
     assert HOOK_SENTINEL in block["why"]
     assert f"{' '.join(MERGE_ARGS)} {trunk_tip}" in block["why"]
-    assert "the lane was restored to its state before compose" in block["why"]
+    assert RESTORED_PHRASE in block["why"]
     assert "resolve" in block["how"]
-    assert "compose again" in block["how"]
+    assert COMPOSE_AGAIN in block["how"]
     assert unchanged_state(lane_path) == before
     assert not has_unfinished_merge(lane_path)
 
@@ -503,7 +499,7 @@ def test_a_merge_failure_whose_unmerged_paths_cannot_be_listed_still_restores_th
     assert "could not merge main" in block["why"]
     assert "could not list the unmerged paths" in block["why"]
     assert "boom" in block["why"]
-    assert "the lane was restored to its state before compose" in block["why"]
+    assert RESTORED_PHRASE in block["why"]
     assert unchanged_state(lane_path) == before
     assert not has_unfinished_merge(lane_path)
 
@@ -668,8 +664,8 @@ def test_a_git_failure_between_the_two_merges_restores_the_lane(
 
     block = single_refusal(code, out, err, GIT_FAILED)
     assert "boom" in block["why"]
-    assert "the lane was restored to its state before compose" in block["why"]
-    assert "compose again" in block["how"]
+    assert RESTORED_PHRASE in block["why"]
+    assert COMPOSE_AGAIN in block["how"]
     assert "run the failed command again" not in block["how"]
     assert unchanged_state(lane_path) == before
 
@@ -685,8 +681,8 @@ def test_a_failure_reading_the_tree_after_the_merges_restores_the_lane(
     code, out, err = run_main(["compose"], lane_path, capsys)
 
     block = single_refusal(code, out, err, GIT_FAILED)
-    assert "the lane was restored to its state before compose" in block["why"]
-    assert "compose again" in block["how"]
+    assert RESTORED_PHRASE in block["why"]
+    assert COMPOSE_AGAIN in block["how"]
     assert unchanged_state(lane_path) == before
 
 
@@ -797,7 +793,7 @@ def test_a_failed_origin_lookup_after_a_merge_restores_the_lane_instead_of_print
     code, out, err = run_main(["compose"], lane_path, capsys)
 
     block = single_refusal(code, out, err, GIT_FAILED)
-    assert "the lane was restored to its state before compose" in block["why"]
+    assert RESTORED_PHRASE in block["why"]
     assert unchanged_state(lane_path) == before
 
 
@@ -836,8 +832,40 @@ def test_an_interrupt_during_the_second_merge_restores_the_lane_and_propagates(
         lane.main(["compose"], cwd=lane_path)
 
     assert len(merges) == 2
-    assert capsys.readouterr().out == ""
+    captured = capsys.readouterr()
+    assert (captured.out, captured.err) == ("", "")
     assert unchanged_state(lane_path) == before
+
+
+@covers("compose restore unverified")
+def test_an_interrupt_whose_restore_is_unverified_says_so_and_propagates(
+    repo_with_origin, capsys, monkeypatch
+):
+    lane_path = lane_needing_two_merges(repo_with_origin)
+    before_head = git(lane_path, "rev-parse", "HEAD")
+    real_attempt = lane_core.git_attempt
+    merges: list[list[str]] = []
+
+    def interrupted(args, cwd):
+        if args[:1] == ["merge"] and "--abort" not in args:
+            merges.append(list(args))
+            if len(merges) == 2:
+                raise KeyboardInterrupt
+        return real_attempt(args, cwd)
+
+    monkeypatch.setattr(lane_core, "git_attempt", interrupted)
+    GitFailure(monkeypatch, ["reset"], nth=None, stderr="fatal: boom\n")
+
+    with pytest.raises(KeyboardInterrupt):
+        lane.main(["compose"], cwd=lane_path)
+
+    captured = capsys.readouterr()
+    (block,) = parse_blocks(captured.err)
+    assert captured.out == ""
+    assert block["refused"] == "compose restore unverified"
+    assert "KeyboardInterrupt" in block["why"]
+    assert "restored to its state" not in block["why"]
+    assert f"git reset --hard {before_head}" in block["how"]
 
 
 @covers("git command failed")
@@ -866,22 +894,6 @@ def test_a_failure_before_any_merge_runs_no_restore(
     resets = [a for a in argv_spy.records[records_before:] if a[:2] == ["git", "reset"]]
     assert resets == []
     assert unchanged_state(lane_path) == before
-
-
-# --- merge targets name a ref for people and a commit for git -----------------
-
-
-def test_a_merge_target_pairs_the_ref_shown_in_messages_with_the_commit_git_merges(
-    repo_with_origin,
-):
-    lane_path = lane_needing_two_merges(repo_with_origin)
-
-    targets = lane._merge_targets(lane._enter_lane(None, lane_path))
-
-    assert targets == [
-        lane.MergeTarget(ref="origin/main", commit=commit_of(lane_path, "origin/main")),
-        lane.MergeTarget(ref="main", commit=commit_of(lane_path, "refs/heads/main")),
-    ]
 
 
 # --- refusal text is data, not markup ----------------------------------------

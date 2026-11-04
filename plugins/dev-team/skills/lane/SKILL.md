@@ -4,7 +4,7 @@ description: Work in an isolated lane (a linked worktree and branch), then land 
 role: worker
 user-invocable: true
 argument-hint: "open <name> [--path <dir>] [--trunk <ref>] | compose [--trunk <ref>] | integrate --expected-trunk <sha> --expected-tree <sha> [--trunk <ref>] [--local-trunk]"
-allowed-tools: Read, Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lane.py" *), Bash(git fetch *), Bash(git status *), Bash(git log *)
+allowed-tools: Read, Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lane.py" *), Bash(git fetch)
 ---
 
 # Lane
@@ -62,15 +62,16 @@ The flow in a repository without PRs:
 2. Work and commit in the lane.
 3. `git fetch`.
 4. `compose`.
-5. Run `/code-review --since <trunk>` inside the lane. The review must see the composed tree.
-6. `integrate`.
+5. Run the tests on the composed tree. `integrate` runs none.
+6. Run `/code-review --since <trunk>` inside the lane. The review must see the composed tree.
+7. `integrate`.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lane.py" integrate \
   --expected-trunk <expected-trunk> --expected-tree <expected-tree>
 ```
 
-The `next:` line that `compose` printed holds the `integrate` command with both identities, and `--trunk` when you gave one. Run it, or pass the same values to the command above, with the same `--trunk` that you gave to `compose`.
+The `next:` line that `compose` printed holds the `integrate` command with both identities, and `--trunk` when you gave one. Run it as `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lane.py" <next: arguments>`, where `<next: arguments>` is the text after `lane.py` in that line. Or pass the same values to the command above, with the same `--trunk` that you gave to `compose`.
 
 `integrate` runs all six checks and reports each failing one. It changes nothing until all pass. It then:
 
@@ -118,7 +119,7 @@ Each refusal prints on stderr as `refused:`, `why:`, `how:`.
 | `tree mismatch` | The lane tree or HEAD differs from the reviewed identity. For the tree, `why:` shows `expected:` and `live:`. When the lane HEAD moved, it shows `checked:` and `live:`. | Run `compose` again, run `/code-review --since <trunk>` in the lane, and pass the new identities. |
 | `review gate stale or missing` | No valid review gate covers the current diff. | Run `/code-review --since <trunk>` in the lane, then run `integrate` again. |
 | `trunk moved` | The trunk commit differs from `expected-trunk`. | Run `compose` again, run `/code-review --since <trunk>` in the lane, and pass the new identities. |
-| `trunk cannot fast-forward` | The local trunk branch is missing, not an ancestor of the lane, checked out nowhere, or dirty. `why:` names which. | Follow `how:`: pass `--trunk <branch>`, check out the branch, or clean its worktree. When the branch is not an ancestor, run `compose`, then `/code-review --since <trunk>` in the lane, and pass the new identities. |
+| `trunk cannot fast-forward` | The local trunk branch is missing, not an ancestor of the lane, checked out nowhere, dirty, or its worktree switched to another branch. `why:` names which. | Follow `how:`: pass `--trunk <branch>`, check out the branch, clean its worktree, or switch it back to the trunk branch. When the branch is not an ancestor, run `compose`, then `/code-review --since <trunk>` in the lane, and pass the new identities. |
 | `PR repository` | `origin` is on GitHub. | Open the PR with `/pr`, or pass `--local-trunk`. |
 | `invalid identity argument` | An identity is not 40 lowercase hex characters. | Pass the unabbreviated values `compose` printed. |
 | `integrate step failed` | An apply step failed after the checks passed. | The human runs the `remaining:` commands by hand. If none are printed, follow `how:` and inspect the trunk branch with git first. Do not re-run `integrate`. |

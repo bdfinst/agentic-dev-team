@@ -44,9 +44,9 @@ from lane_fixtures import (
 
 from _repo_root import REPO_ROOT
 
-_SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+# `lane_fixtures` puts the lane scripts and `hooks/lib` on `sys.path`; import
+# them after it.
+# isort: split
 
 import lane
 import lane_core
@@ -86,7 +86,12 @@ NETWORK_ARGV_PREFIXES = (
 def ledger_row(
     hook: str, decision: str, matched_rule: str, subject_hash: str, age_seconds: int
 ) -> dict[str, str]:
-    """One boundary-events row stamped `age_seconds` before now."""
+    """One boundary-events row stamped `age_seconds` before now.
+
+    Stamped from the real clock. The hook's window is `WINDOW_SECONDS` (1800 s)
+    and every age used here is at least `FAILURE_AGE_SECONDS` away from both
+    edges, so the seconds a test run takes cannot flip a verdict.
+    """
     stamp = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
     return {
         "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -459,14 +464,14 @@ def run_integrate(
 # --- the check engine, driven directly ---------------------------------------------------
 
 
-def collect(
+def refusals_for(
     composed: ComposedLane,
     *,
     trunk: str | None = None,
     expected_trunk: str | None = None,
     expected_tree: str | None = None,
     cwd: Path | None = None,
-    local_trunk: bool = False,
+    allow_local_integration: bool = False,
 ) -> list[lane_core.Refusal]:
     """The refusals the checks give for `composed`, with its own identities
     unless overridden. Changes nothing."""
@@ -475,7 +480,7 @@ def collect(
         expected_trunk or composed.expected_trunk,
         expected_tree or composed.expected_tree,
         cwd or composed.path,
-        local_trunk=local_trunk,
+        allow_local_integration=allow_local_integration,
     ).refusals
 
 
@@ -490,7 +495,7 @@ def printed_blocks(refusals, capsys) -> list[dict[str, str]]:
 def only_block(composed: ComposedLane, capsys, **overrides) -> dict[str, str]:
     """The single block the checks print for `composed`; nothing else changed."""
     before = observed_state(composed)
-    (block,) = printed_blocks(collect(composed, **overrides), capsys)
+    (block,) = printed_blocks(refusals_for(composed, **overrides), capsys)
     assert observed_state(composed) == before
     for field in ("refused", "why", "how"):
         assert block[field].strip() != ""
@@ -582,6 +587,18 @@ def assert_integrated(composed: ComposedLane, lane_head: str) -> None:
     assert not branch_exists_in(repo_path, composed.name), (
         "the lane branch is still there"
     )
+
+
+def assert_lane_kept(composed: ComposedLane, *, gate_kept: bool = True) -> None:
+    """A refused or interrupted `integrate` left the lane as it was: its
+    worktree and its branch are still there, and so is its gate file unless the
+    test deleted it (`gate_kept=False` then asserts nothing about it)."""
+    assert composed.path.exists(), "the lane worktree is gone"
+    assert branch_exists_in(composed.repo.path, composed.name), (
+        "the lane branch is gone"
+    )
+    if gate_kept:
+        assert (composed.path / GATE_RELATIVE_PATH).exists(), "the gate file is gone"
 
 
 def report_lines(err: str, key: str) -> list[str]:

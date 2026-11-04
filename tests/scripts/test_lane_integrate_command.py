@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pytest
 from lane_fixtures import (
+    COMPOSE_AGAIN,
+    NOT_A_LANE_PLACES,
     TRUNK,
     GitFailure,
     add_linked_worktree,
@@ -55,6 +57,7 @@ from lane_fixtures_integrate import (
     OMIT,
     ComposedLane,
     assert_integrated,
+    assert_lane_kept,
     assert_refused_unchanged,
     assert_trunk_at_lane_head,
     branch_exists_in,
@@ -75,12 +78,14 @@ from lane_fixtures_integrate import (
 
 from _repo_root import REPO_ROOT
 
-SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+# `lane_fixtures` puts the lane scripts and `hooks/lib` on `sys.path`; import
+# them after it.
+# isort: split
 
 import lane
 import lane_core
+
+SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
 
 # The `what` strings are written out here, not read from lane_core: the tests
 # are an oracle independent of the code they check.
@@ -163,13 +168,6 @@ def test_integrate_an_omitted_identity_flag_is_a_usage_error(
     assert observed_state(composed_with_origin) == before
 
 
-def test_integrate_argv_rejects_an_identity_keyword_it_does_not_know(
-    composed_with_origin,
-):
-    with pytest.raises(TypeError):
-        integrate_argv(composed_with_origin, expected_tre="typo")
-
-
 @covers("tree mismatch")
 def test_integrate_a_valid_but_wrong_tree_is_a_tree_mismatch(
     composed_with_origin, capsys
@@ -192,14 +190,6 @@ def test_integrate_a_valid_but_wrong_trunk_is_trunk_moved(composed_with_origin, 
         {"why": [f"expected: {WRONG_SHA}"]},
         expected_trunk=WRONG_SHA,
     )
-
-
-def test_help_lists_open_compose_and_integrate(capsys):
-    code, out, _ = run_main(["--help"], Path.cwd(), capsys)
-
-    assert code == 0
-    for command in ("open", "compose", "integrate"):
-        assert f"\n    {command}" in out
 
 
 # --- success -------------------------------------------------------------------
@@ -282,8 +272,7 @@ def test_integrate_never_overwriting_an_ignored_file_keeps_the_lane_and_its_bran
 
     run_integrate(composed, capsys)
 
-    assert composed.path.exists()
-    assert branch_exists_in(composed.repo.path, composed.name)
+    assert_lane_kept(composed)
 
 
 # --- each check refuses alone, through main ------------------------------------------
@@ -349,7 +338,7 @@ SINGLE_FAULTS = {
     "tree mismatch": Fault(
         fault_tree_mismatch,
         WHAT_TREE_MISMATCH,
-        {"why": ("expected:", "live:"), "how": ("compose again",)},
+        {"why": ("expected:", "live:"), "how": (COMPOSE_AGAIN,)},
     ),
     "gate deleted": Fault(
         fault_gate_deleted,
@@ -359,7 +348,7 @@ SINGLE_FAULTS = {
     "trunk moved": Fault(
         fault_trunk_moved,
         WHAT_TRUNK_MOVED,
-        {"why": ("expected:", "live:"), "how": ("compose again",)},
+        {"why": ("expected:", "live:"), "how": (COMPOSE_AGAIN,)},
     ),
     "dirty lane": Fault(
         fault_untracked_file_in_lane,
@@ -410,8 +399,7 @@ def test_integrate_each_fault_refuses_alone_and_changes_nothing(
 
     assert_refused_unchanged(composed, capsys, fault.what, fault.pinned, *extra)
 
-    assert composed.path.exists()
-    assert branch_exists_in(composed.repo.path, composed.name)
+    assert_lane_kept(composed, gate_kept=fault_id != "gate deleted")
 
 
 def test_integrate_a_fault_with_no_remote_reports_trunk_moved_then_fast_forward(
@@ -475,42 +463,17 @@ def test_integrate_a_pr_repository_refusal_alongside_others_ends_with_the_note(
 # --- where it runs ------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("place", NOT_A_LANE_PLACES)
 @covers("not in a lane")
-def test_integrate_the_primary_checkout_on_trunk_is_not_a_lane(
-    composed_without_remote, capsys
+def test_integrate_a_place_that_is_not_a_lane_is_a_not_in_a_lane_block(
+    place, composed_without_remote, capsys
 ):
     assert_refused_unchanged(
         composed_without_remote,
         capsys,
         WHAT_NOT_IN_A_LANE,
         {"how": ("lane.py open",)},
-        cwd=composed_without_remote.repo.path,
-    )
-
-
-@covers("not in a lane")
-def test_integrate_a_detached_head_in_a_linked_worktree_is_not_a_lane(
-    composed_without_remote, capsys
-):
-    detached = add_linked_worktree(composed_without_remote.repo, "scratch")
-    git(detached, "switch", "-q", "--detach")
-
-    assert_refused_unchanged(
-        composed_without_remote, capsys, WHAT_NOT_IN_A_LANE, cwd=detached
-    )
-
-
-@covers("not in a lane")
-def test_integrate_a_linked_worktree_on_the_trunk_branch_is_not_a_lane(
-    composed_without_remote, capsys
-):
-    repo = composed_without_remote.repo
-    git(repo.path, "switch", "-q", "-c", "elsewhere")
-    on_trunk = add_linked_worktree(repo, "main-copy", start=TRUNK)
-    git(on_trunk, "switch", "-q", TRUNK)
-
-    assert_refused_unchanged(
-        composed_without_remote, capsys, WHAT_NOT_IN_A_LANE, cwd=on_trunk
+        cwd=place(composed_without_remote.repo),
     )
 
 
@@ -621,9 +584,7 @@ def test_integrate_a_lane_that_moved_after_the_checks_is_refused_untouched(
     assert block["refused"] == WHAT_TREE_MISMATCH
     assert f"expected: {composed.expected_tree}" in block["why"]
     assert git(composed.repo.path, "rev-parse", TRUNK) == trunk_before
-    assert composed.path.exists()
-    assert branch_exists_in(composed.repo.path, composed.name)
-    assert (composed.path / GATE_RELATIVE_PATH).exists()
+    assert_lane_kept(composed)
 
 
 @covers("tree mismatch")
@@ -675,8 +636,7 @@ def test_integrate_a_trunk_ref_that_moved_after_the_checks_is_refused_untouched(
     assert block["refused"] == WHAT_TRUNK_MOVED
     assert f"expected: {composed.expected_trunk}" in block["why"]
     assert git(composed.repo.path, "rev-parse", TRUNK) == main_before
-    assert composed.path.exists()
-    assert branch_exists_in(composed.repo.path, composed.name)
+    assert_lane_kept(composed)
 
 
 @covers("integrate step failed")
@@ -775,8 +735,7 @@ def test_integrate_a_trunk_worktree_switched_before_the_fast_forward_is_refused_
     assert report_lines(err, "done") == []
     assert git(composed.repo.path, "rev-parse", TRUNK) == main_before
     assert git(composed.repo.path, "rev-parse", "other") == main_before
-    assert composed.path.exists()
-    assert branch_exists_in(composed.repo.path, composed.name)
+    assert_lane_kept(composed)
 
 
 @covers("integrate step failed")
@@ -803,9 +762,7 @@ def test_integrate_a_trunk_worktree_switched_during_the_fast_forward_deletes_not
     assert report_lines(err, "recover") == [recover_command(composed, lane_head)]
     assert git(composed.repo.path, "rev-parse", TRUNK) == main_before
     assert git(composed.repo.path, "rev-parse", "other") == lane_head
-    assert composed.path.exists()
-    assert branch_exists_in(composed.repo.path, composed.name)
-    assert (composed.path / GATE_RELATIVE_PATH).exists()
+    assert_lane_kept(composed)
 
 
 # --- branch deletion: ancestry, not upstream; guarded by the old value --------------
@@ -1156,6 +1113,18 @@ FAILING_STEPS = {
         gate_present=True,
         trunk_moved=True,
         lane_exists=True,
+        prepare=keep_memory_outside_the_lane,
+    ),
+    # The worktree removal takes the `.claude/memory` symlink with it. The gate
+    # step still did nothing, so `done:` must not claim it.
+    "branch deletion, gate file outside the lane": FailingStep(
+        fail_git_step(["update-ref", "-d"]),
+        "injected failure",
+        done=("fast-forward", "worktree removal"),
+        remaining=("update-ref",),
+        gate_present=False,
+        trunk_moved=True,
+        lane_exists=False,
         prepare=keep_memory_outside_the_lane,
     ),
 }
