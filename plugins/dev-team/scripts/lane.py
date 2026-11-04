@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -31,7 +32,9 @@ NAME_PATTERN_PROBLEM = (
 NAME_GIT_PROBLEM = "git does not accept it as a branch name"
 
 #: Fast-forward when possible whatever `merge.ff` says, else a merge commit.
-MERGE_ARGS = ("merge", "--ff", "--no-edit")
+#: A tracked file that would arrive over an ignored local file is refused, not
+#: written over (`--no-overwrite-ignore`; git's default overwrites it silently).
+MERGE_ARGS = ("merge", "--ff", "--no-edit", "--no-overwrite-ignore")
 
 #: Appended to git's message when the unmerged paths could not be listed.
 UNMERGED_UNREADABLE = "could not list the unmerged paths"
@@ -164,7 +167,9 @@ def _dirty_refusal(lane_path: Path) -> lane_core.Refusal | None:
     unfinished = lane_core.merge_in_progress(lane_path)
     if not dirty and not unfinished:
         return None
-    return lane_core.lane_has_uncommitted_changes_refusal(dirty, unfinished)
+    if unfinished:
+        return lane_core.unfinished_merge_refusal(dirty)
+    return lane_core.lane_has_uncommitted_changes_refusal(dirty)
 
 
 def _require_clean(lane_path: Path) -> None:
@@ -206,10 +211,10 @@ def _next_step(entered: EnteredLane, tree: str) -> str:
 
 @dataclass(frozen=True)
 class MergeTarget:
-    """What `compose` merges: `label` for messages, `ref` (a commit SHA) for git."""
+    """What `compose` merges: `ref` for messages, `commit` (a SHA) for git."""
 
-    label: str
     ref: str
+    commit: str
 
 
 def _merge_targets(entered: EnteredLane) -> list[MergeTarget]:
@@ -230,9 +235,13 @@ def _merge_targets(entered: EnteredLane) -> list[MergeTarget]:
     if trunk_branch_commit is None:
         return [trunk_ref_target]
     trunk_branch_target = MergeTarget(context.trunk_branch, trunk_branch_commit)
-    if lane_core.is_ancestor(trunk_branch_target.ref, trunk_ref_target.ref, lane_path):
+    if lane_core.is_ancestor(
+        trunk_branch_target.commit, trunk_ref_target.commit, lane_path
+    ):
         return [trunk_ref_target]
-    if lane_core.is_ancestor(trunk_ref_target.ref, trunk_branch_target.ref, lane_path):
+    if lane_core.is_ancestor(
+        trunk_ref_target.commit, trunk_branch_target.commit, lane_path
+    ):
         return [trunk_branch_target]
     return [trunk_ref_target, trunk_branch_target]
 
@@ -275,7 +284,7 @@ def _restore_verified(snapshot: Snapshot, lane_path: Path) -> bool:
         lane_core.git_ok(["reset", "--hard", snapshot.head], lane_path)
         return (
             _snapshot(lane_path) == snapshot
-            and not lane_core.git_text(["ls-files", "-u"], lane_path)
+            and not lane_core.has_unmerged_entries(lane_path)
             and not lane_core.merge_in_progress(lane_path)
             and not lane_core.dirty_paths(lane_path)
         )
@@ -307,25 +316,50 @@ def _failed_merge_refusal(
     )
     if not _restore_verified(snapshot, lane_path):
         return lane_core.compose_restore_unverified_refusal(
-            target.label, snapshot.head, cause
+            lane_core.merge_step_failed(target.ref), snapshot.head, cause
         )
     if unmerged:
-        return lane_core.compose_conflict_refusal(target.label, unmerged)
-    return lane_core.compose_merge_failed_refusal(target.label, attempt.command, detail)
+        return lane_core.compose_conflict_refusal(target.ref, unmerged)
+    return lane_core.compose_merge_failed_refusal(target.ref, attempt.command, detail)
+
+
+def _merge_attempt(target: MergeTarget, lane_path: Path) -> lane_core.GitAttempt:
+    """Merge `target`, unless that would write over an ignored local file.
+
+    The lane is clean, so a local file at a path the merge adds is one git
+    ignores, and git's own merge replaces it silently. The refusal is built as
+    a failed attempt, so it takes the same restore path as a failed merge.
+    """
+    args = [*MERGE_ARGS, target.commit]
+    in_the_way = lane_core.local_files_a_merge_would_overwrite(target.commit, lane_path)
+    if not in_the_way:
+        return lane_core.git_attempt(args, lane_path)
+    detail = (
+        f"it would overwrite ignored local files: {lane_core.listed_paths(in_the_way)}"
+    )
+    return lane_core.GitAttempt(False, shlex.join(["git", *args]), detail, "")
 
 
 def _merge_all(
-    targets: Sequence[MergeTarget], snapshot: Snapshot, lane_path: Path
+    targets: Sequence[MergeTarget],
+    snapshot: Snapshot,
+    lane_path: Path,
+    merged: list[MergeTarget],
 ) -> None:
-    """Merge each target the lane lacks; on a failed merge, restore and refuse."""
+    """Merge each target the lane lacks; on a failed merge, restore and refuse.
+
+    Each target that merged is appended to `merged` at once, so the caller
+    knows what was merged when a later step raises.
+    """
     for target in targets:
-        if lane_core.is_ancestor(target.ref, "HEAD", lane_path):
+        if lane_core.is_ancestor(target.commit, "HEAD", lane_path):
             continue
-        attempt = lane_core.git_attempt([*MERGE_ARGS, target.ref], lane_path)
+        attempt = _merge_attempt(target, lane_path)
         if not attempt.ok:
             raise SettledRefusal(
                 _failed_merge_refusal(target, attempt, snapshot, lane_path)
             )
+        merged.append(target)
 
 
 def _head_moved(snapshot: Snapshot, lane_path: Path) -> bool:
@@ -342,26 +376,32 @@ def _merge_and_read(
     """Merge, then read the `(tree, next step)` to print; restore on any failure.
 
     Everything between the snapshot and the reads sits in one envelope, so a
-    failure between two merges or while reading leaves the lane as it was.
+    failure between two merges or while reading leaves the lane as it was. A
+    git failure that is not a failed merge, after HEAD moved, restores the
+    lane and then says so in compose's words; it names only the targets that
+    were merged.
     """
     lane_path = entered.context.lane_path
+    merged: list[MergeTarget] = []
     try:
-        _merge_all(targets, snapshot, lane_path)
+        _merge_all(targets, snapshot, lane_path, merged)
         tree = lane_core.head_tree(lane_path)
         return tree, _next_step(entered, tree)
     except SettledRefusal:
         raise
     except lane_core.RefusalError as failure:
-        if _head_moved(snapshot, lane_path) and not _restore_verified(
-            snapshot, lane_path
-        ):
-            labels = " and ".join(target.label for target in targets)
+        if not _head_moved(snapshot, lane_path):
+            raise
+        if not _restore_verified(snapshot, lane_path):
+            step = lane_core.compose_failed_after([target.ref for target in merged])
             raise SettledRefusal(
                 lane_core.compose_restore_unverified_refusal(
-                    labels, snapshot.head, failure.refusal.why
+                    step, snapshot.head, failure.refusal.why
                 )
             ) from failure
-        raise
+        raise SettledRefusal(
+            lane_core.compose_restored_refusal(failure.refusal)
+        ) from failure
     except BaseException:
         _restore_verified(snapshot, lane_path)
         raise

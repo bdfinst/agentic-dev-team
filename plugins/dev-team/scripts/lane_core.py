@@ -20,10 +20,14 @@ every command shares:
   on it.
 - `dirty_paths`: the one reader of `git status`; `origin_url`: the one reader
   of the `origin` remote.
-- `head_commit`, `commit_tree`, `head_tree`, `is_ancestor`, `unmerged_paths`
-  and `merge_in_progress`: one reader per fact about the history and merge
-  state of a work tree.
+- `head_commit`, `commit_tree`, `head_tree`, `is_ancestor`, `unmerged_paths`,
+  `has_unmerged_entries` and `merge_in_progress`: one reader per fact about the
+  history and merge state of a work tree.
+- `local_files_a_merge_would_overwrite`: the ignored files a merge would clobber.
 - `git_attempt`: a git call whose failure the caller handles itself.
+- `git_message`: the one summary of a failed git call's output.
+- `display_text`: how `render_block` shows an untrusted value (a path, git's
+  stderr) without letting it forge or hide a line of the block.
 
 Import whitelist (pinned by an AST test): the standard library and
 `review_gate_hash`. Stdlib only otherwise. See ADR 0014 and ADR 0031.
@@ -39,6 +43,7 @@ import re
 import shlex
 import subprocess
 import sys
+import unicodedata
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -142,6 +147,9 @@ GIT_ENV_DROPPED = frozenset(
         "GIT_NAMESPACE",
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_ATTR_SOURCE",
+        "GIT_REPLACE_REF_BASE",
+        "GIT_NO_REPLACE_OBJECTS",
     }
 )
 GIT_ENV_DROPPED_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
@@ -157,6 +165,10 @@ WHAT_LANE_HAS_UNCOMMITTED_CHANGES = "lane has uncommitted changes"
 WHAT_COMPOSE_CONFLICT = "compose conflict"
 WHAT_COMPOSE_MERGE_FAILED = "compose merge failed"
 WHAT_COMPOSE_RESTORE_UNVERIFIED = "compose restore unverified"
+
+#: Unicode categories `display_text` escapes: control (C0, DEL, C1), line
+#: separator (U+2028) and paragraph separator (U+2029).
+DISPLAY_ESCAPED_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
 
 #: Paths named in a dirty-tree refusal before it says "and N more".
 MAX_LISTED_PATHS = 10
@@ -190,10 +202,14 @@ class RefusalError(Exception):
 REFUSALS: dict[str, Callable[..., Refusal]] = {}
 
 
-def _registered(
+def _building(
     what: str,
 ) -> Callable[[Callable[..., Refusal]], Callable[..., Refusal]]:
-    """Register a constructor under `what`; it must build refusals of that `what`."""
+    """Check that a constructor builds refusals of `what`; do not register it.
+
+    For a second constructor of a `what` whose registered constructor is
+    another one.
+    """
 
     def decorate(constructor: Callable[..., Refusal]) -> Callable[..., Refusal]:
         @functools.wraps(constructor)
@@ -206,6 +222,18 @@ def _registered(
                 )
             return refusal
 
+        return checked
+
+    return decorate
+
+
+def _registered(
+    what: str,
+) -> Callable[[Callable[..., Refusal]], Callable[..., Refusal]]:
+    """Register a constructor under `what`; it must build refusals of that `what`."""
+
+    def decorate(constructor: Callable[..., Refusal]) -> Callable[..., Refusal]:
+        checked = _building(what)(constructor)
         REFUSALS[what] = checked
         return checked
 
@@ -214,7 +242,7 @@ def _registered(
 
 @_registered(WHAT_GIT_COMMAND_FAILED)
 def git_command_failed_refusal(command: str, detail: str) -> Refusal:
-    """`detail` is the last non-empty stderr line of git, or the guard's reason."""
+    """`detail` is `git_message` of the failed call, or the guard's reason."""
     return Refusal(
         what=WHAT_GIT_COMMAND_FAILED,
         why=f"{detail.strip() or NO_GIT_MESSAGE} (command: {command})",
@@ -295,32 +323,49 @@ def not_in_a_lane_refusal(cwd: Path, trunk_ref: str) -> Refusal:
     )
 
 
-@_registered(WHAT_LANE_HAS_UNCOMMITTED_CHANGES)
-def lane_has_uncommitted_changes_refusal(
-    paths: Sequence[str], merge_unfinished: bool = False
-) -> Refusal:
-    """`merge_unfinished`: the lane also has a merge begun and not concluded."""
-    listed = ", ".join(paths[:MAX_LISTED_PATHS])
+def listed_paths(paths: Sequence[str]) -> str:
+    """The first `MAX_LISTED_PATHS` paths, then "and N more"."""
     extra = len(paths) - MAX_LISTED_PATHS
     more = f" and {extra} more" if extra > 0 else ""
-    if merge_unfinished:
-        changes = f"; uncommitted paths: {listed}{more}" if paths else ""
-        return Refusal(
-            what=WHAT_LANE_HAS_UNCOMMITTED_CHANGES,
-            why=f"the lane has a merge in progress ({MERGE_HEAD} exists){changes}",
-            how=(
-                "conclude the merge with git commit in the lane, or abort it with "
-                "git merge --abort, then run this command again"
-            ),
-        )
+    return f"{', '.join(paths[:MAX_LISTED_PATHS])}{more}"
+
+
+@_registered(WHAT_LANE_HAS_UNCOMMITTED_CHANGES)
+def lane_has_uncommitted_changes_refusal(paths: Sequence[str]) -> Refusal:
     return Refusal(
         what=WHAT_LANE_HAS_UNCOMMITTED_CHANGES,
-        why=f"the lane has uncommitted changes: {listed}{more}",
+        why=f"the lane has uncommitted changes: {listed_paths(paths)}",
         how=(
             "commit or stash the listed paths; if they are .claude/ files, "
             "add .claude/ to .gitignore (run /setup)"
         ),
     )
+
+
+@_building(WHAT_LANE_HAS_UNCOMMITTED_CHANGES)
+def unfinished_merge_refusal(paths: Sequence[str] = ()) -> Refusal:
+    """A merge begun and not concluded; `paths` are the lane's uncommitted paths."""
+    changes = f"; uncommitted paths: {listed_paths(paths)}" if paths else ""
+    return Refusal(
+        what=WHAT_LANE_HAS_UNCOMMITTED_CHANGES,
+        why=f"the lane has a merge in progress ({MERGE_HEAD} exists){changes}",
+        how=(
+            "conclude the merge with git commit in the lane, or abort it with "
+            "git merge --abort, then run this command again"
+        ),
+    )
+
+
+def merge_step_failed(target_label: str) -> str:
+    """The step that failed, for `compose_restore_unverified_refusal`."""
+    return f"merging {target_label} failed"
+
+
+def compose_failed_after(merged_labels: Sequence[str]) -> str:
+    """The step that failed when no merge itself did: after the merges in `merged_labels`."""
+    if not merged_labels:
+        return "compose failed"
+    return f"compose failed after merging {' and '.join(merged_labels)}"
 
 
 def compose_conflict_cause(paths: Sequence[str]) -> str:
@@ -366,13 +411,16 @@ def compose_merge_failed_refusal(
 
 @_registered(WHAT_COMPOSE_RESTORE_UNVERIFIED)
 def compose_restore_unverified_refusal(
-    target_label: str, pre_compose_head: str, cause: str
+    failed_step: str, pre_compose_head: str, cause: str
 ) -> Refusal:
-    """`cause` is why the merge failed, without any claim about the lane's state."""
+    """`failed_step` is `merge_step_failed` or `compose_failed_after`.
+
+    `cause` is why it failed, without any claim about the lane's state.
+    """
     return Refusal(
         what=WHAT_COMPOSE_RESTORE_UNVERIFIED,
         why=(
-            f"merging {target_label} failed ({cause}), and the lane could not be "
+            f"{failed_step} ({cause}), and the lane could not be "
             f"verified as restored to its pre-compose commit {pre_compose_head}"
         ),
         how=(
@@ -382,9 +430,46 @@ def compose_restore_unverified_refusal(
     )
 
 
+def compose_restored_refusal(cause: Refusal) -> Refusal:
+    """`cause` (a refusal raised after a merge moved HEAD), worded for a restored lane.
+
+    Raised only after the lane was restored. It keeps the cause's `what` and
+    `why`, and replaces its `how`, which was written for a command run alone.
+    """
+    return Refusal(
+        what=cause.what,
+        why=f"{cause.why}; the lane was restored to its state before compose",
+        how="fix the cause named in why, then run compose again",
+    )
+
+
+def display_text(value: str) -> str:
+    """`value` with every control or line-breaking character shown as an escape.
+
+    A path or a git message is data from outside this tool. A raw newline, ESC
+    or U+2028 in it could forge a `why:` line or rewrite the terminal. Newline
+    becomes `\\x0a`, ESC `\\x1b`, U+2028 `\\u2028`. Nothing else changes.
+    """
+    return "".join(_visible(char) for char in value)
+
+
+def _visible(char: str) -> str:
+    if unicodedata.category(char) not in DISPLAY_ESCAPED_CATEGORIES:
+        return char
+    code = ord(char)
+    return f"\\x{code:02x}" if code <= 0xFF else f"\\u{code:04x}"
+
+
 def render_block(refusal: Refusal) -> str:
-    """Plain-text block: `refused:`, `why:`, `how:` lines, no color."""
-    return f"refused: {refusal.what}\nwhy: {refusal.why}\nhow: {refusal.how}\n"
+    """Plain-text block: `refused:`, `why:`, `how:` lines, no color.
+
+    The one place a refusal is made safe to print: every field goes through
+    `display_text`, so a constructor never has to.
+    """
+    what, why, how = (
+        display_text(field) for field in (refusal.what, refusal.why, refusal.how)
+    )
+    return f"refused: {what}\nwhy: {why}\nhow: {how}\n"
 
 
 def emit_refusals(refusals: Sequence[Refusal]) -> int:
@@ -396,6 +481,13 @@ def emit_refusals(refusals: Sequence[Refusal]) -> int:
 def _last_line(text: str) -> str:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     return lines[-1] if lines else ""
+
+
+def git_message(completed: subprocess.CompletedProcess[str]) -> str:
+    """What git said about a failed call: all non-empty stderr lines joined with
+    `; `, else the last stdout line (git prints some failures there)."""
+    lines = [line.strip() for line in completed.stderr.splitlines() if line.strip()]
+    return "; ".join(lines) or _last_line(completed.stdout)
 
 
 def _failure(argv: Sequence[str], detail: str) -> RefusalError:
@@ -429,7 +521,9 @@ def _run(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
             cwd=str(cwd),
             env=_git_env(),
             capture_output=True,
-            text=True,
+            # A path git prints need not be UTF-8; it must not raise here.
+            encoding="utf-8",
+            errors="replace",
             check=False,
             stdin=subprocess.DEVNULL,
             timeout=GIT_TIMEOUT_SECONDS,
@@ -554,10 +648,11 @@ def git_attempt(args: Sequence[str], cwd: Path) -> GitAttempt:
         completed = _git(args, cwd)
     except RefusalError as exc:
         return GitAttempt(False, command, exc.refusal.why, "")
-    lines = [line.strip() for line in completed.stderr.splitlines() if line.strip()]
-    detail = "; ".join(lines) or _last_line(completed.stdout)
     return GitAttempt(
-        completed.returncode == 0, command, detail, completed.stdout.strip()
+        completed.returncode == 0,
+        command,
+        git_message(completed),
+        completed.stdout.strip(),
     )
 
 
@@ -575,7 +670,7 @@ def _git_checked(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[
     """`_git`, but a non-zero exit raises the `git command failed` refusal."""
     completed = _git(args, cwd)
     if completed.returncode != 0:
-        raise _failure(["git", *args], _last_line(completed.stderr))
+        raise _failure(["git", *args], git_message(completed))
     return completed
 
 
@@ -630,6 +725,30 @@ def unmerged_paths(cwd: Path) -> list[str]:
     """Paths with unresolved merge conflicts."""
     listed = git_text(["diff", "--name-only", "--diff-filter=U", "-z"], cwd)
     return [path for path in listed.split(NUL) if path]
+
+
+def has_unmerged_entries(cwd: Path) -> bool:
+    """True when the index holds a conflicted entry (a stage above 0).
+
+    Index-level (`ls-files -u` reads the index entries themselves), beside
+    the diff-level `unmerged_paths` (`diff --diff-filter=U` compares the index
+    with the work tree). `unmerged_paths` names the conflicted paths for a
+    refusal; this answers only "is the index conflict-free?", for the restore
+    check, and does not depend on how git renders a diff.
+    """
+    return bool(git_text(["ls-files", "-u"], cwd))
+
+
+def local_files_a_merge_would_overwrite(commit: str, cwd: Path) -> list[str]:
+    """Paths `commit` adds over HEAD that already exist in the work tree.
+
+    Run in a lane with no uncommitted change, such a file can only be one git
+    ignores. A merge writes the tracked file over it without a word: `ort`
+    does not honor `--no-overwrite-ignore`, which guards only a fast-forward.
+    """
+    args = ["diff-tree", "-r", "--name-only", "--no-renames", "--diff-filter=A", "-z"]
+    added = _git_checked([*args, "HEAD", commit], cwd).stdout.split(NUL)
+    return [path for path in added if path and os.path.lexists(cwd / path)]
 
 
 def merge_in_progress(cwd: Path) -> bool:

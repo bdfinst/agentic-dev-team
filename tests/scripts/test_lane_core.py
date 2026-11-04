@@ -97,7 +97,11 @@ SAMPLE_ARGUMENTS = {
     "lane has uncommitted changes": (["a.txt"],),
     "compose conflict": ("origin/main", ["a.txt"]),
     "compose merge failed": ("origin/main", "git merge --no-edit origin/main", "no"),
-    "compose restore unverified": ("origin/main", "a" * 40, "a conflict"),
+    "compose restore unverified": (
+        "merging origin/main failed",
+        "a" * 40,
+        "a conflict",
+    ),
 }
 
 #: Every argv the guard rejects: id -> (args, text the reason must contain).
@@ -344,6 +348,45 @@ def test_render_block_is_three_plain_lines():
     assert block == "refused: w\nwhy: y\nhow: h\n"
 
 
+@pytest.mark.parametrize(
+    ("raw", "shown"),
+    [
+        ("a\nb", "a\\x0ab"),
+        ("a\rb", "a\\x0db"),
+        ("a\x1bb", "a\\x1bb"),
+        ("a\x00b", "a\\x00b"),
+        ("a\x7fb", "a\\x7fb"),
+        ("a\x85b", "a\\x85b"),
+        ("a\x9bb", "a\\x9bb"),
+        ("a\u2028b", "a\\u2028b"),
+        ("a\u2029b", "a\\u2029b"),
+        ("a\x1cb\x0bc\x0cd", "a\\x1cb\\x0bc\\x0cd"),
+    ],
+)
+def test_display_text_shows_every_control_and_line_break_as_an_escape(raw, shown):
+    assert lane_core.display_text(raw) == shown
+    assert len(lane_core.display_text(raw).splitlines()) == 1
+
+
+def test_display_text_leaves_ordinary_text_alone():
+    text = "src/caf\u00e9 dir/it's \\ a_file.txt (command: git x)"
+
+    assert lane_core.display_text(text) == text
+
+
+def test_render_block_neutralizes_a_value_that_would_forge_a_line():
+    refusal = lane_core.Refusal(
+        what="w", why="paths: a\nhow: forged\x1b[2J", how="run it\u2028now"
+    )
+
+    block = lane_core.render_block(refusal)
+
+    assert block.count("\n") == 3
+    assert len(block.splitlines()) == 3
+    assert "\x1b" not in block
+    assert "\\x0ahow: forged\\x1b[2J" in block
+
+
 def test_emit_refusals_separates_blocks_with_a_blank_line(capsys):
     first = lane_core.Refusal(what="a", why="b", how="c")
     second = lane_core.Refusal(what="d", why="e", how="f")
@@ -397,8 +440,9 @@ def test_the_guard_allows_the_one_permitted_config_override(repo_without_remote)
 @pytest.mark.parametrize(
     "args",
     [
-        ["merge", "--ff", "--no-edit", "abc123"],
+        ["merge", "--ff", "--no-edit", "--no-overwrite-ignore", "abc123"],
         ["merge", "--abort"],
+        ["ls-files", "-u"],
         ["merge-base", "--is-ancestor", "a", "b"],
         ["reset", "--hard", "abc123"],
         ["diff", "--name-only", "--diff-filter=U", "-z"],
@@ -419,7 +463,7 @@ def test_the_guard_reads_the_subcommand_not_a_substring(repo_without_remote):
     )
 
 
-def test_a_failing_git_command_raises_a_refusal_with_the_last_stderr_line(
+def test_a_failing_git_command_raises_a_refusal_with_every_stderr_line(
     monkeypatch, tmp_path
 ):
     failed = subprocess.CompletedProcess(
@@ -431,9 +475,44 @@ def test_a_failing_git_command_raises_a_refusal_with_the_last_stderr_line(
         lane_core.git_text(["status"], tmp_path)
 
     assert caught.value.refusal.what == GIT_FAILED
-    assert "fatal: boom" in caught.value.refusal.why
-    assert "hint: noise" not in caught.value.refusal.why
+    assert "hint: noise; fatal: boom (command: git status)" in caught.value.refusal.why
     assert "git status" in caught.value.refusal.how
+
+
+def _completed(stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess:
+    return subprocess.CompletedProcess(
+        args=["git"], returncode=1, stdout=stdout, stderr=stderr
+    )
+
+
+def test_git_message_joins_every_non_empty_stderr_line():
+    completed = _completed(stderr="  hint: noise \n\nfatal: boom\n\n")
+
+    assert lane_core.git_message(completed) == "hint: noise; fatal: boom"
+
+
+def test_git_message_falls_back_to_the_last_stdout_line():
+    completed = _completed(stdout="first\nCONFLICT (content)\n\n")
+
+    assert lane_core.git_message(completed) == "CONFLICT (content)"
+
+
+def test_git_message_is_empty_when_git_said_nothing():
+    assert lane_core.git_message(_completed()) == ""
+
+
+def test_git_attempt_and_a_checked_call_summarize_a_failure_the_same_way(
+    monkeypatch, tmp_path
+):
+    failed = _completed(stdout="out line", stderr="hint: noise\nfatal: boom\n")
+    monkeypatch.setattr(lane_core, "_run", lambda argv, cwd: failed)
+
+    attempt = lane_core.git_attempt(["status"], tmp_path)
+    with pytest.raises(lane_core.RefusalError) as caught:
+        lane_core.git_text(["status"], tmp_path)
+
+    assert attempt.detail == lane_core.git_message(failed) == "hint: noise; fatal: boom"
+    assert attempt.detail in caught.value.refusal.why
 
 
 def test_a_missing_git_binary_is_a_refusal_that_names_the_command(
@@ -509,6 +588,24 @@ def test_git_does_not_inherit_a_redirecting_variable(name, monkeypatch, tmp_path
     monkeypatch.setenv(name, "/elsewhere")
 
     assert name not in _captured_kwargs(monkeypatch, tmp_path)["env"]
+
+
+@pytest.mark.parametrize(
+    "name", ["GIT_ATTR_SOURCE", "GIT_REPLACE_REF_BASE", "GIT_NO_REPLACE_OBJECTS"]
+)
+def test_git_does_not_inherit_a_variable_that_swaps_attributes_or_objects(
+    name, monkeypatch, tmp_path
+):
+    monkeypatch.setenv(name, "1")
+
+    assert name not in _captured_kwargs(monkeypatch, tmp_path)["env"]
+
+
+def test_git_output_that_is_not_utf8_is_decoded_not_raised(monkeypatch, tmp_path):
+    seen = _captured_kwargs(monkeypatch, tmp_path)
+
+    assert seen["encoding"] == "utf-8"
+    assert seen["errors"] == "replace"
 
 
 def test_git_keeps_the_rest_of_the_environment(monkeypatch, tmp_path):
@@ -1198,7 +1295,7 @@ def test_the_dirty_tree_refusal_does_not_say_more_for_a_short_list():
 
 
 def test_the_unfinished_merge_refusal_names_the_merge_and_how_to_end_it():
-    refusal = lane_core.lane_has_uncommitted_changes_refusal([], merge_unfinished=True)
+    refusal = lane_core.unfinished_merge_refusal()
 
     assert refusal.what == "lane has uncommitted changes"
     assert "merge in progress" in refusal.why
@@ -1208,16 +1305,70 @@ def test_the_unfinished_merge_refusal_names_the_merge_and_how_to_end_it():
 
 
 def test_the_unfinished_merge_refusal_also_lists_the_dirty_paths():
-    refusal = lane_core.lane_has_uncommitted_changes_refusal(
-        ["a.txt", "b.txt"], merge_unfinished=True
-    )
+    refusal = lane_core.unfinished_merge_refusal(["a.txt", "b.txt"])
 
     assert "merge in progress" in refusal.why
     assert "uncommitted paths: a.txt, b.txt" in refusal.why
 
 
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        lane_core.lane_has_uncommitted_changes_refusal(["a.txt"]),
+        lane_core.unfinished_merge_refusal(),
+    ],
+    ids=["plain", "unfinished merge"],
+)
+def test_both_uncommitted_changes_constructors_build_the_one_registered_what(refusal):
+    assert refusal.what in lane_core.REFUSALS
+    assert refusal.what == "lane has uncommitted changes"
+
+
+def test_an_unregistered_second_constructor_cannot_drift_from_its_what(monkeypatch):
+    monkeypatch.setattr(lane_core, "REFUSALS", {})
+
+    @lane_core._building("registered as")
+    def drifted() -> lane_core.Refusal:
+        return lane_core.Refusal(what="built as", why="y", how="h")
+
+    assert lane_core.REFUSALS == {}
+    with pytest.raises(ValueError, match="'registered as'.*'built as'"):
+        drifted()
+
+
+def test_the_restore_unverified_refusal_names_the_step_that_failed():
+    refusal = lane_core.compose_restore_unverified_refusal(
+        lane_core.merge_step_failed("main"), "a" * 40, "a cause"
+    )
+
+    assert refusal.why.startswith("merging main failed (a cause)")
+
+
+def test_the_compose_step_that_failed_names_only_what_was_merged():
+    assert (
+        lane_core.compose_failed_after(["a", "b"])
+        == "compose failed after merging a and b"
+    )
+    assert lane_core.compose_failed_after(["a"]) == "compose failed after merging a"
+    assert lane_core.compose_failed_after([]) == "compose failed"
+
+
+def test_a_restored_refusal_keeps_the_cause_and_says_to_run_compose_again():
+    cause = lane_core.git_command_failed_refusal("git merge-base x y", "boom")
+
+    refusal = lane_core.compose_restored_refusal(cause)
+
+    assert refusal.what == cause.what
+    assert cause.why in refusal.why
+    assert "the lane was restored to its state before compose" in refusal.why
+    assert "compose again" in refusal.how
+    assert "run the failed command again" not in refusal.how
+
+
 def test_the_restore_unverified_refusal_makes_no_claim_about_the_lane_state():
-    refusal = lane_core.compose_restore_unverified_refusal("main", "a" * 40, "a cause")
+    refusal = lane_core.compose_restore_unverified_refusal(
+        "merging main failed", "a" * 40, "a cause"
+    )
 
     assert "a cause" in refusal.why
     assert "restored to its state" not in refusal.why
@@ -1272,6 +1423,40 @@ def test_unmerged_paths_lists_the_conflicted_paths_of_a_merge_in_progress(
     assert not git_succeeds(repo, "merge", "--no-edit", "other")
 
     assert lane_core.unmerged_paths(repo) == ["base.txt"]
+
+
+def test_has_unmerged_entries_reads_the_index_not_a_diff(repo_without_remote):
+    repo = repo_without_remote.path
+    git(repo, "switch", "-q", "-c", "other")
+    commit_file(repo, "base.txt", "other\n", "other edits base")
+    git(repo, "switch", "-q", "main")
+    commit_file(repo, "base.txt", "main\n", "main edits base")
+    assert not lane_core.has_unmerged_entries(repo)
+
+    assert not git_succeeds(repo, "merge", "--no-edit", "other")
+    assert lane_core.has_unmerged_entries(repo)
+
+    git(repo, "merge", "--abort")
+    assert not lane_core.has_unmerged_entries(repo)
+
+
+def test_local_files_a_merge_would_overwrite_are_the_added_paths_that_exist(
+    repo_without_remote,
+):
+    repo = repo_without_remote.path
+    git(repo, "switch", "-q", "-c", "other")
+    commit_file(repo, "new.txt", "new\n", "other adds new")
+    commit_file(repo, "absent.txt", "absent\n", "other adds absent")
+    git(repo, "switch", "-q", "main")
+    other = git(repo, "rev-parse", "other")
+    (repo / "new.txt").write_text("mine\n")
+    assert lane_core.local_files_a_merge_would_overwrite(other, repo) == ["new.txt"]
+    (repo / "new.txt").unlink()
+    (repo / "absent.txt").write_text("mine\n")
+    assert lane_core.local_files_a_merge_would_overwrite(other, repo) == ["absent.txt"]
+    (repo / "absent.txt").unlink()
+
+    assert lane_core.local_files_a_merge_would_overwrite(other, repo) == []
 
 
 def test_merge_in_progress_is_true_only_between_a_merge_and_its_conclusion(

@@ -12,6 +12,7 @@ refusal registry and the git seam in `test_lane_core.py`.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -63,7 +64,8 @@ import lane_core
 
 #: The `merge` arguments before the target: a fast-forward is wanted, and an
 #: editor is never opened.
-MERGE_ARGS = ["git", "merge", "--ff", "--no-edit"]
+#: `--no-overwrite-ignore`: a tracked file never arrives over an ignored local file.
+MERGE_ARGS = ["git", "merge", "--ff", "--no-edit", "--no-overwrite-ignore"]
 
 
 def commit_of(cwd: Path, ref: str) -> str:
@@ -441,7 +443,7 @@ def test_a_rejected_merge_leaves_the_lane_as_it_was(repo_without_remote, capsys)
 
     block = single_refusal(code, out, err, "compose merge failed")
     assert HOOK_SENTINEL in block["why"]
-    assert f"git merge --ff --no-edit {trunk_tip}" in block["why"]
+    assert f"{' '.join(MERGE_ARGS)} {trunk_tip}" in block["why"]
     assert "the lane was restored to its state before compose" in block["why"]
     assert "resolve" in block["how"]
     assert "compose again" in block["how"]
@@ -652,6 +654,9 @@ def test_a_git_failure_between_the_two_merges_restores_the_lane(
 
     block = single_refusal(code, out, err, GIT_FAILED)
     assert "boom" in block["why"]
+    assert "the lane was restored to its state before compose" in block["why"]
+    assert "compose again" in block["how"]
+    assert "run the failed command again" not in block["how"]
     assert unchanged_state(lane_path) == before
 
 
@@ -665,7 +670,9 @@ def test_a_failure_reading_the_tree_after_the_merges_restores_the_lane(
 
     code, out, err = run_main(["compose"], lane_path, capsys)
 
-    single_refusal(code, out, err, GIT_FAILED)
+    block = single_refusal(code, out, err, GIT_FAILED)
+    assert "the lane was restored to its state before compose" in block["why"]
+    assert "compose again" in block["how"]
     assert unchanged_state(lane_path) == before
 
 
@@ -683,7 +690,30 @@ def test_a_failure_after_a_merge_with_a_restore_that_fails_is_reported_as_unveri
     block = single_refusal(code, out, err, "compose restore unverified")
     assert "boom" in block["why"]
     assert pre_compose in block["why"]
+    assert block["why"].startswith("compose failed after merging origin/main (")
+    assert "merging origin/main failed" not in block["why"]
     assert f"git reset --hard {pre_compose}" in block["how"]
+
+
+@covers("compose restore unverified")
+def test_the_unverified_report_after_a_non_merge_failure_omits_a_target_it_skipped(
+    repo_with_origin, capsys, monkeypatch
+):
+    advance_origin(repo_with_origin)
+    # The lane starts at the advanced origin/main: that target is skipped and
+    # only the diverged local main is merged before the failure.
+    lane_path = open_origin_lane(repo_with_origin)
+    advance_trunk(repo_with_origin, "local.txt")
+    pre_compose = git(lane_path, "rev-parse", "HEAD")
+    fail_once_a_merge_has_succeeded(monkeypatch, "head_tree")
+    fail_git_ok_for(monkeypatch, ["reset"])
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose restore unverified")
+    assert block["why"].startswith("compose failed after merging main (boom")
+    assert "origin/main" not in block["why"]
+    assert pre_compose in block["why"]
 
 
 def test_an_interrupt_during_the_second_merge_restores_the_lane_and_propagates(
@@ -725,9 +755,118 @@ def test_a_failure_before_any_merge_runs_no_restore(
 
     code, out, err = run_main(["compose", "--trunk", "v1"], lane_path, capsys)
 
-    single_refusal(code, out, err, GIT_FAILED)
+    block = single_refusal(code, out, err, GIT_FAILED)
+    assert "restored" not in block["why"]
     resets = [a for a in argv_spy.records[records_before:] if a[:2] == ["git", "reset"]]
     assert resets == []
+    assert unchanged_state(lane_path) == before
+
+
+# --- merge targets name a ref for people and a commit for git -----------------
+
+
+def test_a_merge_target_pairs_the_ref_shown_in_messages_with_the_commit_git_merges(
+    repo_with_origin,
+):
+    lane_path = lane_needing_two_merges(repo_with_origin)
+
+    targets = lane._merge_targets(lane._enter_lane(None, lane_path))
+
+    assert targets == [
+        lane.MergeTarget(ref="origin/main", commit=commit_of(lane_path, "origin/main")),
+        lane.MergeTarget(ref="main", commit=commit_of(lane_path, "refs/heads/main")),
+    ]
+
+
+# --- refusal text is data, not markup ----------------------------------------
+
+HOSTILE_NAME = "odd\nname\x1b[31m.txt"
+
+
+def add_add_conflict(repo, name: str) -> Path:
+    """The lane and the trunk each add `name` with different content."""
+    lane_path = add_linked_worktree(repo, "feature")
+    commit_file(lane_path, name, "lane\n", "lane adds it")
+    advance_trunk(repo, name, "trunk\n")
+    return lane_path
+
+
+@covers("compose conflict")
+def test_a_path_with_a_newline_and_an_escape_cannot_forge_or_hide_a_line(
+    repo_without_remote, capsys
+):
+    lane_path = add_add_conflict(repo_without_remote, HOSTILE_NAME)
+    before = unchanged_state(lane_path)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose conflict")
+    assert [line.split(":")[0] for line in err.splitlines()] == [
+        "refused",
+        "why",
+        "how",
+    ]
+    assert "\x1b" not in err
+    assert "odd\\x0aname\\x1b[31m.txt" in block["why"]
+    assert unchanged_state(lane_path) == before
+
+
+def test_a_path_that_is_not_utf8_is_shown_not_raised_and_the_lane_is_restored(
+    repo_without_remote, capsys
+):
+    name = os.fsdecode(b"caf\xe9.txt")
+    try:
+        lane_path = add_add_conflict(repo_without_remote, name)
+    except OSError:
+        pytest.skip("this file system rejects a file name that is not UTF-8")
+    before = unchanged_state(lane_path)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose conflict")
+    assert "caf" in block["why"]
+    assert "Traceback" not in err
+    assert unchanged_state(lane_path) == before
+    assert not has_unfinished_merge(lane_path)
+
+
+# --- an ignored local file is never written over -----------------------------
+
+IGNORED_NAME = "secret.txt"
+
+
+def ignore_and_let_trunk_track(repo, lane_path: Path) -> None:
+    """`IGNORED_NAME` is ignored and present in the lane; the trunk adds it as tracked.
+
+    `update-index --add` stages an ignored path, which `git add` would refuse.
+    """
+    common = Path(repo.path, git(repo.path, "rev-parse", "--git-common-dir"))
+    (common / "info" / "exclude").write_text(f"{IGNORED_NAME}\n", encoding="utf-8")
+    (lane_path / IGNORED_NAME).write_text("local secret\n", encoding="utf-8")
+    (repo.path / IGNORED_NAME).write_text("from trunk\n", encoding="utf-8")
+    git(repo.path, "update-index", "--add", IGNORED_NAME)
+    git(repo.path, "commit", "-q", "-m", "trunk tracks the ignored name")
+
+
+@covers("compose merge failed")
+@pytest.mark.parametrize("lane_has_own_commit", [True, False], ids=["merge", "ff"])
+def test_a_tracked_file_arriving_over_an_ignored_local_file_is_refused(
+    lane_has_own_commit, repo_without_remote, capsys
+):
+    repo = repo_without_remote
+    lane_path = (
+        lane_with_commit(repo)
+        if lane_has_own_commit
+        else add_linked_worktree(repo, "feature")
+    )
+    ignore_and_let_trunk_track(repo, lane_path)
+    before = unchanged_state(lane_path)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose merge failed")
+    assert IGNORED_NAME in block["why"]
+    assert (lane_path / IGNORED_NAME).read_text() == "local secret\n"
     assert unchanged_state(lane_path) == before
 
 
