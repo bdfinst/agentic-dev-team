@@ -41,11 +41,18 @@ This skill halts when you invoke it outside `/build`.
 Run the step as a loop of batches. The sections below detail each part. For each batch:
 
 1. Read `prev` from the cost meter.
-2. Dispatch the batch.
+2. Hash the plan file, dispatch the batch, then hash it again. Halt if the hashes differ.
 3. Read `now`. Compute `delta = now - prev`. Add `delta` to `spent`.
 4. Run the suite in each candidate worktree.
 5. Screen each candidate, then run `collect`.
 6. Run `project`, then dispatch the next batch. After the last batch, go to Rank.
+
+These placeholders recur in templates and commands:
+
+- `<X>` is the cap from `--max-cost-usd`.
+- `<P>` is the projected total that `project` prints.
+- `<b>` is the batch number.
+- `<ks>` lists the earlier attempt numbers.
 
 Set `base` to the build worktree's current commit:
 
@@ -77,7 +84,7 @@ Use exactly the prompt of a single dispatch in `/build` Step 4 ("For each step w
 ```text
 Candidate <i> of <N>; commit every green on your worktree branch
 Do not write the plan file
-Before your first edit run: python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py" engage <plan> --slice <id> --hooks-dir <your worktree>/.claude/hooks
+Before your first edit run: python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py" engage '<plan>' --slice <slice-id> --hooks-dir '<your worktree>/.claude/hooks'
 ```
 
 Add the third line only when `/build`'s Slice dispatch bookkeeping step 1 would engage freeze. That is when this check exits 0 and the slice declares `**Files:**`:
@@ -94,6 +101,14 @@ Each candidate owns this state:
 - Only the parent writes the plan file.
 - The step's rollback point is the one `/build` recorded before the slice's first step, if the slice declares one. This skill records none.
 
+Hash the parent's plan file in the build worktree just before the batch dispatches. Hash it again when the batch returns:
+
+```bash
+git hash-object '<plan>'
+```
+
+If the two hashes differ, a candidate wrote the parent's plan file. Halt with the reason `plan file changed during batch <b>`.
+
 Pair each returned result with the dispatch that produced it. Candidate `<i>` is that dispatch's id.
 
 Read the `branch:` line of the dispatch result. Do not infer the name from a pattern. Check it against the worktree list:
@@ -107,7 +122,9 @@ Accept the name only when it meets both rules:
 - It exactly matches a `branch refs/heads/<name>` entry of `git worktree list --porcelain`.
 - It matches `^[A-Za-z0-9._/][A-Za-z0-9._/-]*$`.
 
-Otherwise, treat the dispatch as a no-commits candidate. Also treat it as one when this count is 0:
+Take `<worktree>` from the `worktree <path>` line of that same porcelain entry. Never take it from the dispatch result.
+
+Otherwise, treat the dispatch as a no-commits candidate. Use an empty branch when the name was rejected. Also treat it as a no-commits candidate when this count is 0:
 
 ```bash
 git rev-list --count <base>..'<branch>'
@@ -152,7 +169,9 @@ Check the plan file before Rank. A candidate may have edited it. This command li
 git diff --name-only --end-of-options <base>..'<branch>' -- '<plan>'
 ```
 
-If the output is non-empty, record the candidate like a no-commits candidate. Keep its branch. Use the reason `plan file edited`. Do not rank it.
+Run this check in the parent's build worktree, with the repo-relative plan path. A non-zero exit is a script failure. Halt.
+
+If the output is non-empty, keep the candidate's `collect` dict and its branch. Record it as `disqualified` with the reason `plan file edited`. Do not rank it.
 
 The inline checkpoint on the merged winner runs the lenses `/build` would have run anyway. The winner is therefore screened again by design. The benchmark measures that cost.
 
@@ -203,7 +222,9 @@ A `halt` prints the Failure modes template instead.
 
 ## Rank
 
-Write `{"candidates": [...]}` to a file. Include the dict of every dispatched candidate, with `cost_usd` filled in. Leave out candidates that edited the plan file. They are recorded, not ranked. Then run `rank`:
+Write `{"candidates": [...]}` to a file. Include the dict of every dispatched candidate, with `cost_usd` filled in. Leave out candidates that edited the plan file. They are recorded, not ranked.
+
+If no candidate is left to rank, treat it as a `null` winner. Do not run `rank`. Otherwise, run `rank`:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" rank --candidates-json <candidates-json>
@@ -213,7 +234,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" rank --candidates-js
 
 ## Record
 
-Write the table rows to a file as `{"rows": [...]}`, one row per candidate id. Each row is the candidate dict plus `rank`, `outcome`, and `reason`. Take `rank` from the output of `rank`. Give a plan-file-edited candidate a rank after the last ranked one, in id order. A `not dispatched` row carries only `id`, `outcome`, and `reason`.
+Write the table rows to a file as `{"rows": [...]}`, one row per candidate id. Each row is the candidate dict plus `rank`, `outcome`, and `reason`. Take `rank[<i>]` from the output of `rank`. Give a plan-file-edited candidate a rank after the last ranked one, in id order. A `not dispatched` row carries only `id`, `outcome`, and `reason`.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_summary_record.py" record --plan '<plan>' --step <step> --attempt <k> --result <rows-json>
@@ -222,8 +243,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_summary_record.py" record --plan '<p
 Set the provisional outcomes this way:
 
 - The winner is `kept`, with the reason `provisional (reconcile pending)`.
-- Every other non-disqualified ranked candidate is `removed`.
-- A disqualified candidate is `disqualified`. Its reason is `reasons[<id>]` from the output of `rank`.
+- Every other non-disqualified ranked candidate is `removed`. `removed` means the candidate is not kept. Its branch stays until Cleanup.
+- A disqualified candidate is `disqualified`. Its reason is `reasons[<i>]` from the output of `rank`.
+- A no-commits candidate and a plan-file-edited candidate are `disqualified`.
 - Write the reason yourself for a no-commits candidate (`no commits`) and for a plan-file-edited candidate (`plan file edited`).
 - An undispatched candidate is `not dispatched`, with the reason `cost cap`.
 
@@ -241,15 +263,29 @@ Handle its exit code:
 
 - Exit 0: the winner is merged.
 - Exit 1 with `"merged": false` in the JSON on stdout: the winner becomes `disqualified`, with the reason `reconcile failed`. Try the next non-disqualified id in `order`, from the restored branch. If none remains, halt (see Failure modes).
-- Exit 1 without that JSON, or any other non-zero exit: the script failed. Halt (see Failure modes).
-- Exit 2: halt (see Failure modes) and name the pre-merge SHA in the reason.
+- Exit 2 with the pre-merge SHA named on stderr: the restore failed. Halt (see Failure modes) and name the SHA in the reason.
+- Exit 1 without that JSON, exit 2 without that SHA, or any other non-zero exit: the script failed. Halt (see Failure modes).
+
+When Keep halts, the candidate whose merge was in progress is `disqualified`, with the reason `reconcile halted: <halt reason>`. The halt template names its branch to merge by hand.
 
 After Keep, `winner` means the candidate that `reconcile` merged.
 
-After exit 0, rewrite the parent's `.claude/memory/build-phase.json` for the step with `phase: refactor`. Use the shape of `/build`'s Phase-state bookkeeping. This lets the tests-frozen guard cover the checkpoint's fix loop.
+After exit 0, rewrite the parent's `.claude/memory/build-phase.json` for the step with `phase: refactor`. Use the shape of `/build`'s Phase-state bookkeeping. This lets the tests-frozen guards cover the checkpoint's fix loop.
+
+Fill `test_files_staged` with the step's test files, as `/build`'s TEST → REFACTOR transition does. List the files the merge changed in the build worktree:
+
+```bash
+git diff --name-only <base>..HEAD
+```
+
+Keep the test files. Run `git add` on them. Record their paths:
+
+```bash
+git add -- '<test file>'
+```
 
 ```json
-{"phase": "refactor", "step": "<step>", "written_at": "<ISO8601>", "test_files_staged": [], "plan_path": "<repo-relative path of the plan file>"}
+{"phase": "refactor", "step": "<step>", "written_at": "<ISO8601>", "test_files_staged": ["<test file>", "..."], "plan_path": "<repo-relative path of the plan file>"}
 ```
 
 Then run `record` again, with the final outcomes:
@@ -272,7 +308,7 @@ Do not run this section before the checkpoint. `/build` runs it after the step's
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" cleanup --repo '<build-worktree>' --remove '<branch-1>' '<branch-2>'
 ```
 
-List every candidate branch, including the kept one. Its commits are already on the build branch. The command is idempotent. If `cleanup` fails after the checkpoint, report the remaining branches. The failure does not undo the step.
+List every accepted candidate branch, including the kept one. Its commits are already on the build branch. The command is idempotent. If `cleanup` fails after the checkpoint, report the remaining branches. The failure does not undo the step.
 
 ## Resume
 

@@ -24,6 +24,7 @@ from skill_doc_helpers import (
     grep,
     headings_outside_code,
     section,
+    section_outside_code,
 )
 
 SKILL = PLUGIN_ROOT / "skills" / "speculative-build" / "SKILL.md"
@@ -49,10 +50,13 @@ SECTION_ORDER = [
 #: single-quoted wherever it appears in a bash block.
 QUOTED_PLACEHOLDERS = (
     "<branch>",
+    "<branch-1>",
+    "<branch-2>",
     "<winner-branch>",
     "<build-branch>",
     "<worktree>",
     "<build-worktree>",
+    "<plan>",
 )
 
 
@@ -62,8 +66,11 @@ def skill_text() -> str:
 
 
 def _h2(name: str) -> Callable[[str], str]:
-    """Resolve a `## <name>` section of the skill, up to the next `## `."""
-    return lambda text: section(text, rf"^## {name}$", boundary_pattern=r"^## ")
+    """Resolve a `## <name>` section of the skill, up to the next `## ` outside
+    a fenced block."""
+    return lambda text: section_outside_code(
+        text, rf"^## {name}$", boundary_pattern=r"^## "
+    )
 
 
 SECTIONS: dict[str, Callable[[str], str]] = {
@@ -132,13 +139,33 @@ def test_skill_names_the_plan_step_as_step_not_n_dot_m(skill_text):
 def test_skill_bash_blocks_single_quote_branch_and_worktree_placeholders(
     skill_text, placeholder
 ):
-    for block in _bash_blocks(skill_text):
-        for line in block.splitlines():
-            for match in re.finditer(re.escape(placeholder), line):
-                start = match.start()
-                assert start > 0 and line[start - 1] in "'=", (
-                    f"{placeholder} is not single-quoted in: {line}"
-                )
+    lines = [line for block in _bash_blocks(skill_text) for line in block.splitlines()]
+    quoted = f"'{placeholder}'"
+    assert any(quoted in line for line in lines), f"{placeholder} never appears"
+    bare = re.compile(rf"(?<!'){re.escape(placeholder)}|{re.escape(placeholder)}(?!')")
+    offenders = [line for line in lines if bare.search(line)]
+    assert not offenders, f"{placeholder} is not single-quoted in: {offenders}"
+
+
+@pytest.mark.parametrize(
+    ("text", "level", "expected"),
+    [
+        ("# a\n```\n## fake\n```\n## y\n", 2, ["y"]),
+        ("# a\n```\n# fake\n```\n## y\n", 1, ["a"]),
+        ("```text\n## fake\n```\n", 2, []),
+    ],
+    ids=["fenced_h2_ignored", "fenced_h1_ignored", "only_fenced"],
+)
+def test_headings_outside_code_skips_fenced_lines(text, level, expected):
+    assert headings_outside_code(text, level) == expected
+
+
+def test_section_stays_open_across_a_fenced_h2_line():
+    text = "## A\nbody\n```\n## fake\ninside\n```\ntail\n## B\nother\n"
+    body = _h2("A")(text)
+    assert "inside" in body
+    assert "tail" in body
+    assert "other" not in body
 
 
 FACTS = [
@@ -180,7 +207,10 @@ FACTS = [
         "Base and batches",
         literal_required=(
             "1. Read `prev` from the cost meter.",
-            "2. Dispatch the batch.",
+            (
+                "2. Hash the plan file, dispatch the batch, then hash it again. "
+                "Halt if the hashes differ."
+            ),
             "3. Read `now`. Compute `delta = now - prev`. Add `delta` to `spent`.",
             "4. Run the suite in each candidate worktree.",
             "5. Screen each candidate, then run `collect`.",
@@ -205,6 +235,16 @@ FACTS = [
                 "Print `speculative dispatch: step <step>, <N> candidates, "
                 "cost cap $<X>, attempt <k>`."
             ),
+        ),
+    ),
+    Fact(
+        "base_and_batches_define_the_recurring_placeholders",
+        "Base and batches",
+        literal_required=(
+            "- `<X>` is the cap from `--max-cost-usd`.",
+            "- `<P>` is the projected total that `project` prints.",
+            "- `<b>` is the batch number.",
+            "- `<ks>` lists the earlier attempt numbers.",
         ),
     ),
     Fact(
@@ -254,7 +294,8 @@ FACTS = [
             (
                 "Before your first edit run: "
                 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py" '
-                "engage <plan> --slice <id> --hooks-dir <your worktree>/.claude/hooks"
+                "engage '<plan>' --slice <slice-id> "
+                "--hooks-dir '<your worktree>/.claude/hooks'"
             ),
             (
                 "Add the third line only when `/build`'s Slice dispatch bookkeeping "
@@ -321,6 +362,42 @@ FACTS = [
         literal_required=(
             "exactly matches a `branch refs/heads/<name>` entry",
             "`^[A-Za-z0-9._/][A-Za-z0-9._/-]*$`",
+        ),
+    ),
+    Fact(
+        "dispatch_takes_the_worktree_path_from_the_porcelain_entry_only",
+        "Dispatch",
+        literal_required=(
+            (
+                "Take `<worktree>` from the `worktree <path>` line "
+                "of that same porcelain entry."
+            ),
+            "Never take it from the dispatch result.",
+        ),
+    ),
+    Fact(
+        "dispatch_uses_an_empty_branch_when_the_name_was_rejected",
+        "Dispatch",
+        literal_required=("Use an empty branch when the name was rejected.",),
+    ),
+    Fact(
+        "dispatch_hashes_the_plan_file_before_and_after_the_batch",
+        "Dispatch",
+        literal_required=(
+            (
+                "Hash the parent's plan file in the build worktree "
+                "just before the batch dispatches."
+            ),
+            "Hash it again when the batch returns:",
+            "git hash-object '<plan>'",
+        ),
+    ),
+    Fact(
+        "dispatch_halts_when_the_plan_file_hash_changes",
+        "Dispatch",
+        literal_required=(
+            "If the two hashes differ, a candidate wrote the parent's plan file.",
+            "Halt with the reason `plan file changed during batch <b>`.",
         ),
     ),
     Fact(
@@ -410,9 +487,25 @@ FACTS = [
         "Screening",
         literal_required=(
             "git diff --name-only --end-of-options <base>..'<branch>' -- '<plan>'",
-            "Use the reason `plan file edited`.",
+            "Record it as `disqualified` with the reason `plan file edited`.",
             "Do not rank it.",
         ),
+    ),
+    Fact(
+        "screening_plan_file_check_runs_in_the_parent_worktree_and_halts_on_failure",
+        "Screening",
+        literal_required=(
+            (
+                "Run this check in the parent's build worktree, "
+                "with the repo-relative plan path."
+            ),
+            "A non-zero exit is a script failure. Halt.",
+        ),
+    ),
+    Fact(
+        "screening_plan_file_edited_candidate_keeps_its_dict_and_branch",
+        "Screening",
+        literal_required=("keep the candidate's `collect` dict and its branch.",),
     ),
     Fact(
         "screening_says_the_winner_is_screened_again_by_design",
@@ -529,6 +622,14 @@ FACTS = [
         ),
     ),
     Fact(
+        "rank_with_no_candidate_left_is_a_null_winner_and_does_not_run",
+        "Rank",
+        literal_required=(
+            "If no candidate is left to rank, treat it as a `null` winner.",
+            "Do not run `rank`.",
+        ),
+    ),
+    Fact(
         "record_names_the_script_attempt_and_runs_before_and_after_keep",
         "Record",
         literal_required=(
@@ -543,6 +644,7 @@ FACTS = [
         "Record",
         literal_required=(
             "Each row is the candidate dict plus `rank`, `outcome`, and `reason`.",
+            "Take `rank[<i>]` from the output of `rank`.",
             "A `not dispatched` row carries only `id`, `outcome`, and `reason`.",
         ),
     ),
@@ -554,10 +656,38 @@ FACTS = [
         ),
     ),
     Fact(
+        "record_gives_a_plan_file_edited_candidate_a_rank_after_the_last_ranked",
+        "Record",
+        literal_required=(
+            (
+                "Give a plan-file-edited candidate a rank after the last ranked one, "
+                "in id order."
+            ),
+        ),
+    ),
+    Fact(
+        "record_defines_removed_as_not_kept_with_the_branch_kept_until_cleanup",
+        "Record",
+        literal_required=(
+            "`removed` means the candidate is not kept.",
+            "Its branch stays until Cleanup.",
+        ),
+    ),
+    Fact(
+        "record_states_both_unranked_outcomes_as_disqualified",
+        "Record",
+        literal_required=(
+            (
+                "A no-commits candidate and a plan-file-edited candidate "
+                "are `disqualified`."
+            ),
+        ),
+    ),
+    Fact(
         "record_disqualified_reason_comes_from_rank_except_the_two_written_by_hand",
         "Record",
         literal_required=(
-            "Its reason is `reasons[<id>]` from the output of `rank`.",
+            "Its reason is `reasons[<i>]` from the output of `rank`.",
             "(`no commits`)",
             "(`plan file edited`)",
         ),
@@ -578,11 +708,56 @@ FACTS = [
         literal_required=("--test-cmd='<suite>' -- '<winner-branch>'",),
     ),
     Fact(
+        "keep_passes_a_quote_in_the_suite_command_as_quote_backslash_quote_quote",
+        "Keep",
+        literal_required=("Write an embedded `'` in `<suite>` as `'\\''`:",),
+    ),
+    Fact(
         "keep_counts_exit_1_as_reconcile_failed_only_with_merged_false_json",
         "Keep",
+        literal_required=('Exit 1 with `"merged": false` in the JSON on stdout',),
+    ),
+    Fact(
+        "keep_exit_2_is_a_restore_failure_only_when_stderr_names_the_sha",
+        "Keep",
         literal_required=(
-            'Exit 1 with `"merged": false` in the JSON on stdout',
-            "Exit 1 without that JSON, or any other non-zero exit: the script failed.",
+            "Exit 2 with the pre-merge SHA named on stderr: the restore failed.",
+            "exit 2 without that SHA",
+        ),
+    ),
+    Fact(
+        "keep_any_other_non_zero_exit_is_a_script_failure",
+        "Keep",
+        literal_required=(
+            (
+                "Exit 1 without that JSON, exit 2 without that SHA, "
+                "or any other non-zero exit: the script failed."
+            ),
+        ),
+    ),
+    Fact(
+        "keep_halt_disqualifies_the_candidate_being_merged",
+        "Keep",
+        literal_required=(
+            (
+                "When Keep halts, the candidate whose merge was in progress "
+                "is `disqualified`, with the reason `reconcile halted: <halt reason>`."
+            ),
+            "The halt template names its branch to merge by hand.",
+        ),
+    ),
+    Fact(
+        "keep_fills_test_files_staged_with_the_steps_test_files",
+        "Keep",
+        literal_required=(
+            (
+                "Fill `test_files_staged` with the step's test files, "
+                "as `/build`'s TEST → REFACTOR transition does."
+            ),
+            "git diff --name-only <base>..HEAD",
+            "Keep the test files. Run `git add` on them.",
+            "git add -- '<test file>'",
+            '"test_files_staged": ["<test file>", "..."]',
         ),
     ),
     Fact(
@@ -619,6 +794,7 @@ FACTS = [
         "Cleanup",
         literal_required=(
             'build_candidates.py" cleanup --repo',
+            "List every accepted candidate branch, including the kept one.",
             "`/build` runs it after the step's inline checkpoint passes",
             "idempotent",
         ),
