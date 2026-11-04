@@ -533,6 +533,250 @@ def test_project_requires_every_argument() -> None:
     assert (r.returncode, r.stdout) == (2, "")
 
 
+# --- collect ----------------------------------------------------------------
+
+
+def _git(repo, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def _init_repo(path) -> None:
+    path.mkdir()
+    _git(path, "init", "-q", "-b", "main")
+    _git(path, "config", "user.name", "Test")
+    _git(path, "config", "user.email", "test@example.invalid")
+    _git(path, "config", "commit.gpgsign", "false")
+
+
+def _commit_all(repo, message: str) -> None:
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", message)
+
+
+_PLAN = """# Plan: demo
+
+### Slice 1: First
+
+```gherkin
+Feature: one
+  Scenario: only one here
+```
+
+### Slice 2: Second
+
+```gherkin
+Feature: two
+  # Scenario: a comment is not a scenario
+  Scenario: s1
+  Scenario: s2
+  Scenario: s3
+  Scenario Outline: o1
+```
+
+#### Step 2.1: do it
+
+### Slice 3: Third
+
+**Depends-on:** none
+
+#### Step 3.1: no gherkin here
+"""
+
+_OLD_LINES = [f"old {i}" for i in range(10)]
+
+
+@pytest.fixture
+def candidate_repo(tmp_path):
+    """A repo whose branch `cand` adds 12 lines, deletes 3 and adds a binary
+    file in one commit on top of `main` (the base)."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    (repo / "existing.txt").write_text("\n".join(_OLD_LINES) + "\n", encoding="utf-8")
+    _commit_all(repo, "base")
+    base = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "-b", "cand")
+    (repo / "added.txt").write_text(
+        "".join(f"new {i}\n" for i in range(12)), encoding="utf-8"
+    )
+    (repo / "existing.txt").write_text(
+        "\n".join(_OLD_LINES[:-3]) + "\n", encoding="utf-8"
+    )
+    (repo / "blob.bin").write_bytes(b"\x00\x01\x02\xff" * 64)
+    _commit_all(repo, "candidate work")
+    plan = tmp_path / "plan.md"
+    plan.write_text(_PLAN, encoding="utf-8")
+    return {"repo": repo, "base": base, "plan": plan, "tmp": tmp_path}
+
+
+def _lens(tmp_path, name: str, issues: list, status: str = "warn") -> str:
+    path = tmp_path / name
+    path.write_text(json.dumps({"status": status, "issues": issues}), encoding="utf-8")
+    return str(path)
+
+
+def _spec_issues(unmet_scenarios: int, unmet_criteria: int = 0) -> list:
+    return (
+        [{"category": "uncovered-scenario"}] * unmet_scenarios
+        + [{"category": "unmet-criterion"}] * unmet_criteria
+        + [{"category": "scope-violation"}]
+    )
+
+
+def _correctness_issues() -> list:
+    return [{"severity": s} for s in ("error", "error", "warning", "suggestion")]
+
+
+def _collect(fx, *, suite_exit=0, spec=None, correctness=None, step="2.1", plan=None):
+    return _run(
+        "collect",
+        "--id",
+        "2",
+        "--branch",
+        "cand",
+        "--worktree",
+        str(fx["repo"]),
+        "--base",
+        fx["base"],
+        "--suite-exit",
+        str(suite_exit),
+        "--spec-json",
+        spec or _lens(fx["tmp"], "spec.json", _spec_issues(2, 1)),
+        "--correctness-json",
+        correctness or _lens(fx["tmp"], "corr.json", _correctness_issues()),
+        "--plan",
+        str(plan or fx["plan"]),
+        "--step",
+        step,
+        "--cost-usd",
+        "1.25",
+    )
+
+
+def test_collect_derives_every_count_from_files_and_the_worktree(
+    candidate_repo,
+) -> None:
+    r = _collect(candidate_repo)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == {
+        "id": 2,
+        "branch": "cand",
+        "suite_green": True,
+        "scenarios_total": 4,
+        "scenarios_unmet": 3,
+        "errors": 2,
+        "warnings": 1,
+        "diff_lines": 15,
+        "cost_usd": 1.25,
+        "screening": "ok",
+    }
+
+
+def test_collect_clamps_unmet_findings_to_the_scenario_count_and_keeps_red_suite(
+    candidate_repo,
+) -> None:
+    spec = _lens(candidate_repo["tmp"], "spec6.json", _spec_issues(6))
+    r = _collect(candidate_repo, suite_exit=1, spec=spec)
+    out = json.loads(r.stdout)
+    assert r.returncode == 0
+    assert (out["suite_green"], out["scenarios_unmet"], out["scenarios_total"]) == (
+        False,
+        4,
+        4,
+    )
+    assert out["screening"] == "ok"
+
+
+def test_collect_marks_an_unparseable_lens_and_keeps_the_other_lens_counts(
+    candidate_repo,
+) -> None:
+    prose = candidate_repo["tmp"] / "prose.json"
+    prose.write_text("The code looks fine to me.", encoding="utf-8")
+    r = _collect(candidate_repo, suite_exit=1, correctness=str(prose))
+    out = json.loads(r.stdout)
+    assert out["suite_green"] is False
+    assert out["screening"] == "unparseable: correctness-review"
+    assert (out["errors"], out["warnings"]) == (0, 0)
+    assert out["scenarios_unmet"] == 3
+
+
+@pytest.mark.parametrize(
+    "content",
+    [None, '{"status": "pass"}', '{"issues": []}', '{"status": 1, "issues": []}', "[]"],
+    ids=["missing-file", "no-issues", "no-status", "status-not-string", "root-list"],
+)
+def test_collect_treats_a_structurally_wrong_spec_lens_as_unparseable(
+    candidate_repo, content
+) -> None:
+    path = candidate_repo["tmp"] / "spec-bad.json"
+    if content is not None:
+        path.write_text(content, encoding="utf-8")
+    out = json.loads(_collect(candidate_repo, spec=str(path)).stdout)
+    assert out["screening"] == "unparseable: spec-compliance-review"
+    assert out["scenarios_unmet"] == 0
+
+
+def test_collect_reports_the_first_unparseable_lens_when_both_are_bad(
+    candidate_repo,
+) -> None:
+    missing = str(candidate_repo["tmp"] / "nope.json")
+    out = json.loads(_collect(candidate_repo, spec=missing, correctness=missing).stdout)
+    assert out["screening"] == "unparseable: spec-compliance-review"
+
+
+def test_collect_counts_a_green_suite_only_for_exit_zero(candidate_repo) -> None:
+    out = json.loads(_collect(candidate_repo, suite_exit=2).stdout)
+    assert out["suite_green"] is False
+
+
+def test_collect_rejects_a_step_whose_slice_has_no_gherkin(candidate_repo) -> None:
+    r = _collect(candidate_repo, step="3.1")
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "3.1" in r.stderr
+
+
+def test_collect_rejects_a_step_outside_any_slice(candidate_repo) -> None:
+    r = _collect(candidate_repo, step="9.1")
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "9.1" in r.stderr
+
+
+def test_collect_rejects_a_missing_plan_file(candidate_repo) -> None:
+    r = _collect(candidate_repo, plan=candidate_repo["tmp"] / "no-plan.md")
+    assert (r.returncode, r.stdout) == (1, "")
+    assert r.stderr.startswith("collect:")
+
+
+def test_collect_rejects_a_base_ref_that_does_not_exist(candidate_repo) -> None:
+    fx = {**candidate_repo, "base": "no-such-ref"}
+    r = _collect(fx)
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "no-such-ref" in r.stderr
+
+
+def test_collect_rejects_a_malformed_step_as_a_usage_error(candidate_repo) -> None:
+    r = _collect(candidate_repo, step="two")
+    assert (r.returncode, r.stdout) == (2, "")
+
+
+def test_collect_ignores_uncommitted_edits_in_the_worktree(candidate_repo) -> None:
+    (candidate_repo["repo"] / "added.txt").write_text("dirty\n", encoding="utf-8")
+    assert json.loads(_collect(candidate_repo).stdout)["diff_lines"] == 15
+
+
+def test_collect_counts_binary_files_as_zero_diff_lines(candidate_repo) -> None:
+    repo = candidate_repo["repo"]
+    (repo / "only-binary.bin").write_bytes(b"\x00\xfe" * 32)
+    _commit_all(repo, "binary only")
+    base = _git(repo, "rev-parse", "HEAD~1")
+    out = json.loads(_collect({**candidate_repo, "base": base}).stdout)
+    assert out["diff_lines"] == 0
+
+
 # --- floor slice exemption (the module's own pass is run alongside this file) -
 
 

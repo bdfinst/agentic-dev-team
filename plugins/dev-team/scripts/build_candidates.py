@@ -16,9 +16,10 @@ import argparse
 import json
 import math
 import re
+import subprocess
 import sys
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import NoReturn
 
@@ -30,6 +31,18 @@ MIN_CANDIDATES = 1
 MAX_CANDIDATES = 8
 SPECULATIVE_MIN_CANDIDATES = 2
 
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE / "lib"))
+
+import plan_parse
+
+GIT_TIMEOUT_SECONDS = 120
+LENS_SPEC_COMPLIANCE = "spec-compliance-review"
+LENS_CORRECTNESS = "correctness-review"
+UNMET_SCENARIO_CATEGORIES = frozenset({"uncovered-scenario", "unmet-criterion"})
+
+_SCENARIO_LINE_RE = re.compile(r"^\s*Scenario( Outline)?:")
+_STEP_RE = re.compile(r"[0-9]+\.[0-9]+")
 _ASCII_INT_RE = re.compile(r"-?[0-9]+")
 _ASCII_NUMBER_RE = re.compile(r"(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 
@@ -349,6 +362,157 @@ def _cmd_validate_flags(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _git(repo: str, *args: str) -> subprocess.CompletedProcess:
+    """Run `git -C <repo> <args>`, bounded by a timeout; raise DataError when
+    git cannot be run at all. A non-zero exit is returned, not raised."""
+    try:
+        return subprocess.run(
+            ["git", "-C", repo, *args],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise DataError(
+            f"git {' '.join(args)} could not run in {repo}: {exc}"
+        ) from None
+
+
+def _diff_line_count(worktree: str, base: str) -> int:
+    """Added plus deleted lines in `base..HEAD`; a binary file counts 0."""
+    result = _git(worktree, "diff", "--numstat", f"{base}..HEAD")
+    if result.returncode != 0:
+        raise DataError(
+            f"collect: git diff --numstat {base}..HEAD failed in {worktree}: "
+            f"{result.stderr.strip()}"
+        )
+    total = 0
+    for line in result.stdout.splitlines():
+        added, deleted, _path = line.split("\t", 2)
+        total += sum(int(n) for n in (added, deleted) if n.isdigit())
+    return total
+
+
+def _scenario_total(plan_path: str, step: str) -> int:
+    """Scenario and Scenario Outline lines in the first Gherkin block of the
+    slice that owns `step`."""
+    try:
+        text = Path(plan_path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise DataError(
+            f"collect: cannot read plan {plan_path}: {exc.strerror}"
+        ) from None
+    slice_id = step.split(".", 1)[0]
+    blocks = {
+        sid: gherkin
+        for sid, _title, gherkin in plan_parse.slice_gherkin_blocks(text.splitlines())
+    }
+    if slice_id not in blocks:
+        raise DataError(f"collect: step {step} is outside any slice in {plan_path}")
+    gherkin = blocks[slice_id]
+    if gherkin is None:
+        raise DataError(f"collect: slice {slice_id} (step {step}) has no gherkin block")
+    return sum(1 for line in gherkin.splitlines() if _SCENARIO_LINE_RE.match(line))
+
+
+def _lens_issues(path: str, lens: str) -> list[dict] | None:
+    """The issue objects of a review-lens JSON file, or None when the file is
+    missing, not JSON, or lacks a string `status` and a list `issues`."""
+    try:
+        data = _load_json_object(path, lens)
+    except DataError:
+        return None
+    issues = data.get("issues")
+    if not isinstance(data.get("status"), str) or not isinstance(issues, list):
+        return None
+    return [issue for issue in issues if isinstance(issue, dict)]
+
+
+def collect(
+    *,
+    cid: int,
+    branch: str,
+    worktree: str,
+    base: str,
+    suite_exit: int,
+    spec_json: str,
+    correctness_json: str,
+    plan: str,
+    step: str,
+    cost_usd: float,
+) -> dict:
+    """Build one candidate dict from the suite exit code, the worktree diff,
+    the plan's Gherkin block and the two review-lens files."""
+    total = _scenario_total(plan, step)
+    diff_lines = _diff_line_count(worktree, base)
+    spec_issues = _lens_issues(spec_json, LENS_SPEC_COMPLIANCE)
+    correctness_issues = _lens_issues(correctness_json, LENS_CORRECTNESS)
+    unparseable = [
+        lens
+        for lens, issues in (
+            (LENS_SPEC_COMPLIANCE, spec_issues),
+            (LENS_CORRECTNESS, correctness_issues),
+        )
+        if issues is None
+    ]
+    unmet = sum(
+        1
+        for issue in spec_issues or []
+        if issue.get("category") in UNMET_SCENARIO_CATEGORIES
+    )
+
+    def severity_count(severity: str) -> int:
+        return sum(1 for i in correctness_issues or [] if i.get("severity") == severity)
+
+    candidate = {
+        "id": cid,
+        "branch": branch,
+        "suite_green": suite_exit == 0,
+        "scenarios_total": total,
+        "scenarios_unmet": min(total, unmet),
+        "errors": severity_count("error"),
+        "warnings": severity_count("warning"),
+        "diff_lines": diff_lines,
+        "cost_usd": cost_usd,
+        "screening": (
+            f"{SCREENING_UNPARSEABLE_PREFIX}{unparseable[0]}"
+            if unparseable
+            else SCREENING_OK
+        ),
+    }
+    try:
+        return asdict(Candidate.from_dict(candidate))
+    except ValueError as exc:
+        raise DataError(f"collect: {exc}") from None
+
+
+def _step_id(raw: str) -> str:
+    if not _STEP_RE.fullmatch(raw):
+        raise argparse.ArgumentTypeError(f"must look like N.M; got '{raw}'")
+    return raw
+
+
+def _cmd_collect(args: argparse.Namespace) -> int:
+    try:
+        result = collect(
+            cid=args.id,
+            branch=args.branch,
+            worktree=args.worktree,
+            base=args.base,
+            suite_exit=args.suite_exit,
+            spec_json=args.spec_json,
+            correctness_json=args.correctness_json,
+            plan=args.plan,
+            step=args.step,
+            cost_usd=args.cost_usd,
+        )
+    except DataError as exc:
+        return _fail(EXIT_INVALID_DATA, str(exc))
+    _emit(result)
+    return EXIT_OK
+
+
 def _cmd_rank(args: argparse.Namespace) -> int:
     try:
         result = rank(_load_candidates(args.candidates))
@@ -369,6 +533,19 @@ def _build_parser() -> argparse.ArgumentParser:
     flags.add_argument("--max-cost-usd")
     flags.add_argument("--jobs")
     flags.set_defaults(handler=_cmd_validate_flags)
+
+    collecting = sub.add_parser("collect", help="build one candidate dict")
+    collecting.add_argument("--id", required=True, type=_positive_int)
+    collecting.add_argument("--branch", required=True)
+    collecting.add_argument("--worktree", required=True)
+    collecting.add_argument("--base", required=True)
+    collecting.add_argument("--suite-exit", required=True, type=int)
+    collecting.add_argument("--spec-json", required=True)
+    collecting.add_argument("--correctness-json", required=True)
+    collecting.add_argument("--plan", required=True)
+    collecting.add_argument("--step", required=True, type=_step_id)
+    collecting.add_argument("--cost-usd", required=True, type=_finite_non_negative)
+    collecting.set_defaults(handler=_cmd_collect)
 
     ranking = sub.add_parser("rank", help="rank candidates and pick a winner")
     ranking.add_argument("--candidates", required=True, help="candidates JSON file")
