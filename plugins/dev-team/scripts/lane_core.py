@@ -13,8 +13,7 @@ every command shares:
   timeout, and a runtime spy in the tests covers it.
 - `resolve_trunk_commit`, `local_branch_of` and `lane_context`: which ref is
   the trunk, which local branch it maps to (None for a tag or SHA), and
-  whether the working directory is a lane. `resolve_trunk` is a thin wrapper
-  over `resolve_trunk_commit` for tests and probes.
+  whether the working directory is a lane.
 - `worktrees`, `branch_exists`, `branch_commit`, `branch_checked_out` and
   `primary_checkout`: the one worktree-listing parser and the questions built
   on it.
@@ -73,6 +72,8 @@ NUL = "\0"
 MERGE_HEAD = "MERGE_HEAD"
 
 NO_GIT_MESSAGE = "git gave no message"
+#: The claim every restored-lane refusal ends with; made only after a verified restore.
+RESTORED_CLAUSE = "the lane was restored to its state before compose"
 
 GIT_DIR_NAME = ".git"
 HEAD_REFS_PREFIX = "refs/heads/"
@@ -384,7 +385,7 @@ def compose_conflict_refusal(target_label: str, paths: Sequence[str]) -> Refusal
         what=WHAT_COMPOSE_CONFLICT,
         why=(
             f"merging {target_label} into the lane {compose_conflict_cause(paths)}; "
-            "the lane was restored to its state before compose"
+            f"{RESTORED_CLAUSE}"
         ),
         how=(
             f"merge {target_label} by hand in the lane, resolve the conflicts, "
@@ -403,7 +404,7 @@ def compose_merge_failed_refusal(
         why=(
             f"git could not merge {target_label}: "
             f"{compose_merge_failed_cause(command, detail)}; "
-            "the lane was restored to its state before compose"
+            f"{RESTORED_CLAUSE}"
         ),
         how="resolve the cause named in why, then run compose again",
     )
@@ -438,7 +439,7 @@ def compose_restored_refusal(cause: Refusal) -> Refusal:
     """
     return Refusal(
         what=cause.what,
-        why=f"{cause.why}; the lane was restored to its state before compose",
+        why=f"{cause.why}; {RESTORED_CLAUSE}",
         how="fix the cause named in why, then run compose again",
     )
 
@@ -790,19 +791,6 @@ def resolve_trunk_commit(arg: str | None, cwd: Path) -> tuple[str, str]:
     return candidate, commit
 
 
-def resolve_trunk(arg: str | None, cwd: Path) -> str | None:
-    """The trunk ref of `resolve_trunk_commit`, or None when it would refuse.
-
-    For tests and probes; commands use `resolve_trunk_commit`.
-    """
-    try:
-        return resolve_trunk_commit(arg, cwd)[0]
-    except RefusalError as exc:
-        if exc.refusal.what != WHAT_TRUNK_UNRESOLVED:
-            raise
-        return None
-
-
 def _remote_names(cwd: Path) -> list[str]:
     return git_text(["remote"], cwd).splitlines()
 
@@ -845,7 +833,6 @@ class LaneContext:
     branch: str
     trunk_ref: str
     trunk_branch: str | None
-    primary_path: Path
 
 
 def worktrees(cwd: Path) -> list[tuple[Path, str | None]]:
@@ -923,5 +910,4 @@ def lane_context(trunk_ref: str, cwd: Path) -> LaneContext | None:
         branch=branch,
         trunk_ref=trunk_ref,
         trunk_branch=trunk_branch,
-        primary_path=_primary_of(common, cwd),
     )

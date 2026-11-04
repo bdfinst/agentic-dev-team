@@ -306,7 +306,10 @@ def test_an_opened_lane_is_a_lane_beside_the_primary(repo_without_remote, capsys
 
     assert context is not None
     assert context.branch == "A"
-    assert context.primary_path == repo_without_remote.path.resolve()
+    assert (
+        lane_core.primary_checkout(context.lane_path)
+        == repo_without_remote.path.resolve()
+    )
 
 
 def test_open_from_inside_a_lane_places_the_new_lane_beside_the_primary(

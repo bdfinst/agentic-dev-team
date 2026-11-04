@@ -55,6 +55,18 @@ if str(SCRIPTS_DIR) not in sys.path:
 import lane_core
 
 TEST_DIR = Path(__file__).resolve().parent
+
+
+def resolve_trunk(arg: str | None, cwd: Path) -> str | None:
+    """The trunk ref of `resolve_trunk_commit`, or None when it is unresolved."""
+    try:
+        return lane_core.resolve_trunk_commit(arg, cwd)[0]
+    except lane_core.RefusalError as exc:
+        if exc.refusal.what != lane_core.WHAT_TRUNK_UNRESOLVED:
+            raise
+        return None
+
+
 TEST_SOURCES = [
     TEST_DIR / "test_lane.py",
     TEST_DIR / "test_lane_compose.py",
@@ -781,7 +793,7 @@ def test_the_spy_records_a_call_made_inside_a_library_module(
 ):
     records_before = len(argv_spy.records)
 
-    lane_core.resolve_trunk(None, repo_with_origin.path)
+    resolve_trunk(None, repo_with_origin.path)
 
     recorded = argv_spy.records[records_before:]
     assert ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"] in recorded
@@ -831,33 +843,33 @@ def test_the_git_directory_itself_is_not_a_work_tree(repo_without_remote):
 
 
 def test_trunk_defaults_to_the_local_branch_without_a_remote(repo_without_remote):
-    assert lane_core.resolve_trunk(None, repo_without_remote.path) == "main"
+    assert resolve_trunk(None, repo_without_remote.path) == "main"
 
 
 def test_trunk_defaults_to_the_remote_tracking_branch(repo_with_origin):
-    assert lane_core.resolve_trunk(None, repo_with_origin.path) == "origin/main"
+    assert resolve_trunk(None, repo_with_origin.path) == "origin/main"
 
 
 @pytest.mark.parametrize("ref", ["main", "HEAD"])
 def test_an_explicit_resolvable_trunk_is_returned_as_given(ref, repo_without_remote):
-    assert lane_core.resolve_trunk(ref, repo_without_remote.path) == ref
+    assert resolve_trunk(ref, repo_without_remote.path) == ref
 
 
 def test_a_tag_is_a_usable_trunk(repo_with_origin):
     git(repo_with_origin.path, "tag", "v1", "origin/main")
 
-    assert lane_core.resolve_trunk("v1", repo_with_origin.path) == "v1"
+    assert resolve_trunk("v1", repo_with_origin.path) == "v1"
 
 
 def test_a_tag_on_a_tree_is_not_a_trunk(repo_without_remote):
     repo = repo_without_remote.path
     git(repo, "tag", "tree-tag", git(repo, "rev-parse", "HEAD^{tree}"))
 
-    assert lane_core.resolve_trunk("tree-tag", repo) is None
+    assert resolve_trunk("tree-tag", repo) is None
 
 
 def test_an_unknown_ref_is_not_a_trunk(repo_without_remote):
-    assert lane_core.resolve_trunk("missing-ref", repo_without_remote.path) is None
+    assert resolve_trunk("missing-ref", repo_without_remote.path) is None
 
 
 @pytest.mark.parametrize(
@@ -866,7 +878,7 @@ def test_an_unknown_ref_is_not_a_trunk(repo_without_remote):
 def test_a_malformed_trunk_is_rejected_before_git_runs(ref, tmp_path, argv_spy):
     records_before = len(argv_spy.records)
 
-    assert lane_core.resolve_trunk(ref, tmp_path) is None
+    assert resolve_trunk(ref, tmp_path) is None
     assert argv_spy.records[records_before:] == []
 
 
@@ -875,7 +887,7 @@ def test_no_default_and_no_argument_gives_none(tmp_path):
     commitless_repo.mkdir()
     git(commitless_repo, "init", "-q", "-b", "trunk-less")
 
-    assert lane_core.resolve_trunk(None, commitless_repo) is None
+    assert resolve_trunk(None, commitless_repo) is None
 
 
 def test_resolve_trunk_commit_returns_the_ref_and_its_commit(repo_with_origin):
@@ -1008,7 +1020,6 @@ def test_a_linked_worktree_on_its_own_branch_is_a_lane(repo_without_remote):
         branch="feature-x",
         trunk_ref="main",
         trunk_branch="main",
-        primary_path=repo_without_remote.path.resolve(),
     )
 
 
@@ -1020,7 +1031,10 @@ def test_a_subdirectory_of_a_lane_reports_the_lane_root(repo_without_remote):
 
     assert context is not None
     assert context.lane_path == worktree.resolve()
-    assert context.primary_path == repo_without_remote.path.resolve()
+    assert (
+        lane_core.primary_checkout(context.lane_path)
+        == repo_without_remote.path.resolve()
+    )
 
 
 def test_a_detached_head_in_a_linked_worktree_is_not_a_lane(repo_without_remote):
@@ -1128,7 +1142,7 @@ def test_a_separate_git_dir_checkout_gets_the_primary_git_lists(tmp_path):
 
     assert lane_core.primary_checkout(lane_dir) == listed
     assert context is not None
-    assert context.primary_path == listed
+    assert lane_core.primary_checkout(context.lane_path) == listed
 
 
 def test_a_bare_primary_is_the_bare_repository(repo_without_remote, tmp_path):

@@ -68,14 +68,10 @@ ORACLE_FORBIDDEN_TOKENS = frozenset(
 ORACLE_HOOKS_PATH_PREFIX = "core.hookspath="
 ORACLE_FORCE_REFSPEC_PREFIX = "+"
 
-#: Spellings the exact-token set cannot see. Each is written out here, not read
-#: from lane_core, for the same reason as the set above.
-ORACLE_LONG_OPTIONS = (
-    "--no-verify",
-    "--force",
-    "--force-with-lease",
-    "--force-if-includes",
-    "--no-gpg-sign",
+#: Spellings the exact-token set cannot see: its long options. Derived from
+#: the oracle set above, not read from lane_core, so the oracle stays independent.
+ORACLE_LONG_OPTIONS = tuple(
+    sorted(token for token in ORACLE_FORBIDDEN_TOKENS if token.startswith("--"))
 )
 ORACLE_MIN_ABBREVIATION = 3
 ORACLE_CLUSTER = re.compile(r"-[A-Za-z]+")

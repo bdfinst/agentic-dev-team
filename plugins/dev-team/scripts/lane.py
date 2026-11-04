@@ -292,6 +292,25 @@ def _restore_verified(snapshot: Snapshot, lane_path: Path) -> bool:
         return False
 
 
+def _settled(
+    snapshot: Snapshot,
+    lane_path: Path,
+    failed_step: str,
+    cause: str,
+    restored: lane_core.Refusal,
+) -> lane_core.Refusal:
+    """`restored` once the restore is verified, else the unverified refusal.
+
+    The one place that states the rule: a refusal claims the lane was restored
+    only after a verified restore.
+    """
+    if _restore_verified(snapshot, lane_path):
+        return restored
+    return lane_core.compose_restore_unverified_refusal(
+        failed_step, snapshot.head, cause
+    )
+
+
 def _failed_merge_refusal(
     target: MergeTarget,
     attempt: lane_core.GitAttempt,
@@ -314,13 +333,14 @@ def _failed_merge_refusal(
         if unmerged
         else lane_core.compose_merge_failed_cause(attempt.command, detail)
     )
-    if not _restore_verified(snapshot, lane_path):
-        return lane_core.compose_restore_unverified_refusal(
-            lane_core.merge_step_failed(target.ref), snapshot.head, cause
-        )
-    if unmerged:
-        return lane_core.compose_conflict_refusal(target.ref, unmerged)
-    return lane_core.compose_merge_failed_refusal(target.ref, attempt.command, detail)
+    restored = (
+        lane_core.compose_conflict_refusal(target.ref, unmerged)
+        if unmerged
+        else lane_core.compose_merge_failed_refusal(target.ref, attempt.command, detail)
+    )
+    return _settled(
+        snapshot, lane_path, lane_core.merge_step_failed(target.ref), cause, restored
+    )
 
 
 def _merge_attempt(target: MergeTarget, lane_path: Path) -> lane_core.GitAttempt:
@@ -392,15 +412,15 @@ def _merge_and_read(
     except lane_core.RefusalError as failure:
         if not _head_moved(snapshot, lane_path):
             raise
-        if not _restore_verified(snapshot, lane_path):
-            step = lane_core.compose_failed_after([target.ref for target in merged])
-            raise SettledRefusal(
-                lane_core.compose_restore_unverified_refusal(
-                    step, snapshot.head, failure.refusal.why
-                )
-            ) from failure
+        step = lane_core.compose_failed_after([target.ref for target in merged])
         raise SettledRefusal(
-            lane_core.compose_restored_refusal(failure.refusal)
+            _settled(
+                snapshot,
+                lane_path,
+                step,
+                failure.refusal.why,
+                lane_core.compose_restored_refusal(failure.refusal),
+            )
         ) from failure
     except BaseException:
         _restore_verified(snapshot, lane_path)
