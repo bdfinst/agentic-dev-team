@@ -58,9 +58,9 @@ def falsifier_text(line: str) -> str | None:
 
 def _falsifier_after(lines: list[str], start: int) -> str | None:
     """Falsifier carried by the first non-blank line at or after `start`."""
-    for line in lines[start:]:
-        if line.strip():
-            return falsifier_text(line)
+    for i in range(start, len(lines)):
+        if lines[i].strip():
+            return falsifier_text(lines[i])
     return None
 
 
@@ -82,17 +82,10 @@ def scan_block(slice_id: str, gherkin: str) -> list[dict]:
     return rows
 
 
-def falsifiers(lines: list[str]) -> dict:
-    """Build the output object for a plan's lines."""
-    scenarios: list[dict] = []
-    scanned: list[str] = []
-    skipped: list[str] = []
-    for slice_id, _title, gherkin in plan_parse.slice_gherkin_blocks(lines):
-        if gherkin is None:
-            skipped.append(slice_id)
-            continue
-        scanned.append(slice_id)
-        scenarios.extend(scan_block(slice_id, gherkin))
+def _report(
+    scenarios: list[dict], scanned: list[str], skipped: list[str], error: str | None
+) -> dict:
+    """The output object; `missing` is derived from the scenarios without a falsifier."""
     missing = [
         {"slice": row["slice"], "scenario": row["scenario"]}
         for row in scenarios
@@ -103,19 +96,27 @@ def falsifiers(lines: list[str]) -> dict:
         "missing": missing,
         "scanned_slices": scanned,
         "skipped_slices": skipped,
-        "error": None,
+        "error": error,
     }
+
+
+def build_falsifier_report(lines: list[str]) -> dict:
+    """Build the output object for a plan's lines."""
+    scenarios: list[dict] = []
+    scanned: list[str] = []
+    skipped: list[str] = []
+    for slice_id, _title, gherkin in plan_parse.slice_gherkin_blocks(lines):
+        if gherkin is None:
+            skipped.append(slice_id)
+            continue
+        scanned.append(slice_id)
+        scenarios.extend(scan_block(slice_id, gherkin))
+    return _report(scenarios, scanned, skipped, None)
 
 
 def unreadable_result(message: str) -> dict:
     """The output object for an unreadable plan: empty lists, `error` set."""
-    return {
-        "scenarios": [],
-        "missing": [],
-        "scanned_slices": [],
-        "skipped_slices": [],
-        "error": message,
-    }
+    return _report([], [], [], message)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -132,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(unreadable_result(message), indent=2))
         sys.stderr.write(f"plan-falsifiers: {message}\n")
         return 2
-    print(json.dumps(falsifiers(text.split("\n")), indent=2))
+    print(json.dumps(build_falsifier_report(text.split("\n")), indent=2))
     return 0
 
 
