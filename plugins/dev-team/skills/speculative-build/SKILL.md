@@ -280,7 +280,7 @@ Set the provisional outcomes this way:
 - Write the reason yourself for a no-commits candidate (`no commits`) and for a plan-file-edited candidate (`plan file edited`). This reason replaces `reasons[<i>]`.
 - An undispatched candidate is `not dispatched`. Its reason is `cost cap` after a `stop` and `halted before dispatch` after a halt.
 
-`record` runs before Keep. Run it again with the same attempt after Keep, to write the final outcomes. Do not run two `record` calls at the same time on one plan file. Speculative steps within one wave run one at a time.
+`record` runs before Keep. Run it again with the same attempt after Keep, to write the final outcomes. Do not run two `record` calls at the same time on one plan file. Speculative steps never overlap: `/build` dispatches two such steps in one wave one after another.
 
 ## Keep
 

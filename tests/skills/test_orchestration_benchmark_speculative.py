@@ -268,7 +268,7 @@ FACTS = [
         literal_required=(
             (
                 f"A difference of exactly {PASS_RATE_MARGIN} points at "
-                f"{NOISE_RUNS_WORD} runs follows Noise and ties."
+                f"{NOISE_RUNS_WORD} runs is inconclusive; see Noise and ties."
             ),
         ),
     ),

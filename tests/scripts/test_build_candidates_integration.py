@@ -257,31 +257,100 @@ def test_reconcile_kills_a_suite_descendant_that_outlives_the_script(
 
 
 STUB_SCRIPT = """\
-import subprocess, sys, time
+import os, pathlib, subprocess, sys, time
 subprocess.run(["git", "merge", "--no-ff", "--no-commit", sys.argv[-1]], check=True)
+pathlib.Path(os.environ["STUB_READY_MARKER"]).touch()
 time.sleep(300)
 """
+
+
+def _stub_reconcile(tmp_path, monkeypatch):
+    """Point reconcile at STUB_SCRIPT and return the marker it touches once
+    its merge is in progress, so a test can assert that state was reached."""
+    stub = tmp_path / "stub_reconcile.py"
+    stub.write_text(STUB_SCRIPT, encoding="utf-8")
+    marker = tmp_path / "stub.ready"
+    monkeypatch.setenv("STUB_READY_MARKER", str(marker))
+    monkeypatch.setattr(build_candidates_git, "_RECONCILE_SCRIPT", stub)
+    return marker
+
+
+def _record_group_kills(monkeypatch) -> list[int]:
+    """Wrap _signal_process_group so a test can see which pids it killed."""
+    killed: list[int] = []
+    real = build_candidates_git._signal_process_group
+
+    def recording(process):
+        killed.append(process.pid)
+        real(process)
+
+    monkeypatch.setattr(build_candidates_git, "_signal_process_group", recording)
+    return killed
+
+
+def _wait_for(path, seconds: float = 10.0) -> bool:
+    deadline = time.monotonic() + seconds
+    while not path.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    return path.exists()
 
 
 @pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX")
 def test_reconcile_restores_the_branch_when_the_script_outlives_its_timeout(
     build_repo, tmp_path, monkeypatch, capfd
 ) -> None:
-    """The wrapper bound is the suite bound plus a 300 s margin; -298 leaves
-    2 s. The stub leaves a merge in progress and then hangs."""
+    """The wrapper bound is the suite bound plus a 300 s margin; -295 leaves
+    5 s. The stub leaves a merge in progress and then hangs."""
     repo = build_repo["repo"]
     _candidate_branch(repo, "c1", build_repo["base"], {"c1.txt": "c1\n"})
-    stub = tmp_path / "stub_reconcile.py"
-    stub.write_text(STUB_SCRIPT, encoding="utf-8")
-    monkeypatch.setenv("BUILD_WAVE_RECONCILE_TEST_CMD_TIMEOUT", "-298")
-    monkeypatch.setattr(build_candidates_git, "_RECONCILE_SCRIPT", stub)
+    marker = _stub_reconcile(tmp_path, monkeypatch)
+    killed = _record_group_kills(monkeypatch)
+    monkeypatch.setenv("BUILD_WAVE_RECONCILE_TEST_CMD_TIMEOUT", "-295")
     out = build_candidates.reconcile(
         repo=str(repo), into=BUILD, base=build_repo["base"], test_cmd="x", branch="c1"
     )
+    assert marker.exists(), "the stub never reached its merge before the timeout"
     assert out["merged"] is False
     assert out["head"] == build_repo["pre"]
     assert not _merge_head(repo).exists()
     assert "timed out" in capfd.readouterr().err
+    assert len(killed) == 1 and _process_is_gone(killed[0]), killed
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX")
+def test_reconcile_kills_the_group_and_restores_when_interrupted_mid_run(
+    build_repo, tmp_path, monkeypatch
+) -> None:
+    """An interrupt that reaches the wrapper while the script is mid-merge
+    kills the script's group, restores the branch and propagates."""
+    repo = build_repo["repo"]
+    _candidate_branch(repo, "c1", build_repo["base"], {"c1.txt": "c1\n"})
+    marker = _stub_reconcile(tmp_path, monkeypatch)
+    killed = _record_group_kills(monkeypatch)
+
+    class InterruptedPopen(subprocess.Popen):
+        """Raises the interrupt only on the reconcile script's main wait;
+        the wrapper's own git calls and the kill-drain wait run as usual."""
+
+        def communicate(self, input=None, timeout=None):
+            is_reconcile = str(build_candidates_git._RECONCILE_SCRIPT) in self.args
+            if not is_reconcile or timeout == build_candidates_git._KILL_DRAIN_SECONDS:
+                return super().communicate(input, timeout)
+            assert _wait_for(marker), "the stub never reached its merge"
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(build_candidates_git.subprocess, "Popen", InterruptedPopen)
+    with pytest.raises(KeyboardInterrupt):
+        build_candidates.reconcile(
+            repo=str(repo),
+            into=BUILD,
+            base=build_repo["base"],
+            test_cmd="x",
+            branch="c1",
+        )
+    assert len(killed) == 1 and _process_is_gone(killed[0]), killed
+    assert not _merge_head(repo).exists()
+    assert _head(repo) == build_repo["pre"]
 
 
 def test_reconcile_restores_the_branch_and_re_raises_an_interrupt(

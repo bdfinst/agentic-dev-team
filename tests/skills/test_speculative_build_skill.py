@@ -845,7 +845,7 @@ FACTS = [
         "Record",
         literal_required=(
             "Do not run two `record` calls at the same time on one plan file.",
-            "Speculative steps within one wave run one at a time.",
+            "Speculative steps never overlap: `/build` dispatches two such steps in one wave one after another.",
         ),
     ),
     Fact(

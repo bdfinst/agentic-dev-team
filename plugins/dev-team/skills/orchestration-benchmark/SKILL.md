@@ -113,7 +113,7 @@ It measures whether the extra candidates earn their cost.
   hold:
   - Its acceptance pass rate (the Quality metric) exceeds N = 1's by at
     least 20 points. A difference of exactly 20 points at five runs
-    follows Noise and ties.
+    is inconclusive; see Noise and ties.
   - Its median step cost is at most 3× N = 1's median step cost, plus the
     median screening spend of the N = 3 runs.
 - **Noise and ties.** A difference under 20 points is noise at five runs. At

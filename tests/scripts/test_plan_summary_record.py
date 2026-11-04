@@ -106,9 +106,7 @@ def test_the_metric_columns_are_the_six_cells_between_branch_and_outcome() -> No
 
 def test_the_metric_columns_sit_between_the_branch_and_outcome_columns() -> None:
     columns, metrics = plan_summary_record.COLUMNS, plan_summary_record.METRIC_COLUMNS
-    assert columns[columns.index("Branch") + 1] == metrics[0]
-    assert columns[columns.index("Outcome") - 1] == metrics[-1]
-    assert len(metrics) == columns.index("Outcome") - columns.index("Branch") - 1
+    assert columns[columns.index("Branch") + 1 : columns.index("Outcome")] == metrics
 
 
 # --- insertion: no Plan Review Summary yet ------------------------------------

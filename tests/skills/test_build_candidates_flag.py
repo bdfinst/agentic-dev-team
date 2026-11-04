@@ -142,6 +142,10 @@ ROUTING_PHRASES = (
     ("conditions_on_complexity_being_complex", r"`\*\*Complexity\*\*` is `complex`"),
     ("names_the_skill", r"speculative-build/SKILL\.md"),
     (
+        "dispatches_two_speculative_steps_in_one_wave_one_after_another",
+        r"When two slices in one wave each hold a speculative step, dispatch those steps one after another\.",
+    ),
+    (
         "runs_self_verification_on_the_merged_winner_first",
         r"Run sub-step 3's self-verification on the merged winner first, then resume",
     ),

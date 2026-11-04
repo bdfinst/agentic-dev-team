@@ -209,9 +209,8 @@ def test_collect_keeps_a_clamped_candidate_rankable(candidate_repo) -> None:
     spec = _lens(candidate_repo["tmp"], "spec6.json", _spec_issues(6))
     r = _collect(candidate_repo, spec=spec)
     assert r.returncode == 0, r.stderr
-    out = json.loads(r.stdout)
-    assert out["scenarios_unmet"] <= out["scenarios_total"]
-    build_candidates.Candidate.from_dict(out)
+    candidate = build_candidates.Candidate.from_dict(json.loads(r.stdout))
+    assert not candidate.is_disqualified, candidate.disqualification_reason
 
 
 def test_collect_rejects_an_empty_branch_for_a_green_suite(candidate_repo) -> None:
