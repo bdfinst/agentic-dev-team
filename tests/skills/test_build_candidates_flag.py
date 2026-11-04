@@ -9,10 +9,10 @@ every `python3 "${CLAUDE_PLUGIN_ROOT}/..."` call in Parse Arguments must name
 a file under the plugin root, and every flag named for `build_candidates.py
 validate-flags` must appear in its real `--help`. The `docs/skills.md` row is
 checked against the frontmatter it is generated from. Step 4 routes `complex`
-steps to the speculative-build skill through one paragraph placed immediately
-before the single-dispatch paragraph; the default text (the `trivial` and
-`standard` bullets and the dispatch paragraph) stays pinned verbatim by
-`fixtures/build_skill_untouched_passages.md`.
+steps to the speculative-build skill through one routing paragraph placed
+immediately before the single-dispatch paragraph; the default text (the
+`trivial` and `standard` bullets and the single-dispatch paragraph) stays
+pinned verbatim by `fixtures/build_skill_untouched_passages.md`.
 """
 
 from __future__ import annotations
@@ -91,27 +91,38 @@ UNTOUCHED_FIXTURE = (
 STEP_4_START = r"^### 4\. Implement each step$"
 STEP_4_BOUNDARY = r"^### "
 ROUTING_START = "**Speculative dispatch (#2273).**"
-DISPATCH_START = "For each step within a slice, dispatch"
+SINGLE_DISPATCH_START = "For each step within a slice, dispatch"
 TRIVIAL_BULLET_START = "- **trivial**:"
 STANDARD_BULLET_START = "- **standard**:"
+COMPLEX_BULLET_START = "- **complex**:"
 #: H2 headings of the fixture, in file order; each heads one fenced passage.
-FIXTURE_PASSAGES = ("trivial bullet", "standard bullet", "dispatch paragraph")
+FIXTURE_PASSAGES = (
+    "trivial bullet",
+    "standard bullet",
+    "single-dispatch paragraph",
+)
 FIXTURE_FENCE = "~~~~"
 #: Padding that pushes the routing paragraph past 200 words (Gherkin tolerance).
 LONG_PARAGRAPH_WORDS = 200
 LONG_PARAGRAPH_PADDING = 120
+#: First line of the per-behavior cycle in Step 4.
+PER_BEHAVIOR_CYCLE_START_LINE = "1. **First phase"
 #: First line after the per-behavior cycle in Step 4; the moved pair goes before it.
-MOVE_BEFORE = "5. **Mark step done**"
+PER_BEHAVIOR_CYCLE_END_LINE = "5. **Mark step done**"
 #: The default text must name neither word (case-insensitive).
 DEFAULT_TEXT_FORBIDDEN = ("candidates", "speculative")
-#: Phrases the routing paragraph states, in the order the plan fixes. Each is a
-#: regex run against the whitespace-collapsed paragraph. "exactly as below" is
-#: the pinned wording for "every other step runs unchanged".
+#: Phrases the routing paragraph states. Each is a regex run against the
+#: whitespace-collapsed paragraph. "exactly as below" is the pinned wording for
+#: "every other step runs unchanged".
 ROUTING_PHRASES = (
     ("names_the_flag", r"`--candidates N`"),
-    ("conditions_on_n_of_2_or_more", r"N (≥ 2|of 2 or more|is 2 or more)"),
-    ("conditions_on_complex_complexity", r"`\*\*Complexity\*\*` is `complex`"),
+    ("conditions_on_n_at_least_2", r"(?<![\w-])N ≥ 2(?!\d)"),
+    ("conditions_on_complexity_being_complex", r"`\*\*Complexity\*\*` is `complex`"),
     ("names_the_skill", r"speculative-build/SKILL\.md"),
+    (
+        "runs_self_verification_on_the_merged_winner_first",
+        r"Run sub-step 3's self-verification on the merged winner first\.",
+    ),
     (
         "resumes_at_the_inline_checkpoint_on_the_merged_winner",
         r"sub-step 4's inline checkpoint on the merged winner",
@@ -122,7 +133,7 @@ ROUTING_PHRASES = (
     ),
     (
         "runs_every_other_step_exactly_as_below",
-        r"every step when N = 1, runs exactly as below",
+        r"Every other step, and every step when N = 1, runs exactly as below",
     ),
 )
 
@@ -148,12 +159,18 @@ def _step_1(text: str) -> str:
     )
 
 
+def _complex_checkpoint(text: str) -> str:
+    """The `complex` bullet of Step 4's inline-review sub-step."""
+    return _line_starting(_step_4(text), COMPLEX_BULLET_START)
+
+
 SECTIONS: dict[str, Callable[[str], str]] = {
     "frontmatter": frontmatter,
     "candidates_bullet": _bullet(CANDIDATES_BULLET_START),
     "max_cost_bullet": _bullet(MAX_COST_BULLET_START),
     "validation": _validation_paragraph,
     "step_1": _step_1,
+    "complex_checkpoint": _complex_checkpoint,
 }
 
 FACTS = [
@@ -197,11 +214,31 @@ FACTS = [
         "candidates_bullet",
         literal_required=("`skills/speculative-build/SKILL.md`",),
     ),
+    Fact(
+        "candidates_bullet_says_batches_follow_the_skills_concurrency_not_jobs",
+        "candidates_bullet",
+        literal_required=(
+            (
+                "Candidate batches follow speculative-build's own concurrency "
+                "(`DEV_TEAM_MAX_PARALLEL_BUILDS`, not `--jobs`)."
+            ),
+        ),
+    ),
+    Fact(
+        "candidates_bullet_says_the_cap_bounds_one_step",
+        "candidates_bullet",
+        literal_required=(
+            (
+                "The cap bounds one step; a wave with W speculative steps may spend "
+                "W times the cap."
+            ),
+        ),
+    ),
     # --max-cost-usd X bullet
     Fact(
-        "max_cost_bullet_is_required_with_two_or_more_candidates",
+        "max_cost_bullet_is_required_with_n_at_least_2",
         "max_cost_bullet",
-        literal_required=("Required with N of 2 or more.",),
+        literal_required=("Required with N ≥ 2.",),
     ),
     Fact(
         "max_cost_bullet_names_a_dollar_spend_cap",
@@ -263,6 +300,14 @@ FACTS = [
         "validation_prints_the_no_effect_line_when_n_is_0",
         "validation",
         literal_required=("When n is 0, print " + PRINT_NO_COMPLEX_STEPS,),
+    ),
+    # sub-step 4, complex bullet
+    Fact(
+        "complex_checkpoint_runs_the_skills_cleanup_once_it_passes",
+        "complex_checkpoint",
+        literal_required=(
+            "run speculative-build's `## Cleanup` once this checkpoint passes.",
+        ),
     ),
     # Step 1
     Fact(
@@ -411,22 +456,33 @@ def _line_starting(text: str, prefix: str) -> str:
     return matches[0]
 
 
+def _single_dispatch_paragraph(text: str) -> str:
+    """The single-dispatch paragraph of Step 4, as a whole paragraph."""
+    starts = [
+        p for p in _paragraphs(_step_4(text)) if p.startswith(SINGLE_DISPATCH_START)
+    ]
+    assert len(starts) == 1, f"expected one single-dispatch paragraph: {len(starts)}"
+    return starts[0]
+
+
 def _routing_paragraph(text: str) -> str:
-    """The paragraph immediately before the dispatch paragraph (blank lines only
-    between them). Position within Step 4 is deliberately not asserted."""
+    """The paragraph immediately before the single-dispatch paragraph (blank lines
+    only between them). Position within Step 4 is deliberately not asserted."""
     paragraphs = _paragraphs(_step_4(text))
-    starts = [i for i, p in enumerate(paragraphs) if p.startswith(DISPATCH_START)]
-    assert len(starts) == 1, f"expected one dispatch paragraph, found {len(starts)}"
-    assert starts[0] > 0, "nothing precedes the dispatch paragraph"
+    starts = [
+        i for i, p in enumerate(paragraphs) if p.startswith(SINGLE_DISPATCH_START)
+    ]
+    assert len(starts) == 1, f"expected one single-dispatch paragraph: {len(starts)}"
+    assert starts[0] > 0, "nothing precedes the single-dispatch paragraph"
     return paragraphs[starts[0] - 1]
 
 
-def test_step_4_has_one_speculative_dispatch_paragraph(skill_text):
+def test_step_4_has_one_routing_paragraph(skill_text):
     paragraphs = _paragraphs(_step_4(skill_text))
     assert sum(p.startswith(ROUTING_START) for p in paragraphs) == 1
 
 
-def test_speculative_dispatch_paragraph_is_immediately_before_the_dispatch_paragraph(
+def test_routing_paragraph_is_immediately_before_the_single_dispatch_paragraph(
     skill_text,
 ):
     assert _routing_paragraph(skill_text).startswith(ROUTING_START)
@@ -435,38 +491,58 @@ def test_speculative_dispatch_paragraph_is_immediately_before_the_dispatch_parag
 @pytest.mark.parametrize(
     "pattern", [p for _, p in ROUTING_PHRASES], ids=[i for i, _ in ROUTING_PHRASES]
 )
-def test_speculative_dispatch_paragraph_states(skill_text, pattern):
+def test_routing_paragraph_states(skill_text, pattern):
     assert re.search(pattern, collapsed(_routing_paragraph(skill_text)))
 
 
-def test_speculative_dispatch_paragraph_states_its_points_in_the_plan_order(
-    skill_text,
-):
+def test_routing_paragraph_states_the_checkpoint_before_the_cleanup(skill_text):
     paragraph = collapsed(_routing_paragraph(skill_text))
-    positions = [re.search(p, paragraph) for _, p in ROUTING_PHRASES]
-    assert all(positions)
-    starts = [m.start() for m in positions]
-    assert starts == sorted(starts)
+    checkpoint = paragraph.index("inline checkpoint on the merged winner")
+    cleanup = paragraph.index("## Cleanup")
+    assert checkpoint < cleanup, "the paragraph names the Cleanup before the checkpoint"
+
+
+def _missing_routing_phrases(paragraph: str) -> list[str]:
+    paragraph = collapsed(paragraph)
+    return [i for i, pattern in ROUTING_PHRASES if not re.search(pattern, paragraph)]
+
+
+def _pair_moved_after_the_cycle(skill_text: str, routing: str) -> str:
+    """`skill_text` with the routing and single-dispatch paragraphs moved to just
+    before the end of the per-behavior cycle, the routing text replaced by
+    `routing`."""
+    original = _routing_paragraph(skill_text)
+    dispatch = _single_dispatch_paragraph(skill_text)
+    pair = f"{original}\n\n{dispatch}\n\n"
+    assert pair in skill_text
+    end = PER_BEHAVIOR_CYCLE_END_LINE
+    return skill_text.replace(pair, "", 1).replace(
+        end, f"\n{routing}\n\n{dispatch}\n\n{end}", 1
+    )
+
+
+def _assert_routing_survives_the_move(moved: str, routing: str) -> None:
+    dispatch = _single_dispatch_paragraph(moved)
+    assert moved.index(dispatch) > moved.index(PER_BEHAVIOR_CYCLE_START_LINE), (
+        "the pair did not move after the per-behavior cycle"
+    )
+    assert _routing_paragraph(moved) == routing
+    missing = _missing_routing_phrases(_routing_paragraph(moved))
+    assert not missing, missing
 
 
 def test_routing_checks_hold_when_the_pair_follows_the_per_behavior_cycle(skill_text):
-    """Gherkin tolerance: the routing and dispatch paragraphs may sit after the
-    per-behavior cycle, and the routing paragraph may exceed 200 words."""
     routing = _routing_paragraph(skill_text)
-    dispatch = _line_starting(_step_4(skill_text), DISPATCH_START)
-    pair = f"{routing}\n\n{dispatch}\n\n"
-    assert pair in skill_text
+    moved = _pair_moved_after_the_cycle(skill_text, routing)
+    _assert_routing_survives_the_move(moved, routing)
+
+
+def test_routing_checks_hold_when_the_routing_paragraph_exceeds_200_words(skill_text):
+    routing = _routing_paragraph(skill_text)
     longer = (routing + " " + "Extra words. " * LONG_PARAGRAPH_PADDING).strip()
     assert len(longer.split()) > LONG_PARAGRAPH_WORDS
-    moved = skill_text.replace(pair, "", 1).replace(
-        MOVE_BEFORE, f"\n{longer}\n\n{dispatch}\n\n{MOVE_BEFORE}", 1
-    )
-    assert moved.index(dispatch) > skill_text.index(MOVE_BEFORE)
-    assert _routing_paragraph(moved) == longer
-    assert all(
-        re.search(pattern, collapsed(_routing_paragraph(moved)))
-        for _, pattern in ROUTING_PHRASES
-    )
+    moved = _pair_moved_after_the_cycle(skill_text, longer)
+    _assert_routing_survives_the_move(moved, longer)
 
 
 def _fixture_passages() -> dict[str, str]:
@@ -494,7 +570,7 @@ def _default_passages(text: str) -> dict[str, str]:
     return {
         "trivial bullet": _line_starting(step_4, TRIVIAL_BULLET_START),
         "standard bullet": _line_starting(step_4, STANDARD_BULLET_START),
-        "dispatch paragraph": _line_starting(step_4, DISPATCH_START),
+        "single-dispatch paragraph": _single_dispatch_paragraph(text),
     }
 
 
@@ -511,7 +587,11 @@ def test_default_passage_names_neither_candidates_nor_speculative(skill_text, na
 
 
 @pytest.mark.parametrize("name", FIXTURE_PASSAGES, ids=FIXTURE_PASSAGES)
-def test_fixture_passage_is_still_present_verbatim_in_the_build_skill(skill_text, name):
+def test_fixture_passage_is_present_verbatim_and_equals_the_extracted_passage(
+    skill_text, name
+):
     passage = _fixture_passages()[name]
     assert passage.strip(), f"fixture passage {name!r} is empty"
-    assert passage in skill_text
+    assert passage in skill_text, f"{name} is no longer a substring of the skill"
+    extracted = _default_passages(skill_text)[name]
+    assert extracted.strip() == passage.strip(), f"{name} differs from the fixture"
