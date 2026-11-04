@@ -1,13 +1,14 @@
-"""Fixtures and recorders for tests/scripts/test_lane.py.
+"""Fixtures and recorders for tests/scripts/test_lane.py and test_lane_core.py.
 
-Fixture **N**: a repository with no remote, trunk `main`.
-Fixture **R**: a repository with a non-github bare `origin` (built with
+`repo_without_remote`: a repository with no remote, trunk `main`.
+`repo_with_origin`: a repository with a non-github bare `origin` (built with
 `git clone --bare`), remote-tracking trunk `origin/main` equal to local `main`.
-The bare origin is advanced without a push: `update-ref` inside the bare
-repository, then `git fetch` in the working repository.
 
 Both commit a `.gitignore` containing `.claude/` on trunk before any lane
 exists, so gate and ledger files never make a lane dirty.
+
+The autouse fixtures here (`hermetic_process_env`, `argv_spy`,
+`enforce_covers`) apply only to a test module that imports them by name.
 
 Named without a leading `test_` so pytest does not collect it. Not a conftest:
 a plain importable module, like `_mutation_test_helpers.py`.
@@ -15,14 +16,15 @@ a plain importable module, like `_mutation_test_helpers.py`.
 
 from __future__ import annotations
 
-import contextlib
-import io
+import ast
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+
+import pytest
 
 from _repo_root import REPO_ROOT
 
@@ -30,7 +32,7 @@ _SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-import lane
+import lane_core
 
 _HERMETIC_DIR = REPO_ROOT / "plugins" / "dev-team" / "tests" / "lib"
 if str(_HERMETIC_DIR) not in sys.path:
@@ -40,11 +42,12 @@ from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 TRUNK = "main"
 GITIGNORE = ".claude/\n"
+LANE_DIR_INFIX = "-lane-"
 
 #: The oracle for "never pushes, never skips hooks". Deliberately written out
 #: here instead of imported from lane_core: a test must not trust the code it
 #: checks to define what is forbidden. Exact token equality, never substring.
-FORBIDDEN_TOKENS = frozenset(
+ORACLE_FORBIDDEN_TOKENS = frozenset(
     {
         "push",
         "send-pack",
@@ -55,7 +58,8 @@ FORBIDDEN_TOKENS = frozenset(
         "--no-gpg-sign",
     }
 )
-HOOKS_PATH_PREFIX = "core.hookspath="
+ORACLE_HOOKS_PATH_PREFIX = "core.hookspath="
+ORACLE_FORCE_REFSPEC_PREFIX = "+"
 
 _IDENTITY = {
     "GIT_AUTHOR_NAME": "lane tester",
@@ -92,16 +96,30 @@ def commit_file(repo: Path, name: str, content: str, message: str) -> str:
 
 
 def covers(what: str):
-    """Index which test covers which refusal `what`.
+    """Declare that this test renders a refusal block with this `what`.
 
-    A no-op decorator: `test_lane.py` reads the literal from the source (AST),
-    so the coverage check does not depend on selection or execution order.
+    A real pytest marker: `enforce_covers` fails the test at its own teardown
+    when it did not render that block. The decorator call is also read from the
+    source (AST) by `covered_whats`, so the registry check does not depend on
+    selection, execution order or xdist.
     """
+    return pytest.mark.covers(what)
 
-    def decorate(test):
-        return test
 
-    return decorate
+def covered_whats(paths: Iterable[Path]) -> set[str]:
+    """Every `@covers("<what>")` literal in the given test sources."""
+    whats: set[str] = set()
+    for path in paths:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and getattr(node.func, "id", None) == "covers"
+            ):
+                whats.update(
+                    arg.value for arg in node.args if isinstance(arg, ast.Constant)
+                )
+    return whats
 
 
 @dataclass(frozen=True)
@@ -112,8 +130,8 @@ class Repo:
     origin: Path | None
 
 
-def build_fixture_n(root: Path) -> Repo:
-    """Fixture N: no remote, trunk `main`, `.claude/` ignored."""
+def build_repo_without_remote(root: Path) -> Repo:
+    """No remote, trunk `main`, `.claude/` ignored."""
     path = root / "repo"
     path.mkdir()
     git(path, "init", "-q", "-b", TRUNK, home=root)
@@ -124,9 +142,9 @@ def build_fixture_n(root: Path) -> Repo:
     return Repo(path=path, origin=None)
 
 
-def build_fixture_r(root: Path) -> Repo:
-    """Fixture R: fixture N plus a bare non-github `origin` at the same tip."""
-    repo = build_fixture_n(root)
+def build_repo_with_origin(root: Path) -> Repo:
+    """`build_repo_without_remote` plus a bare non-github `origin` at the same tip."""
+    repo = build_repo_without_remote(root)
     origin = root / "origin.git"
     git(root, "clone", "-q", "--bare", str(repo.path), str(origin), home=root)
     git(repo.path, "remote", "add", "origin", str(origin))
@@ -134,35 +152,22 @@ def build_fixture_r(root: Path) -> Repo:
     return Repo(path=repo.path, origin=origin)
 
 
-def advance_origin(
-    repo: Repo, branch: str = TRUNK, message: str = "origin moved"
-) -> str:
-    """Move the bare origin's `branch` one commit ahead, then fetch. No push."""
-    assert repo.origin is not None
-    tip = git(repo.origin, "rev-parse", f"refs/heads/{branch}")
-    tree = git(repo.origin, "rev-parse", f"{tip}^{{tree}}")
-    new = git(repo.origin, "commit-tree", tree, "-p", tip, "-m", message)
-    git(repo.origin, "update-ref", f"refs/heads/{branch}", new)
-    git(repo.path, "fetch", "-q", "origin")
-    return new
-
-
 def parse_output(stdout: str) -> dict[str, str]:
     """Split `key: value` success lines into a dict."""
     return dict(line.split(": ", 1) for line in stdout.splitlines() if ": " in line)
 
 
-def add_linked_worktree(repo: Repo, branch: str, start: str = TRUNK) -> Path:
-    """A lane on a new `branch`, made by `lane.main(["open", ...])`.
+def default_lane_dir(repo: Repo, dashed_name: str) -> Path:
+    """Where `open` puts a lane by default: beside the primary checkout."""
+    name = f"{repo.path.name}{LANE_DIR_INFIX}{dashed_name}"
+    return (repo.path.parent / name).resolve()
 
-    Placed beside the primary checkout. Stdout is swallowed so a later
-    `capsys` read in the test sees only the command under test.
-    """
-    out = io.StringIO()
-    with contextlib.redirect_stdout(out):
-        code = lane.main(["open", branch, "--trunk", start], cwd=repo.path)
-    assert code == 0, f"fixture could not open lane {branch!r}"
-    return Path(parse_output(out.getvalue())["worktree"])
+
+def add_linked_worktree(repo: Repo, branch: str, start: str = TRUNK) -> Path:
+    """A linked worktree on a new `branch`, placed beside the primary checkout."""
+    path = default_lane_dir(repo, branch.replace("/", "-"))
+    git(repo.path, "worktree", "add", "-q", "-b", branch, str(path), start)
+    return path
 
 
 def lane_state(cwd: Path) -> tuple[str, str]:
@@ -185,12 +190,42 @@ def parse_blocks(stderr: str) -> list[dict[str, str]]:
     return blocks
 
 
+def imported_modules(path: Path) -> set[str]:
+    """Top-level names of every module `path` imports; relative imports fail."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name.split(".")[0] for alias in node.names)
+        if isinstance(node, ast.ImportFrom):
+            assert node.level == 0, "relative import"
+            modules.add((node.module or "").split(".")[0])
+    return modules
+
+
+def non_stdlib(modules: set[str]) -> set[str]:
+    return {name for name in modules if name not in sys.stdlib_module_names}
+
+
+def single_refusal(code, out, err, what):
+    """Assert one complete refusal block (three non-empty fields) and exit 1."""
+    (block,) = parse_blocks(err)
+    assert code == 1
+    assert out == ""
+    assert block["refused"] == what
+    assert block["why"].strip() != ""
+    assert block["how"].strip() != ""
+    return block
+
+
 def forbidden_hits(argv: Sequence[str]) -> list[str]:
     """Tokens of one recorded argv that the tool must never pass."""
     return [
         token
         for token in argv
-        if token in FORBIDDEN_TOKENS or token.lower().startswith(HOOKS_PATH_PREFIX)
+        if token in ORACLE_FORBIDDEN_TOKENS
+        or token.lower().startswith(ORACLE_HOOKS_PATH_PREFIX)
+        or token.startswith(ORACLE_FORCE_REFSPEC_PREFIX)
     ]
 
 
@@ -234,3 +269,58 @@ class ArgvSpy:
 
     def violations(self) -> list[list[str]]:
         return [argv for argv in self.records if forbidden_hits(argv)]
+
+
+# --- fixtures imported by name into a test module ---------------------------
+
+
+@pytest.fixture(autouse=True)
+def hermetic_process_env(monkeypatch, tmp_path):
+    """The code under test inherits the process env: make it hermetic too."""
+    hermetic = git_env(tmp_path)
+    for key in set(os.environ) - set(hermetic):
+        monkeypatch.delenv(key)
+    for key, value in hermetic.items():
+        monkeypatch.setenv(key, value)
+
+
+@pytest.fixture(autouse=True)
+def argv_spy(monkeypatch, hermetic_process_env):
+    """Record every argv; the forbidden set is asserted in this test's teardown."""
+    spy = ArgvSpy()
+    spy.install(monkeypatch)
+    yield spy
+    assert spy.violations() == [], "a recorded git call pushed, forced or skipped hooks"
+
+
+@pytest.fixture(autouse=True)
+def enforce_covers(request, monkeypatch):
+    """Fail a test whose `covers` marker names a refusal it did not render.
+
+    Per test, in the test's own teardown: no state is shared between tests, so
+    it holds for any selection, order and xdist worker.
+    """
+    declared = {mark.args[0] for mark in request.node.iter_markers("covers")}
+    rendered: set[str] = set()
+    real = lane_core.render_block
+
+    def recording(refusal):
+        rendered.add(refusal.what)
+        return real(refusal)
+
+    monkeypatch.setattr(lane_core, "render_block", recording)
+    yield
+    assert declared <= rendered, (
+        f"declared via covers but not rendered by this test: "
+        f"{sorted(declared - rendered)}"
+    )
+
+
+@pytest.fixture
+def repo_without_remote(tmp_path) -> Repo:
+    return build_repo_without_remote(tmp_path)
+
+
+@pytest.fixture
+def repo_with_origin(tmp_path) -> Repo:
+    return build_repo_with_origin(tmp_path)
