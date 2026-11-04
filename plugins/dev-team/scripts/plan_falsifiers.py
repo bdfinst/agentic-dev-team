@@ -70,24 +70,26 @@ def _falsifier_after(lines: list[str], start: int) -> str | None:
     return None
 
 
-def _scan_lines(
-    slice_id: str, lines: list[str], guard_docstrings: bool
-) -> tuple[list[dict], bool]:
-    """Scenario rows in `lines`, and whether a doc string was left open."""
-    rows = []
+def _outside_docstrings(lines: list[str]) -> tuple[list[int], bool]:
+    """Indexes of `lines` outside a doc string, and whether one was left open."""
+    indexes = []
     open_delimiter: str | None = None
     for index, line in enumerate(lines):
         text = line.strip()
-        if guard_docstrings:
-            delimiter = next(
-                (d for d in _DOCSTRING_DELIMITERS if text.startswith(d)), None
-            )
-            if delimiter is not None and open_delimiter in (None, delimiter):
-                open_delimiter = None if open_delimiter else delimiter
-                continue
-            if open_delimiter is not None:
-                continue
-        title = scenario_title(line)
+        delimiter = next((d for d in _DOCSTRING_DELIMITERS if text.startswith(d)), None)
+        if delimiter is not None and open_delimiter in (None, delimiter):
+            open_delimiter = None if open_delimiter else delimiter
+            continue
+        if open_delimiter is None:
+            indexes.append(index)
+    return indexes, open_delimiter is not None
+
+
+def _rows_for(slice_id: str, lines: list[str], indexes: list[int]) -> list[dict]:
+    """One `{slice, scenario, falsifier}` row per scenario title at `indexes`."""
+    rows = []
+    for index in indexes:
+        title = scenario_title(lines[index])
         if title is None:
             continue
         rows.append(
@@ -97,7 +99,7 @@ def _scan_lines(
                 "falsifier": _falsifier_after(lines, index + 1),
             }
         )
-    return rows, open_delimiter is not None
+    return rows
 
 
 def scan_block(slice_id: str, gherkin: str) -> list[dict]:
@@ -108,10 +110,10 @@ def scan_block(slice_id: str, gherkin: str) -> list[dict]:
     scenario; a phantom row is the conservative failure.
     """
     lines = gherkin.splitlines()
-    rows, unclosed = _scan_lines(slice_id, lines, guard_docstrings=True)
+    indexes, unclosed = _outside_docstrings(lines)
     if unclosed:
-        rows, _ = _scan_lines(slice_id, lines, guard_docstrings=False)
-    return rows
+        indexes = list(range(len(lines)))
+    return _rows_for(slice_id, lines, indexes)
 
 
 def _build_report(
