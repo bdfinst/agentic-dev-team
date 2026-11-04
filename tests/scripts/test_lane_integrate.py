@@ -18,6 +18,7 @@ Every test runs in-process against real git repositories built by
 from __future__ import annotations
 
 import ast
+import dataclasses
 import importlib.util
 import io
 import json
@@ -1208,12 +1209,12 @@ def test_collect_a_git_failure_in_one_check_is_its_refusal_and_the_rest_still_ru
 ):
     leave_untracked_file(composed_without_remote.path)
 
-    def fail(_cwd):
+    def fail(_commit, _cwd):
         raise lane_core.RefusalError(
             lane_core.git_command_failed_refusal("git rev-parse HEAD", "fatal: boom")
         )
 
-    monkeypatch.setattr(lane_core, "head_tree", fail)
+    monkeypatch.setattr(lane_core, "commit_tree", fail)
 
     first, second = printed_blocks(collect(composed_without_remote), capsys)
 
@@ -1733,13 +1734,16 @@ def test_integrate_applies_fast_forward_then_gate_then_worktree_then_branch(
 
     trace = apply_trace(composed, capsys, monkeypatch)
 
-    assert [call[0] for call in trace if call[0][0] != "rev-parse"] == [
+    steps = [
+        call for call in trace if call[0][0] in ("merge", "worktree", "update-ref")
+    ]
+    assert [call[0] for call in steps] == [
         ["merge", "--ff-only", "--no-overwrite-ignore", lane_head],
         ["worktree", "remove", str(composed.path)],
-        ["branch", "-d", composed.name],
+        ["update-ref", "-d", f"refs/heads/{composed.name}", lane_head],
     ]
     assert {call[1] for call in trace} == {trunk}
-    ff, remove, delete = (call for call in trace if call[0][0] != "rev-parse")
+    ff, remove, delete = steps
     # (gate present, lane present) when each step started
     assert (ff[2], ff[3]) == (True, True)
     assert (remove[2], remove[3]) == (False, True)
@@ -1748,3 +1752,253 @@ def test_integrate_applies_fast_forward_then_gate_then_worktree_then_branch(
 
 def test_the_gate_file_name_integrate_removes_is_the_hooks():
     assert lane.GATE_FILE_NAME == load_pr_hook()._GATE_FILE_NAME
+
+
+# --- the apply is bound to what the checks saw --------------------------------
+
+
+def commit_in_lane_after_the_checks(composed, monkeypatch) -> None:
+    """Replace the last check by one that commits in the lane, then passes."""
+
+    def commit_and_pass(_ctx):
+        commit_file(composed.path, "sneaked.txt", "sneaked\n", "after the checks")
+
+    last = lane.CHECKS[-1]
+    monkeypatch.setattr(
+        lane,
+        "CHECKS",
+        (*lane.CHECKS[:-1], lane.Check(last.order, last.name, commit_and_pass)),
+    )
+
+
+@covers("tree mismatch")
+def test_integrate_a_lane_that_moved_after_the_checks_is_refused_untouched(
+    composed_without_remote, capsys, monkeypatch
+):
+    composed = composed_without_remote
+    commit_in_lane_after_the_checks(composed, monkeypatch)
+    trunk_before = git(composed.repo.path, "rev-parse", "main")
+
+    code, out, err = run_integrate(composed, capsys)
+
+    (block,) = parse_blocks(err)
+    sneaked = git(composed.path, "rev-parse", "HEAD")
+    assert (code, out) == (1, "")
+    assert block["refused"] == "tree mismatch"
+    assert f"expected: {composed.expected_tree}" in block["why"]
+    assert sneaked != trunk_before
+    assert git(composed.repo.path, "rev-parse", "main") == trunk_before
+    assert composed.path.exists()
+    assert branch_exists_in(composed.repo.path, composed.name)
+    assert (composed.path / GATE_RELATIVE_PATH).exists()
+
+
+def test_the_plan_refuses_a_trunk_other_than_the_checked_one(
+    composed_without_remote,
+):
+    composed = composed_without_remote
+    ctx = lane.check_lane(
+        None, composed.expected_trunk, composed.expected_tree, composed.path
+    ).context
+    stale = dataclasses.replace(ctx, expected_trunk=WRONG_SHA)
+
+    with pytest.raises(lane_core.RefusalError) as refused:
+        lane._plan_integrate(stale)
+
+    assert refused.value.refusal.what == "trunk moved"
+    assert f"expected: {WRONG_SHA}" in refused.value.refusal.why
+
+
+def test_a_checked_lane_carries_the_head_the_checks_compared(composed_without_remote):
+    composed = composed_without_remote
+
+    checked = lane.check_lane(
+        None, composed.expected_trunk, composed.expected_tree, composed.path
+    )
+
+    assert checked.refusals == []
+    assert checked.context.head == git(composed.path, "rev-parse", "HEAD")
+    assert lane._plan_integrate(checked.context).former_head == checked.context.head
+
+
+def test_the_fast_forward_does_not_read_the_trunk_tip_back(
+    composed_without_remote, monkeypatch
+):
+    composed = composed_without_remote
+    checked = lane.check_lane(
+        None, composed.expected_trunk, composed.expected_tree, composed.path
+    )
+    plan = lane._plan_integrate(checked.context)
+
+    def unreadable(_cwd):
+        raise lane_core.RefusalError(
+            lane_core.git_command_failed_refusal("git rev-parse HEAD", "boom")
+        )
+
+    monkeypatch.setattr(lane_core, "head_commit", unreadable)
+
+    assert lane._fast_forward(plan) == plan.former_head
+    assert git(composed.repo.path, "rev-parse", "main") == plan.former_head
+
+
+@covers("tree mismatch")
+def test_collect_check_1_compares_the_tree_of_the_head_it_read_once(
+    composed_without_remote, capsys, monkeypatch
+):
+    composed = composed_without_remote
+    base = composed.expected_trunk
+    real = lane_core.head_commit
+    reads = []
+
+    def first_read_is_stale(cwd):
+        reads.append(cwd)
+        return base if len(reads) == 1 else real(cwd)
+
+    monkeypatch.setattr(lane_core, "head_commit", first_read_is_stale)
+
+    (block,) = printed_blocks(collect(composed), capsys)
+
+    assert block["refused"] == "tree mismatch"
+    assert f"expected: {composed.expected_tree}" in block["why"]
+
+
+# --- branch deletion: ancestry, not upstream; guarded by the old value --------
+
+
+def set_upstream_behind_the_lane(composed) -> None:
+    """The lane tracks `origin/<lane>`, a remote-tracking ref that lacks its
+    commit: what `git push -u` leaves behind, made without a push."""
+    repo = composed.repo.path
+    base = git(repo, "rev-parse", "origin/main")
+    git(repo, "config", f"branch.{composed.name}.remote", "origin")
+    git(repo, "config", f"branch.{composed.name}.merge", f"refs/heads/{composed.name}")
+    git(repo, "update-ref", f"refs/remotes/origin/{composed.name}", base)
+
+
+def test_integrate_deletes_a_lane_branch_whose_upstream_does_not_contain_it(
+    composed_with_origin, capsys
+):
+    composed = composed_with_origin
+    set_upstream_behind_the_lane(composed)
+
+    code, out, err = run_integrate(composed, capsys, "--local-trunk")
+
+    assert (code, err) == (0, "")
+    assert not branch_exists_in(composed.repo.path, composed.name)
+    assert (
+        git(composed.repo.path, "rev-parse", "main") == parse_output(out)["former-head"]
+    )
+
+
+@covers("git command failed")
+def test_integrate_does_not_delete_a_lane_branch_that_moved_after_the_plan(
+    composed_without_remote, capsys, monkeypatch
+):
+    composed = composed_without_remote
+    repo = composed.repo.path
+    elsewhere = git(repo, "rev-parse", "main")
+    real = lane._remove_worktree
+
+    def remove_then_move_the_branch(plan):
+        real(plan)
+        git(repo, "update-ref", f"refs/heads/{composed.name}", elsewhere)
+
+    monkeypatch.setattr(lane, "_remove_worktree", remove_then_move_the_branch)
+
+    code, out, err = run_integrate(composed, capsys)
+
+    (block,) = parse_blocks(err)
+    assert (code, out) == (1, "")
+    assert block["refused"] == "git command failed"
+    assert "update-ref" in block["why"]
+    assert git(repo, "rev-parse", f"refs/heads/{composed.name}") == elsewhere
+
+
+@covers("integrate step failed")
+def test_integrate_does_not_delete_a_branch_the_trunk_does_not_contain(
+    composed_without_remote, capsys, monkeypatch
+):
+    composed = composed_without_remote
+    repo = composed.repo.path
+    lane_head = git(composed.path, "rev-parse", "HEAD")
+    monkeypatch.setattr(lane, "_fast_forward", lambda plan: plan.former_head)
+
+    code, out, err = run_integrate(composed, capsys)
+
+    (block,) = parse_blocks(err)
+    assert (code, out) == (1, "")
+    assert block["refused"] == "integrate step failed"
+    assert "is not contained in main" in block["why"]
+    assert "re-running integrate is not the fix" in block["how"]
+    assert git(repo, "rev-parse", f"refs/heads/{composed.name}") == lane_head
+
+
+# --- success lines come from git: control characters are shown escaped --------
+
+
+def test_the_success_lines_show_control_characters_escaped(capsys):
+    plan = lane.IntegratePlan(
+        lane_path=Path("/lane"),
+        lane_branch="feature\x1b[2Jx",
+        trunk_branch="ma\nin",
+        trunk_worktree=Path("/trunk\nwhere"),
+        former_head="a" * 40,
+        gate_file=Path("/lane/gate"),
+    )
+
+    lane._print_integrated(plan, "b" * 40)
+
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "\\x1b[2J" in out
+    assert "continue-in: /trunk\\x0awhere" in out
+    assert len(out.splitlines()) == 6
+    assert out.splitlines()[-1].startswith("pushed: nothing")
+
+
+# --- the gate file: only inside the lane; a failure is a step failure ---------
+
+
+def test_integrate_leaves_a_gate_file_that_lives_outside_the_lane(
+    composed_without_remote, tmp_path, capsys
+):
+    composed = composed_without_remote
+    memory = composed.path / ".claude" / "memory"
+    outside = tmp_path / "shared-memory"
+    memory.rename(outside)
+    memory.symlink_to(outside, target_is_directory=True)
+    gate_bytes = (outside / ".pr-review-passed").read_bytes()
+
+    code, _, err = run_integrate(composed, capsys)
+
+    assert (code, err) == (0, "")
+    assert (outside / ".pr-review-passed").read_bytes() == gate_bytes
+    assert not composed.path.exists()
+
+
+@covers("integrate step failed")
+@pytest.mark.parametrize(
+    "failure", [PermissionError("denied"), IsADirectoryError("is a directory")]
+)
+def test_integrate_a_gate_file_that_cannot_be_removed_is_a_step_failure(
+    failure, composed_without_remote, capsys, monkeypatch
+):
+    composed = composed_without_remote
+    gate = composed.path / GATE_RELATIVE_PATH
+    real = Path.unlink
+
+    def unlink(self, *args, **kwargs):
+        if self == gate:
+            raise failure
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", unlink)
+
+    code, out, err = run_integrate(composed, capsys)
+
+    (block,) = parse_blocks(err)
+    assert (code, out) == (1, "")
+    assert block["refused"] == "integrate step failed"
+    assert str(gate) in block["why"]
+    assert str(failure) in block["why"]
+    assert composed.path.exists()

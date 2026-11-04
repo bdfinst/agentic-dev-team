@@ -178,6 +178,7 @@ WHAT_TRUNK_CANNOT_FAST_FORWARD = "trunk cannot fast-forward"
 WHAT_REVIEW_GATE = "review gate stale or missing"
 WHAT_PR_REPOSITORY = "PR repository"
 WHAT_INVALID_IDENTITY_ARGUMENT = "invalid identity argument"
+WHAT_INTEGRATE_STEP_FAILED = "integrate step failed"
 
 #: Unicode categories `display_text` escapes: control (C0, DEL, C1), line
 #: separator (U+2028) and paragraph separator (U+2029).
@@ -605,6 +606,24 @@ def invalid_identity_argument_refusal(problems: Sequence[tuple[str, str]]) -> Re
         what=WHAT_INVALID_IDENTITY_ARGUMENT,
         why=f"an identity must be 40 lowercase hex characters, got {named}",
         how="pass the 40-hex lowercase values compose printed, unabbreviated",
+    )
+
+
+@_registered(WHAT_INTEGRATE_STEP_FAILED)
+def integrate_step_failed_refusal(step: str, command: str, detail: str) -> Refusal:
+    """A step of the apply sequence failed after the checks passed.
+
+    `step` names it ("fast-forward", "gate file removal", ...), `command` is what
+    it ran (or would run), `detail` is why it failed. Re-running integrate is
+    no fix: the checks already passed and the steps before this one are done.
+    """
+    return Refusal(
+        what=WHAT_INTEGRATE_STEP_FAILED,
+        why=f"{step} failed: {detail.strip() or NO_GIT_MESSAGE} (command: {command})",
+        how=(
+            "finish the failed step and the steps after it by hand; "
+            "re-running integrate is not the fix"
+        ),
     )
 
 
@@ -1060,19 +1079,22 @@ class LaneContext:
 def worktrees(cwd: Path) -> list[tuple[Path, str | None]]:
     """Every worktree git lists, primary first: `(path, checked-out branch | None)`.
 
-    The branch is None for a detached HEAD and for a bare repository.
+    The branch is None for a detached HEAD and for a bare repository. Read with
+    `-z`: a path may hold a newline, which would split one field in two in the
+    newline-separated form.
     """
     entries: list[tuple[Path, str | None]] = []
     path: Path | None = None
     branch: str | None = None
-    for line in git_text(["worktree", "list", "--porcelain"], cwd).splitlines():
-        if line.startswith(WORKTREE_LINE_PREFIX):
+    listing = _git_checked(["worktree", "list", "--porcelain", "-z"], cwd).stdout
+    for field in listing.split(NUL):
+        if field.startswith(WORKTREE_LINE_PREFIX):
             if path is not None:
                 entries.append((path, branch))
-            path = Path(line.removeprefix(WORKTREE_LINE_PREFIX)).resolve()
+            path = Path(field.removeprefix(WORKTREE_LINE_PREFIX)).resolve()
             branch = None
-        elif line.startswith(BRANCH_LINE_PREFIX) and path is not None:
-            branch = _branch_of_full_ref(line.removeprefix(BRANCH_LINE_PREFIX))
+        elif field.startswith(BRANCH_LINE_PREFIX) and path is not None:
+            branch = _branch_of_full_ref(field.removeprefix(BRANCH_LINE_PREFIX))
     if path is not None:
         entries.append((path, branch))
     return entries

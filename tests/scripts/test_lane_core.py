@@ -95,6 +95,7 @@ FINAL_VOCABULARY = frozenset(
         "trunk cannot fast-forward",
         "PR repository",
         "invalid identity argument",
+        "integrate step failed",
         "git command failed",
     }
 )
@@ -122,6 +123,7 @@ SAMPLE_ARGUMENTS = {
     "review gate stale or missing": ("origin/main", "the gate file is missing"),
     "PR repository": (),
     "invalid identity argument": ([("--expected-tree", "abc")],),
+    "integrate step failed": ("fast-forward", "git merge --ff-only abc", "boom"),
 }
 
 #: Every argv the guard rejects: id -> (args, text the reason must contain).
@@ -1240,7 +1242,8 @@ def test_branch_worktree_is_the_path_that_holds_the_branch_or_none(
 @pytest.fixture
 def without_worktree_listing(monkeypatch):
     """`git worktree list` gives nothing, so only the common directory is left."""
-    stub_git_call(monkeypatch, "git_text", [["worktree", "list"]], lambda: "")
+    empty = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    stub_git_call(monkeypatch, "_git_checked", [["worktree", "list"]], lambda: empty)
 
 
 def test_without_a_listing_a_dot_git_directory_gives_its_parent(
@@ -1688,3 +1691,16 @@ def test_origin_url_ignores_a_remote_that_is_not_called_origin(repo_without_remo
     git(repo, "remote", "add", "upstream", "https://github.com/acme/x.git")
 
     assert lane_core.origin_url(repo) == ""
+
+
+def test_a_newline_in_a_worktree_path_does_not_split_the_listing(
+    repo_without_remote, tmp_path
+):
+    odd = tmp_path / "odd\nlane"
+    git(repo_without_remote.path, "worktree", "add", "-q", "-b", "odd", str(odd))
+
+    listed = lane_core.worktrees(repo_without_remote.path)
+
+    assert (odd.resolve(), "odd") in listed
+    assert [branch for _, branch in listed] == ["main", "odd"]
+    assert lane_core.branch_worktree("odd", repo_without_remote.path) == odd.resolve()

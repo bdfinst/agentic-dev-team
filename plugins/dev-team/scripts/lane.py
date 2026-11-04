@@ -65,7 +65,8 @@ OPEN_COMMAND = "open"
 COMPOSE_COMMAND = "compose"
 INTEGRATE_COMMAND = "integrate"
 
-#: What `compose` prints for `expected-trunk` and `expected-tree`: a full SHA-1.
+#: What `compose` prints for `expected-trunk` and `expected-tree`: a full SHA-1
+#: (40 hex). A SHA-256 repository prints 64 hex and is out of scope by spec.
 IDENTITY_PATTERN = re.compile(r"[0-9a-f]{40}")
 EXPECTED_TRUNK_FLAG = "--expected-trunk"
 EXPECTED_TREE_FLAG = "--expected-tree"
@@ -494,11 +495,18 @@ def cmd_compose(args: argparse.Namespace, cwd: Path) -> int:
 
 @dataclass(frozen=True)
 class CheckContext:
-    """What every integrate check reads: the lane entered, and the identities
-    the reviewer holds (`expected-trunk`, `expected-tree` as `compose` printed them);
-    `local_trunk` is `--local-trunk`."""
+    """What every integrate check reads: the lane entered, the lane's HEAD
+    commit read once when the checks start, and the identities the reviewer
+    holds (`expected-trunk`, `expected-tree` as `compose` printed them);
+    `local_trunk` is `--local-trunk`.
+
+    `head` and `entered.trunk_commit` are the two facts the apply is bound to:
+    check 1 compares the tree of this very `head`, check 3 this very trunk
+    commit, and `_plan_integrate` carries both on to the apply steps.
+    """
 
     entered: EnteredLane
+    head: str
     expected_trunk: str
     expected_tree: str
     local_trunk: bool = False
@@ -515,7 +523,7 @@ class Check:
 
 def _check_tree_matches(ctx: CheckContext) -> lane_core.Refusal | None:
     context = ctx.entered.context
-    live = lane_core.head_tree(context.lane_path)
+    live = lane_core.commit_tree(ctx.head, context.lane_path)
     if live == ctx.expected_tree:
         return None
     return lane_core.tree_mismatch_refusal(ctx.expected_tree, live, context.trunk_ref)
@@ -729,14 +737,23 @@ def _run_check(check: Check, ctx: CheckContext) -> lane_core.Refusal | None:
         return failure.refusal
 
 
-def collect_refusals(
+@dataclass(frozen=True)
+class CheckedLane:
+    """The outcome of the checks: `context` is what the apply is bound to
+    (None after an early stop), `refusals` the blocks to print."""
+
+    context: CheckContext | None
+    refusals: list[lane_core.Refusal]
+
+
+def check_lane(
     trunk_arg: str | None,
     expected_trunk: str,
     expected_tree: str,
     cwd: Path,
     local_trunk: bool = False,
-) -> list[lane_core.Refusal]:
-    """Every refusal `integrate` would print, in check order. Changes nothing.
+) -> CheckedLane:
+    """Enter the lane once, read its HEAD once, and run every check. Changes nothing.
 
     Not a git work tree, an unresolvable trunk and not being in a lane are the
     only early stops: every check needs all three, so they are a single block.
@@ -744,11 +761,25 @@ def collect_refusals(
     """
     try:
         entered = _enter_lane(trunk_arg, cwd)
+        head = lane_core.head_commit(entered.context.lane_path)
     except lane_core.RefusalError as stop:
-        return [stop.refusal]
-    ctx = CheckContext(entered, expected_trunk, expected_tree, local_trunk)
+        return CheckedLane(None, [stop.refusal])
+    ctx = CheckContext(entered, head, expected_trunk, expected_tree, local_trunk)
     outcomes = (_run_check(check, ctx) for check in CHECKS)
-    return [refusal for refusal in outcomes if refusal is not None]
+    return CheckedLane(ctx, [refusal for refusal in outcomes if refusal is not None])
+
+
+def collect_refusals(
+    trunk_arg: str | None,
+    expected_trunk: str,
+    expected_tree: str,
+    cwd: Path,
+    local_trunk: bool = False,
+) -> list[lane_core.Refusal]:
+    """Every refusal `integrate` would print, in check order. Changes nothing."""
+    return check_lane(
+        trunk_arg, expected_trunk, expected_tree, cwd, local_trunk
+    ).refusals
 
 
 def emit_integrate_refusals(refusals: Sequence[lane_core.Refusal]) -> int:
@@ -804,14 +835,34 @@ class IntegratePlan:
     gate_file: Path
 
 
-def _plan_integrate(entered: EnteredLane) -> IntegratePlan:
+def _plan_integrate(ctx: CheckContext) -> IntegratePlan:
     """Read everything the apply steps need, while the lane still exists.
 
-    The checks passed, so the trunk branch and its worktree exist; a refusal
-    here means that changed since they ran.
+    Bound to what the checks saw: `former_head` is `ctx.head`, the commit whose
+    tree check 1 compared. The lane's HEAD is read once more here, and a lane
+    that moved since the checks is refused instead of fast-forwarded to a
+    commit nobody reviewed. (A SHA names one tree for good, so the tree of
+    `ctx.head` needs no second read.) The checks passed, so the trunk branch
+    and its worktree exist; a refusal here means that changed since they ran.
     """
+    entered = ctx.entered
     context = entered.context
     lane_path = context.lane_path
+    if entered.trunk_commit != ctx.expected_trunk:
+        raise lane_core.RefusalError(
+            lane_core.trunk_moved_refusal(
+                context.trunk_ref, ctx.expected_trunk, entered.trunk_commit
+            )
+        )
+    live_head = lane_core.head_commit(lane_path)
+    if live_head != ctx.head:
+        raise lane_core.RefusalError(
+            lane_core.tree_mismatch_refusal(
+                ctx.expected_tree,
+                lane_core.commit_tree(live_head, lane_path),
+                context.trunk_ref,
+            )
+        )
     trunk_branch = context.trunk_branch
     if trunk_branch is None:
         raise lane_core.RefusalError(
@@ -831,7 +882,7 @@ def _plan_integrate(entered: EnteredLane) -> IntegratePlan:
         lane_branch=context.branch,
         trunk_branch=trunk_branch,
         trunk_worktree=trunk_worktree,
-        former_head=lane_core.head_commit(lane_path),
+        former_head=ctx.head,
         gate_file=gate_file,
     )
 
@@ -843,13 +894,35 @@ def _plan_integrate(entered: EnteredLane) -> IntegratePlan:
 
 
 def _fast_forward(plan: IntegratePlan) -> str:
-    """Move the trunk branch to the lane's HEAD; return the branch's new tip."""
+    """Move the trunk branch to the lane's HEAD; return the branch's new tip.
+
+    `--ff-only` leaves the branch at exactly the commit it was given, so the
+    new tip is `former_head` and is not read back: a failed read after a
+    completed fast-forward must not be reported as a failed fast-forward.
+    """
     lane_core.git_text([*FAST_FORWARD_ARGS, plan.former_head], plan.trunk_worktree)
-    return lane_core.head_commit(plan.trunk_worktree)
+    return plan.former_head
 
 
 def _remove_gate_file(plan: IntegratePlan) -> None:
-    plan.gate_file.unlink(missing_ok=True)
+    """Remove the gate file, but only a file that lives inside the lane.
+
+    The gate path is read through whatever `.claude/memory` is. When that is a
+    symlink out of the lane, the file belongs to someone else and stays; the
+    lane's removal does not touch it either.
+    """
+    if not plan.gate_file.parent.resolve().is_relative_to(plan.lane_path.resolve()):
+        return
+    try:
+        plan.gate_file.unlink(missing_ok=True)
+    except OSError as failure:
+        raise lane_core.RefusalError(
+            lane_core.integrate_step_failed_refusal(
+                "gate file removal",
+                shlex.join(["rm", "--", str(plan.gate_file)]),
+                str(failure),
+            )
+        ) from failure
 
 
 def _remove_worktree(plan: IntegratePlan) -> None:
@@ -858,8 +931,27 @@ def _remove_worktree(plan: IntegratePlan) -> None:
 
 
 def _delete_branch(plan: IntegratePlan) -> None:
-    """`-d`, not `-D`: git deletes only a branch the trunk now contains."""
-    lane_core.git_text(["branch", "-d", plan.lane_branch], plan.trunk_worktree)
+    """Delete the lane branch when the trunk contains it and it is still where we left it.
+
+    Not `git branch -d`: that checks the branch's upstream, not HEAD, and fails
+    for a lane that was pushed with `-u`. The ancestry check (strict, so a git
+    failure is a failure and not "not merged") stands in for it, and
+    `update-ref -d` takes the lane's former HEAD as the old value, so a branch
+    that moved since the plan is not deleted.
+    """
+    ref = f"{lane_core.HEAD_REFS_PREFIX}{plan.lane_branch}"
+    args = ["update-ref", "-d", ref, plan.former_head]
+    tip = lane_core.head_commit(plan.trunk_worktree)
+    if not lane_core.is_ancestor_strict(plan.former_head, tip, plan.trunk_worktree):
+        raise lane_core.RefusalError(
+            lane_core.integrate_step_failed_refusal(
+                "branch deletion",
+                shlex.join(["git", *args]),
+                f"the lane's former HEAD {plan.former_head} is not contained in "
+                f"{plan.trunk_branch}",
+            )
+        )
+    lane_core.git_text(args, plan.trunk_worktree)
 
 
 def _apply(plan: IntegratePlan) -> str:
@@ -872,32 +964,44 @@ def _apply(plan: IntegratePlan) -> str:
 
 
 def _print_integrated(plan: IntegratePlan, now_at: str) -> None:
+    """The success lines. Branch names and paths come from git and the file
+    system: each line is shown through `display_text`, so a control character
+    in one cannot forge a line or rewrite the terminal."""
     recover = shlex.join(["git", "branch", plan.lane_branch, plan.former_head])
-    print(f"trunk: {plan.trunk_branch}")
-    print(f"former-head: {plan.former_head}")
-    print(f"now-at: {now_at}")
-    print(f"continue-in: {plan.trunk_worktree}")
-    print(f"recover: {recover}")
-    print(PUSHED_NOTHING)
+    lines = (
+        f"trunk: {plan.trunk_branch}",
+        f"former-head: {plan.former_head}",
+        f"now-at: {now_at}",
+        f"continue-in: {plan.trunk_worktree}",
+        f"recover: {recover}",
+        PUSHED_NOTHING,
+    )
+    for line in lines:
+        print(lane_core.display_text(line))
 
 
 def cmd_integrate(args: argparse.Namespace, cwd: Path) -> int:
     """Fast-forward the local trunk branch to the lane, then remove the lane.
 
     Every check runs first and changes nothing; the apply steps run only when
-    none refuses.
+    none refuses. The apply is bound to the lane HEAD and trunk commit the
+    checks saw.
+
+    Removing the lane worktree also deletes the ignored files inside it
+    (`.claude/` and anything else the repository ignores): `git worktree
+    remove` refuses only tracked changes and untracked files, not ignored ones.
     """
     invalid = _invalid_identities(args)
     if invalid:
         raise lane_core.RefusalError(
             lane_core.invalid_identity_argument_refusal(invalid)
         )
-    refusals = collect_refusals(
+    checked = check_lane(
         args.trunk, args.expected_trunk, args.expected_tree, cwd, args.local_trunk
     )
-    if refusals:
-        return emit_integrate_refusals(refusals)
-    plan = _plan_integrate(_enter_lane(args.trunk, cwd))
+    if checked.refusals:
+        return emit_integrate_refusals(checked.refusals)
+    plan = _plan_integrate(checked.context)
     now_at = _apply(plan)
     _print_integrated(plan, now_at)
     return lane_core.EXIT_OK
