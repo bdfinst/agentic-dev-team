@@ -1265,11 +1265,20 @@ def _failure_detail(failure: BaseException) -> str:
     return f"{type(failure).__name__}: {failure}"
 
 
+def _not_repeatable_reason(failure: BaseException) -> str | None:
+    """Why a failed step declined to be run by hand, or None when it can be.
+
+    The single rule behind both the refusal block and the `remaining:` lines.
+    """
+    return failure.not_repeatable if isinstance(failure, StepFailed) else None
+
+
 def _failure_refusal(step: ApplyStep, failure: BaseException) -> lane_core.Refusal:
     detail = _failure_detail(failure)
-    if isinstance(failure, StepFailed) and failure.not_repeatable is not None:
+    reason = _not_repeatable_reason(failure)
+    if reason is not None:
         return lane_core.integrate_step_not_repeatable_refusal(
-            step.name, detail, failure.not_repeatable
+            step.name, detail, reason
         )
     return lane_core.integrate_step_failed_refusal(step.name, step.command, detail)
 
@@ -1283,9 +1292,7 @@ def _apply_failed(
     nothing to run by hand: its command, and the steps after it, would do what
     it refused to do.
     """
-    repeatable = not (
-        isinstance(failure, StepFailed) and failure.not_repeatable is not None
-    )
+    repeatable = _not_repeatable_reason(failure) is None
     return ApplyFailed(
         _failure_refusal(steps[index], failure),
         done=[step.name for step in steps[:index] if step.applies(plan)],
