@@ -4,9 +4,12 @@
 Subcommand: record --plan <file> --step <N.M> --attempt <k> --result <json-file>
 
 Writes one table row per candidate under the plan's `## Plan Review Summary`
--> `### Speculative dispatch` (plan #2273, decision 7). The module knows the
+-> `### Speculative dispatch` (plan decision 7). The module knows the
 candidate row schema and nothing else about candidates; field validation is
-`build_candidates.Candidate.from_dict`.
+`build_candidates_model.Candidate.from_dict`.
+
+Not safe for concurrent runs on the same plan file; the caller serializes
+record calls.
 
 Exit codes:
   0  the plan was updated.
@@ -19,9 +22,11 @@ Stdlib only (ADR 0014, ADR 0015, ADR 0031).
 from __future__ import annotations
 
 import argparse
-import json
+import os
 import re
+import stat
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn
@@ -30,7 +35,7 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:  # sibling imports under -I / -P / PYTHONSAFEPATH
     sys.path.insert(0, _HERE)
 
-from build_candidates import Candidate
+from build_candidates_model import STEP_ID_RE, Candidate, DataError, load_json_object
 
 EXIT_OK = 0
 EXIT_INVALID_INPUT = 1
@@ -57,16 +62,17 @@ COLUMNS = (
     "Reason",
 )
 EM_DASH = "—"
+METRIC_COLUMNS = COLUMNS[5:11]  # Suite .. Cost (USD): the cells a candidate fills
 COST_DECIMALS = 4
 
 OUTCOME_KEPT = "kept"
 OUTCOME_NOT_DISPATCHED = "not dispatched"
 OUTCOMES = (OUTCOME_KEPT, "removed", "disqualified", OUTCOME_NOT_DISPATCHED)
 
-_STEP_RE = re.compile(r"[0-9]+\.[0-9]+")
 _FENCE_RE = re.compile(r"\s*(`{3,}|~{3,})(.*)")
 _HEADING_RE = re.compile(r"(#{1,6}) +(.*?) *")
 _LINE_RE = re.compile(r"[^\n]*\n|[^\n]+")
+RESULT_SHAPE_HINT = "expected an object with a 'rows' list"
 
 
 # --- rows -------------------------------------------------------------------
@@ -88,13 +94,18 @@ def _reject(message: str) -> NoReturn:
     raise ValueError(message)
 
 
+def _is_positive_int(value: object) -> bool:
+    """A plain int (not a bool) that is at least 1."""
+    return type(value) is int and value >= 1
+
+
 def _parse_row(position: int, raw: object) -> _Row:
     label = f"row {position}"
     if not isinstance(raw, dict):
         _reject(f"{label}: not an object")
     outcome = raw.get("outcome")
     if outcome not in OUTCOMES:
-        raise ValueError(
+        _reject(
             f"{label}: outcome must be one of {', '.join(OUTCOMES)}; got {outcome!r}"
         )
     reason = raw.get("reason")
@@ -102,13 +113,13 @@ def _parse_row(position: int, raw: object) -> _Row:
         _reject(f"{label}: reason must be a string")
     if outcome == OUTCOME_NOT_DISPATCHED:
         row_id = raw.get("id")
-        if not (type(row_id) is int and row_id >= 1):
-            raise ValueError(f"{label}: id must be a positive int")
+        if not _is_positive_int(row_id):
+            _reject(f"{label}: id must be a positive int")
         return _Row(row_id, outcome, reason, None, None)
     candidate = Candidate.from_dict(raw)
     rank = raw.get("rank")
-    if not (type(rank) is int and rank >= 1):
-        raise ValueError(f"candidate {candidate.id}: rank must be an int >= 1")
+    if not _is_positive_int(rank):
+        _reject(f"candidate {candidate.id}: rank must be an int >= 1")
     return _Row(candidate.id, outcome, reason, candidate, rank)
 
 
@@ -127,25 +138,27 @@ def _parse_rows(raw_rows: object) -> list[_Row]:
         if row.id in seen:
             _reject(f"duplicate candidate id {row.id}")
         seen.add(row.id)
-    kept = [str(row.id) for row in rows if row.outcome == OUTCOME_KEPT]
-    if len(kept) > 1:
-        _reject(f"more than one kept row: candidates {', '.join(kept)}")
+    kept_ids = [str(row.id) for row in rows if row.outcome == OUTCOME_KEPT]
+    if len(kept_ids) > 1:
+        _reject(f"more than one kept row: candidates {', '.join(kept_ids)}")
     return rows
 
 
 def _text_cell(text: str) -> str:
     """`text` made safe for one table cell: a line break would split the row
-    (and could forge a heading), so it is rejected; a pipe is escaped."""
+    (and could forge a heading), so it is rejected; a backslash and then a
+    pipe are escaped, in that order, so `\\|` cannot read as an escaped pipe."""
     if "\n" in text or "\r" in text:
-        raise ValueError(f"cell text must be a single line: {text!r}")
-    return text.replace("|", "\\|")
+        _reject(f"cell text must be a single line: {text!r}")
+    return text.replace("\\", "\\\\").replace("|", "\\|")
 
 
 def _metric_cells(row: _Row) -> list[str]:
-    """Suite, Scenarios met, Errors, Warnings, Diff lines and Cost (USD)."""
+    """The `METRIC_COLUMNS` cells: Suite, Scenarios met, Errors, Warnings,
+    Diff lines and Cost (USD)."""
     candidate = row.candidate
     if candidate is None:
-        return [EM_DASH] * 6
+        return [EM_DASH] * len(METRIC_COLUMNS)
     return [
         "green" if candidate.suite_green else "red",
         f"{candidate.scenarios_met}/{candidate.scenarios_total}",
@@ -156,23 +169,28 @@ def _metric_cells(row: _Row) -> list[str]:
     ]
 
 
-def _render_row(step: str, attempt: int, row: _Row) -> str:
-    candidate = row.candidate
+def _branch_cell(candidate: Candidate | None) -> str:
+    if candidate is None or candidate.branch == "":
+        return EM_DASH
+    return _text_cell(candidate.branch)
+
+
+def _render_row_line(step: str, attempt: int, row: _Row, eol: str) -> str:
     cells = [
         step,
         str(attempt),
         EM_DASH if row.rank is None else str(row.rank),
         str(row.id),
-        EM_DASH if candidate is None else _text_cell(candidate.branch),
+        _branch_cell(row.candidate),
         *_metric_cells(row),
         row.outcome,
         _text_cell(row.reason),
     ]
-    return _join_cells(cells)
+    return _join_cells(cells, eol)
 
 
-def _join_cells(cells: list[str]) -> str:
-    return "| " + " | ".join(cells) + " |\n"
+def _join_cells(cells: list[str], eol: str) -> str:
+    return "| " + " | ".join(cells) + " |" + eol
 
 
 # --- document structure -----------------------------------------------------
@@ -194,18 +212,33 @@ class _Section:
 
 
 def _split_lines(text: str) -> list[str]:
-    """Lines with their "\\n" kept; unlike str.splitlines, only "\\n" splits."""
+    """Lines with their line ending kept; unlike str.splitlines, only "\\n"
+    splits."""
     return _LINE_RE.findall(text)
 
 
+def _line_ending(lines: list[str]) -> str:
+    """The plan's line ending, taken from its first line: "\\r\\n" when that
+    line ends in it, else "\\n"."""
+    return "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
+
+
 def _fence_after(open_fence: str | None, text: str) -> str | None:
-    """The fence marker still open after `text`, given `open_fence` before."""
+    """The fence marker still open after `text`, given `open_fence` before.
+
+    A backtick fence's info string may not contain a backtick, so a line like
+    "```x```" is inline code, not an opener. This grammar (``` and ~~~, up to
+    any indent, closed by a marker at least as long) is deliberately stricter
+    than `lib/plan_parse._FenceState` (backtick-only, column 0); the two are
+    not shared on purpose.
+    """
     fence = _FENCE_RE.fullmatch(text)
     if fence is None:
         return open_fence
     marker, info = fence.groups()
     if open_fence is None:
-        return marker
+        is_inline_code = marker[0] == "`" and "`" in info
+        return None if is_inline_code else marker
     closes = (
         marker[0] == open_fence[0]
         and len(marker) >= len(open_fence)
@@ -215,7 +248,10 @@ def _fence_after(open_fence: str | None, text: str) -> str | None:
 
 
 def _headings(lines: list[str]) -> list[_Heading]:
-    """Every Markdown heading that is not inside a ``` or ~~~ fenced block."""
+    """Every ATX heading at column 0 with a space after the hashes, outside a
+    fence; a `# ` heading ends a `## ` section too. A fence that is never
+    closed runs to the end of the file (as in CommonMark), so nothing after it
+    is a heading and a summary appended there lands inside the fence."""
     found = []
     open_fence = None
     for index, line in enumerate(lines):
@@ -261,54 +297,55 @@ def _content_end(lines: list[str], section: _Section) -> int:
     return end
 
 
-def _splice(lines: list[str], start: int, end: int, new: list[str]) -> str:
+def _splice(lines: list[str], start: int, end: int, new: list[str], eol: str) -> str:
     """`lines` with `lines[start:end]` replaced by `new`. A line left without
-    its newline gets one; when only blank lines follow, they are dropped so
-    the file ends with exactly one newline."""
+    its line ending gets `eol`; when only blank lines follow, they are dropped
+    so the file ends with exactly one line ending."""
     head = lines[:start]
     if head and not head[-1].endswith("\n"):
-        head[-1] += "\n"
+        head[-1] += eol
     tail = lines[end:]
     if not any(line.strip() for line in tail):
         tail = []
     return "".join(head + new + tail)
 
 
-def _blank_line_before(lines: list[str], index: int) -> list[str]:
+def _blank_line_before(lines: list[str], index: int, eol: str) -> list[str]:
     """A blank line to put between `lines[index - 1]` and a block inserted at
     `index`, unless one is already there."""
-    return ["\n"] if index > 0 and lines[index - 1].strip() else []
+    return [eol] if index > 0 and lines[index - 1].strip() else []
 
 
-def _table_lines(rendered_rows: list[str]) -> list[str]:
-    header = _join_cells(list(COLUMNS))
-    separator = _join_cells(["---"] * len(COLUMNS))
-    return [header, separator, *rendered_rows]
+def _table_lines(row_lines: list[str], eol: str) -> list[str]:
+    header = _join_cells(list(COLUMNS), eol)
+    separator = _join_cells(["---"] * len(COLUMNS), eol)
+    return [header, separator, *row_lines]
 
 
-def _subsection_lines(table: list[str]) -> list[str]:
-    return [f"{'#' * SUBSECTION_LEVEL} {SUBSECTION_TITLE}\n", "\n", *table]
+def _subsection_lines(table: list[str], eol: str) -> list[str]:
+    return [f"{'#' * SUBSECTION_LEVEL} {SUBSECTION_TITLE}{eol}", eol, *table]
 
 
 def _insert_summary(
-    lines: list[str], headings: list[_Heading], table: list[str]
+    lines: list[str], headings: list[_Heading], table: list[str], eol: str
 ) -> str:
     """No summary yet: a whole section before Build Progress, else at the end
     of the file."""
     summary = [
-        f"{'#' * SUMMARY_LEVEL} {SUMMARY_TITLE}\n",
-        "\n",
-        *_subsection_lines(table),
+        f"{'#' * SUMMARY_LEVEL} {SUMMARY_TITLE}{eol}",
+        eol,
+        *_subsection_lines(table, eol),
     ]
     build_progress = _find_section(
         headings, len(lines), SUMMARY_LEVEL, BUILD_PROGRESS_TITLE
     )
     if build_progress is None:
         index = len(lines)
-        return _splice(lines, index, index, _blank_line_before(lines, index) + summary)
+        block = _blank_line_before(lines, index, eol) + summary
+        return _splice(lines, index, index, block, eol)
     index = build_progress.start
-    block = _blank_line_before(lines, index) + summary + ["\n"]
-    return _splice(lines, index, index, block)
+    block = _blank_line_before(lines, index, eol) + summary + [eol]
+    return _splice(lines, index, index, block, eol)
 
 
 def _table_span(lines: list[str], section: _Section) -> tuple[int, int] | None:
@@ -336,106 +373,139 @@ def _row_key(line: str) -> tuple[str, str]:
 
 
 def _merge_rows(
-    existing: list[str], step: str, attempt: int, new_rows: list[str]
+    existing: list[str], step: str, attempt: int, new_row_lines: list[str], eol: str
 ) -> list[str]:
     """`existing` data rows with every row of this step and attempt replaced
-    by `new_rows` at the first such row's position; `new_rows` follow the last
-    row when none matches."""
+    by `new_row_lines` at the first such row's position; `new_row_lines`
+    follow the last row when none matches."""
     key = (step, str(attempt))
-    complete = [line if line.endswith("\n") else line + "\n" for line in existing]
+    complete = [line if line.endswith("\n") else line + eol for line in existing]
     merged: list[str] = []
     is_placed = False
     for line in complete:
         if _row_key(line) != key:
             merged.append(line)
         elif not is_placed:
-            merged.extend(new_rows)
+            merged.extend(new_row_lines)
             is_placed = True
-    return merged if is_placed else complete + new_rows
+    return merged if is_placed else complete + new_row_lines
 
 
-def _update_subsection(
+def _merge_into_subsection(
     lines: list[str],
     subsection: _Section,
     step: str,
     attempt: int,
-    new_rows: list[str],
+    new_row_lines: list[str],
+    eol: str,
 ) -> str:
     span = _table_span(lines, subsection)
     if span is None:  # a hand-made subsection with no table yet
         end = _content_end(lines, subsection)
-        return _splice(lines, end, end, ["\n", *_table_lines(new_rows)])
+        block = [eol, *_table_lines(new_row_lines, eol)]
+        return _splice(lines, end, end, block, eol)
     start, end = span  # the header and separator never match a step N.M
-    merged = _merge_rows(lines[start:end], step, attempt, new_rows)
-    return _splice(lines, start, end, merged)
+    merged = _merge_rows(lines[start:end], step, attempt, new_row_lines, eol)
+    return _splice(lines, start, end, merged, eol)
 
 
 def _check_step_and_attempt(step: object, attempt: object) -> None:
-    if not (isinstance(step, str) and _STEP_RE.fullmatch(step)):
+    if not (isinstance(step, str) and STEP_ID_RE.fullmatch(step)):
         _reject(f"step must be N.M (digits, a dot, digits); got {step!r}")
-    if not (type(attempt) is int and attempt >= 1):
+    if not _is_positive_int(attempt):
         _reject(f"attempt must be a positive integer; got {attempt!r}")
 
 
 def record(plan_text: str, step: str, attempt: int, rows: list[dict]) -> str:
     """`plan_text` with the rows of step `step`, attempt `attempt` recorded
     under `## Plan Review Summary` -> `### Speculative dispatch`; raise
-    ValueError for input the plan cannot take."""
+    ValueError for input the plan cannot take. Inserted lines use the plan's
+    own line ending. Not safe for concurrent runs on the same plan file; the
+    caller serializes record calls."""
     _check_step_and_attempt(step, attempt)
-    new_rows = [_render_row(step, attempt, row) for row in _parse_rows(rows)]
-    table = _table_lines(new_rows)
     lines = _split_lines(plan_text)
+    eol = _line_ending(lines)
+    new_row_lines = [
+        _render_row_line(step, attempt, row, eol) for row in _parse_rows(rows)
+    ]
+    table = _table_lines(new_row_lines, eol)
     headings = _headings(lines)
     summary = _find_section(headings, len(lines), SUMMARY_LEVEL, SUMMARY_TITLE)
     if summary is None:
-        return _insert_summary(lines, headings, table)
+        return _insert_summary(lines, headings, table, eol)
     subsection = _find_section(
         headings, len(lines), SUBSECTION_LEVEL, SUBSECTION_TITLE, within=summary
     )
     if subsection is None:
         end = _content_end(lines, summary)
-        return _splice(lines, end, end, ["\n", *_subsection_lines(table)])
-    return _update_subsection(lines, subsection, step, attempt, new_rows)
+        block = [eol, *_subsection_lines(table, eol)]
+        return _splice(lines, end, end, block, eol)
+    return _merge_into_subsection(lines, subsection, step, attempt, new_row_lines, eol)
 
 
 # --- command line -----------------------------------------------------------
 
 
-def _read_text(path: str, label: str) -> str:
+def _read_plan(path: Path) -> str:
     try:
-        return Path(path).read_bytes().decode("utf-8")
+        return path.read_bytes().decode("utf-8")
     except FileNotFoundError:
-        raise ValueError(f"{label} file: no such file: {path}") from None
+        raise ValueError(f"plan file: no such file: {path}") from None
     except OSError as exc:
-        raise ValueError(f"{label} file: cannot read {path}: {exc.strerror}") from None
+        raise ValueError(f"plan file: cannot read {path}: {exc.strerror}") from None
     except UnicodeDecodeError:
-        raise ValueError(f"{label} file: not valid UTF-8: {path}") from None
+        raise ValueError(f"plan file: not valid UTF-8: {path}") from None
 
 
 def _load_rows(path: str) -> object:
     """The `rows` value of the result file."""
-    text = _read_text(path, "result")
     try:
-        data = json.loads(text)
-    except (ValueError, RecursionError) as exc:
-        raise ValueError(f"result file is not JSON: {path}: {exc}") from None
-    if not isinstance(data, dict) or "rows" not in data:
-        _reject(f"result file must be an object with a 'rows' list: {path}")
+        data = load_json_object(path, "result")
+    except DataError as exc:
+        raise ValueError(f"{exc} ({RESULT_SHAPE_HINT})") from None
+    if "rows" not in data:
+        _reject(f"result: no 'rows' key: {path} ({RESULT_SHAPE_HINT})")
     return data["rows"]
 
 
-def _attempt_value(raw: str) -> object:
+def _coerce_attempt(raw: str) -> object:
     """`raw` as an int when it is ASCII digits, else unchanged for `record`
-    to reject."""
-    return int(raw) if re.fullmatch(r"[0-9]+", raw) else raw
+    to reject; a digit string too long for int() is also left unchanged."""
+    if not re.fullmatch(r"[0-9]+", raw):
+        return raw
+    try:
+        return int(raw)
+    except ValueError:  # beyond sys.get_int_max_str_digits()
+        return raw
+
+
+def _write_atomic(target: Path, data: bytes) -> None:
+    """Replace `target` with `data` through a same-directory temp file, so a
+    crash never leaves a truncated plan; the file keeps its mode. Follows
+    `gherkin_stub_merge._write_atomic`."""
+    mode = stat.S_IMODE(target.stat().st_mode)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(target.parent), prefix=f".{target.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "wb") as tmp_file:
+            tmp_file.write(data)
+            os.chmod(tmp_name, mode)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        os.replace(tmp_name, target)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
 
 
 def _cmd_record(args: argparse.Namespace) -> int:
     try:
+        target = Path(args.plan).resolve()  # a symlinked plan updates its target
         rows = _load_rows(args.result)
-        plan_text = _read_text(args.plan, "plan")
-        updated = record(plan_text, args.step, _attempt_value(args.attempt), rows)
-        Path(args.plan).write_bytes(updated.encode("utf-8"))
+        plan_text = _read_plan(target)
+        updated = record(plan_text, args.step, _coerce_attempt(args.attempt), rows)
+        _write_atomic(target, updated.encode("utf-8"))
     except (OSError, ValueError) as exc:
         print(f"record: {exc}", file=sys.stderr)
         return EXIT_INVALID_INPUT
@@ -450,8 +520,12 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     recording = sub.add_parser("record", help="record one step attempt's rows")
     recording.add_argument("--plan", required=True, help="plan file to update")
-    recording.add_argument("--step", required=True, help="plan step, as N.M")
-    recording.add_argument("--attempt", required=True, help="attempt number")
+    recording.add_argument(
+        "--step", required=True, help="plan step, as N.M (digits, a dot, digits)"
+    )
+    recording.add_argument(
+        "--attempt", required=True, help="attempt, a positive integer"
+    )
     recording.add_argument("--result", required=True, help='JSON file: {"rows": [...]}')
     recording.set_defaults(handler=_cmd_record)
     return parser

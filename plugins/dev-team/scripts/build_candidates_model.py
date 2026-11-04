@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +21,9 @@ SCREENING_OK = "ok"
 SCREENING_UNPARSEABLE_PREFIX = "unparseable: "
 
 _REASON_RED_SUITE = "red suite"
+
+#: A plan step id, `N.M`: digits, a dot, digits.
+STEP_ID_RE = re.compile(r"[0-9]+\.[0-9]+")
 
 
 class FlagError(ValueError):
@@ -50,7 +54,7 @@ def load_json_object(path: str, label: str) -> dict:
         raise DataError(f"{label}: not JSON (not valid UTF-8): {path}") from None
     try:
         data = json.loads(text)
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
         raise DataError(f"{label}: not JSON: {path}: {exc}") from None
     if not isinstance(data, dict):
         raise DataError(f"{label}: JSON root is not an object: {path}")

@@ -46,6 +46,7 @@ from build_candidates_git import (
 from build_candidates_model import (
     SCREENING_OK,
     SCREENING_UNPARSEABLE_PREFIX,
+    STEP_ID_RE,
     Candidate,
     DataError,
     FlagError,
@@ -94,7 +95,6 @@ _MIN_CANDIDATES = 1
 MAX_CANDIDATES = 8
 _SPECULATIVE_MIN_CANDIDATES = 2
 
-_STEP_RE = re.compile(r"[0-9]+\.[0-9]+")
 _ASCII_INT_RE = re.compile(r"-?[0-9]+")
 _ASCII_NUMBER_RE = re.compile(r"(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 
@@ -271,7 +271,7 @@ def _argparse_int_between(low: int, high: int) -> Callable[[str], int]:
 
 
 def _argparse_step_id(raw: str) -> str:
-    if not _STEP_RE.fullmatch(raw):
+    if not STEP_ID_RE.fullmatch(raw):
         raise argparse.ArgumentTypeError(f"must look like N.M; got '{raw}'")
     return raw
 
