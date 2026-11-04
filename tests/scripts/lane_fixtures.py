@@ -230,6 +230,35 @@ def lane_state(cwd: Path) -> tuple[str, str]:
     )
 
 
+def unchanged_state(cwd: Path) -> dict[str, str]:
+    """What must be equal before and after a refused command in the worktree `cwd`.
+
+    All refs, the worktree list, HEAD and its tree, the index (mode, object and
+    stage of every entry) and the working tree (`status`, ignored files too).
+    """
+    return {
+        "refs": git(cwd, "for-each-ref"),
+        "worktrees": git(cwd, "worktree", "list", "--porcelain"),
+        "head": git(cwd, "rev-parse", "HEAD"),
+        "tree": git(cwd, "rev-parse", "HEAD^{tree}"),
+        "index": git(cwd, "ls-files", "--stage"),
+        "status": git(cwd, "status", "--porcelain=v1", "--ignored"),
+    }
+
+
+def merge_in_progress(cwd: Path) -> bool:
+    """True when `cwd` has a merge underway or unmerged index entries."""
+    probe = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", "MERGE_HEAD"],
+        cwd=str(cwd),
+        env=git_env(cwd),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return probe.returncode == 0 or git(cwd, "ls-files", "-u") != ""
+
+
 def parse_blocks(stderr: str) -> list[dict[str, str]]:
     """Split renderer output into `{refused, why, how}` dicts, one per block."""
     blocks: list[dict[str, str]] = []

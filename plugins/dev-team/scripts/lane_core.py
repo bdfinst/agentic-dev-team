@@ -17,7 +17,9 @@ every command shares:
   over `resolve_trunk_commit` for tests and probes.
 - `worktrees`, `branch_exists`, `branch_checked_out` and `primary_checkout`:
   the one worktree-listing parser and the questions built on it.
-- `dirty_paths`: the one reader of `git status`.
+- `dirty_paths`: the one reader of `git status`; `origin_url`: the one reader
+  of the `origin` remote.
+- `git_attempt`: a git call whose failure the caller handles itself.
 
 Import whitelist (pinned by an AST test): the standard library and
 `review_gate_hash`. Stdlib only otherwise. See ADR 0014 and ADR 0031.
@@ -134,6 +136,9 @@ WHAT_TRUNK_UNRESOLVED = "trunk ref cannot be resolved"
 WHAT_NOT_A_GIT_REPOSITORY = "not a git repository"
 WHAT_NOT_IN_A_LANE = "not in a lane"
 WHAT_LANE_HAS_UNCOMMITTED_CHANGES = "lane has uncommitted changes"
+WHAT_COMPOSE_CONFLICT = "compose conflict"
+WHAT_COMPOSE_MERGE_FAILED = "compose merge failed"
+WHAT_COMPOSE_RESTORE_UNVERIFIED = "compose restore unverified"
 
 #: Paths named in a dirty-tree refusal before it says "and N more".
 MAX_LISTED_PATHS = 10
@@ -287,6 +292,50 @@ def lane_has_uncommitted_changes_refusal(paths: Sequence[str]) -> Refusal:
     )
 
 
+@_registered(WHAT_COMPOSE_CONFLICT)
+def compose_conflict_refusal(ref: str, paths: Sequence[str]) -> Refusal:
+    return Refusal(
+        what=WHAT_COMPOSE_CONFLICT,
+        why=(
+            f"merging {ref} into the lane conflicts in {', '.join(paths)}; "
+            "the lane was restored to its state before compose"
+        ),
+        how=(
+            f"merge {ref} by hand in the lane, resolve the conflicts, commit, "
+            "then run compose again"
+        ),
+    )
+
+
+@_registered(WHAT_COMPOSE_MERGE_FAILED)
+def compose_merge_failed_refusal(ref: str, command: str, detail: str) -> Refusal:
+    """`detail` is git's own message; `command` is the merge that failed."""
+    return Refusal(
+        what=WHAT_COMPOSE_MERGE_FAILED,
+        why=(
+            f"git could not merge {ref}: {detail.strip() or 'git gave no message'} "
+            f"(command: {command}); the lane was restored to its state before compose"
+        ),
+        how="resolve the cause named in why, then run compose again",
+    )
+
+
+@_registered(WHAT_COMPOSE_RESTORE_UNVERIFIED)
+def compose_restore_unverified_refusal(ref: str, sha: str, cause: str) -> Refusal:
+    """`sha` is the lane's HEAD before compose; `cause` is why the merge failed."""
+    return Refusal(
+        what=WHAT_COMPOSE_RESTORE_UNVERIFIED,
+        why=(
+            f"merging {ref} failed ({cause}), and the lane could not be verified "
+            f"as restored to its pre-compose commit {sha}"
+        ),
+        how=(
+            "save any edits you want to keep, then run "
+            f"git reset --hard {sha} in the lane yourself"
+        ),
+    )
+
+
 def render_block(refusal: Refusal) -> str:
     """Plain-text block: `refused:`, `why:`, `how:` lines, no color."""
     return f"refused: {refusal.what}\nwhy: {refusal.why}\nhow: {refusal.how}\n"
@@ -434,6 +483,42 @@ def _git(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     if reason is not None:
         raise _failure(["git", *args], reason)
     return _run(["git", *args], cwd)
+
+
+@dataclass(frozen=True)
+class GitAttempt:
+    """A git command that may fail without ending the caller's sequence.
+
+    `detail` is git's non-empty stderr lines joined with `; `, falling back to
+    the last stdout line (git prints some failures there). When the command
+    could not run at all (the guard, a timeout), `ok` is False and `detail`
+    is the reason.
+    """
+
+    ok: bool
+    command: str
+    detail: str
+    stdout: str
+
+
+def git_attempt(args: Sequence[str], cwd: Path) -> GitAttempt:
+    """Run `git <args>` and report the outcome. Never raises `RefusalError`."""
+    command = shlex.join(["git", *args])
+    try:
+        completed = _git(args, cwd)
+    except RefusalError as exc:
+        return GitAttempt(False, command, exc.refusal.why, "")
+    lines = [line.strip() for line in completed.stderr.splitlines() if line.strip()]
+    detail = "; ".join(lines) or _last_line(completed.stdout)
+    return GitAttempt(
+        completed.returncode == 0, command, detail, completed.stdout.strip()
+    )
+
+
+def origin_url(cwd: Path) -> str:
+    """The `origin` remote's URL, or "" when there is no `origin`."""
+    attempt = git_attempt(["remote", "get-url", "origin"], cwd)
+    return attempt.stdout if attempt.ok else ""
 
 
 def git_ok(args: Sequence[str], cwd: Path) -> bool:

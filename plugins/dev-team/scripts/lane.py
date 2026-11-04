@@ -19,6 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import git_origin_host
 import lane_core
 
 #: Between the primary checkout's name and the lane name in a default path.
@@ -28,6 +29,13 @@ NAME_PATTERN_PROBLEM = (
     "it must start with a letter or digit and use only safe characters"
 )
 NAME_GIT_PROBLEM = "git does not accept it as a branch name"
+
+#: What `compose` suggests in a PR repository, instead of an `integrate` line.
+PR_NEXT_STEP = "open a PR with /pr (or pass --local-trunk to integrate locally)"
+ORIGIN_HOST_GITHUB = "github"
+
+#: Exists in the git directory only while a merge is unfinished.
+MERGE_HEAD = "MERGE_HEAD"
 
 OPEN_COMMAND = "open"
 COMPOSE_COMMAND = "compose"
@@ -147,15 +155,14 @@ def _contains(ancestor: str, descendant: str, lane_path: Path) -> bool:
     )
 
 
-def _merge_targets(
-    context: lane_core.LaneContext, lane_path: Path
-) -> list[MergeTarget]:
+def _merge_targets(context: lane_core.LaneContext) -> list[MergeTarget]:
     """The trunk ref, plus the local trunk branch when it holds work the ref lacks.
 
     The local branch (`main` for `origin/main`) joins only when it exists and
     is not contained in the trunk ref. When it contains the trunk ref, it is
     the only target: merging it brings the trunk ref along.
     """
+    lane_path = context.lane_path
     trunk = MergeTarget(context.trunk_ref, context.trunk_ref)
     local = context.trunk_branch
     if local is None or not lane_core.branch_exists(local, lane_path):
@@ -168,11 +175,84 @@ def _merge_targets(
     return [trunk, local_target]
 
 
-def _merge_if_missing(target: MergeTarget, lane_path: Path) -> None:
-    """Merge `target` into the lane unless the lane's HEAD already contains it."""
-    if _contains(target.ref, "HEAD", lane_path):
-        return
-    lane_core.git_text(["merge", "--no-edit", target.ref], lane_path)
+@dataclass(frozen=True)
+class Snapshot:
+    """The lane as it was before compose touched it."""
+
+    head: str
+    tree: str
+
+
+def _snapshot(lane_path: Path) -> Snapshot:
+    return Snapshot(
+        head=lane_core.git_text(["rev-parse", "--verify", "HEAD^{commit}"], lane_path),
+        tree=lane_core.git_text(["rev-parse", "HEAD^{tree}"], lane_path),
+    )
+
+
+def _unmerged_paths(lane_path: Path) -> list[str]:
+    listed = lane_core.git_text(
+        ["diff", "--name-only", "--diff-filter=U", "-z"], lane_path
+    )
+    return [path for path in listed.split("\0") if path]
+
+
+def _merge_refusal(
+    target: MergeTarget, attempt: lane_core.GitAttempt, lane_path: Path
+) -> lane_core.Refusal:
+    """Why the merge failed. Read before the restore: it erases the evidence."""
+    unmerged = _unmerged_paths(lane_path)
+    if unmerged:
+        return lane_core.compose_conflict_refusal(target.label, unmerged)
+    return lane_core.compose_merge_failed_refusal(
+        target.label, attempt.command, attempt.detail
+    )
+
+
+def _merge_in_progress(lane_path: Path) -> bool:
+    return lane_core.git_ok(["rev-parse", "--verify", "--quiet", MERGE_HEAD], lane_path)
+
+
+def _restore_verified(snapshot: Snapshot, lane_path: Path) -> bool:
+    """Put the lane back to `snapshot`, then check that it is there.
+
+    `reset --hard` also undoes an earlier successful merge and a rejected merge
+    that left a merged index without `MERGE_HEAD`. True only when HEAD and its
+    tree match, no path is unmerged or dirty and no merge is in progress.
+    """
+    try:
+        if _merge_in_progress(lane_path):
+            lane_core.git_ok(["merge", "--abort"], lane_path)
+        lane_core.git_ok(["reset", "--hard", snapshot.head], lane_path)
+        return (
+            _snapshot(lane_path) == snapshot
+            and not lane_core.git_text(["ls-files", "-u"], lane_path)
+            and not _merge_in_progress(lane_path)
+            and not lane_core.dirty_paths(lane_path)
+        )
+    except lane_core.RefusalError:
+        return False
+
+
+def _merge_all(
+    targets: Sequence[MergeTarget], snapshot: Snapshot, lane_path: Path
+) -> None:
+    """Merge each target the lane lacks; on a failure, restore and refuse."""
+    for target in targets:
+        if _contains(target.ref, "HEAD", lane_path):
+            continue
+        attempt = lane_core.git_attempt(["merge", "--no-edit", target.ref], lane_path)
+        if not attempt.ok:
+            try:
+                refusal = _merge_refusal(target, attempt, lane_path)
+            except lane_core.RefusalError as unreadable:
+                # Still restore: the lane must not stay half merged.
+                refusal = unreadable.refusal
+            if not _restore_verified(snapshot, lane_path):
+                refusal = lane_core.compose_restore_unverified_refusal(
+                    target.label, snapshot.head, refusal.why
+                )
+            raise lane_core.RefusalError(refusal)
 
 
 def _enter_lane(trunk_arg: str | None, cwd: Path) -> tuple[lane_core.LaneContext, str]:
@@ -197,17 +277,27 @@ def _require_clean(lane_path: Path) -> None:
         )
 
 
+def _next_step(
+    trunk_arg: str | None, trunk_commit: str, tree: str, lane_path: Path
+) -> str:
+    """`integrate` for a local-trunk lane; `/pr` when the origin is on GitHub."""
+    host = git_origin_host.classify(lane_core.origin_url(lane_path))
+    if host == ORIGIN_HOST_GITHUB:
+        return PR_NEXT_STEP
+    return _integrate_command(trunk_arg, trunk_commit, tree)
+
+
 def cmd_compose(args: argparse.Namespace, cwd: Path) -> int:
     context, trunk_commit = _enter_lane(args.trunk, cwd)
     _require_clean(context.lane_path)
-    for target in _merge_targets(context, context.lane_path):
-        _merge_if_missing(target, context.lane_path)
+    snapshot = _snapshot(context.lane_path)
+    _merge_all(_merge_targets(context), snapshot, context.lane_path)
     tree = lane_core.git_text(["rev-parse", "HEAD^{tree}"], context.lane_path)
     print(f"lane: {context.branch}")
     print(f"trunk: {context.trunk_ref}")
     print(f"expected-trunk: {trunk_commit}")
     print(f"expected-tree: {tree}")
-    print(f"next: {_integrate_command(args.trunk, trunk_commit, tree)}")
+    print(f"next: {_next_step(args.trunk, trunk_commit, tree, context.lane_path)}")
     return lane_core.EXIT_OK
 
 

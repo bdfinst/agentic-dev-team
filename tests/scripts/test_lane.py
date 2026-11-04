@@ -16,6 +16,7 @@ import argparse
 import ast
 import dataclasses
 import re
+import stat
 import sys
 from pathlib import Path
 
@@ -24,6 +25,8 @@ from lane_fixtures import (
     GIT_FAILED,
     add_linked_worktree,
     argv_spy,
+    build_repo_with_origin,
+    build_repo_without_remote,
     commit_file,
     covers,
     default_lane_dir,
@@ -32,12 +35,15 @@ from lane_fixtures import (
     hermetic_process_env,
     imported_modules,
     lane_state,
+    merge_in_progress,
     non_stdlib,
+    parse_blocks,
     parse_output,
     repo_with_origin,
     repo_without_default_branch,
     repo_without_remote,
     single_refusal,
+    unchanged_state,
 )
 
 from _repo_root import REPO_ROOT
@@ -199,10 +205,11 @@ def test_a_guard_hit_renders_a_git_command_failed_block(
     assert "subcommand push" in block["why"]
 
 
-def test_lane_imports_only_stdlib_and_lane_core():
+def test_lane_imports_only_stdlib_lane_core_and_the_origin_classifier():
+    """The whitelist of plan decision 1 and A7, as far as this module uses it."""
     modules = imported_modules(SCRIPTS_DIR / "lane.py")
 
-    assert non_stdlib(modules) == {"lane_core"}
+    assert non_stdlib(modules) == {"lane_core", "git_origin_host"}
 
 
 #: Private `lane_core` names `lane.py` may use. Empty: everything it needs is public.
@@ -642,6 +649,11 @@ def advance_trunk(repo, name="trunk.txt"):
     return commit_file(repo.path, name, "trunk\n", f"trunk adds {name}")
 
 
+def advance_trunk_with(repo, name, content):
+    """Commit `content` to `name` on the primary checkout's trunk branch."""
+    return commit_file(repo.path, name, content, f"trunk edits {name}")
+
+
 def is_ancestor(cwd, ancestor, descendant):
     return lane_core.git_ok(["merge-base", "--is-ancestor", ancestor, descendant], cwd)
 
@@ -698,11 +710,14 @@ def test_compose_repeats_trunk_in_the_next_line_only_when_it_was_given(
 
 
 def merge_argvs(argv_spy, start):
-    """Recorded `git merge` invocations after record index `start`."""
+    """Recorded `git merge <target>` invocations after record index `start`.
+
+    `merge --abort` is a merge command too, but it merges nothing.
+    """
     return [
         argv
         for argv in argv_spy.records[start:]
-        if argv[:1] == ["git"] and "merge" in argv[1:2]
+        if argv[:2] == ["git", "merge"] and "--abort" not in argv
     ]
 
 
@@ -878,3 +893,387 @@ def test_compose_refuses_a_trunk_that_does_not_resolve(repo_without_remote, caps
     block = single_refusal(code, out, err, "trunk ref cannot be resolved")
     assert "'missing-ref'" in block["why"]
     assert git(lane_path, "rev-parse", "HEAD") == head_before
+
+
+# --- compose: a merge that cannot complete ----------------------------------
+
+
+@covers("compose conflict")
+def test_a_merge_conflict_leaves_the_lane_as_it_was(repo_without_remote, capsys):
+    lane_path = add_linked_worktree(repo_without_remote, "feature")
+    commit_file(lane_path, "base.txt", "lane edit\n", "lane edits base")
+    advance_trunk_with(repo_without_remote, "base.txt", "trunk edit\n")
+    before = unchanged_state(lane_path)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose conflict")
+    assert "merging main into the lane" in block["why"]
+    assert "base.txt" in block["why"]
+    assert "merge main by hand" in block["how"]
+    assert "compose again" in block["how"]
+    assert unchanged_state(lane_path) == before
+    assert not merge_in_progress(lane_path)
+    assert "expected-" not in out
+
+
+@covers("compose conflict")
+def test_a_conflict_on_the_local_trunk_merge_undoes_the_first_merge_too(
+    repo_with_origin, capsys, argv_spy
+):
+    lane_path = add_linked_worktree(repo_with_origin, "feature", start="origin/main")
+    commit_file(lane_path, "base.txt", "lane edit\n", "lane edits base")
+    advance_origin(repo_with_origin)
+    advance_trunk_with(repo_with_origin, "base.txt", "local main edit\n")
+    before = unchanged_state(lane_path)
+    records_before = len(argv_spy.records)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose conflict")
+    assert "merging main into the lane" in block["why"]
+    assert "base.txt" in block["why"]
+    merges = merge_argvs(argv_spy, records_before)
+    assert [argv[-1] for argv in merges] == ["origin/main", "refs/heads/main"]
+    assert unchanged_state(lane_path) == before
+    assert not merge_in_progress(lane_path)
+
+
+HOOK_SENTINEL = "LANE-HOOK-REJECT"
+REJECT_HOOK = f"#!/bin/sh\necho {HOOK_SENTINEL} >&2\nexit 1\n"
+
+
+def install_hook(repo, name, script):
+    """An executable hook in the common git directory (never `core.hooksPath`)."""
+    hook = repo.path / ".git" / "hooks" / name
+    hook.parent.mkdir(exist_ok=True)
+    hook.write_text(script, encoding="utf-8")
+    hook.chmod(hook.stat().st_mode | stat.S_IXUSR)
+    return hook
+
+
+@covers("compose merge failed")
+def test_a_rejected_merge_leaves_the_lane_as_it_was(repo_without_remote, capsys):
+    lane_path = lane_with_commit(repo_without_remote)
+    advance_trunk(repo_without_remote)
+    install_hook(repo_without_remote, "pre-merge-commit", REJECT_HOOK)
+    before = unchanged_state(lane_path)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose merge failed")
+    assert HOOK_SENTINEL in block["why"]
+    assert "git merge --no-edit main" in block["why"]
+    assert "resolve" in block["how"]
+    assert "compose again" in block["how"]
+    assert unchanged_state(lane_path) == before
+    assert not merge_in_progress(lane_path)
+    assert "expected-" not in out
+
+
+def test_the_restore_undoes_a_merged_index_that_has_no_merge_head(
+    repo_without_remote,
+):
+    """Git 2.x keeps MERGE_HEAD after a rejected merge; the restore must not rely on it."""
+    lane_path = lane_with_commit(repo_without_remote)
+    advance_trunk(repo_without_remote)
+    snapshot = lane._snapshot(lane_path)
+    before = unchanged_state(lane_path)
+    git(lane_path, "merge", "--no-commit", "--no-ff", "main")
+    merge_head = lane_path / git(lane_path, "rev-parse", "--git-path", "MERGE_HEAD")
+    merge_head.unlink()
+    assert unchanged_state(lane_path) != before
+
+    assert lane._restore_verified(snapshot, lane_path)
+
+    assert unchanged_state(lane_path) == before
+    assert not merge_in_progress(lane_path)
+
+
+@covers("compose merge failed")
+def test_a_rejected_second_merge_restores_the_lane_to_before_the_first(
+    repo_with_origin, tmp_path, capsys
+):
+    lane_path = open_origin_lane(repo_with_origin)
+    advance_origin(repo_with_origin)
+    advance_trunk(repo_with_origin, "local.txt")
+    counter = tmp_path / "hook-calls"
+    install_hook(
+        repo_with_origin,
+        "pre-merge-commit",
+        f"#!/bin/sh\necho call >> {counter}\n"
+        f'[ "$(wc -l < {counter})" -lt 2 ] && exit 0\n'
+        f"echo {HOOK_SENTINEL} >&2\nexit 1\n",
+    )
+    before = unchanged_state(lane_path)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose merge failed")
+    assert len(counter.read_text().splitlines()) == 2
+    assert "could not merge main:" in block["why"]
+    assert HOOK_SENTINEL in block["why"]
+    assert unchanged_state(lane_path) == before
+    assert not merge_in_progress(lane_path)
+
+
+@covers("compose restore unverified")
+def test_an_unverifiable_restore_names_the_pre_compose_commit_and_the_reset_command(
+    repo_without_remote, capsys, monkeypatch
+):
+    lane_path = add_linked_worktree(repo_without_remote, "feature")
+    commit_file(lane_path, "base.txt", "lane edit\n", "lane edits base")
+    advance_trunk_with(repo_without_remote, "base.txt", "trunk edit\n")
+    pre_compose = git(lane_path, "rev-parse", "HEAD")
+    monkeypatch.setattr(lane, "_restore_verified", lambda snapshot, lane_path: False)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose restore unverified")
+    assert pre_compose in block["why"]
+    assert "base.txt" in block["why"]
+    assert f"git reset --hard {pre_compose}" in block["how"]
+    assert "save any edits" in block["how"]
+
+
+@covers("compose restore unverified")
+def test_a_restore_that_does_not_take_effect_is_reported_as_unverified(
+    repo_with_origin, capsys, monkeypatch
+):
+    lane_path = open_origin_lane(repo_with_origin)
+    advance_origin(repo_with_origin)
+    advance_trunk_with(repo_with_origin, "base.txt", "local main edit\n")
+    commit_file(lane_path, "base.txt", "lane edit\n", "lane edits base")
+    pre_compose = git(lane_path, "rev-parse", "HEAD")
+    real = lane_core.git_ok
+
+    def reset_does_nothing(args, cwd):
+        return False if args[:1] == ["reset"] else real(args, cwd)
+
+    monkeypatch.setattr(lane_core, "git_ok", reset_does_nothing)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose restore unverified")
+    assert pre_compose in block["why"]
+    assert git(lane_path, "rev-parse", "HEAD") != pre_compose
+
+
+@pytest.fixture
+def restore_commands_do_nothing(monkeypatch):
+    """`merge --abort` and `reset` report failure and change nothing."""
+    real = lane_core.git_ok
+
+    def inert(args, cwd):
+        if args[:1] == ["reset"] or args[:2] == ["merge", "--abort"]:
+            return False
+        return real(args, cwd)
+
+    monkeypatch.setattr(lane_core, "git_ok", inert)
+
+
+def test_the_restore_is_unverified_while_a_merge_is_still_in_progress(
+    repo_without_remote, restore_commands_do_nothing
+):
+    lane_path = lane_with_commit(repo_without_remote)
+    advance_trunk(repo_without_remote)
+    snapshot = lane._snapshot(lane_path)
+    # Tree, index and working tree equal HEAD's; only MERGE_HEAD is left over.
+    git(lane_path, "merge", "-s", "ours", "--no-commit", "--no-ff", "main")
+    assert git(lane_path, "status", "--porcelain=v1") == ""
+
+    assert not lane._restore_verified(snapshot, lane_path)
+
+
+def test_the_restore_is_unverified_while_the_working_tree_is_dirty(
+    repo_without_remote, restore_commands_do_nothing
+):
+    lane_path = lane_with_commit(repo_without_remote)
+    snapshot = lane._snapshot(lane_path)
+    (lane_path / "base.txt").write_text("edited\n")
+
+    assert not lane._restore_verified(snapshot, lane_path)
+
+
+def test_the_restore_is_unverified_when_a_check_cannot_run(
+    repo_without_remote, monkeypatch
+):
+    lane_path = lane_with_commit(repo_without_remote)
+    snapshot = lane._snapshot(lane_path)
+
+    def cannot_run(_path):
+        raise lane_core.RefusalError(
+            lane_core.git_command_failed_refusal("git status", "boom")
+        )
+
+    monkeypatch.setattr(lane_core, "dirty_paths", cannot_run)
+
+    assert not lane._restore_verified(snapshot, lane_path)
+
+
+def test_a_restore_that_worked_is_verified(repo_without_remote):
+    lane_path = lane_with_commit(repo_without_remote)
+    advance_trunk(repo_without_remote)
+    snapshot = lane._snapshot(lane_path)
+    git(lane_path, "merge", "-q", "--no-edit", "main")
+
+    assert lane._restore_verified(snapshot, lane_path)
+    assert git(lane_path, "rev-parse", "HEAD") == snapshot.head
+
+
+# --- compose: merges only what exists and differs ---------------------------
+
+
+def row_local_branch_is_the_trunk(root):
+    repo = build_repo_without_remote(root)
+    lane_path = lane_with_commit(repo)
+    advance_trunk(repo)
+    return lane_path, [], ["main"]
+
+
+def row_trunk_is_a_tag(root):
+    repo = build_repo_with_origin(root)
+    lane_path = open_origin_lane(repo)
+    advance_origin(repo)
+    git(repo.path, "tag", "v1", "origin/main")
+    advance_trunk(repo, "local.txt")
+    return lane_path, ["--trunk", "v1"], ["v1"]
+
+
+def row_local_main_contains_origin_main(root):
+    repo = build_repo_with_origin(root)
+    lane_path = open_origin_lane(repo)
+    advance_origin(repo)
+    git(repo.path, "merge", "-q", "--ff-only", "origin/main")
+    advance_trunk(repo, "local.txt")
+    return lane_path, [], ["refs/heads/main"]
+
+
+def row_origin_main_contains_local_main(root):
+    repo = build_repo_with_origin(root)
+    lane_path = open_origin_lane(repo)
+    advance_origin(repo)
+    git(repo.path, "reset", "-q", "--hard", "origin/main")
+    return lane_path, [], ["origin/main"]
+
+
+def row_lane_contains_both(root):
+    repo = build_repo_with_origin(root)
+    lane_path = open_origin_lane(repo)
+    advance_trunk(repo, "local.txt")
+    git(lane_path, "merge", "-q", "--no-edit", "main")
+    return lane_path, [], []
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        row_local_branch_is_the_trunk,
+        row_trunk_is_a_tag,
+        row_local_main_contains_origin_main,
+        row_origin_main_contains_local_main,
+        row_lane_contains_both,
+    ],
+    ids=lambda row: row.__name__.removeprefix("row_"),
+)
+def test_compose_merges_each_target_at_most_once_and_only_when_it_is_missing(
+    row, tmp_path, capsys, argv_spy
+):
+    lane_path, trunk_args, expected_targets = row(tmp_path)
+    records_before = len(argv_spy.records)
+
+    code, out, err = run_main(["compose", *trunk_args], lane_path, capsys)
+
+    assert (code, err) == (0, "")
+    merges = merge_argvs(argv_spy, records_before)
+    assert [argv[-1] for argv in merges] == expected_targets
+    assert "does not exist" not in err
+    assert SHA_PATTERN.fullmatch(parse_output(out)["expected-trunk"])
+
+
+# --- open and compose behave the same on every origin -----------------------
+
+GITHUB_URL = "https://github.com/acme/widgets.git"
+PR_NEXT_LINE = "open a PR with /pr (or pass --local-trunk to integrate locally)"
+
+
+def origin_github(root):
+    repo = build_repo_with_origin(root)
+    git(repo.path, "remote", "set-url", "origin", GITHUB_URL)
+    return repo
+
+
+@pytest.mark.parametrize(
+    ("build", "pr_repository"),
+    [
+        (origin_github, True),
+        (build_repo_with_origin, False),
+        (build_repo_without_remote, False),
+    ],
+    ids=["github", "other", "none"],
+)
+def test_open_then_compose_prints_the_identities_on_every_origin(
+    build, pr_repository, tmp_path, capsys
+):
+    repo = build(tmp_path)
+
+    open_code, open_out, _ = run_main(["open", "feat"], repo.path, capsys)
+    compose_code, out, err = run_main(
+        ["compose"], Path(parse_output(open_out)["worktree"]), capsys
+    )
+
+    printed = parse_output(out)
+    assert (open_code, compose_code, err) == (0, 0, "")
+    for key in ("expected-trunk", "expected-tree"):
+        assert SHA_PATTERN.fullmatch(printed[key])
+    assert ("lane.py integrate" not in printed["next"]) == pr_repository
+    assert (printed["next"] == PR_NEXT_LINE) == pr_repository
+    assert out.count("next:") == 1
+
+
+def test_a_github_origin_keeps_the_pr_next_line_when_a_trunk_is_given(tmp_path, capsys):
+    repo = origin_github(tmp_path)
+    lane_path = add_linked_worktree(repo, "feat", start="origin/main")
+
+    _, out, _ = run_main(["compose", "--trunk", "origin/main"], lane_path, capsys)
+
+    assert parse_output(out)["next"] == PR_NEXT_LINE
+
+
+# --- compose: outside a repository ------------------------------------------
+
+
+@covers("not a git repository")
+def test_compose_outside_a_repository_is_a_refusal_block(tmp_path, capsys):
+    plain = tmp_path / "plain"
+    plain.mkdir()
+
+    code, out, err = run_main(["compose"], plain, capsys)
+
+    block = single_refusal(code, out, err, "not a git repository")
+    assert str(plain) in block["why"]
+    assert "inside a git repository" in block["how"]
+    assert "Traceback" not in err
+
+
+def test_the_lane_is_restored_even_when_the_failure_cannot_be_read(
+    repo_without_remote, capsys, monkeypatch
+):
+    lane_path = add_linked_worktree(repo_without_remote, "feature")
+    commit_file(lane_path, "base.txt", "lane edit\n", "lane edits base")
+    advance_trunk_with(repo_without_remote, "base.txt", "trunk edit\n")
+    before = unchanged_state(lane_path)
+
+    def unreadable(_path):
+        raise lane_core.RefusalError(
+            lane_core.git_command_failed_refusal("git diff", "boom")
+        )
+
+    monkeypatch.setattr(lane, "_unmerged_paths", unreadable)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    assert (code, out) == (1, "")
+    assert parse_blocks(err)[0]["refused"] == GIT_FAILED
+    assert unchanged_state(lane_path) == before
+    assert not merge_in_progress(lane_path)

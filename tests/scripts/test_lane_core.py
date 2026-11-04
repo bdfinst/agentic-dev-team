@@ -87,6 +87,9 @@ SAMPLE_ARGUMENTS = {
     "not a git repository": (Path("/plain"),),
     "not in a lane": (Path("/primary"), "main"),
     "lane has uncommitted changes": (["a.txt"],),
+    "compose conflict": ("origin/main", ["a.txt"]),
+    "compose merge failed": ("origin/main", "git merge --no-edit origin/main", "no"),
+    "compose restore unverified": ("origin/main", "a" * 40, "a conflict"),
 }
 
 #: Every argv the guard rejects: id -> (args, text the reason must contain).
@@ -1165,3 +1168,81 @@ def test_the_dirty_tree_refusal_does_not_say_more_for_a_short_list():
 
     assert "a.txt, b.txt" in refusal.why
     assert "more" not in refusal.why
+
+
+# --- git_attempt and origin_url ---------------------------------------------
+
+
+def test_git_attempt_reports_success_with_stdout(repo_without_remote):
+    attempt = lane_core.git_attempt(["rev-parse", "HEAD"], repo_without_remote.path)
+
+    assert attempt.ok
+    assert attempt.stdout == git(repo_without_remote.path, "rev-parse", "HEAD")
+    assert attempt.command == "git rev-parse HEAD"
+
+
+def test_git_attempt_reports_a_failure_with_every_stderr_line(monkeypatch, tmp_path):
+    failed = subprocess.CompletedProcess(
+        args=["git"], returncode=1, stdout="", stderr="hook said no\n\nNot committing\n"
+    )
+    monkeypatch.setattr(lane_core, "_run", lambda argv, cwd: failed)
+
+    attempt = lane_core.git_attempt(["merge", "x"], tmp_path)
+
+    assert not attempt.ok
+    assert attempt.detail == "hook said no; Not committing"
+
+
+def test_git_attempt_falls_back_to_the_last_stdout_line(monkeypatch, tmp_path):
+    failed = subprocess.CompletedProcess(
+        args=["git"],
+        returncode=1,
+        stdout="CONFLICT in a\nAutomatic merge failed\n",
+        stderr="",
+    )
+    monkeypatch.setattr(lane_core, "_run", lambda argv, cwd: failed)
+
+    assert lane_core.git_attempt(["merge", "x"], tmp_path).detail == (
+        "Automatic merge failed"
+    )
+
+
+def test_git_attempt_turns_a_guard_hit_into_a_failed_attempt_and_runs_nothing(
+    tmp_path, argv_spy
+):
+    records_before = len(argv_spy.records)
+
+    attempt = lane_core.git_attempt(["push", "origin", "main"], tmp_path)
+
+    assert not attempt.ok
+    assert "subcommand push" in attempt.detail
+    assert argv_spy.records[records_before:] == []
+
+
+def test_git_attempt_turns_a_missing_git_binary_into_a_failed_attempt(
+    monkeypatch, tmp_path
+):
+    def missing(*_args, **_kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(subprocess, "run", missing)
+
+    attempt = lane_core.git_attempt(["status"], tmp_path)
+
+    assert not attempt.ok
+    assert "git status" in attempt.detail
+
+
+def test_origin_url_is_the_origin_remote_url(repo_with_origin):
+    assert lane_core.origin_url(repo_with_origin.path) == str(repo_with_origin.origin)
+
+
+def test_origin_url_is_empty_without_an_origin(repo_without_remote):
+    assert lane_core.origin_url(repo_without_remote.path) == ""
+
+
+def test_origin_url_ignores_a_remote_that_is_not_called_origin(repo_without_remote):
+    repo = repo_without_remote.path
+    git(repo, "remote", "add", "upstream", "https://github.com/acme/x.git")
+
+    assert lane_core.origin_url(repo) == ""
