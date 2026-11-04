@@ -273,3 +273,21 @@ def test_body_iterator_treats_an_unterminated_fence_as_open_to_the_end():
 
 def test_body_iterator_empty_text_yields_nothing():
     assert list(plan_parse.iter_slice_body_lines("")) == []
+
+
+def test_body_iterator_limitation_a_four_backtick_outer_fence_closes_at_an_inner_three():
+    """Documented limitation, shared with `slice_gherkin_blocks`: `_FenceState`
+    closes any fence at the next line starting with three backticks, whatever
+    its opener length. So a four-backtick fence holding a three-backtick block
+    (as `plan-template.md` does) is read as closed at the inner opener and its
+    inner body is read as prose. Callers must strip such an outer fence first.
+    """
+    text = "````markdown\n```bash\nx\n```\n````\nafter\n"
+    assert [flag for _, flag in plan_parse.iter_slice_body_lines(text)] == [
+        True,  # ````markdown  opens
+        True,  # ```bash       closes the outer fence (the limitation)
+        False,  # x            inner body read as prose
+        True,  # ```           opens a new fence
+        True,  # ````          closes it
+        False,  # after
+    ]

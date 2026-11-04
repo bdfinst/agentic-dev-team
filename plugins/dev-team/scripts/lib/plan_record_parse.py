@@ -23,6 +23,7 @@ _H1_H2_RE = re.compile(r"^#{1,2}\s")
 _CRITERION_ITEM_RE = re.compile(r"^(?:[-*]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.*)$")
 _CRITERION_ID_RE = re.compile(r"^(AC\d+)\b[:.]?\s*(.*)$")
 _STEP_HEADING_RE = re.compile(r"^####\s+Step\s+(\d+(?:\.\d+)*)")
+_STEP_ENDING_HEADING_RE = re.compile(r"^#{1,3}\s")
 _COVERS_RE = re.compile(r"^\**Covers\**\s*:\s*\**\s*(.*)$")
 _COVERS_TOKEN_RE = re.compile(r"^(AC\d+)\b")
 _SCENARIO_RE = re.compile(r"^(?:Scenario Outline|Scenario):\s*(.*)$")
@@ -30,11 +31,12 @@ _DOC_STRING_FENCE = '"""'
 # Must stay equal to `progress_guardian.STEP_PATTERN` (a test pins that): the
 # record's Build Progress items are exactly the lines the guardian parses.
 _PROGRESS_ITEM_RE = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
-_PROGRESS_STEP_PREFIX_RE = re.compile(r"^-\s+\[[ xX]\]\s+Step\s+(\d+(?:\.\d+)*):")
+_PROGRESS_STEP_PREFIX_RE = re.compile(r"^-\s+\[[ xX]\]\s+Step\s+([\d.]+):")
 # One grammar for both blocker lines: `**Open blocker**: Slice 2 - text` and
-# `**Resolved blocker**: Slice 2 - text`, optionally behind a list marker.
+# `**Resolved blocker**: Slice 2 - text`, optionally behind a list marker, with
+# the colon outside or inside the bold (`**Open blocker:**`).
 _BLOCKER_RE = re.compile(
-    r"^(?:[-*]\s+)?\*\*(Open|Resolved) blocker\*\*\s*:\s*Slice\s+(\d+)\s+-\s+(.+?)\s*$"
+    r"^(?:[-*]\s+)?\*\*(Open|Resolved) blocker(?:\*\*\s*:|:\*\*)\s*Slice\s+(\d+)\s+-\s+(.+?)\s*$"
 )
 _PROGRESS_SLICE_RE = re.compile(r"^[Ss]lice\s+(\d[^:\s]*)")
 
@@ -58,27 +60,39 @@ def _section_lines(text: str, heading: str) -> Iterator[str]:
 def parse_criteria(text: str) -> list[dict[str, str]]:
     """Return `[{"id", "text"}]` for the items under `## Acceptance Criteria`.
 
-    The id is the explicit leading `AC<n>` token when present, else the item's
-    1-based position. A repeated explicit id keeps its text; the later
-    duplicate takes its position id. Only unindented list items count, so a
-    nested sub-bullet is not a criterion.
+    The first item carrying an explicit `AC<n>` token owns that id, wherever
+    it sits, so a prefixed id never moves. Every other item (unprefixed, or a
+    repeat of an id already owned) takes the lowest unused `AC<k>` counting up
+    from its 1-based position, so ids are always unique. Only unindented list
+    items count, so a nested sub-bullet is not a criterion.
     """
-    criteria: list[dict[str, str]] = []
-    seen: set[str] = set()
+    parsed: list[tuple[str | None, str]] = []
     for line in _section_lines(text, "## Acceptance Criteria"):
         item = _CRITERION_ITEM_RE.match(line.rstrip())
         if not item:
             continue
-        position = f"AC{len(criteria) + 1}"
         body = item.group(1).strip()
         explicit = _CRITERION_ID_RE.match(body)
-        if explicit and explicit.group(1) not in seen:
-            cid, body = explicit.group(1), explicit.group(2).strip()
-        elif explicit:
-            cid, body = position, explicit.group(2).strip()
+        parsed.append(
+            (explicit.group(1), explicit.group(2).strip()) if explicit else (None, body)
+        )
+
+    owners: dict[str, int] = {}
+    for index, (explicit_id, _body) in enumerate(parsed):
+        if explicit_id is not None:
+            owners.setdefault(explicit_id, index)
+    taken = set(owners)
+
+    criteria: list[dict[str, str]] = []
+    for index, (explicit_id, body) in enumerate(parsed):
+        if explicit_id is not None and owners[explicit_id] == index:
+            cid = explicit_id
         else:
-            cid = position
-        seen.add(cid)
+            number = index + 1
+            while f"AC{number}" in taken:
+                number += 1
+            cid = f"AC{number}"
+            taken.add(cid)
         criteria.append({"id": cid, "text": body})
     return criteria
 
@@ -86,7 +100,8 @@ def parse_criteria(text: str) -> list[dict[str, str]]:
 def parse_covers(text: str) -> dict[str, list[str]]:
     """Return `{step_id: [criterion ids]}` from `**Covers**: AC2, AC7` lines.
 
-    A Covers line belongs to the nearest preceding `#### Step N.M` heading.
+    A Covers line belongs to the nearest preceding `#### Step N.M` heading;
+    any later H1-H3 heading ends that step.
     Lines inside fenced blocks are ignored, as are Covers lines before any
     step heading and lines that name no `AC<n>` id (template placeholders).
     Several Covers lines in one step merge, keeping first-seen order.
@@ -99,6 +114,9 @@ def parse_covers(text: str) -> dict[str, list[str]]:
         heading = _STEP_HEADING_RE.match(line)
         if heading:
             step = heading.group(1)
+            continue
+        if _STEP_ENDING_HEADING_RE.match(line):
+            step = None
             continue
         if step is None:
             continue
@@ -162,9 +180,9 @@ def parse_build_progress(text: str) -> dict[str, object]:
     `## Build Progress` heading is `legacy`: every line of the file is
     scanned. Not fence-aware, on purpose: the guardian is not.
 
-    `kind` is `slice` when the header starts `Slice <n>`, else `step`. `id` is
-    the slice number, the `N.M` of a `Step N.M:` prefix, or the header itself
-    when the line carries neither.
+    A line with a `Step N.M:` prefix is a `step` with id `N.M`, whatever its
+    title says. Otherwise `kind` is `slice` when the header starts `Slice <n>`
+    (id `<n>`), else `step` with the header itself as id.
     """
     lines = text.splitlines()
     legacy = not any(line.rstrip().startswith("## Build Progress") for line in lines)
@@ -194,12 +212,14 @@ def parse_build_progress(text: str) -> dict[str, object]:
 
 
 def _progress_item(line: str, flag: str, header: str) -> dict[str, object]:
-    slice_match = _PROGRESS_SLICE_RE.match(header)
     step_match = _PROGRESS_STEP_PREFIX_RE.match(line)
-    if slice_match:
+    slice_match = None if step_match else _PROGRESS_SLICE_RE.match(header)
+    if step_match:
+        kind, item_id = "step", step_match.group(1)
+    elif slice_match:
         kind, item_id = "slice", slice_match.group(1)
     else:
-        kind, item_id = "step", step_match.group(1) if step_match else header
+        kind, item_id = "step", header
     return {"kind": kind, "id": item_id, "header": header, "done": flag.lower() == "x"}
 
 

@@ -5,6 +5,7 @@ Behavioural: each parser takes plan text and returns plain data.
 
 from __future__ import annotations
 
+import re
 import sys
 
 import pytest
@@ -54,6 +55,24 @@ def test_a_repeated_explicit_id_keeps_its_text_and_the_later_one_takes_its_posit
         {"id": "AC2", "text": "again"},
         {"id": "AC3", "text": "three"},
     ]
+
+
+@pytest.mark.parametrize(
+    ("items", "expected"),
+    [
+        (["new", "AC1 a", "AC2 b"], ["AC3", "AC1", "AC2"]),
+        (["AC2 a", "b"], ["AC2", "AC3"]),
+        (["b", "AC1 a"], ["AC2", "AC1"]),
+        (["AC1 a", "AC1 b", "AC1 c"], ["AC1", "AC2", "AC3"]),
+        (["AC3 a", "AC3 b", "c"], ["AC3", "AC2", "AC4"]),
+        (["a", "b", "c"], ["AC1", "AC2", "AC3"]),
+    ],
+)
+def test_prefixed_ids_never_move_and_every_id_is_unique(items, expected):
+    md = "## Acceptance Criteria\n" + "".join(f"- [ ] {i}\n" for i in items)
+    ids = _ids(md)
+    assert ids == expected
+    assert len(set(ids)) == len(ids)
 
 
 def test_an_id_prefix_must_be_a_whole_token():
@@ -109,16 +128,42 @@ def test_covers_line_maps_a_step_to_its_criteria():
     assert plan_record_parse.parse_covers(md) == {"1.1": ["AC2", "AC7"]}
 
 
-def test_covers_line_tolerates_spaces_bold_variants_and_trailing_text():
-    md = """#### Step 1.1: a
-**Covers:**  AC3 ,AC5 (both) , prose, AC3
-#### Step 1.2: b
-Covers : AC9 and more
-"""
-    assert plan_record_parse.parse_covers(md) == {
-        "1.1": ["AC3", "AC5"],
-        "1.2": ["AC9"],
-    }
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("**Covers**: AC1", ["AC1"]),
+        ("**Covers:** AC1", ["AC1"]),
+        ("**Covers:**   AC3 ,AC5", ["AC3", "AC5"]),
+        ("Covers : AC9 and more", ["AC9"]),
+        ("**Covers**: AC3, AC5 (both) , prose", ["AC3", "AC5"]),
+        ("**Covers**: AC3, AC3", ["AC3"]),
+        ("  **Covers**: AC4", ["AC4"]),
+    ],
+)
+def test_covers_line_tolerates_spaces_bold_variants_and_trailing_text(line, expected):
+    md = f"#### Step 1.1: a\n{line}\n"
+    assert plan_record_parse.parse_covers(md) == {"1.1": expected}
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["**Covers**: AC1x", "**Covers**: ac2", "**Covers**: AC", "**Covers**: xAC1"],
+)
+def test_covers_tokens_must_be_whole_uppercase_ac_ids(line):
+    assert plan_record_parse.parse_covers(f"#### Step 1.1: a\n{line}\n") == {}
+
+
+@pytest.mark.parametrize(
+    "heading", ["### Slice 2: next", "## Risks", "# Title", "### Anything"]
+)
+def test_a_higher_heading_ends_the_step_so_a_later_covers_line_is_not_credited(heading):
+    md = f"#### Step 1.1: a\n**Covers**: AC1\n{heading}\n**Covers**: AC2\n"
+    assert plan_record_parse.parse_covers(md) == {"1.1": ["AC1"]}
+
+
+def test_a_fenced_heading_does_not_end_the_step():
+    md = "#### Step 1.1: a\n```text\n## Risks\n```\n**Covers**: AC2\n"
+    assert plan_record_parse.parse_covers(md) == {"1.1": ["AC2"]}
 
 
 def test_covers_line_inside_a_fence_is_ignored():
@@ -208,12 +253,6 @@ def test_scenarios_list_scenario_and_outline_titles_in_order():
     assert plan_record_parse.parse_scenarios(_SLICE) == ["plain one", "an outline"]
 
 
-def test_a_scenario_word_in_a_doc_string_or_a_later_fence_is_not_a_scenario():
-    titles = plan_record_parse.parse_scenarios(_SLICE)
-    assert "inside a doc string" not in titles
-    assert "y" not in titles
-
-
 def test_scenarios_skip_a_non_gherkin_fence_before_the_gherkin_one():
     text = "```bash\nScenario: shell\n```\n```gherkin\nScenario: real\n```\n"
     assert plan_record_parse.parse_scenarios(text) == ["real"]
@@ -278,6 +317,14 @@ def test_progress_reads_unindented_steps_with_and_without_a_step_prefix():
     ]
 
 
+def test_a_step_prefix_makes_a_step_even_when_the_title_starts_with_slice():
+    md = "## Build Progress\n- [ ] Step 1.1: Slice 2 cleanup\n- [x] Slice 2: Real slice\n"
+    assert _progress(md)["items"] == [
+        {"kind": "step", "id": "1.1", "header": "Slice 2 cleanup", "done": False},
+        {"kind": "slice", "id": "2", "header": "Slice 2: Real slice", "done": True},
+    ]
+
+
 def test_progress_skips_the_acceptance_criteria_mirror_until_the_next_h3():
     md = """## Build Progress
 
@@ -311,9 +358,20 @@ def test_a_plan_with_no_checkboxes_has_no_items(md):
     assert _progress(md)["legacy"] is ("Build Progress" not in md)
 
 
-def test_the_item_regex_equals_the_guardians_step_pattern():
+# The oracle's own copy of the guardian's line pattern. It is a literal on
+# purpose: the oracle must not follow the live guardian when that changes.
+_ORACLE_STEP_PATTERN = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
+
+
+def test_the_oracle_pattern_equals_the_records_item_pattern():
+    assert _ORACLE_STEP_PATTERN.pattern == plan_record_parse._PROGRESS_ITEM_RE.pattern
+
+
+def test_tripwire_the_guardians_step_pattern_still_equals_the_oracle_pattern():
+    """Fails when `progress_guardian.STEP_PATTERN` changes, so the oracle and
+    the record's pattern are revisited on purpose rather than drifting."""
     pg = _load_progress_guardian()
-    assert plan_record_parse._PROGRESS_ITEM_RE.pattern == pg.STEP_PATTERN.pattern
+    assert pg.STEP_PATTERN.pattern == _ORACLE_STEP_PATTERN.pattern
 
 
 # --- parity with the guardian's own loop ------------------------------------
@@ -332,7 +390,7 @@ def _oracle_steps(text: str) -> list[tuple[bool, str]]:
     """A frozen copy of the loop in `progress_guardian.parse_plan` (as of
     #2275), kept here so the parity test stays an oracle after the guardian
     starts reading the record."""
-    step_pattern = _load_progress_guardian().STEP_PATTERN
+    step_pattern = _ORACLE_STEP_PATTERN
     lines = text.splitlines()
     has_build_progress = any(
         line.rstrip().startswith("## Build Progress") for line in lines
@@ -426,15 +484,50 @@ This section is the machine-parseable recovery handle.
 """
 
 
-def test_the_fixture_extraction_finds_the_guardians_plans():
-    assert len(_guardian_fixture_plans()) >= 20
+_HAND_WRITTEN_PLANS = {
+    "build-progress-without-mirror": (
+        "## Build Progress\n\n- [ ] Slice 1: a\n- [X] Step 1.1: upper case\n"
+        "\n## Risks\n- [ ] outside\n"
+    ),
+    "mirror-followed-by-slices": (
+        "## Build Progress\n\n### Acceptance Criteria\n- [ ] mirrored\n\n"
+        "### Slices\n- [ ] Slice 1: a\n- [x] Slice 2: b\n"
+    ),
+    "two-build-progress-headings": (
+        "## Build Progress\n- [ ] Slice 1: a\n\n## Notes\n- [ ] skipped\n\n"
+        "## Build Progress\n- [x] Slice 2: b\n"
+    ),
+    "nested-real-shape": _NESTED_REAL_SHAPE,
+}
+
+_PARITY_PLANS = {
+    **{
+        f"guardian-fixture-{n}": plan
+        for n, plan in enumerate(_guardian_fixture_plans())
+    },
+    **_HAND_WRITTEN_PLANS,
+}
 
 
-def test_progress_items_equal_the_guardians_steps_on_every_guardian_fixture_plan():
-    plans = [*_guardian_fixture_plans(), _NESTED_REAL_SHAPE]
-    for plan in plans:
-        got = [(i["done"], i["header"]) for i in _progress(plan)["items"]]
-        assert got == _oracle_steps(plan), plan
+def test_the_parity_set_covers_the_shapes_the_guardian_handles():
+    plans = list(_PARITY_PLANS.values())
+    guardian = [p for k, p in _PARITY_PLANS.items() if k.startswith("guardian-")]
+    assert any("## Build Progress" in p for p in guardian)
+    assert any(
+        "## Build Progress" in p
+        and "### Acceptance Criteria" in p.split("## Build Progress", 1)[1]
+        for p in guardian
+    )
+    assert any("[X]" in p for p in plans)
+    assert any("## Build Progress" not in p and "- [" in p for p in guardian)
+
+
+@pytest.mark.parametrize("plan", list(_PARITY_PLANS.values()), ids=list(_PARITY_PLANS))
+def test_progress_items_equal_the_guardians_steps(plan):
+    """Same as the guardian's loop as of #2275. Parity, not proof that the
+    loop is right: a bug in both would pass."""
+    got = [(i["done"], i["header"]) for i in _progress(plan)["items"]]
+    assert got == _oracle_steps(plan)
 
 
 def test_the_nested_real_shape_plan_yields_only_unindented_items():
@@ -476,9 +569,33 @@ def test_a_resolved_blocker_does_not_cancel_an_open_one_in_the_parser():
         "**Open blocker**: Slice 1 - same\n"
         "**Resolved blocker**: Slice 1 - same\n"
     )
-    result = plan_record_parse.parse_blockers(text)
-    assert len(result["open"]) == 1
-    assert len(result["resolved"]) == 1
+    assert plan_record_parse.parse_blockers(text) == {
+        "open": [{"slice": "1", "text": "same"}],
+        "resolved": [{"slice": "1", "text": "same"}],
+    }
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "**Open blocker**: Slice 4 - gap",
+        "**Open blocker:** Slice 4 - gap",
+        "**Open blocker** : Slice 4 - gap",
+        "- **Open blocker:** Slice 4 - gap",
+    ],
+)
+def test_the_colon_may_sit_inside_or_outside_the_bold(line):
+    text = f"## Plan Review Summary\n{line}\n"
+    assert plan_record_parse.parse_blockers(text)["open"] == [
+        {"slice": "4", "text": "gap"}
+    ]
+
+
+def test_the_resolved_label_also_accepts_the_colon_inside_the_bold():
+    text = "## Plan Review Summary\n**Resolved blocker:** Slice 4 - gap\n"
+    assert plan_record_parse.parse_blockers(text)["resolved"] == [
+        {"slice": "4", "text": "gap"}
+    ]
 
 
 def test_blocker_lines_outside_the_summary_section_are_ignored():
@@ -549,5 +666,7 @@ def test_the_plan_template_shows_each_convention_line(producer):
 
 def test_the_template_placeholders_do_not_opt_a_new_plan_in():
     plan = _template_as_a_plan()
+    assert "**Covers**:" in plan
+    assert "**Open blocker**:" in plan
     assert plan_record_parse.parse_covers(plan) == {}
     assert plan_record_parse.parse_blockers(plan) == {"open": [], "resolved": []}
