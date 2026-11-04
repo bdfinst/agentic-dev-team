@@ -1,6 +1,6 @@
 """Tests for plugins/dev-team/scripts/doctor.py and scripts/lib/doctor_report.py.
 
-Slice 1 of plans/2272-doctor.md: the report model, the install-side checks,
+Slices 1-2 of plans/2272-doctor.md: the report model, the install and project checks,
 the CLI and its exit codes. Checks are driven through an injected ``Context``
 (temp roots, a temp config dir, a fake ``which``, a fake shim); the CLI is
 driven as a subprocess against a temp plugin root so only the intended check
@@ -10,12 +10,16 @@ varies.
 from __future__ import annotations
 
 import ast
+import dataclasses
+import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -31,6 +35,8 @@ sys.path.insert(0, str(SCRIPTS))
 import doctor
 
 report_model = doctor._model()
+doctor_checks = doctor._checks()
+doctor_files = sys.modules["doctor_files"]
 Check = report_model.Check
 Report = report_model.Report
 Status = report_model.Status
@@ -50,6 +56,7 @@ CHECK_IDS = INSTALL_SIDE_IDS + (
     "managed-sections",
 )
 ISSUES_URL = "https://github.com/bdfinst/agentic-dev-team/issues"
+FIFO_READ_DEADLINE_SECONDS = 5
 
 
 def _context(tmp_path: Path, **overrides) -> doctor.Context:
@@ -339,7 +346,7 @@ def _config_dir(tmp_path: Path, installed=ABSENT, catalog=ABSENT) -> Path:
 
 def _plugin_version(tmp_path: Path, **config) -> Check:
     context = _context(tmp_path, config_dir=_config_dir(tmp_path, **config))
-    return doctor.check_plugin_version(context)
+    return doctor_checks.check_plugin_version(context)
 
 
 @pytest.mark.parametrize(
@@ -398,7 +405,7 @@ def test_an_unreadable_catalog_is_ok_and_not_cached(tmp_path, catalog_bytes):
     market_json = tmp_path / "marketplace" / ".claude-plugin" / "marketplace.json"
     market_json.write_bytes(catalog_bytes)
 
-    check = doctor.check_plugin_version(_context(tmp_path, config_dir=config))
+    check = doctor_checks.check_plugin_version(_context(tmp_path, config_dir=config))
 
     assert (check.status, check.fix) == (Status.OK, None)
     assert "catalog not cached" in check.summary
@@ -435,7 +442,7 @@ def test_an_unusable_install_record_is_warn_naming_the_file(tmp_path, record_byt
     config = _config_dir(tmp_path)
     (config / "plugins" / "installed_plugins.json").write_bytes(record_bytes)
 
-    check = doctor.check_plugin_version(_context(tmp_path, config_dir=config))
+    check = doctor_checks.check_plugin_version(_context(tmp_path, config_dir=config))
 
     assert check.status is Status.WARN
     assert check.fix == "claude plugin install dev-team@bfinster"
@@ -458,7 +465,7 @@ def test_an_unusable_install_record_is_warn_naming_the_file(tmp_path, record_byt
     ],
 )
 def test_version_tuple_accepts_only_dotted_ascii_digits(text, expected):
-    assert doctor._version_tuple(text) == expected
+    assert doctor_checks._version_tuple(text) == expected
 
 
 def _args(project: Path) -> SimpleNamespace:
@@ -498,12 +505,6 @@ def test_from_args_defaults_the_config_dir_to_home_dot_claude(tmp_path):
     assert context.config_dir == Path.home() / ".claude"
 
 
-def test_from_args_resolves_a_directory_outside_git_to_itself(tmp_path):
-    context = doctor.Context.from_args(_args(tmp_path), {})
-
-    assert context.project_root == tmp_path.resolve()
-
-
 def test_from_args_defaults_the_shim_and_script_under_the_plugin_root(tmp_path):
     context = doctor.Context.from_args(
         _args(tmp_path), {doctor.PLUGIN_ROOT_ENV: str(tmp_path)}
@@ -522,10 +523,12 @@ def test_a_plugin_root_without_hooks_lib_still_builds_a_context_and_fails_the_ve
     project.mkdir()
 
     context = doctor.Context.from_args(
-        _args(project), {doctor.PLUGIN_ROOT_ENV: str(bare_root)}
+        _args(project),
+        {doctor.PLUGIN_ROOT_ENV: str(bare_root)},
+        run_process=lambda *a, **k: _completed(0, f"{project}\n"),
     )
     report = doctor.run(
-        context, checks=(("plugin-version", doctor.check_plugin_version),)
+        context, checks=(("plugin-version", doctor_checks.check_plugin_version),)
     )
 
     assert context.project_root == project.resolve()
@@ -545,13 +548,35 @@ def test_a_check_version_drift_that_raises_at_import_is_fail_naming_the_helper(
 
     report = doctor.run(
         _context(tmp_path, plugin_root=root),
-        checks=(("plugin-version", doctor.check_plugin_version),),
+        checks=(("plugin-version", doctor_checks.check_plugin_version),),
     )
 
     (check,) = report.checks
     assert check.status is Status.FAIL
     assert check.fix == "/upgrade"
     assert "cannot load check_version_drift" in check.summary
+
+
+def test_a_helper_that_declares_a_dataclass_loads_and_leaves_nothing_in_sys_modules(
+    monkeypatch,
+):
+    monkeypatch.delitem(sys.modules, "autocompact_config", raising=False)
+
+    module = doctor._load_helper(PLUGIN, "autocompact_config")
+
+    assert module.KEY == "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
+    assert "autocompact_config" not in sys.modules
+
+
+def test_a_helper_load_restores_a_module_of_the_same_name_already_imported(
+    monkeypatch,
+):
+    sentinel = SimpleNamespace(marker="already-imported")
+    monkeypatch.setitem(sys.modules, "autocompact_config", sentinel)
+
+    doctor._load_helper(PLUGIN, "autocompact_config")
+
+    assert sys.modules["autocompact_config"] is sentinel
 
 
 def _completed(returncode: int, stdout: str = "") -> SimpleNamespace:
@@ -620,10 +645,11 @@ def test_a_git_toplevel_is_the_project_root_and_in_git(tmp_path):
     "run_process",
     [
         lambda *a, **k: _completed(128),
+        lambda *a, **k: _completed(0, "\n"),
         _raising_run(subprocess.TimeoutExpired("git", 1)),
         _raising_run(FileNotFoundError("git")),
     ],
-    ids=["not-a-repository", "timeout", "git-missing"],
+    ids=["not-a-repository", "exit-0-empty-output", "timeout", "git-missing"],
 )
 def test_no_git_toplevel_means_the_directory_itself_and_not_in_git(
     tmp_path, run_process
@@ -635,7 +661,8 @@ def test_no_git_toplevel_means_the_directory_itself_and_not_in_git(
     assert (context.project_root, context.in_git) == (project.resolve(), False)
 
 
-def test_from_args_makes_exactly_one_git_call_with_its_own_timeout(tmp_path):
+def _recorded_git_call(tmp_path: Path):
+    """Run ``from_args`` with a recording fake; return ``(project, command, kwargs)``."""
     calls = []
 
     def run_process(command, **kwargs):
@@ -643,10 +670,14 @@ def test_from_args_makes_exactly_one_git_call_with_its_own_timeout(tmp_path):
         return _completed(0, f"{tmp_path}\n")
 
     project = _project_dir(tmp_path)
-
     doctor.Context.from_args(_args(project), {}, run_process=run_process)
-
     ((command, kwargs),) = calls
+    return project, command, kwargs
+
+
+def test_from_args_asks_git_once_for_the_toplevel_of_the_project(tmp_path):
+    project, command, _ = _recorded_git_call(tmp_path)
+
     assert command == [
         "git",
         "-C",
@@ -654,24 +685,12 @@ def test_from_args_makes_exactly_one_git_call_with_its_own_timeout(tmp_path):
         "rev-parse",
         "--show-toplevel",
     ]
-    assert kwargs["timeout"] == doctor.GIT_TIMEOUT_SECONDS == 10
-    assert doctor.GIT_TIMEOUT_SECONDS != doctor.DEFAULT_PROBE_TIMEOUT_SECONDS
 
 
-def test_an_unloadable_artifact_paths_does_not_change_the_git_answer(tmp_path):
-    root = tmp_path / "plugin"
-    (root / "hooks" / "lib").mkdir(parents=True)
-    (root / "hooks" / "lib" / "artifact_paths.py").write_text("def broken(:\n")
-    top = tmp_path / "top"
-    top.mkdir()
+def test_the_git_call_uses_its_own_timeout_constant(tmp_path):
+    _, _, kwargs = _recorded_git_call(tmp_path)
 
-    context = doctor.Context.from_args(
-        _args(_project_dir(tmp_path)),
-        {doctor.PLUGIN_ROOT_ENV: str(root)},
-        run_process=lambda *a, **k: _completed(0, f"{top}\n"),
-    )
-
-    assert (context.project_root, context.in_git) == (top.resolve(), True)
+    assert kwargs["timeout"] == doctor.GIT_TIMEOUT_SECONDS
 
 
 def test_the_default_probe_write_removes_its_file_and_leaves_a_stale_probe(tmp_path):
@@ -727,7 +746,7 @@ def _plugin_with_hooks(tmp_path: Path, hooks_json: object, *existing: str) -> Pa
 
 def _hook_registration(tmp_path: Path, hooks_json: object, *existing: str) -> Check:
     root = _plugin_with_hooks(tmp_path, hooks_json, *existing)
-    return doctor.check_hook_registration(_context(tmp_path, plugin_root=root))
+    return doctor_checks.check_hook_registration(_context(tmp_path, plugin_root=root))
 
 
 def test_hooks_whose_scripts_all_exist_are_ok(tmp_path):
@@ -823,7 +842,7 @@ def test_a_command_with_an_unbalanced_quote_still_has_its_script_checked(tmp_pat
     ],
 )
 def test_script_tokens_keep_only_py_and_sh_words_unquoted(command, tokens):
-    assert doctor._script_tokens(command) == tokens
+    assert doctor_checks._script_tokens(command) == tokens
 
 
 def test_commands_are_collected_from_any_depth_in_document_order():
@@ -832,7 +851,7 @@ def test_commands_are_collected_from_any_depth_in_document_order():
         "B": {"command": "two"},
     }
 
-    assert doctor._commands(node) == ["one", "two"]
+    assert doctor_checks._commands(node) == ["one", "two"]
 
 
 @pytest.mark.parametrize(
@@ -863,7 +882,7 @@ def test_an_absent_hooks_json_is_fail_missing(tmp_path):
     root = tmp_path / "plugin"
     root.mkdir()
 
-    check = doctor.check_hook_registration(_context(tmp_path, plugin_root=root))
+    check = doctor_checks.check_hook_registration(_context(tmp_path, plugin_root=root))
 
     assert (check.status, check.fix, check.summary) == (
         Status.FAIL,
@@ -876,7 +895,7 @@ def test_a_hooks_json_with_invalid_utf8_is_invalid_json(tmp_path):
     root = _plugin_with_hooks(tmp_path, {})
     (root / "hooks" / "hooks.json").write_bytes(b'{"hooks": "\xff"}')
 
-    check = doctor.check_hook_registration(_context(tmp_path, plugin_root=root))
+    check = doctor_checks.check_hook_registration(_context(tmp_path, plugin_root=root))
 
     assert check.summary == "hooks/hooks.json: invalid JSON"
 
@@ -887,10 +906,10 @@ def test_the_shipped_hooks_json_resolves_every_command_against_the_real_plugin(
     raw = (PLUGIN / "hooks" / "hooks.json").read_text()
     command_count = raw.count('"command":')
 
-    check = doctor.check_hook_registration(_context(tmp_path))
+    check = doctor_checks.check_hook_registration(_context(tmp_path))
 
     assert command_count > 0
-    assert len(doctor._commands(json.loads(raw)["hooks"])) == command_count
+    assert len(doctor_checks._commands(json.loads(raw)["hooks"])) == command_count
     assert (check.status, check.summary) == (
         Status.OK,
         f"{command_count} hook commands, every script present",
@@ -903,6 +922,9 @@ def test_the_shipped_hooks_json_resolves_every_command_against_the_real_plugin(
 
 DOCTOR = SCRIPTS / "doctor.py"
 REPORT_MODULE = SCRIPTS / "lib" / "doctor_report.py"
+CHECKS_MODULE = SCRIPTS / "lib" / "doctor_checks.py"
+PROBE_MODULE = SCRIPTS / "lib" / "doctor_probe.py"
+FILES_MODULE = SCRIPTS / "lib" / "doctor_files.py"
 REAL_SHIM = PLUGIN / "hooks" / "py.sh"
 
 
@@ -924,7 +946,9 @@ def _probe_context(tmp_path: Path, shim: Path, **overrides) -> doctor.Context:
 
 
 def _both(context: doctor.Context) -> tuple[Check, Check]:
-    return doctor.check_interpreter(context), doctor.check_python_floor(context)
+    return doctor_checks.check_interpreter(context), doctor_checks.check_python_floor(
+        context
+    )
 
 
 def test_a_shim_that_execs_this_interpreter_is_ok_and_names_the_path(tmp_path):
@@ -957,7 +981,7 @@ def test_the_real_shim_with_the_real_script_resolves_an_interpreter(tmp_path):
 def test_the_floor_boundary_is_exactly_3_10_0(tmp_path, version, status):
     shim = _shim(tmp_path, f'echo "/usr/bin/python3 {version}"\n')
 
-    check = doctor.check_python_floor(_probe_context(tmp_path, shim))
+    check = doctor_checks.check_python_floor(_probe_context(tmp_path, shim))
 
     assert check.status is status
     assert version in check.summary
@@ -966,7 +990,7 @@ def test_the_floor_boundary_is_exactly_3_10_0(tmp_path, version, status):
 def test_a_version_below_the_floor_names_the_path_and_the_floor_and_the_fix(tmp_path):
     shim = _shim(tmp_path, 'echo "/opt/py 3.9.18"\n')
 
-    check = doctor.check_python_floor(_probe_context(tmp_path, shim))
+    check = doctor_checks.check_python_floor(_probe_context(tmp_path, shim))
 
     assert check.summary == "/opt/py is 3.9.18; floor is 3.10"
     assert check.fix == "install Python 3.10+ (ADR 0031)"
@@ -1067,7 +1091,7 @@ def test_a_missing_sh_is_reported_as_cannot_run_sh(tmp_path):
 def test_python_floor_alone_gives_the_same_verdict_as_after_interpreter(tmp_path):
     shim = _shim(tmp_path, 'echo "/usr/bin/python3 3.9.18"\n')
 
-    alone = doctor.check_python_floor(_probe_context(tmp_path, shim))
+    alone = doctor_checks.check_python_floor(_probe_context(tmp_path, shim))
     after = _both(_probe_context(tmp_path, shim))[1]
 
     assert alone == after
@@ -1152,7 +1176,11 @@ def test_probe_mode_returns_before_the_lib_import(tmp_path):
     assert done.stdout.startswith(sys.executable)
 
 
-@pytest.mark.parametrize("module", [DOCTOR, REPORT_MODULE], ids=lambda m: m.name)
+@pytest.mark.parametrize(
+    "module",
+    [DOCTOR, REPORT_MODULE, CHECKS_MODULE, PROBE_MODULE, FILES_MODULE],
+    ids=lambda m: m.name,
+)
 def test_module_top_level_parses_as_python_3_8(module):
     ast.parse(module.read_text(), feature_version=(3, 8))
 
@@ -1169,7 +1197,9 @@ def _which_finding(*present: str):
 
 
 def test_jq_absent_is_warn_with_setup_fix_and_the_manual_install_hint(tmp_path):
-    check = doctor.check_required_tools(_context(tmp_path, which=_which_finding()))
+    check = doctor_checks.check_required_tools(
+        _context(tmp_path, which=_which_finding())
+    )
 
     assert check.status is Status.WARN
     assert check.fix == "/setup"
@@ -1177,7 +1207,9 @@ def test_jq_absent_is_warn_with_setup_fix_and_the_manual_install_hint(tmp_path):
 
 
 def test_jq_present_is_ok_with_no_fix(tmp_path):
-    check = doctor.check_required_tools(_context(tmp_path, which=_which_finding("jq")))
+    check = doctor_checks.check_required_tools(
+        _context(tmp_path, which=_which_finding("jq"))
+    )
 
     assert (check.status, check.fix) == (Status.OK, None)
 
@@ -1197,13 +1229,13 @@ def test_optional_tools_never_change_the_status_and_list_in_declared_order(
 ):
     context = _context(tmp_path, which=_which_finding(*present))
 
-    check = doctor.check_optional_tools(context)
+    check = doctor_checks.check_optional_tools(context)
 
     assert (check.status, check.fix, check.summary) == (Status.OK, None, summary)
 
 
 def test_the_registered_checks_start_with_the_install_side_ids_in_order():
-    ids = tuple(check_id for check_id, _ in doctor.CHECKS)
+    ids = tuple(check_id for check_id, _ in doctor_checks.CHECKS)
 
     assert ids[: len(INSTALL_SIDE_IDS)] == INSTALL_SIDE_IDS
 
@@ -1256,7 +1288,10 @@ def _temp_plugin(tmp_path: Path, hooks_json: object | None = None) -> Path:
     )
     copies = {
         REAL_SHIM: "hooks/py.sh",
-        PLUGIN / "hooks" / "lib" / "artifact_paths.py": "hooks/lib/artifact_paths.py",
+        PLUGIN
+        / "hooks"
+        / "lib"
+        / "autocompact_config.py": "hooks/lib/autocompact_config.py",
         PLUGIN
         / "skills"
         / "upgrade"
@@ -1264,6 +1299,9 @@ def _temp_plugin(tmp_path: Path, hooks_json: object | None = None) -> Path:
         / "check_version_drift.py": "skills/upgrade/scripts/check_version_drift.py",
         DOCTOR: "scripts/doctor.py",
         REPORT_MODULE: "scripts/lib/doctor_report.py",
+        CHECKS_MODULE: "scripts/lib/doctor_checks.py",
+        PROBE_MODULE: "scripts/lib/doctor_probe.py",
+        FILES_MODULE: "scripts/lib/doctor_files.py",
     }
     for source, relative in copies.items():
         target = root / relative
@@ -1323,7 +1361,6 @@ def test_a_healthy_install_prints_json_with_every_install_check_ok(tmp_path):
     checks = [c for c in payload["checks"] if c["id"] in INSTALL_SIDE_IDS]
     assert [c["id"] for c in checks] == list(INSTALL_SIDE_IDS)
     assert {c["status"] for c in checks} == {"ok"}
-    assert payload["overall"] == "ok"
 
 
 def _plugin_missing_hook_script(tmp_path: Path) -> Path:
@@ -1473,43 +1510,1451 @@ def test_json_roots_are_absolute(tmp_path):
     assert Path(payload["project_root"]).is_absolute()
 
 
-def test_fix_is_accepted_and_changes_nothing_in_slice_one(tmp_path):
-    done = _run_cli(tmp_path, "--fix", "--json")
-
-    assert (done.returncode, json.loads(done.stdout)["fixed"]) == (0, [])
-
-
 # -- import hygiene --------------------------------------------------------------
 
-PLUGIN_HELPERS = {"artifact_paths", "autocompact_config", "check_version_drift"}
+PLUGIN_HELPERS = {"autocompact_config", "check_version_drift"}
 
 
-def _module_level_imports(module: Path) -> list[str]:
-    """Top-level names imported at import time (function bodies excluded)."""
+def _is_type_checking_guard(node: ast.AST) -> bool:
+    """``if TYPE_CHECKING:`` or ``if typing.TYPE_CHECKING:``."""
+    if not isinstance(node, ast.If):
+        return False
+    test = node.test
+    is_bare = isinstance(test, ast.Name) and test.id == "TYPE_CHECKING"
+    is_qualified = (
+        isinstance(test, ast.Attribute)
+        and test.attr == "TYPE_CHECKING"
+        and isinstance(test.value, ast.Name)
+        and test.value.id == "typing"
+    )
+    return is_bare or is_qualified
+
+
+def _imported_names(source: str, include_function_bodies: bool) -> list[str]:
+    """Top-level names ``source`` imports; the body of a ``TYPE_CHECKING`` guard is skipped.
+
+    Its ``else`` branch is real code, so it is visited. Function bodies are
+    visited only when ``include_function_bodies``.
+    """
     found: list[str] = []
 
-    def visit(node: ast.AST) -> None:
+    def handle(node: ast.AST) -> None:
+        if not include_function_bodies and isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            return
+        if isinstance(node, ast.Import):
+            found.extend(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            found.append((node.module or "").split(".")[0])
+        if _is_type_checking_guard(node):
+            for statement in node.orelse:
+                handle(statement)
+            return
         for child in ast.iter_child_nodes(node):
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            if isinstance(child, ast.Import):
-                found.extend(alias.name.split(".")[0] for alias in child.names)
-            elif isinstance(child, ast.ImportFrom):
-                found.append((child.module or "").split(".")[0])
-            visit(child)
+            handle(child)
 
-    visit(ast.parse(module.read_text()))
+    handle(ast.parse(source))
     return found
 
 
-@pytest.mark.parametrize("module", [DOCTOR, REPORT_MODULE], ids=lambda m: m.name)
-def test_module_level_imports_are_standard_library_or_doctor_report(module):
+def _module_level_imports(module: Path) -> list[str]:
+    """Names imported at import time (function bodies and type-only blocks excluded)."""
+    return _imported_names(module.read_text(), include_function_bodies=False)
+
+
+@pytest.mark.parametrize(
+    ("source", "include_function_bodies", "expected"),
+    [
+        ("if TYPE_CHECKING:\n    import a\nelse:\n    import b\n", False, ["b"]),
+        ("import typing\nif typing.TYPE_CHECKING:\n    import a\n", False, ["typing"]),
+        ("def f():\n    import a\n", False, []),
+        ("def f():\n    import a\n", True, ["a"]),
+        ("if TYPE_CHECKING:\n    import a\ndef f():\n    import b\n", True, ["b"]),
+    ],
+    ids=[
+        "else-branch",
+        "typing-attribute",
+        "function-skipped",
+        "function-visited",
+        "guard-body-skipped",
+    ],
+)
+def test_the_import_scan_skips_only_type_checking_bodies_and_optionally_functions(
+    source, include_function_bodies, expected
+):
+    assert _imported_names(source, include_function_bodies) == expected
+
+
+#: The plugin-local modules each module may import at import time; no other
+#: lib module is imported eagerly, and none imports ``doctor`` itself.
+ALLOWED_LOCAL_IMPORTS = {
+    DOCTOR: set(),
+    REPORT_MODULE: set(),
+    PROBE_MODULE: set(),
+    FILES_MODULE: set(),
+    CHECKS_MODULE: {"doctor_report", "doctor_files"},
+}
+
+
+@pytest.mark.parametrize("module", ALLOWED_LOCAL_IMPORTS, ids=lambda m: m.name)
+def test_module_level_imports_are_standard_library_or_the_allowed_local_modules(
+    module,
+):
     imported = _module_level_imports(module)
 
     assert imported != []
     assert [
         name
         for name in imported
-        if name not in sys.stdlib_module_names and name != "doctor_report"
+        if name not in sys.stdlib_module_names
+        and name not in ALLOWED_LOCAL_IMPORTS[module]
     ] == []
     assert PLUGIN_HELPERS.isdisjoint(imported)
+
+
+@pytest.mark.parametrize(
+    "module", sorted((SCRIPTS / "lib").glob("doctor_*.py")), ids=lambda m: m.name
+)
+def test_no_lib_module_imports_doctor_even_inside_a_function(module):
+    imported = _imported_names(module.read_text(), include_function_bodies=True)
+
+    assert "doctor" not in imported
+
+
+def test_importing_doctor_loads_no_lib_module():
+    code = (
+        "import sys; sys.path.insert(0, sys.argv[1]); import doctor; "
+        "print(sorted(m for m in sys.modules if m.startswith('doctor_')))"
+    )
+
+    done = subprocess.run(
+        [sys.executable, "-c", code, str(SCRIPTS)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert (done.returncode, done.stdout.strip(), done.stderr) == (0, "[]", "")
+
+
+# ---------------------------------------------------------------------------
+# Step 2.1: metrics-writable and project-settings
+# ---------------------------------------------------------------------------
+
+
+def _project_context(tmp_path: Path, **overrides) -> doctor.Context:
+    """A Context over an existing, empty temp project against the real plugin."""
+    project = tmp_path / "project"
+    project.mkdir(parents=True, exist_ok=True)
+    return _context(tmp_path, project_root=project, **overrides)
+
+
+def _metrics_path(context: doctor.Context) -> Path:
+    return context.project_root / ".claude" / "metrics"
+
+
+def _denying_writer(directory: Path) -> None:
+    raise PermissionError("denied")
+
+
+def test_abs_path_names_a_relative_path_by_its_absolute_form():
+    assert report_model.abs_path(Path("some") / "dir") == str(
+        Path.cwd() / "some" / "dir"
+    )
+
+
+def test_a_missing_metrics_directory_is_warn_naming_the_absolute_path_and_fix_flag(
+    tmp_path,
+):
+    context = _project_context(tmp_path)
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert check.status is Status.WARN
+    assert check.fix == "/doctor --fix"
+    assert check.summary == f"{_metrics_path(context)} missing"
+
+
+def test_a_denied_probe_write_is_fail_with_chmod_on_the_absolute_path(tmp_path):
+    context = _project_context(tmp_path, probe_write=_denying_writer)
+    _metrics_path(context).mkdir(parents=True)
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert check.status is Status.FAIL
+    assert check.fix == f"chmod u+w {_metrics_path(context)}"
+    assert check.summary == f"{_metrics_path(context)}: denied"
+
+
+def _file_at_metrics(context: doctor.Context) -> Path:
+    """A regular file at ``.claude/metrics``; returns the blocking path."""
+    metrics = _metrics_path(context)
+    metrics.parent.mkdir()
+    metrics.write_text("")
+    return metrics
+
+
+def _dangling_metrics(context: doctor.Context) -> Path:
+    """A symlink at ``.claude/metrics`` whose target does not exist."""
+    metrics = _metrics_path(context)
+    metrics.parent.mkdir()
+    metrics.symlink_to(context.project_root / "gone")
+    return metrics
+
+
+def _file_at_claude(context: doctor.Context) -> Path:
+    """A regular file where ``.claude`` belongs; returns the blocking path."""
+    claude_dir = context.project_root / ".claude"
+    claude_dir.write_text("a file, not a directory")
+    return claude_dir
+
+
+def _dangling_claude(context: doctor.Context) -> Path:
+    """A symlink at ``.claude`` whose target does not exist."""
+    claude_dir = context.project_root / ".claude"
+    claude_dir.symlink_to(context.project_root / "gone")
+    return claude_dir
+
+
+BLOCKER_IDS = [
+    "file-at-metrics",
+    "dangling-symlink",
+    "file-at-claude",
+    "dangling-claude-symlink",
+]
+#: Each builder makes the blocker and returns the path that blocks.
+BLOCKERS = pytest.mark.parametrize(
+    "build_blocker",
+    [_file_at_metrics, _dangling_metrics, _file_at_claude, _dangling_claude],
+    ids=BLOCKER_IDS,
+)
+#: The same cases with the runtime directories ``--fix`` can still create beside the blocker.
+FIX_BLOCKERS = pytest.mark.parametrize(
+    ("build_blocker", "created"),
+    [
+        (_file_at_metrics, ("memory",)),
+        (_dangling_metrics, ("memory",)),
+        (_file_at_claude, ()),
+        (_dangling_claude, ()),
+    ],
+    ids=BLOCKER_IDS,
+)
+
+
+@BLOCKERS
+def test_a_non_directory_in_the_way_is_fail_with_mv_then_fix(tmp_path, build_blocker):
+    context = _project_context(tmp_path)
+    blocker = build_blocker(context)
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert check.status is Status.FAIL
+    assert check.fix == f"mv {blocker} {blocker}.bak && /doctor --fix"
+    assert check.summary == f"{blocker} is not a directory"
+
+
+def _stat_denied_on_metrics(monkeypatch, filename: str | None) -> None:
+    """Make ``Path.lstat`` raise ``PermissionError`` for a path called ``metrics``."""
+    real_lstat = Path.lstat
+
+    def lstat(self):
+        if self.name == "metrics":
+            raise PermissionError(13, "denied", filename)
+        return real_lstat(self)
+
+    monkeypatch.setattr(Path, "lstat", lstat)
+
+
+def test_an_os_error_without_a_filename_is_fail_with_chmod_on_the_project_root(
+    tmp_path, monkeypatch
+):
+    context = _project_context(tmp_path)
+    _stat_denied_on_metrics(monkeypatch, None)
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert check.status is Status.FAIL
+    assert check.summary == f"{_metrics_path(context)}: PermissionError"
+    assert check.fix == f"chmod u+rwx {context.project_root}"
+
+
+def test_an_os_error_with_a_filename_is_fail_with_chmod_on_that_files_parent(
+    tmp_path, monkeypatch
+):
+    context = _project_context(tmp_path)
+    metrics = _metrics_path(context)
+    _stat_denied_on_metrics(monkeypatch, str(metrics))
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert check.fix == f"chmod u+rwx {metrics.parent}"
+
+
+def _looping_metrics(context: doctor.Context) -> Path:
+    """``.claude/metrics`` a symlink to itself, with ``.claude/memory`` already present."""
+    claude_dir = context.project_root / ".claude"
+    (claude_dir / "memory").mkdir(parents=True)
+    metrics = claude_dir / "metrics"
+    os.symlink("metrics", metrics)
+    return metrics
+
+
+def test_a_self_looping_symlink_in_place_of_metrics_is_a_blocker_to_check_and_fix(
+    tmp_path,
+):
+    context = _project_context(tmp_path)
+    metrics = _looping_metrics(context)
+
+    check = doctor_checks.check_metrics_writable(context)
+    fixed: list[str] = []
+    errors: list[str] = []
+    doctor_checks.apply_fixes(context, fixed, errors)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.FAIL,
+        f"{metrics} is not a directory",
+        f"mv {metrics} {metrics}.bak && /doctor --fix",
+    )
+    assert (fixed, errors) == (
+        [],
+        [f"fix failed: {metrics}: not a directory, move it aside"],
+    )
+    assert metrics.readlink() == Path("metrics")
+
+
+@FIX_BLOCKERS
+def test_fix_never_replaces_a_blocker_and_reports_it_exactly_once(
+    tmp_path, build_blocker, created
+):
+    context = _project_context(tmp_path)
+    blocker = build_blocker(context)
+
+    report = doctor.run(
+        context,
+        fix=True,
+        checks=(("metrics-writable", doctor_checks.check_metrics_writable),),
+    )
+
+    (check,) = report.checks
+    line = f"fix failed: {blocker}: not a directory, move it aside"
+    assert report.fixed == _created(context, *created)
+    assert report.errors == [line]
+    assert blocker.is_symlink() or blocker.is_file()
+    assert (check.status, check.fix) == (
+        Status.FAIL,
+        f"mv {blocker} {blocker}.bak && /doctor --fix",
+    )
+
+
+def _awkward_project_context(tmp_path: Path, **overrides) -> doctor.Context:
+    """A project whose directory name holds a space and a shell ``;``."""
+    project = tmp_path / "my proj; touch pwned"
+    project.mkdir()
+    return _context(tmp_path, project_root=project, **overrides)
+
+
+def test_the_mv_fix_quotes_a_path_with_a_space_and_a_semicolon(tmp_path):
+    context = _awkward_project_context(tmp_path)
+    metrics = _metrics_path(context)
+    metrics.parent.mkdir()
+    metrics.write_text("")
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    awkward_metrics = f"{tmp_path}/my proj; touch pwned/.claude/metrics"
+    assert check.fix == (
+        f"mv '{awkward_metrics}' '{awkward_metrics}.bak' && /doctor --fix"
+    )
+    assert shlex.split(check.fix.split(" && ")[0]) == [
+        "mv",
+        str(metrics),
+        f"{metrics}.bak",
+    ]
+
+
+def test_the_chmod_fix_quotes_a_path_with_a_space_and_a_semicolon(tmp_path):
+    context = _awkward_project_context(tmp_path, probe_write=_denying_writer)
+    metrics = _metrics_path(context)
+    metrics.mkdir(parents=True)
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert shlex.split(check.fix) == ["chmod", "u+w", str(metrics)]
+    assert check.fix == (f"chmod u+w '{tmp_path}/my proj; touch pwned/.claude/metrics'")
+
+
+def test_the_chmod_search_fix_quotes_a_path_with_a_space_and_a_semicolon(
+    tmp_path, monkeypatch
+):
+    context = _awkward_project_context(tmp_path)
+    metrics = _metrics_path(context)
+    _stat_denied_on_metrics(monkeypatch, str(metrics))
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert shlex.split(check.fix) == ["chmod", "u+rwx", str(metrics.parent)]
+    assert check.fix == f"chmod u+rwx '{tmp_path}/my proj; touch pwned/.claude'"
+
+
+def test_a_writable_metrics_directory_is_ok_and_a_stale_probe_file_is_left_alone(
+    tmp_path,
+):
+    context = _project_context(tmp_path)
+    metrics = _metrics_path(context)
+    metrics.mkdir(parents=True)
+    stale = metrics / ".doctor-probe-stale"
+    stale.write_text("")
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert (check.status, check.fix) == (Status.OK, None)
+    assert check.summary == f"{metrics} writable"
+    assert [path.name for path in metrics.iterdir()] == [stale.name]
+
+
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0,
+    reason="root can write into a read-only directory",
+)
+def test_a_read_only_metrics_directory_fails_with_the_default_writer(tmp_path, request):
+    context = _project_context(tmp_path)
+    metrics = _metrics_path(context)
+    metrics.mkdir(parents=True)
+    request.addfinalizer(lambda: metrics.chmod(0o700))
+    metrics.chmod(0o500)
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert (check.status, check.fix) == (Status.FAIL, f"chmod u+w {metrics}")
+
+
+def _write_settings(context: doctor.Context, text: str) -> Path:
+    path = context.project_root / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return path
+
+
+def _settings_check(tmp_path: Path, text: str | None) -> tuple[Check, Path]:
+    context = _project_context(tmp_path)
+    path = context.project_root / ".claude" / "settings.json"
+    if text is not None:
+        _write_settings(context, text)
+    return doctor_checks.check_project_settings(context), path
+
+
+def _autocompact_settings(value) -> str:
+    return json.dumps({"env": {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": value}})
+
+
+@pytest.mark.parametrize(
+    ("value", "status", "fix"),
+    [
+        ("40", Status.OK, None),
+        ("1", Status.OK, None),
+        ("100", Status.OK, None),
+        ("", Status.WARN, "/setup"),
+        (None, Status.WARN, "/setup"),
+        ("abc", Status.WARN, "/setup"),
+        ("0", Status.WARN, "/setup"),
+        ("101", Status.WARN, "/setup"),
+        (" 40", Status.WARN, "/setup"),
+        (40, Status.WARN, "/setup"),
+    ],
+    ids=["40", "1", "100", "empty", "null", "abc", "0", "101", "space-40", "int-40"],
+)
+def test_the_autocompact_value_is_validated(tmp_path, value, status, fix):
+    check, _ = _settings_check(tmp_path, _autocompact_settings(value))
+
+    assert (check.status, check.fix) == (status, fix)
+
+
+def test_an_invalid_autocompact_value_is_named_by_its_repr(tmp_path):
+    check, _ = _settings_check(tmp_path, _autocompact_settings(40))
+
+    assert check.summary == (
+        "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE is 40, expected a percent string 1-100"
+    )
+
+
+def test_a_valid_autocompact_value_is_named_in_the_ok_summary(tmp_path):
+    check, _ = _settings_check(tmp_path, _autocompact_settings("40"))
+
+    assert check.summary == "env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE is '40'"
+
+
+def test_absent_project_settings_are_warn_with_the_setup_fix(tmp_path):
+    check, path = _settings_check(tmp_path, None)
+
+    assert (check.status, check.fix) == (Status.WARN, "/setup")
+    assert check.summary == f"{path}: missing"
+
+
+@pytest.mark.parametrize(
+    "content",
+    ['{"permissions": {}}', '{"env": {}}', '{"env": {"OTHER": "1"}}'],
+    ids=["no-env", "empty-env", "env-without-the-key"],
+)
+def test_settings_without_the_key_are_warn_naming_it(tmp_path, content):
+    check, _ = _settings_check(tmp_path, content)
+
+    assert (check.status, check.fix) == (Status.WARN, "/setup")
+    assert check.summary == "env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE not set"
+
+
+@pytest.mark.parametrize(
+    ("content", "phrase"),
+    [
+        ("{oops", "invalid JSON"),
+        ("[]", "not an object"),
+        ('{"env": "x"}', "env is not an object"),
+        ('{"env": [1]}', "env is not an object"),
+        ('{"env": null}', "env is not an object"),
+    ],
+    ids=["invalid-json", "top-level-array", "env-string", "env-array", "env-null"],
+)
+def test_unusable_project_settings_are_fail_with_the_path_in_summary_and_fix(
+    tmp_path, content, phrase
+):
+    check, path = _settings_check(tmp_path, content)
+
+    assert check.status is Status.FAIL
+    assert check.fix == f"edit {path}"
+    assert check.summary == f"{path}: {phrase}"
+
+
+def test_project_settings_with_invalid_utf8_are_fail_invalid_json(tmp_path):
+    context = _project_context(tmp_path)
+    path = _write_settings(context, "{}")
+    path.write_bytes(b'{"env": "\xff"}')
+
+    check = doctor_checks.check_project_settings(context)
+
+    assert (check.status, check.summary) == (Status.FAIL, f"{path}: invalid JSON")
+
+
+def test_unreadable_project_settings_are_fail_naming_the_path_and_error_type(
+    tmp_path, monkeypatch
+):
+    context = _project_context(tmp_path)
+    path = _write_settings(context, "{}")
+
+    def denied(_path):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(doctor_checks, "load_json", denied)
+
+    check = doctor_checks.check_project_settings(context)
+
+    assert check.status is Status.FAIL
+    assert check.summary == f"cannot read {path}: PermissionError"
+    assert check.fix == f"edit {path}"
+
+
+def test_a_plugin_root_without_hooks_lib_fails_project_settings_with_upgrade(
+    tmp_path,
+):
+    bare_root = tmp_path / "bare"
+    bare_root.mkdir()
+    context = _project_context(tmp_path, plugin_root=bare_root)
+
+    report = doctor.run(
+        context,
+        checks=(("project-settings", doctor_checks.check_project_settings),),
+    )
+
+    (check,) = report.checks
+    assert (check.status, check.fix) == (Status.FAIL, "/upgrade")
+    assert "internal error: ImportError" in check.summary
+
+
+# ---------------------------------------------------------------------------
+# doctor_files: the bounded reader
+# ---------------------------------------------------------------------------
+
+
+def test_project_settings_that_are_a_directory_are_fail_not_a_regular_file(tmp_path):
+    context = _project_context(tmp_path)
+    path = context.project_root / ".claude" / "settings.json"
+    path.mkdir(parents=True)
+
+    check = doctor_checks.check_project_settings(context)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.FAIL,
+        f"{path}: not a regular file",
+        f"edit {path}",
+    )
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs POSIX named pipes")
+def test_project_settings_that_are_a_fifo_are_fail_not_a_regular_file_without_blocking(
+    tmp_path,
+):
+    context = _project_context(tmp_path)
+    path = context.project_root / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True)
+    os.mkfifo(path)
+    outcomes: list[Check | Exception] = []
+
+    def read() -> None:
+        try:
+            outcomes.append(doctor_checks.check_project_settings(context))
+        except Exception as exc:  # noqa: BLE001 -- handed to the test thread
+            outcomes.append(exc)
+
+    worker = threading.Thread(
+        target=read,
+        daemon=True,  # a blocked read must not hold the test run open
+    )
+
+    worker.start()
+    worker.join(timeout=FIFO_READ_DEADLINE_SECONDS)
+
+    if worker.is_alive():
+        pytest.fail("read blocked on FIFO")
+    (outcome,) = outcomes
+    if isinstance(outcome, Exception):
+        raise outcome
+    assert (outcome.status, outcome.summary) == (
+        Status.FAIL,
+        f"{path}: not a regular file",
+    )
+
+
+def test_project_settings_over_the_size_limit_are_fail_too_large(tmp_path):
+    context = _project_context(tmp_path)
+    path = _write_settings(context, "{}")
+    path.write_bytes(b" " * (doctor_files.MAX_FILE_BYTES + 1))
+
+    check = doctor_checks.check_project_settings(context)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.FAIL,
+        f"{path}: too large",
+        f"edit {path}",
+    )
+
+
+def test_project_settings_exactly_at_the_size_limit_are_still_read(tmp_path):
+    context = _project_context(tmp_path)
+    path = _write_settings(context, "{}")
+    path.write_bytes(b"{}" + b" " * (doctor_files.MAX_FILE_BYTES - 2))
+
+    check = doctor_checks.check_project_settings(context)
+
+    assert check.summary == "env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE not set"
+
+
+class _ReadRecorder:
+    """A file handle that records the size of every ``read`` and delegates."""
+
+    def __init__(self, handle, sizes: list[int]):
+        self._handle = handle
+        self._sizes = sizes
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self._handle.close()
+
+    def fileno(self) -> int:
+        return self._handle.fileno()
+
+    def read(self, size: int = -1) -> bytes:
+        self._sizes.append(size)
+        return self._handle.read(size)
+
+
+def test_the_reader_asks_for_at_most_one_byte_past_the_limit(tmp_path, monkeypatch):
+    path = tmp_path / "big.json"
+    path.write_bytes(b" " * (doctor_files.MAX_FILE_BYTES + 10))
+    sizes: list[int] = []
+
+    def recording_open(target, mode, **kwargs):
+        return _ReadRecorder(open(target, mode, **kwargs), sizes)
+
+    monkeypatch.setattr(doctor_files, "open", recording_open, raising=False)
+
+    result = doctor_files.read_bounded(path)
+
+    assert result.kind is doctor_files.LoadKind.TOO_LARGE
+    assert sizes == [doctor_files.MAX_FILE_BYTES + 1]
+
+
+# ---------------------------------------------------------------------------
+# Step 2.2: managed-sections
+# ---------------------------------------------------------------------------
+
+CLAUDE_MD = ".claude/CLAUDE.md"
+GITIGNORE = ".gitignore"
+MANAGED_FILES = [section.path for section in doctor_checks.MANAGED_SECTIONS]
+
+CLAUDE_MD_MARKER = "<!-- dev-team: concise-response preference{suffix} -->"
+#: What ``/setup`` writes after the versioned marker on the same line.
+GITIGNORE_MARKER_TRAILER = (
+    " (regeneratable; not deliverables — issues #1101, #1377, #1406, #1412)"
+)
+GITIGNORE_MARKER = (
+    "# dev-team workflow runtime artifacts (.claude/-scoped + .dev-team-reports/, "
+    "#1406){suffix}" + GITIGNORE_MARKER_TRAILER
+)
+
+
+def _section(relative: str) -> doctor_checks.ManagedSection:
+    return next(s for s in doctor_checks.MANAGED_SECTIONS if s.path == relative)
+
+
+def _current_version(relative: str) -> int:
+    """The version ``/doctor`` treats as current for the managed file ``relative``."""
+    return _section(relative).current_version
+
+
+def _marker(template: str, version: int | None) -> str:
+    """The marker line at ``version``; ``None`` writes it with no ``v<N>`` suffix."""
+    return template.format(suffix="" if version is None else f" v{version}")
+
+
+def _write_managed(context: doctor.Context, relative: str, text: str | bytes) -> Path:
+    path = context.project_root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(text, bytes):
+        path.write_bytes(text)
+    else:
+        path.write_text(text, encoding="utf-8", newline="")
+    return path
+
+
+def _managed_check(tmp_path: Path, claude_md=None, gitignore=None) -> Check:
+    """Run managed-sections; ``None`` leaves the file absent, a str/bytes writes it."""
+    context = _project_context(tmp_path)
+    if claude_md is not None:
+        _write_managed(context, CLAUDE_MD, claude_md)
+    if gitignore is not None:
+        _write_managed(context, GITIGNORE, gitignore)
+    return doctor_checks.check_managed_sections(context)
+
+
+def _claude_md_at(version: int | None) -> str:
+    return "# Notes\n\n" + _marker(CLAUDE_MD_MARKER, version) + "\nbe concise\n"
+
+
+def _gitignore_at(version: int | None) -> str:
+    return (
+        "node_modules/\n" + _marker(GITIGNORE_MARKER, version) + "\n.claude/metrics/\n"
+    )
+
+
+def _opted_in(relative: str, version: int) -> str:
+    return f"{relative} at v{version}"
+
+
+def _stale(relative: str, version: int) -> str:
+    return f"{_opted_in(relative, version)} (current v{_current_version(relative)})"
+
+
+CLAUDE_CURRENT_VERSION = _current_version(CLAUDE_MD)
+GITIGNORE_CURRENT_VERSION = _current_version(GITIGNORE)
+
+
+@pytest.mark.parametrize(
+    ("claude_md", "gitignore", "summary"),
+    [
+        (
+            _claude_md_at(CLAUDE_CURRENT_VERSION),
+            _gitignore_at(GITIGNORE_CURRENT_VERSION),
+            (
+                f"opted in: {_opted_in(CLAUDE_MD, CLAUDE_CURRENT_VERSION)}, "
+                f"{_opted_in(GITIGNORE, GITIGNORE_CURRENT_VERSION)}"
+            ),
+        ),
+        (None, None, "not opted in"),
+        (
+            _claude_md_at(CLAUDE_CURRENT_VERSION),
+            _gitignore_at(GITIGNORE_CURRENT_VERSION + 1),
+            (
+                f"opted in: {_opted_in(CLAUDE_MD, CLAUDE_CURRENT_VERSION)}, "
+                f"{_opted_in(GITIGNORE, GITIGNORE_CURRENT_VERSION + 1)}"
+            ),
+        ),
+    ],
+    ids=["both-current", "both-absent", "gitignore-newer"],
+)
+def test_current_absent_or_newer_managed_sections_are_ok(
+    tmp_path, claude_md, gitignore, summary
+):
+    check = _managed_check(tmp_path, claude_md, gitignore)
+
+    assert (check.status, check.fix, check.summary) == (Status.OK, None, summary)
+
+
+def test_a_file_without_the_marker_is_not_opted_in(tmp_path):
+    check = _managed_check(
+        tmp_path, "# just notes\n", _gitignore_at(GITIGNORE_CURRENT_VERSION)
+    )
+
+    assert (check.status, check.summary) == (
+        Status.OK,
+        f"opted in: {_opted_in(GITIGNORE, GITIGNORE_CURRENT_VERSION)}",
+    )
+
+
+def test_an_upgraded_gitignore_with_the_older_line_before_the_current_one_is_current(
+    tmp_path,
+):
+    older_then_current = _gitignore_at(GITIGNORE_CURRENT_VERSION - 1) + _gitignore_at(
+        GITIGNORE_CURRENT_VERSION
+    )
+
+    check = _managed_check(tmp_path, None, older_then_current)
+
+    assert (check.status, check.fix) == (Status.OK, None)
+    assert (
+        check.summary == f"opted in: {_opted_in(GITIGNORE, GITIGNORE_CURRENT_VERSION)}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("claude_md", "gitignore", "summary"),
+    [
+        (
+            "# just notes\n",
+            _gitignore_at(GITIGNORE_CURRENT_VERSION - 1),
+            f"stale: {_stale(GITIGNORE, GITIGNORE_CURRENT_VERSION - 1)}",
+        ),
+        (
+            _claude_md_at(None),
+            _gitignore_at(GITIGNORE_CURRENT_VERSION),
+            f"stale: {_stale(CLAUDE_MD, 0)}",
+        ),
+        (
+            _claude_md_at(CLAUDE_CURRENT_VERSION),
+            _gitignore_at(None),
+            f"stale: {_stale(GITIGNORE, 0)}",
+        ),
+        (
+            _claude_md_at(CLAUDE_CURRENT_VERSION - 1),
+            _gitignore_at(GITIGNORE_CURRENT_VERSION - 1),
+            (
+                f"stale: {_stale(CLAUDE_MD, CLAUDE_CURRENT_VERSION - 1)}, "
+                f"{_stale(GITIGNORE, GITIGNORE_CURRENT_VERSION - 1)}"
+            ),
+        ),
+        (
+            _claude_md_at(0),
+            _gitignore_at(GITIGNORE_CURRENT_VERSION - 1),
+            (
+                f"stale: {_stale(CLAUDE_MD, 0)}, "
+                f"{_stale(GITIGNORE, GITIGNORE_CURRENT_VERSION - 1)}"
+            ),
+        ),
+    ],
+    ids=[
+        "stale-gitignore",
+        "suffix-less-claude-md-marker",
+        "suffix-less-gitignore-marker",
+        "both-stale",
+        "explicit-v0-claude-md-and-stale-gitignore",
+    ],
+)
+def test_a_stale_managed_section_is_warn_naming_each_stale_file(
+    tmp_path, claude_md, gitignore, summary
+):
+    check = _managed_check(tmp_path, claude_md, gitignore)
+
+    assert (check.status, check.fix, check.summary) == (Status.WARN, "/setup", summary)
+
+
+def test_crlf_line_endings_give_the_same_result_as_lf(tmp_path):
+    lf = _managed_check(
+        tmp_path / "lf", _claude_md_at(0), _gitignore_at(GITIGNORE_CURRENT_VERSION)
+    )
+    crlf = _managed_check(
+        tmp_path / "crlf",
+        _claude_md_at(0).replace("\n", "\r\n"),
+        _gitignore_at(GITIGNORE_CURRENT_VERSION).replace("\n", "\r\n"),
+    )
+
+    assert crlf == lf
+    assert crlf.status is Status.WARN
+
+
+@pytest.mark.parametrize("relative", MANAGED_FILES)
+def test_an_undecodable_managed_file_is_fail_naming_the_file_and_the_error_type(
+    tmp_path, relative
+):
+    context = _project_context(tmp_path)
+    path = _write_managed(context, relative, b"\xff\xfe not utf-8")
+
+    check = doctor_checks.check_managed_sections(context)
+
+    assert check.status is Status.FAIL
+    assert check.summary == f"cannot read {relative}: UnicodeDecodeError"
+    assert "internal error" not in check.summary
+    assert check.fix == f"edit {path}"
+
+
+def test_an_undecodable_gitignore_outranks_a_stale_claude_md(tmp_path):
+    context = _project_context(tmp_path)
+    _write_managed(context, CLAUDE_MD, _claude_md_at(CLAUDE_CURRENT_VERSION - 1))
+    _write_managed(context, GITIGNORE, b"\xff")
+
+    check = doctor_checks.check_managed_sections(context)
+
+    assert (check.status, check.summary) == (
+        Status.FAIL,
+        "cannot read .gitignore: UnicodeDecodeError",
+    )
+
+
+def test_an_undecodable_gitignore_fails_managed_sections_and_no_other_check_in_a_whole_run(
+    tmp_path,
+):
+    context = _project_context(
+        tmp_path,
+        plugin_root=_temp_plugin(tmp_path),
+        config_dir=_config_dir(tmp_path, installed="14.0.1", catalog="14.0.1"),
+        env=_probe_env(),
+        shim=REAL_SHIM,
+        script=DOCTOR,
+        which=_which_finding("jq"),
+    )
+    _write_managed(context, GITIGNORE, b"\xff\xfe not utf-8")
+
+    report = doctor.run(context)
+
+    by_id = {c.id: c for c in report.checks}
+    assert [c.id for c in report.checks] == list(CHECK_IDS)
+    assert (by_id["managed-sections"].status, by_id["managed-sections"].summary) == (
+        Status.FAIL,
+        "cannot read .gitignore: UnicodeDecodeError",
+    )
+    assert [c.id for c in report.checks if "internal error" in c.summary] == []
+    assert [by_id[check_id].status for check_id in INSTALL_SIDE_IDS] == [
+        Status.OK
+    ] * len(INSTALL_SIDE_IDS)
+    # The fixture project has no .claude directory: both project checks warn.
+    assert by_id["project-settings"].status is Status.WARN
+    assert by_id["metrics-writable"].status is Status.WARN
+
+
+def test_when_both_managed_files_are_unreadable_the_first_is_the_one_named(tmp_path):
+    context = _project_context(tmp_path)
+    _write_managed(context, CLAUDE_MD, b"\xff")
+    _write_managed(context, GITIGNORE, b"\xff")
+
+    check = doctor_checks.check_managed_sections(context)
+
+    assert check.summary == "cannot read .claude/CLAUDE.md: UnicodeDecodeError"
+
+
+@pytest.mark.parametrize("relative", MANAGED_FILES)
+def test_a_managed_file_that_is_a_directory_is_fail_not_a_regular_file(
+    tmp_path, relative
+):
+    context = _project_context(tmp_path)
+    path = context.project_root / relative
+    path.mkdir(parents=True)
+
+    check = doctor_checks.check_managed_sections(context)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.FAIL,
+        f"{path}: not a regular file",
+        f"edit {path}",
+    )
+
+
+@pytest.mark.parametrize("relative", MANAGED_FILES)
+def test_a_managed_file_over_the_size_limit_is_fail_too_large(tmp_path, relative):
+    context = _project_context(tmp_path)
+    path = _write_managed(context, relative, b" " * (doctor_files.MAX_FILE_BYTES + 1))
+
+    check = doctor_checks.check_managed_sections(context)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.FAIL,
+        f"{path}: too large",
+        f"edit {path}",
+    )
+
+
+@pytest.mark.parametrize("relative", MANAGED_FILES)
+def test_an_unreadable_managed_file_is_fail_naming_the_file_and_the_error_type(
+    tmp_path, monkeypatch, relative
+):
+    context = _project_context(tmp_path)
+    path = _write_managed(context, relative, "x")
+    real_read = doctor_checks.read_bounded
+
+    def read(target):
+        if target == path:
+            raise PermissionError("denied")
+        return real_read(target)
+
+    monkeypatch.setattr(doctor_checks, "read_bounded", read)
+
+    check = doctor_checks.check_managed_sections(context)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.FAIL,
+        f"cannot read {relative}: PermissionError",
+        f"edit {path}",
+    )
+
+
+def test_hooks_json_that_is_a_directory_is_fail_not_a_regular_file(tmp_path):
+    root = _plugin_with_hooks(tmp_path, {})
+    (root / "hooks" / "hooks.json").unlink()
+    (root / "hooks" / "hooks.json").mkdir()
+
+    check = doctor_checks.check_hook_registration(_context(tmp_path, plugin_root=root))
+
+    assert (check.status, check.fix, check.summary) == (
+        Status.FAIL,
+        "/upgrade",
+        "hooks/hooks.json: not a regular file",
+    )
+
+
+def test_a_claude_path_that_is_a_regular_file_means_no_managed_sections(tmp_path):
+    context = _project_context(tmp_path)
+    (context.project_root / ".claude").write_text("a file, not a directory")
+
+    check = doctor_checks.check_managed_sections(context)
+
+    assert (check.status, check.summary) == (Status.OK, "not opted in")
+
+
+CLAUDE_MD_PATTERN = _section(CLAUDE_MD).marker_pattern
+OLDER_LINE = "<!-- dev-team: concise-response preference v1 -->"
+NEWER_LINE = "<!-- dev-team: concise-response preference v7 -->"
+
+
+@pytest.mark.parametrize(
+    ("text", "version"),
+    [
+        ("no marker", None),
+        ("", None),
+        ("<!-- dev-team: concise-response preference -->", 0),
+        (NEWER_LINE, 7),
+        ("<!-- dev-team: concise-response preference v10 -->", 10),
+        ("<!-- dev-team: concise-response preference vX -->", None),
+        (f"{OLDER_LINE}\n{NEWER_LINE}", 7),
+        (f"{NEWER_LINE}\n{OLDER_LINE}", 7),
+    ],
+    ids=[
+        "no-marker",
+        "empty",
+        "no-suffix",
+        "v7",
+        "v10",
+        "non-numeric-suffix",
+        "older-line-first",
+        "newer-line-first",
+    ],
+)
+def test_marker_version_is_none_without_a_marker_zero_without_a_suffix_and_the_highest_match(
+    text, version
+):
+    assert doctor_checks._marker_version(text, CLAUDE_MD_PATTERN) == version
+
+
+SETUP_SKILL = PLUGIN / "skills" / "setup" / "SKILL.md"
+
+
+def _written_markers() -> list[str]:
+    """Every ``MARKER="..."`` line the setup skill shows for appending a managed section."""
+    markers = re.findall(
+        r'^MARKER="([^"]+)"$', SETUP_SKILL.read_text(encoding="utf-8"), re.MULTILINE
+    )
+    assert markers, f'no MARKER="..." line found in {SETUP_SKILL}'
+    return markers
+
+
+@pytest.mark.parametrize(
+    "section", doctor_checks.MANAGED_SECTIONS, ids=lambda section: section.path
+)
+def test_each_managed_section_regex_matches_the_marker_setup_writes_at_its_version(
+    section,
+):
+    versions = {
+        doctor_checks._marker_version(marker, section.marker_pattern)
+        for marker in _written_markers()
+        if re.search(section.marker_pattern, marker)
+    }
+
+    assert versions == {section.current_version}, f"{section.path} vs {SETUP_SKILL}"
+
+
+def test_the_registered_checks_are_the_nine_documented_ids_in_order():
+    assert tuple(check_id for check_id, _ in doctor_checks.CHECKS) == CHECK_IDS
+
+
+# ---------------------------------------------------------------------------
+# Step 2.3: --fix creates the missing runtime directories
+# ---------------------------------------------------------------------------
+
+
+def _tree_snapshot(root: Path) -> dict[str, str]:
+    """``{relative path: sha256}`` of every file under ``root``."""
+    return {
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+
+def _created(context: doctor.Context, *names: str) -> list[str]:
+    return [f"created {context.project_root / '.claude' / name}" for name in names]
+
+
+def _project_with_settings(context: doctor.Context) -> Path:
+    claude_dir = context.project_root / ".claude"
+    claude_dir.mkdir(parents=True)
+    (claude_dir / "settings.json").write_text(_autocompact_settings("40"))
+    return claude_dir
+
+
+@pytest.mark.parametrize(
+    ("seed", "kept"),
+    [(_project_with_settings, ["settings.json"]), (lambda context: None, [])],
+    ids=["with-settings", "bare-project"],
+)
+def test_fix_creates_exactly_the_two_runtime_directories_and_lists_them(
+    tmp_path, seed, kept
+):
+    context = _project_context(tmp_path)
+    seed(context)
+
+    report = doctor.run(context, fix=True, checks=())
+
+    claude_dir = context.project_root / ".claude"
+    assert report.fixed == _created(context, *doctor_checks.RUNTIME_DIRS)
+    assert sorted(path.name for path in claude_dir.iterdir()) == sorted(
+        [*doctor_checks.RUNTIME_DIRS, *kept]
+    )
+
+
+def test_fix_changes_no_file_under_claude(tmp_path):
+    context = _project_context(tmp_path)
+    claude_dir = _project_with_settings(context)
+    before = _tree_snapshot(claude_dir)
+
+    doctor.run(context, fix=True, checks=())
+
+    assert _tree_snapshot(claude_dir) == before
+
+
+def test_metrics_writable_reports_ok_in_the_same_run_as_the_fix(tmp_path):
+    context = _project_context(tmp_path)
+
+    report = doctor.run(
+        context,
+        fix=True,
+        checks=(("metrics-writable", doctor_checks.check_metrics_writable),),
+    )
+
+    (check,) = report.checks
+    assert check.status is Status.OK
+
+
+def test_without_fix_nothing_is_created_and_fixed_is_empty(tmp_path):
+    context = _project_context(tmp_path)
+
+    report = doctor.run(context, checks=())
+
+    assert report.fixed == []
+    assert not (context.project_root / ".claude").exists()
+
+
+def test_fix_with_one_directory_present_lists_only_the_other(tmp_path):
+    context = _project_context(tmp_path)
+    (context.project_root / ".claude" / "metrics").mkdir(parents=True)
+
+    report = doctor.run(context, fix=True, checks=())
+
+    assert report.fixed == _created(context, "memory")
+
+
+def test_a_second_fix_run_creates_nothing_and_changes_no_file(tmp_path):
+    context = _project_context(tmp_path)
+    claude_dir = _project_with_settings(context)
+    doctor.run(context, fix=True, checks=())
+    before = _tree_snapshot(claude_dir)
+
+    report = doctor.run(context, fix=True, checks=())
+
+    assert (report.fixed, report.errors) == ([], [])
+    assert _tree_snapshot(claude_dir) == before
+
+
+def _apply_fixes(context: doctor.Context) -> tuple[list[str], list[str]]:
+    """Run ``doctor_checks.apply_fixes`` into fresh lists; return ``(fixed, errors)``."""
+    fixed: list[str] = []
+    errors: list[str] = []
+    doctor_checks.apply_fixes(context, fixed, errors)
+    return fixed, errors
+
+
+def _as_absolute(context: doctor.Context) -> doctor.Context:
+    return context
+
+
+def _as_relative(context: doctor.Context) -> doctor.Context:
+    """The same project, named relative to the current directory (its parent)."""
+    return dataclasses.replace(context, project_root=Path("project"))
+
+
+@pytest.mark.parametrize(
+    "as_given", [_as_absolute, _as_relative], ids=["absolute-root", "relative-root"]
+)
+def test_a_regular_file_in_place_of_memory_is_an_error_named_by_absolute_path_and_not_in_fixed(
+    tmp_path, monkeypatch, as_given
+):
+    context = _project_context(tmp_path)
+    memory = context.project_root / ".claude" / "memory"
+    memory.parent.mkdir(parents=True)
+    memory.write_text("not a directory")
+    monkeypatch.chdir(tmp_path)
+
+    fixed, errors = _apply_fixes(as_given(context))
+
+    assert fixed == _created(context, "metrics")
+    assert errors == [f"fix failed: {memory}: not a directory, move it aside"]
+    assert memory.read_text() == "not a directory"
+
+
+def test_a_failed_fix_for_one_directory_does_not_stop_the_next(tmp_path):
+    context = _project_context(tmp_path)
+    metrics = context.project_root / ".claude" / "metrics"
+    metrics.parent.mkdir(parents=True)
+    metrics.write_text("not a directory")
+
+    fixed, errors = _apply_fixes(context)
+
+    assert fixed == _created(context, "memory")
+    assert errors == [f"fix failed: {metrics}: not a directory, move it aside"]
+
+
+def _dangling_memory(project_root: Path) -> Path:
+    """``.claude/metrics`` present, ``.claude/memory`` a symlink to a missing target."""
+    claude_dir = project_root / ".claude"
+    (claude_dir / "metrics").mkdir(parents=True)
+    memory = claude_dir / "memory"
+    memory.symlink_to(project_root / "gone")
+    return memory
+
+
+def test_a_symlink_in_place_of_memory_is_one_error_and_nothing_is_created(tmp_path):
+    context = _project_context(tmp_path)
+    memory = _dangling_memory(context.project_root)
+
+    fixed, errors = _apply_fixes(context)
+
+    assert (fixed, errors) == (
+        [],
+        [f"fix failed: {memory}: not a directory, move it aside"],
+    )
+    assert memory.is_symlink()
+    assert not (context.project_root / "gone").exists()
+
+
+def test_fix_needs_no_plugin_helper_to_find_the_runtime_directories(tmp_path):
+    bare_root = tmp_path / "bare"
+    bare_root.mkdir()
+    context = _project_context(tmp_path, plugin_root=bare_root)
+
+    report = doctor.run(context, fix=True, checks=())
+
+    assert (report.fixed, report.errors) == (
+        _created(context, *doctor_checks.RUNTIME_DIRS),
+        [],
+    )
+
+
+def test_metrics_writable_needs_no_plugin_helper_to_find_the_directory(tmp_path):
+    bare_root = tmp_path / "bare"
+    bare_root.mkdir()
+    context = _project_context(tmp_path, plugin_root=bare_root)
+    _metrics_path(context).mkdir(parents=True)
+
+    check = doctor_checks.check_metrics_writable(context)
+
+    assert check.status is Status.OK
+
+
+def test_help_names_each_directory_fix_creates(tmp_path):
+    done = _run_cli(tmp_path, "--help")
+
+    text = " ".join(done.stdout.split())
+    assert [
+        name for name in doctor_checks.RUNTIME_DIRS if f".claude/{name}" not in text
+    ] == []
+
+
+def _mkdir_raising_on(name: str, exc: Exception):
+    """A ``Path.mkdir`` replacement that raises ``exc`` for a directory called ``name``."""
+    real_mkdir = Path.mkdir
+
+    def mkdir(self, *args, **kwargs):
+        if self.name == name:
+            raise exc
+        return real_mkdir(self, *args, **kwargs)
+
+    return mkdir
+
+
+def test_an_unexpected_exception_while_fixing_is_one_error_and_the_checks_still_run(
+    tmp_path, monkeypatch
+):
+    context = _project_context(tmp_path)
+    monkeypatch.setattr(
+        Path, "mkdir", _mkdir_raising_on("metrics", ValueError("bad root"))
+    )
+
+    report = doctor.run(context, fix=True, checks=(("a", _constant_check(Status.OK)),))
+
+    assert report.errors == ["fix failed: ValueError: bad root"]
+    assert report.fixed == []
+    assert [c.id for c in report.checks] == ["a"]
+
+
+def test_a_raise_on_the_second_directory_keeps_what_the_first_one_created(
+    tmp_path, monkeypatch
+):
+    context = _project_context(tmp_path)
+    monkeypatch.setattr(Path, "mkdir", _mkdir_raising_on("memory", ValueError("boom")))
+
+    report = doctor.run(context, fix=True, checks=())
+
+    assert report.fixed == _created(context, "metrics")
+    assert report.errors == ["fix failed: ValueError: boom"]
+
+
+def _fix_project(tmp_path: Path) -> Path:
+    project = tmp_path / "project"
+    (project / ".claude").mkdir(parents=True)
+    (project / ".claude" / "settings.json").write_text(_autocompact_settings("40"))
+    return project
+
+
+def test_fix_json_run_lists_the_created_directories_and_exits_0(tmp_path):
+    project = _fix_project(tmp_path)
+
+    done = _run_cli(tmp_path, "--fix", "--json", "--project", str(project))
+
+    payload = json.loads(done.stdout)
+    assert (done.returncode, done.stderr) == (0, "")
+    assert payload["fixed"] == [
+        f"created {project.resolve() / '.claude' / name}"
+        for name in ("metrics", "memory")
+    ]
+    assert payload["overall"] == "ok"
+
+
+def test_a_second_fix_run_on_the_command_line_reports_fixed_none_and_exits_0(tmp_path):
+    project = _fix_project(tmp_path)
+    _run_cli(tmp_path, "--fix", "--project", str(project))
+
+    done = _run_cli(tmp_path, "--fix", "--project", str(project))
+
+    lines = done.stdout.splitlines()
+    assert done.returncode == 0
+    assert "fixed: none" in lines
+    assert [line for line in lines if "created " in line] == []
+
+
+def test_json_lists_the_nine_documented_check_ids_in_order(tmp_path):
+    project = _fix_project(tmp_path)
+
+    done = _run_cli(tmp_path, "--json", "--project", str(project))
+
+    payload = json.loads(done.stdout)
+    assert [c["id"] for c in payload["checks"]] == list(CHECK_IDS)
+
+
+@pytest.mark.parametrize(
+    ("flags", "overall_line"),
+    [((), "overall: ok"), (("--json",), '"overall": "ok"')],
+    ids=["human", "json"],
+)
+def test_a_failed_fix_exits_1_and_names_the_error_on_stderr_though_no_check_failed(
+    tmp_path, flags, overall_line
+):
+    project = _fix_project(tmp_path)
+    claude_dir = project.resolve() / ".claude"
+    (claude_dir / "memory").write_text("not a directory")
+
+    done = _run_cli(tmp_path, "--fix", *flags, "--project", str(project))
+
+    assert done.returncode == 1
+    assert done.stderr.splitlines() == [
+        f"fix failed: {claude_dir / 'memory'}: not a directory, move it aside"
+    ]
+    assert overall_line in done.stdout
+    assert f"created {claude_dir / 'metrics'}" in done.stdout
+
+
+def test_a_failed_fix_is_in_the_human_errors_block_on_stdout_and_on_stderr(tmp_path):
+    project = _fix_project(tmp_path)
+    memory = project.resolve() / ".claude" / "memory"
+    memory.write_text("not a directory")
+    error = f"fix failed: {memory}: not a directory, move it aside"
+
+    done = _run_cli(tmp_path, "--fix", "--project", str(project))
+
+    lines = done.stdout.splitlines()
+    assert "errors:" in lines
+    assert f"  {error}" in lines
+    assert done.stderr.splitlines() == [error]
+
+
+def test_a_symlink_in_place_of_memory_exits_1_with_one_error_and_creates_nothing(
+    tmp_path,
+):
+    project = tmp_path / "project"
+    memory = _dangling_memory(project)
+    resolved_memory = project.resolve() / ".claude" / "memory"
+
+    done = _run_cli(tmp_path, "--fix", "--project", str(project))
+
+    assert done.returncode == 1
+    assert done.stderr.splitlines() == [
+        f"fix failed: {resolved_memory}: not a directory, move it aside"
+    ]
+    assert memory.is_symlink()
+    assert not (project / "gone").exists()
+
+
+def test_the_bare_project_reports_warn_for_the_project_checks_and_exits_0(tmp_path):
+    project = tmp_path / "bare-project"
+    project.mkdir()
+
+    done = _run_cli(tmp_path, "--json", "--project", str(project))
+
+    payload = json.loads(done.stdout)
+    statuses = {c["id"]: c["status"] for c in payload["checks"]}
+    assert (statuses["metrics-writable"], statuses["project-settings"]) == (
+        "warn",
+        "warn",
+    )
+    assert statuses["managed-sections"] == "ok"
+    assert (payload["overall"], done.returncode) == ("warn", 0)
+
+
+@pytest.mark.parametrize("flag", ["--json", "--fix"])
+def test_a_project_that_is_a_regular_file_exits_2_naming_it_and_changes_nothing(
+    tmp_path, flag
+):
+    not_a_directory = tmp_path / "a-file"
+    not_a_directory.write_text("unchanged")
+
+    done = _run_cli(tmp_path, flag, "--project", str(not_a_directory))
+
+    assert done.returncode == 2
+    assert str(not_a_directory) in done.stderr
+    assert not_a_directory.read_text() == "unchanged"
+    assert not (tmp_path / "cwd" / ".claude").exists()

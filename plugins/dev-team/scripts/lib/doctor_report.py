@@ -1,8 +1,13 @@
 """doctor_report.py - the check/report model and renderers for ``/doctor``.
 
 Holds everything about *presenting* a diagnosis: the ``Status`` ordering, the
-``Check`` and ``Report`` dataclasses, the versioned ``--json`` schema and the
-human-readable text. The checks themselves live in ``scripts/doctor.py``.
+``Check`` and ``Report`` dataclasses, the versioned ``--json`` schema, the
+human-readable text, and the words checks use to report (``make_check``,
+``abs_path``, the shared repair constants (``UPGRADE_FIX``, ``SETUP_FIX``,
+``INSTALL_FIX``, ``REPORT_FIX``) and ``edit_fix``); check-local repairs
+(``DOCTOR_FIX``, ``INTERPRETER_FIX``, ``FLOOR_FIX``) live in
+``doctor_checks.py`` beside the checks that use them. The checks themselves
+live there too.
 
 Stdlib only. The top level stays parseable by Python 3.8 (``from __future__
 import annotations``, no ``match``) so a too-old interpreter reaches
@@ -14,9 +19,27 @@ from __future__ import annotations
 import enum
 from dataclasses import dataclass, field
 from operator import attrgetter
+from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
+
+ISSUES_URL = "https://github.com/bdfinst/agentic-dev-team/issues"
+
+#: The shared repair constants (``UPGRADE_FIX``, ``SETUP_FIX``, ``INSTALL_FIX``,
+#: ``REPORT_FIX``) and ``edit_fix``; check-local repairs (``DOCTOR_FIX``,
+#: ``INTERPRETER_FIX``, ``FLOOR_FIX``) live in ``doctor_checks.py`` beside the
+#: checks that use them.
+UPGRADE_FIX = "/upgrade"
+SETUP_FIX = "/setup"
+INSTALL_FIX = "claude plugin install dev-team@bfinster"
+REPORT_FIX = f"report this at {ISSUES_URL}"
+
+
+def edit_fix(where: str) -> str:
+    """The repair for a file only the user can correct: open it and fix it by hand."""
+    return f"edit {where}"
+
 
 #: Width of the status column in the human report; fix lines indent past it.
 STATUS_COLUMN_WIDTH = 4
@@ -42,6 +65,16 @@ class Check:
     status: Status
     summary: str
     fix: str | None = None
+
+
+def make_check(status: Status, summary: str, fix: str | None = None) -> Check:
+    """An id-less ``Check``; the runner stamps the id from the check table."""
+    return Check("", status, summary, fix)
+
+
+def abs_path(path: Path) -> str:
+    """``path`` as the absolute string every summary and fix names."""
+    return str(path.absolute())
 
 
 @dataclass(frozen=True)
