@@ -57,6 +57,11 @@ HOOKS_PATH_PREFIX = "core.hookspath="
 _GLOBAL_OPTIONS_WITH_VALUE = frozenset({"-c", "-C"})
 
 WHAT_GIT_COMMAND_FAILED = "git command failed"
+WHAT_INVALID_LANE_NAME = "invalid lane name"
+WHAT_BRANCH_EXISTS = "branch exists"
+WHAT_PATH_EXISTS = "path exists"
+WHAT_TRUNK_UNRESOLVED = "trunk ref cannot be resolved"
+WHAT_NOT_A_GIT_REPOSITORY = "not a git repository"
 
 
 @dataclass(frozen=True)
@@ -104,6 +109,62 @@ def git_command_failed(command: str, detail: str) -> Refusal:
         what=WHAT_GIT_COMMAND_FAILED,
         why=f"{detail.strip() or 'git gave no message'} (command: {command})",
         how=f"fix the cause named in why, then run the failed command again: {command}",
+    )
+
+
+@_registered(WHAT_INVALID_LANE_NAME)
+def invalid_lane_name(name: str, reason: str) -> Refusal:
+    return Refusal(
+        what=WHAT_INVALID_LANE_NAME,
+        why=f"lane name {name!r} is not usable: {reason}",
+        how=(
+            "use letters, digits, '.', '_', '-' and '/' only, starting with a "
+            "letter or digit, in a form git accepts as a branch name"
+        ),
+    )
+
+
+@_registered(WHAT_BRANCH_EXISTS)
+def branch_exists(name: str) -> Refusal:
+    return Refusal(
+        what=WHAT_BRANCH_EXISTS,
+        why=f"branch {name!r} already exists in this repository",
+        how=(
+            f"choose another name, or delete the old branch with "
+            f"git branch -d {name} once it is merged"
+        ),
+    )
+
+
+@_registered(WHAT_PATH_EXISTS)
+def path_exists(path: Path) -> Refusal:
+    return Refusal(
+        what=WHAT_PATH_EXISTS,
+        why=f"{path} already exists",
+        how="pass --path with a directory that does not exist yet, or remove it first",
+    )
+
+
+@_registered(WHAT_TRUNK_UNRESOLVED)
+def trunk_unresolved(ref: str | None) -> Refusal:
+    why = (
+        f"trunk ref {ref!r} does not resolve to a commit"
+        if ref is not None
+        else "no --trunk was given and no default branch could be found"
+    )
+    return Refusal(
+        what=WHAT_TRUNK_UNRESOLVED,
+        why=why,
+        how="pass --trunk <ref> or run git remote set-head origin -a",
+    )
+
+
+@_registered(WHAT_NOT_A_GIT_REPOSITORY)
+def not_a_git_repository(cwd: Path) -> Refusal:
+    return Refusal(
+        what=WHAT_NOT_A_GIT_REPOSITORY,
+        why=f"{cwd} is not inside a git work tree",
+        how="run lane.py from inside a git repository (cd into your repository first)",
     )
 
 
@@ -205,6 +266,13 @@ def git_text(args: Sequence[str], cwd: Path) -> str:
     if done.returncode != 0:
         raise _failure(["git", *args], _last_line(done.stderr))
     return done.stdout.strip()
+
+
+def require_work_tree(cwd: Path) -> None:
+    """Refuse when `cwd` is not inside a git work tree."""
+    done = _git(["rev-parse", "--is-inside-work-tree"], cwd)
+    if done.returncode != 0 or done.stdout.strip() != "true":
+        raise RefusalError(not_a_git_repository(cwd))
 
 
 def resolve_trunk(arg: str | None, cwd: Path) -> str | None:

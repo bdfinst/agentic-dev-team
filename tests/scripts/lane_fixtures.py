@@ -15,6 +15,8 @@ a plain importable module, like `_mutation_test_helpers.py`.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 import subprocess
 import sys
@@ -23,6 +25,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from _repo_root import REPO_ROOT
+
+_SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+import lane
 
 _HERMETIC_DIR = REPO_ROOT / "plugins" / "dev-team" / "tests" / "lib"
 if str(_HERMETIC_DIR) not in sys.path:
@@ -139,11 +147,30 @@ def advance_origin(
     return new
 
 
+def parse_output(stdout: str) -> dict[str, str]:
+    """Split `key: value` success lines into a dict."""
+    return dict(line.split(": ", 1) for line in stdout.splitlines() if ": " in line)
+
+
 def add_linked_worktree(repo: Repo, branch: str, start: str = TRUNK) -> Path:
-    """A linked worktree on a new `branch`, placed beside the primary checkout."""
-    path = repo.path.parent / f"{repo.path.name}-lane-{branch.replace('/', '-')}"
-    git(repo.path, "worktree", "add", "-q", "-b", branch, str(path), start)
-    return path
+    """A lane on a new `branch`, made by `lane.main(["open", ...])`.
+
+    Placed beside the primary checkout. Stdout is swallowed so a later
+    `capsys` read in the test sees only the command under test.
+    """
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = lane.main(["open", branch, "--trunk", start], cwd=repo.path)
+    assert code == 0, f"fixture could not open lane {branch!r}"
+    return Path(parse_output(out.getvalue())["worktree"])
+
+
+def lane_state(cwd: Path) -> tuple[str, str]:
+    """All refs and the worktree list: equal before and after a refused open."""
+    return (
+        git(cwd, "for-each-ref"),
+        git(cwd, "worktree", "list", "--porcelain"),
+    )
 
 
 def parse_blocks(stderr: str) -> list[dict[str, str]]:

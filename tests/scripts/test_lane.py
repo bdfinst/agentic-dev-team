@@ -1,8 +1,8 @@
 """Tests for plugins/dev-team/scripts/lane_core.py and lane.py (issue #2274).
 
-Step 1.1 scope: the CLI shell, the refusal registry and renderer, the git seam
-and its guard, trunk resolution and lane detection. Every test runs in-process
-against real git repositories built by `lane_fixtures`.
+Scope so far: the CLI shell, the refusal registry and renderer, the git seam
+and its guard, trunk resolution and lane detection, and `open`. Every test runs
+in-process against real git repositories built by `lane_fixtures`.
 """
 
 from __future__ import annotations
@@ -21,10 +21,13 @@ from lane_fixtures import (
     add_linked_worktree,
     build_fixture_n,
     build_fixture_r,
+    commit_file,
     covers,
     git,
     git_env,
+    lane_state,
     parse_blocks,
+    parse_output,
 )
 
 from _repo_root import REPO_ROOT
@@ -161,7 +164,7 @@ def run_main(argv, cwd, capsys):
 
 @pytest.fixture
 def open_handler(monkeypatch):
-    """Install a handler for `open` (the real one arrives in step 1.2)."""
+    """Replace the real `open` handler to drive the renderer with a fault."""
 
     def install(handler):
         monkeypatch.setitem(lane.HANDLERS, "open", lambda args, cwd: handler(cwd))
@@ -409,6 +412,246 @@ def test_lane_imports_only_stdlib_and_lane_core():
 
 def test_lane_core_never_imports_lane():
     assert "lane" not in _imported_modules(SCRIPTS_DIR / "lane_core.py")
+
+
+# --- open ---------------------------------------------------------------------
+
+LANE_DIR_INFIX = "-lane-"
+
+
+def single_refusal(code, out, err, what):
+    """Assert one complete refusal block (three non-empty fields) and exit 1."""
+    (block,) = parse_blocks(err)
+    assert code == 1
+    assert out == ""
+    assert block["refused"] == what
+    assert block["why"].strip() != ""
+    assert block["how"].strip() != ""
+    return block
+
+
+def default_lane_dir(repo: Repo, dashed_name: str) -> Path:
+    return repo.path.parent / f"{repo.path.name}{LANE_DIR_INFIX}{dashed_name}"
+
+
+def worktree_paths(cwd: Path) -> list[str]:
+    porcelain = git(cwd, "worktree", "list", "--porcelain")
+    return [
+        line.removeprefix("worktree ")
+        for line in porcelain.splitlines()
+        if line.startswith("worktree ")
+    ]
+
+
+def test_open_creates_a_linked_worktree_at_the_sibling_default_path(repo_n, capsys):
+    expected = default_lane_dir(repo_n, "feature-x")
+
+    code, _, _ = run_main(["open", "feature-x"], repo_n.path, capsys)
+
+    assert code == 0
+    assert str(expected.resolve()) in worktree_paths(repo_n.path)
+    assert (expected / "base.txt").is_file()
+
+
+def test_open_points_the_branch_at_the_former_trunk_tip(repo_n, capsys):
+    former_tip = git(repo_n.path, "rev-parse", "main")
+
+    run_main(["open", "feature-x"], repo_n.path, capsys)
+
+    assert git(repo_n.path, "rev-parse", "feature-x") == former_tip
+
+
+def test_open_prints_worktree_and_branch_lines(repo_n, capsys):
+    code, out, err = run_main(["open", "feature-x"], repo_n.path, capsys)
+
+    expected = default_lane_dir(repo_n, "feature-x")
+    assert (code, err) == (0, "")
+    assert out == f"worktree: {expected}\nbranch: feature-x\n"
+
+
+def test_open_maps_a_slash_in_the_name_to_a_dash_in_the_path(repo_n, capsys):
+    code, out, _ = run_main(["open", "feature/x"], repo_n.path, capsys)
+
+    assert code == 0
+    assert parse_output(out) == {
+        "worktree": str(default_lane_dir(repo_n, "feature-x")),
+        "branch": "feature/x",
+    }
+    assert git(repo_n.path, "rev-parse", "--verify", "refs/heads/feature/x")
+
+
+def test_open_from_inside_a_lane_places_the_new_lane_beside_the_primary(repo_n, capsys):
+    lane_a = add_linked_worktree(repo_n, "A")
+
+    code, out, _ = run_main(["open", "B"], lane_a, capsys)
+
+    assert code == 0
+    assert parse_output(out)["worktree"] == str(default_lane_dir(repo_n, "B"))
+
+
+def test_open_branches_from_the_trunk_ref_not_a_local_branch_that_ran_ahead(
+    repo_r, capsys
+):
+    origin_tip = git(repo_r.path, "rev-parse", "origin/main")
+    commit_file(repo_r.path, "local.txt", "local\n", "local only")
+
+    run_main(["open", "feature-x"], repo_r.path, capsys)
+
+    assert git(repo_r.path, "rev-parse", "feature-x") == origin_tip
+
+
+def test_open_honours_path_and_trunk(repo_n, tmp_path, capsys):
+    git(repo_n.path, "switch", "-q", "-c", "dev")
+    dev_tip = commit_file(repo_n.path, "dev.txt", "dev\n", "dev work")
+    git(repo_n.path, "switch", "-q", "main")
+    target = tmp_path / "custom-lane"
+
+    code, out, _ = run_main(
+        ["open", "feature-y", "--path", str(target), "--trunk", "dev"],
+        repo_n.path,
+        capsys,
+    )
+
+    assert code == 0
+    assert parse_output(out)["worktree"] == str(target)
+    assert git(repo_n.path, "rev-parse", "feature-y") == dev_tip
+    assert (target / "dev.txt").is_file()
+
+
+def test_open_makes_a_relative_path_absolute_against_the_working_directory(
+    repo_n, tmp_path, capsys
+):
+    code, out, _ = run_main(
+        ["open", "feature-y", "--path", "../elsewhere"], repo_n.path, capsys
+    )
+
+    assert code == 0
+    assert parse_output(out)["worktree"] == str(tmp_path / "elsewhere")
+
+
+@pytest.mark.parametrize("name", ["bad name", "a..b", "feat.lock", "a;b", "x~1"])
+@covers("invalid lane name")
+def test_open_refuses_an_invalid_name(name, repo_n, capsys):
+    before = lane_state(repo_n.path)
+
+    code, out, err = run_main(["open", name], repo_n.path, capsys)
+
+    block = single_refusal(code, out, err, "invalid lane name")
+    assert repr(name) in block["why"]
+    assert "letters, digits" in block["how"]
+    assert lane_state(repo_n.path) == before
+
+
+@covers("invalid lane name")
+def test_open_refuses_a_leading_dash_name_given_after_double_dash(repo_n, capsys):
+    before = lane_state(repo_n.path)
+
+    code, out, err = run_main(["open", "--", "-lead"], repo_n.path, capsys)
+
+    block = single_refusal(code, out, err, "invalid lane name")
+    assert "'-lead'" in block["why"]
+    assert "letters, digits" in block["how"]
+    assert lane_state(repo_n.path) == before
+
+
+def test_a_leading_dash_name_without_double_dash_is_a_usage_error(repo_n, capsys):
+    before = lane_state(repo_n.path)
+
+    code, out, err = run_main(["open", "-lead"], repo_n.path, capsys)
+
+    assert code == 2
+    assert out == ""
+    assert "usage" in err
+    assert lane_state(repo_n.path) == before
+
+
+@covers("branch exists")
+def test_open_refuses_an_existing_branch(repo_n, capsys):
+    git(repo_n.path, "branch", "taken")
+    before = lane_state(repo_n.path)
+
+    code, out, err = run_main(["open", "taken"], repo_n.path, capsys)
+
+    block = single_refusal(code, out, err, "branch exists")
+    assert "'taken'" in block["why"]
+    assert "another name" in block["how"]
+    assert "git branch -d taken" in block["how"]
+    assert lane_state(repo_n.path) == before
+    assert not default_lane_dir(repo_n, "taken").exists()
+
+
+@covers("path exists")
+def test_open_refuses_an_existing_path(repo_n, tmp_path, capsys):
+    occupied = tmp_path / "occupied"
+    occupied.mkdir()
+    before = lane_state(repo_n.path)
+
+    code, out, err = run_main(
+        ["open", "feature-x", "--path", str(occupied)], repo_n.path, capsys
+    )
+
+    block = single_refusal(code, out, err, "path exists")
+    assert str(occupied) in block["why"]
+    assert "--path" in block["how"]
+    assert lane_state(repo_n.path) == before
+
+
+@covers("path exists")
+def test_open_refuses_a_default_path_that_is_taken(repo_n, capsys):
+    taken = default_lane_dir(repo_n, "feature-x")
+    taken.mkdir()
+    before = lane_state(repo_n.path)
+
+    code, out, err = run_main(["open", "feature-x"], repo_n.path, capsys)
+
+    block = single_refusal(code, out, err, "path exists")
+    assert str(taken) in block["why"]
+    assert lane_state(repo_n.path) == before
+
+
+@covers("trunk ref cannot be resolved")
+def test_open_refuses_a_trunk_that_does_not_resolve(repo_n, capsys):
+    before = lane_state(repo_n.path)
+
+    code, out, err = run_main(
+        ["open", "feature-x", "--trunk", "missing-ref"], repo_n.path, capsys
+    )
+
+    block = single_refusal(code, out, err, "trunk ref cannot be resolved")
+    assert "'missing-ref'" in block["why"]
+    assert "--trunk <ref>" in block["how"]
+    assert "git remote set-head origin -a" in block["how"]
+    assert lane_state(repo_n.path) == before
+    assert not default_lane_dir(repo_n, "feature-x").exists()
+
+
+@covers("trunk ref cannot be resolved")
+def test_open_refuses_when_no_default_trunk_exists(tmp_path, capsys):
+    odd = tmp_path / "odd"
+    odd.mkdir()
+    git(odd, "init", "-q", "-b", "elsewhere", home=tmp_path)
+    commit_file(odd, "a.txt", "a\n", "a")
+    before = lane_state(odd)
+
+    code, out, err = run_main(["open", "feature-x"], odd, capsys)
+
+    block = single_refusal(code, out, err, "trunk ref cannot be resolved")
+    assert "no --trunk was given" in block["why"]
+    assert "git remote set-head origin -a" in block["how"]
+    assert lane_state(odd) == before
+
+
+@covers("not a git repository")
+def test_open_outside_a_repository_is_a_refusal_block(tmp_path, capsys):
+    plain = tmp_path / "plain"
+    plain.mkdir()
+
+    code, out, err = run_main(["open", "x"], plain, capsys)
+
+    block = single_refusal(code, out, err, "not a git repository")
+    assert str(plain) in block["why"]
+    assert "inside a git repository" in block["how"]
+    assert "Traceback" not in err
 
 
 # --- resolve_trunk ----------------------------------------------------------
