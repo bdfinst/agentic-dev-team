@@ -138,15 +138,23 @@ def git_env(home: Path) -> dict[str, str]:
 
 
 def git(cwd: Path, *args: str, home: Path | None = None) -> str:
-    """Run a fixture git command (hermetic env, must succeed); return stdout."""
+    """Run a fixture git command (hermetic env, must succeed); return stdout.
+
+    A failure raises with git's own stderr, so a red run on another git version
+    names the cause instead of only the exit status.
+    """
     done = subprocess.run(
         ["git", *args],
         cwd=str(cwd),
         env=git_env(home or cwd),
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
     )
+    if done.returncode != 0:
+        raise AssertionError(
+            f"git {' '.join(args)} exited {done.returncode}: {done.stderr.strip()}"
+        )
     return done.stdout.strip()
 
 

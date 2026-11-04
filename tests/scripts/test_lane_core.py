@@ -1053,7 +1053,15 @@ def test_a_slash_in_the_branch_name_survives(repo_with_origin):
 def test_a_remote_name_with_a_slash_is_stripped_whole(repo_with_origin):
     repo = repo_with_origin.path
     for remote in ("team", "team/up"):
-        git(repo, "remote", "add", remote, str(repo_with_origin.origin))
+        # `git remote add` rejects a name with a slash on newer git; the config
+        # keys are what git reads, and what `git remote` lists, on every version.
+        git(repo, "config", f"remote.{remote}.url", str(repo_with_origin.origin))
+        git(
+            repo,
+            "config",
+            f"remote.{remote}.fetch",
+            f"refs/heads/*:refs/remotes/{remote}/*",
+        )
         git(repo, "fetch", "-q", remote)
 
     assert lane_core.local_branch_of("team/up/main", repo) == "main"
