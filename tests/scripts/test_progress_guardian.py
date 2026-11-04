@@ -945,3 +945,167 @@ def test_6f_non_pre_pr_run_does_not_enforce_the_verify_log_check(
     assert result.returncode == 0
     data = json.loads(result.stdout)
     assert data["issues"] == [], data
+
+
+# ---------------------------------------------------------------------------
+# #2275 Step 3.1 — pins for the git evidence rule moved to
+# scripts/lib/commit_evidence.py. The guardian keeps its own policy where the
+# feature record reports "unverifiable": whole-history matching with no base,
+# a warning on zero commits.
+# ---------------------------------------------------------------------------
+
+
+def _init_trunk_and_feature(cwd: Path) -> None:
+    """Repo with `main` holding one seed commit and HEAD on `feature`."""
+    _git(cwd, "init", "-q", "--initial-branch=main")
+    _git(cwd, "config", "user.email", "test@test.com")
+    _git(cwd, "config", "user.name", "Test")
+    (cwd / "seed.txt").write_text("seed\n")
+    _git(cwd, "add", "seed.txt")
+    _git(cwd, "commit", "-q", "-m", "chore: seed")
+    _git(cwd, "checkout", "-q", "-b", "feature")
+
+
+def _commit_file(cwd: Path, name: str, message: str) -> None:
+    target = cwd / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("work\n")
+    _git(cwd, "add", name)
+    _git(cwd, "commit", "-q", "-m", message)
+
+
+def test_3_1_pin_orphan_head_matches_against_whole_history(tmp_path: Path) -> None:
+    # No trunk ref: the only commit touching a.py is the root commit, which a
+    # branch-bounded range would never reach. Whole-history matching passes it.
+    _git(tmp_path, "init", "-q", "--initial-branch=dev")
+    _git(tmp_path, "config", "user.email", "test@test.com")
+    _git(tmp_path, "config", "user.name", "Test")
+    _commit_file(tmp_path, "a.py", "chore: root")
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: later")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def test_3_1_pin_orphan_head_subject_fallback_reaches_the_root_commit(
+    tmp_path: Path,
+) -> None:
+    _git(tmp_path, "init", "-q", "--initial-branch=dev")
+    _git(tmp_path, "config", "user.email", "test@test.com")
+    _git(tmp_path, "config", "user.name", "Test")
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "feat: add the parser")
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: later")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] add the parser\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def test_3_1_pin_zero_commits_is_a_warning_not_an_error(tmp_path: Path) -> None:
+    _init_repo(tmp_path)  # no commit at all
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 2, result.stdout
+    issues = json.loads(result.stdout)["issues"]
+    assert [(i["severity"], i["message"]) for i in issues] == [
+        (
+            "warning",
+            "No commits found on this branch — cannot verify commit discipline.",
+        )
+    ]
+
+
+def test_3_1_pin_commit_older_than_the_branch_base_does_not_back_a_step(
+    tmp_path: Path,
+) -> None:
+    _init_trunk_and_feature(tmp_path)
+    _git(tmp_path, "checkout", "-q", "main")
+    _commit_file(tmp_path, "a.py", "feat: on main before the branch point")
+    _git(tmp_path, "checkout", "-q", "-b", "feature2")
+    _commit_file(tmp_path, "other.py", "feat: unrelated branch work")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 1, result.stdout
+    errors = [
+        i for i in json.loads(result.stdout)["issues"] if i["severity"] == "error"
+    ]
+    assert len(errors) == 1
+    assert errors[0]["message"] == (
+        "Done step 'Slice 1: do thing' has no matching commit in git log. "
+        "Expected a commit on this branch that touched one of: a.py"
+    )
+
+
+def test_3_1_pin_heading_anchored_files_back_a_slice_item(tmp_path: Path) -> None:
+    _init_trunk_and_feature(tmp_path)
+    _commit_file(tmp_path, "docs/a.md", "feat: wording that never names the slice")
+    plan = tmp_path / "plan.md"
+    plan.write_text(
+        "### Slice 1: Parse\n\n**Files:** `docs/a.md`\n\n"
+        "## Build Progress\n\n- [x] Slice 1: Parse\n"
+    )
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def test_3_1_pin_heading_anchored_files_name_the_declared_files_when_unbacked(
+    tmp_path: Path,
+) -> None:
+    _init_trunk_and_feature(tmp_path)
+    _commit_file(tmp_path, "docs/a.md", "feat: parse")
+    plan = tmp_path / "plan.md"
+    plan.write_text(
+        "### Slice 1: Parse\n\n**Files:** `docs/b.md`\n\n"
+        "## Build Progress\n\n- [x] Slice 1: Parse\n"
+    )
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 1, result.stdout
+    messages = [i["message"] for i in json.loads(result.stdout)["issues"]]
+    assert any(
+        "Done step 'Slice 1: Parse'" in m and "touched one of: docs/b.md" in m
+        for m in messages
+    ), messages
+
+
+def test_3_1_pin_check_scope_honours_a_declared_glob_and_directory(
+    tmp_path: Path,
+) -> None:
+    _init_trunk_and_feature(tmp_path)
+    _commit_file(tmp_path, "src/auth/login.py", "feat: do thing")
+    _commit_file(tmp_path, "docs/guide/intro.txt", "feat: do thing too")
+    plan = tmp_path / "plan.md"
+    plan.write_text(
+        "- [x] do thing\n- [x] do thing too\n\n"
+        "**Files:** `src/auth/*.py` and `docs/guide/`\n"
+    )
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def test_3_1_pin_check_scope_still_flags_a_file_outside_a_declared_glob(
+    tmp_path: Path,
+) -> None:
+    _init_trunk_and_feature(tmp_path)
+    _commit_file(tmp_path, "src/auth/ok.py", "feat: do thing")
+    _commit_file(tmp_path, "src/other/x.py", "feat: stray edit")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] do thing\n\n**Files:** `src/auth/*.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 2, result.stdout
+    issues = json.loads(result.stdout)["issues"]
+    assert any(i.get("rule_id") == "llm-skipped" for i in issues), issues
