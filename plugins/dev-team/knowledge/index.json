@@ -6111,7 +6111,7 @@
       "anchor": "resume"
     },
     "Failure modes": {
-      "summary": "Every halt first writes the record, removes nothing, and prints the halt template.",
+      "summary": "Every template halt first writes the record, removes nothing, and prints the halt template.",
       "anchor": "failure-modes"
     }
   },

@@ -103,7 +103,7 @@ Each candidate owns this state:
 - Only the parent writes the plan file.
 - The step's rollback point is the one `/build` recorded before the slice's first step, if the slice declares one. This skill records none.
 
-Hash the parent's plan file in the build worktree just before the batch dispatches. The `-w` flag stores the blob:
+Hash the parent's plan file in the build worktree immediately before the batch dispatches. The `-w` flag stores the blob:
 
 ```bash
 git hash-object -w '<plan>'
@@ -209,7 +209,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py" report --transcript <tra
 Use `totals.cost_usd` from its output. Take these readings:
 
 - Set `spent` to 0 before batch 1.
-- Read `prev` just before every batch dispatches, including batch 1.
+- Read `prev` immediately before every batch dispatches, including batch 1.
 - Read `now` immediately after the batch's dispatches return, before Suite and diff and before Screening.
 - Compute `delta = now - prev`.
 - Add it to `spent`.
@@ -289,7 +289,7 @@ Handle its exit code:
 - Exit 2 with the pre-merge SHA named on stderr: the restore failed. Halt (see Failure modes) and name the SHA in the reason.
 - Exit 1 without that JSON, exit 2 without that SHA, or any other non-zero exit: the script failed. Halt (see Failure modes).
 
-When `reconcile` exits non-zero and Keep halts, the candidate being merged is `disqualified`. Its reason is `reconcile halted: <halt reason>`. The halt template names its branch to merge by hand. A halt after exit 0 leaves the merged winner `kept`, with an empty reason.
+When `reconcile` exits 2, or non-zero without the JSON, Keep halts. The candidate being merged is then `disqualified`. Its reason is `reconcile halted: <halt reason>`. The halt template names its branch to merge by hand. A halt after exit 0 leaves the merged winner `kept`, with an empty reason.
 
 After Keep, `winner` means the candidate that `reconcile` merged.
 
@@ -339,7 +339,7 @@ The step continues at `/build` sub-step 4's inline checkpoint on the merged winn
 
 ## Failure modes
 
-Every halt first writes the record, removes nothing, and prints the halt template. Fill `<halt reason>` with one of the reasons below. Preconditions halts are not template reasons.
+Every template halt first writes the record, removes nothing, and prints the halt template. Fill `<halt reason>` with one of the reasons below. Preconditions halts are not template reasons.
 
 ```text
 speculative dispatch halted at step <step>, attempt <k>: <halt reason>
@@ -359,6 +359,7 @@ Apply this rule to any halt before Rank:
 - A candidate the halt interrupted before `collect` takes the no-commits dict shape. It has `suite_green` false, every scenario unmet, and zero counts.
 - Its `cost_usd` is `delta / width`, or 0 when `now` was not read. Its branch is the accepted one, or empty.
 - Assign ranks in id order.
+- A dispatched candidate is `removed` with the reason `halted before rank`. A no-commits or plan-file-edited candidate keeps `disqualified` with its own reason.
 - Every undispatched candidate is `not dispatched` with the reason `halted before dispatch`.
 
 The halt reasons are:
@@ -368,15 +369,17 @@ The halt reasons are:
 - `every ranked candidate failed to reconcile`: Keep tried each candidate in `order`.
 - `build branch could not be restored after a failed reconcile (git reset --keep <sha> by hand)`: `reconcile` exited 2.
 - `cost meter recorded no spend for the last batch`: `project` printed `halt`.
-- `<command> exited non-zero`: add the stderr. It covers every script or git command whose non-zero exit halts. These are `cost_meter.py`, `build_candidates.py`, `plan_summary_record.py`, `build_slice_scope.py`, `build_jobs.py`, and git `hash-object`, `diff`, `cat-file`, and `worktree list`.
+- `<command> exited non-zero`: add the stderr. It covers every script or git command whose non-zero exit halts. These are `cost_meter.py`, `build_candidates.py`, `plan_summary_record.py`, `build_slice_scope.py`, `build_jobs.py`, and git `rev-parse`, `rev-list`, `hash-object`, `diff`, `cat-file`, `worktree list`, and `add`.
 - `candidate <i> dispatch failed`: the worktree could not be created, or the agent returned an error.
-- `plan file changed during batch <b> (changed file saved as <plan>.batch-<b>)`: every candidate of that batch is `disqualified` with that reason. Candidates of earlier batches are `removed` with the reason `halted before rank`. A no-commits or plan-file-edited candidate keeps `disqualified` with its own reason. Because `rank` did not run, assign ranks in id order.
+- `plan file changed during batch <b> (changed file saved as <plan>.batch-<b>)`: every candidate of that batch is `disqualified` with that reason. Candidates of earlier batches follow the rule above.
 
-On a Keep halt, the template carries the specific reason. The merged candidate's row carries `reconcile halted: <that reason>`.
+On a Keep halt after exit 2, or a script failure, the template carries the specific reason. The row of the candidate being merged carries `reconcile halted: <that reason>`. After `every ranked candidate failed to reconcile`, the last candidate keeps `reconcile failed`.
 
 When `project` printed `stop`, add this line after the first line of the template:
 
 `only <dispatched> of <N> candidates were dispatched (cost cap); raise --max-cost-usd to try more`
+
+Set `<dispatched>` to `<C>`.
 
 When the halt's own `record` call exits non-zero, print the template anyway. Add the line `record not written: <stderr>` after the first line.
 
