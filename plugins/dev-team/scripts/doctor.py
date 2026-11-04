@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import enum
 import functools
 import importlib.util
 import json
@@ -31,17 +32,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from doctor_report import Check, Report
+    from doctor_report import Check, Report, Status
 
 _HERE = Path(__file__).resolve().parent
 
 ISSUES_URL = "https://github.com/bdfinst/agentic-dev-team/issues"
 
-OK = "ok"
-WARN = "warn"
-FAIL = "fail"
+PROBE_FLAG = "--probe"
+PLUGIN_ROOT_ENV = "CLAUDE_PLUGIN_ROOT"
+CONFIG_DIR_ENV = "CLAUDE_CONFIG_DIR"
+PY_CACHE_ENV = "DEV_TEAM_PY_CACHE"
 
-DEFAULT_PROBE_TIMEOUT = 20
+UPGRADE_FIX = "/upgrade"
+SETUP_FIX = "/setup"
+INSTALL_FIX = "claude plugin install dev-team@bfinster"
+REPORT_FIX = f"report this at {ISSUES_URL}"
+
+DEFAULT_PROBE_TIMEOUT_SECONDS = 20
 
 #: Where each plugin helper module lives, relative to the plugin root.
 HELPER_DIRS = {
@@ -61,31 +68,40 @@ def _model():
     return doctor_report
 
 
-def _check(check_id: str, status: str, summary: str, fix: str | None = None):
-    """Build a ``Check`` from a plain status string."""
-    model = _model()
-    return model.Check(check_id, model.Status(status), summary, fix)
+def _status():
+    """The ``Status`` enum, obtained lazily for the same reason as ``_model``."""
+    return _model().Status
 
 
-def _isolated(check_id: str, check: Callable[..., Check], context) -> Check:
-    """Run one check; an exception becomes that check's ``fail`` result."""
-    try:
-        return check(context)
-    except ImportError as exc:
-        # A plugin helper module is missing: the install is incomplete.
-        return _check(check_id, FAIL, _internal_error(exc), "/upgrade")
-    except Exception as exc:  # noqa: BLE001 -- isolation: any check failure becomes that check's fail result
-        return _check(
-            check_id, FAIL, _internal_error(exc), f"report this at {ISSUES_URL}"
-        )
+def _make_check(status: Status, summary: str, fix: str | None = None) -> Check:
+    """An id-less ``Check``; ``_run_isolated`` stamps the id from ``CHECKS``."""
+    return _model().Check("", status, summary, fix)
 
 
-def _internal_error(exc: Exception) -> str:
+def _format_internal_error(exc: Exception) -> str:
     return f"internal error: {type(exc).__name__}: {exc}"
 
 
+def _run_isolated(check_id: str, check_fn: Callable[..., Check], ctx) -> Check:
+    """Run one check under the id the table gives it.
+
+    An exception becomes that check's ``fail`` result; whatever id the check
+    function put on its result is replaced, so ``CHECKS`` is the only place an
+    id is spelled.
+    """
+    status = _status()
+    try:
+        result = check_fn(ctx)
+    except ImportError as exc:
+        # A plugin helper module is missing: the install is incomplete.
+        result = _make_check(status.FAIL, _format_internal_error(exc), UPGRADE_FIX)
+    except Exception as exc:  # noqa: BLE001 -- isolation: any check failure becomes that check's fail result
+        result = _make_check(status.FAIL, _format_internal_error(exc), REPORT_FIX)
+    return dataclasses.replace(result, id=check_id)
+
+
 def run(
-    context,
+    ctx,
     fix: bool = False,
     checks: Iterable[tuple[str, Callable[..., Check]]] | None = None,
 ) -> Report:
@@ -93,12 +109,11 @@ def run(
 
     ``fix`` is accepted for the CLI and does nothing yet.
     """
-    model = _model()
     table = CHECKS if checks is None else checks
-    return model.Report(
-        plugin_root=str(context.plugin_root),
-        project_root=str(context.project_root),
-        checks=[_isolated(check_id, check, context) for check_id, check in table],
+    return _model().Report(
+        plugin_root=str(ctx.plugin_root),
+        project_root=str(ctx.project_root),
+        checks=[_run_isolated(check_id, check_fn, ctx) for check_id, check_fn in table],
     )
 
 
@@ -123,19 +138,48 @@ def _helper(plugin_root: Path, name: str):
 
 def _plugin_root(env: Mapping[str, str]) -> Path:
     """``CLAUDE_PLUGIN_ROOT`` when it names a directory, else this script's plugin."""
-    configured = env.get("CLAUDE_PLUGIN_ROOT")
+    configured = env.get(PLUGIN_ROOT_ENV)
     if configured and Path(configured).is_dir():
         return Path(configured).resolve()
     return _HERE.parent
 
 
-def _project_root(plugin_root: Path, start: Path) -> Path:
-    """The git toplevel of ``start``; ``start`` itself when that cannot be resolved."""
+def _resolve_project_root(plugin_root: Path, start: Path) -> tuple[Path, bool]:
+    """``(root, helper_loaded)``: the git toplevel of ``start``, else ``start``.
+
+    ``helper_loaded`` is False when ``artifact_paths`` cannot be loaded; the
+    root is then ``start`` and nothing was asked of git.
+    """
     try:
         resolve = _helper(plugin_root, "artifact_paths").project_root
     except ImportError:
-        return start
-    return Path(resolve(start=start))
+        return start, False
+    return Path(resolve(start=start)), True
+
+
+def _is_inside_git(project_root: Path, run_process: Callable[..., Any]) -> bool:
+    """True when git resolves a toplevel for ``project_root``; git absent is False."""
+    try:
+        completed = run_process(
+            ["git", "-C", str(project_root), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            timeout=DEFAULT_PROBE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return completed.returncode == 0
+
+
+def _probe_write(directory: Path) -> None:
+    """Create and remove a uniquely named file in ``directory``; ``OSError`` if it cannot.
+
+    The random suffix means a ``.doctor-probe-*`` left by an earlier crash never
+    collides and is left untouched.
+    """
+    descriptor, name = tempfile.mkstemp(dir=directory, prefix=".doctor-probe-")
+    os.close(descriptor)
+    os.unlink(name)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -149,7 +193,9 @@ class Context:
     which: Callable[[str], str | None] = shutil.which
     shim: Path | None = None
     script: Path | None = None
-    probe_timeout: float = DEFAULT_PROBE_TIMEOUT
+    probe_timeout: float = DEFAULT_PROBE_TIMEOUT_SECONDS
+    probe_write: Callable[[Path], None] = _probe_write
+    in_git: bool = True
 
     def __post_init__(self) -> None:
         if self.shim is None:
@@ -168,15 +214,26 @@ class Context:
         return self._probe_result
 
     @classmethod
-    def from_args(cls, args, env: Mapping[str, str]) -> Context:
-        """Resolve the roots and config dir from the CLI arguments and ``env``."""
+    def from_args(
+        cls,
+        args,
+        env: Mapping[str, str],
+        run_process: Callable[..., Any] = subprocess.run,
+    ) -> Context:
+        """Resolve the roots, config dir and git membership from ``args`` and ``env``.
+
+        ``run_process`` is how the one git membership call is made; tests inject
+        a fake so no git runs.
+        """
         plugin_root = _plugin_root(env)
         start = (args.project or Path.cwd()).resolve()
+        project_root, helper_loaded = _resolve_project_root(plugin_root, start)
         return cls(
             plugin_root=plugin_root,
-            project_root=_project_root(plugin_root, start),
-            config_dir=Path(env.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"),
+            project_root=project_root,
+            config_dir=Path(env.get(CONFIG_DIR_ENV) or Path.home() / ".claude"),
             env=env,
+            in_git=helper_loaded and _is_inside_git(project_root, run_process),
         )
 
 
@@ -188,65 +245,80 @@ def _version_tuple(text) -> tuple[int, ...] | None:
     return None
 
 
-def _guarded(call, *args):
+def _call_or_none(call, *args):
     """Run a helper lookup over untrusted JSON; a shape it cannot read is no answer."""
     try:
         return call(*args)
-    except (AttributeError, TypeError):
+    except (AttributeError, TypeError, LookupError, ValueError):
         return None
 
 
-def check_plugin_version(ctx: Context):
+def check_plugin_version(ctx: Context) -> Check:
     """Compare the installed plugin version with the cached marketplace catalog."""
+    status = _status()
     drift = _helper(ctx.plugin_root, "check_version_drift")
-    record = ctx.config_dir / "plugins" / "installed_plugins.json"
-    install_fix = "claude plugin install dev-team@bfinster"
-    if not record.is_file():
-        return _check(
-            "plugin-version", WARN, f"no install record ({record})", install_fix
+    record_path = ctx.config_dir / "plugins" / "installed_plugins.json"
+    if not record_path.is_file():
+        return _make_check(
+            status.WARN, f"no install record ({record_path})", INSTALL_FIX
         )
-    installed, market = _guarded(drift.installed, str(ctx.config_dir)) or (None, None)
-    if not installed:
-        return _check(
-            "plugin-version",
-            WARN,
-            f"{record.name}: no usable version for dev-team",
-            install_fix,
+    installed_version, marketplace = _call_or_none(
+        drift.installed, str(ctx.config_dir)
+    ) or (None, None)
+    if not installed_version:
+        return _make_check(
+            status.WARN,
+            f"{record_path.name}: no usable version for dev-team",
+            INSTALL_FIX,
         )
-    catalog = _guarded(drift.latest, str(ctx.config_dir), market)
-    if not catalog:
-        return _check(
-            "plugin-version", OK, f"{installed} installed; catalog not cached"
+    catalog_version = _call_or_none(drift.latest, str(ctx.config_dir), marketplace)
+    if not catalog_version:
+        return _make_check(
+            status.OK, f"{installed_version} installed; catalog not cached"
         )
-    have, offered = _version_tuple(installed), _version_tuple(catalog)
-    if have is None or offered is None:
-        return _check("plugin-version", OK, f"cannot compare {installed} to {catalog}")
-    if offered > have:
-        return _check(
-            "plugin-version",
-            WARN,
-            f"{installed} installed, {catalog} available",
-            "/upgrade",
+    installed_tuple = _version_tuple(installed_version)
+    offered_tuple = _version_tuple(catalog_version)
+    if installed_tuple is None or offered_tuple is None:
+        return _make_check(
+            status.OK, f"cannot compare {installed_version} to {catalog_version}"
         )
-    return _check("plugin-version", OK, f"{installed} installed (catalog {catalog})")
+    if offered_tuple > installed_tuple:
+        return _make_check(
+            status.WARN,
+            f"{installed_version} installed, {catalog_version} available",
+            UPGRADE_FIX,
+        )
+    return _make_check(
+        status.OK, f"{installed_version} installed (catalog {catalog_version})"
+    )
 
 
-PLUGIN_ROOT_PREFIX = "${CLAUDE_PLUGIN_ROOT}/"
+PLUGIN_ROOT_PREFIX = "${" + PLUGIN_ROOT_ENV + "}/"
 SCRIPT_SUFFIXES = (".py", ".sh")
+
+
+class LoadKind(enum.Enum):
+    """How reading a JSON file ended."""
+
+    MISSING = "missing"
+    INVALID = "invalid"
+    NOT_OBJECT = "not-object"
+    OK = "ok"
+
 
 #: How ``_load_json`` outcomes read in a summary: ``<file>: <phrase>``.
 UNLOADABLE_PHRASES = {
-    "missing": "missing",
-    "invalid": "invalid JSON",
-    "not-object": "not an object",
+    LoadKind.MISSING: "missing",
+    LoadKind.INVALID: "invalid JSON",
+    LoadKind.NOT_OBJECT: "not an object",
 }
 
 
 @dataclasses.dataclass(frozen=True)
 class Loaded:
-    """A JSON file read: ``kind`` is ``missing``, ``invalid``, ``not-object`` or ``ok``."""
+    """A JSON file read: ``kind`` says how, ``data`` is the object when ``OK``."""
 
-    kind: str
+    kind: LoadKind
     data: Any = None
 
 
@@ -255,12 +327,12 @@ def _load_json(path: Path) -> Loaded:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, NotADirectoryError):
-        return Loaded("missing")
+        return Loaded(LoadKind.MISSING)
     except ValueError:  # JSONDecodeError and UnicodeDecodeError
-        return Loaded("invalid")
+        return Loaded(LoadKind.INVALID)
     if not isinstance(data, dict):
-        return Loaded("not-object")
-    return Loaded("ok", data)
+        return Loaded(LoadKind.NOT_OBJECT)
+    return Loaded(LoadKind.OK, data)
 
 
 def _commands(node: Any) -> list[str]:
@@ -292,37 +364,32 @@ def _missing_scripts(plugin_root: Path, commands: list[str]) -> list[str]:
     missing: list[str] = []
     for command in commands:
         for token in _script_tokens(command):
-            shown = token.removeprefix(PLUGIN_ROOT_PREFIX)
-            target = plugin_root / shown  # an absolute token replaces the root
-            if not target.is_file() and shown not in missing:
-                missing.append(shown)
+            relative_path = token.removeprefix(PLUGIN_ROOT_PREFIX)
+            target = plugin_root / relative_path  # an absolute token replaces the root
+            if not target.is_file() and relative_path not in missing:
+                missing.append(relative_path)
     return missing
 
 
-def check_hook_registration(ctx: Context):
+def check_hook_registration(ctx: Context) -> Check:
     """Every script a registered hook command names must exist."""
+    status = _status()
     label = "hooks/hooks.json"
     loaded = _load_json(ctx.plugin_root / "hooks" / "hooks.json")
-    if loaded.kind != "ok":
+    if loaded.kind is not LoadKind.OK:
         phrase = UNLOADABLE_PHRASES[loaded.kind]
-        return _check("hook-registration", FAIL, f"{label}: {phrase}", "/upgrade")
+        return _make_check(status.FAIL, f"{label}: {phrase}", UPGRADE_FIX)
     hooks = loaded.data.get("hooks")
     if not isinstance(hooks, dict):
-        return _check(
-            "hook-registration", FAIL, f"{label}: no hooks object", "/upgrade"
-        )
+        return _make_check(status.FAIL, f"{label}: no hooks object", UPGRADE_FIX)
     commands = _commands(hooks)
     if not commands:
-        return _check(
-            "hook-registration", FAIL, f"{label}: no hook commands", "/upgrade"
-        )
+        return _make_check(status.FAIL, f"{label}: no hook commands", UPGRADE_FIX)
     missing = _missing_scripts(ctx.plugin_root, commands)
     if missing:
-        return _check(
-            "hook-registration", FAIL, f"missing: {', '.join(missing)}", "/upgrade"
-        )
-    return _check(
-        "hook-registration", OK, f"{len(commands)} hook commands, every script present"
+        return _make_check(status.FAIL, f"missing: {', '.join(missing)}", UPGRADE_FIX)
+    return _make_check(
+        status.OK, f"{len(commands)} hook commands, every script present"
     )
 
 
@@ -337,9 +404,9 @@ _PROBE_LINE = re.compile(r"(?P<path>.+) (?P<version>[0-9]+\.[0-9]+\.[0-9]+)")
 
 @dataclasses.dataclass(frozen=True)
 class ProbeResult:
-    """What ``sh py.sh doctor.py --probe`` yielded: ``detail`` says why not ``ok``."""
+    """What ``sh py.sh doctor.py --probe`` yielded: ``detail`` says why not ``resolved``."""
 
-    ok: bool
+    resolved: bool
     path: str = ""
     version: tuple[int, int, int] | None = None
     detail: str = ""
@@ -369,10 +436,10 @@ def _run_probe(ctx: Context) -> ProbeResult:
     if not ctx.shim.is_file():
         return ProbeResult(False, detail=f"shim not found: {ctx.shim}")
     with tempfile.TemporaryDirectory() as scratch:
-        env = {**ctx.env, "DEV_TEAM_PY_CACHE": str(Path(scratch) / "python")}
+        env = {**ctx.env, PY_CACHE_ENV: str(Path(scratch) / "python")}
         try:
-            done = subprocess.run(
-                ["sh", str(ctx.shim), str(ctx.script), "--probe"],
+            completed = subprocess.run(
+                ["sh", str(ctx.shim), str(ctx.script), PROBE_FLAG],
                 capture_output=True,
                 text=True,
                 errors="replace",
@@ -386,80 +453,80 @@ def _run_probe(ctx: Context) -> ProbeResult:
             )
         except OSError as exc:
             return ProbeResult(False, detail=f"cannot run sh: {exc}")
-    reason = _first_stderr_line(done.stderr)
-    if done.returncode == SHIM_NO_INTERPRETER:
+    reason = _first_stderr_line(completed.stderr)
+    if completed.returncode == SHIM_NO_INTERPRETER:
         return ProbeResult(
             False, detail=_with_detail("py.sh found no interpreter", reason)
         )
-    if done.returncode != 0:
+    if completed.returncode != 0:
         return ProbeResult(
-            False, detail=_with_detail(f"probe exited {done.returncode}", reason)
+            False, detail=_with_detail(f"probe exited {completed.returncode}", reason)
         )
-    parsed = _parse_probe(done.stdout)
+    parsed = _parse_probe(completed.stdout)
     if parsed is None:
         return ProbeResult(False, detail="probe printed no version line")
     return ProbeResult(True, path=parsed[0], version=parsed[1])
 
 
-def check_interpreter(ctx: Context):
+def check_interpreter(ctx: Context) -> Check:
     """py.sh must resolve a Python 3 that answers the ``--probe`` request."""
+    status = _status()
     probe = ctx.probe()
-    if not probe.ok:
-        return _check("interpreter", FAIL, probe.detail, INTERPRETER_FIX)
-    return _check("interpreter", OK, f"py.sh resolved {probe.path}")
+    if not probe.resolved:
+        return _make_check(status.FAIL, probe.detail, INTERPRETER_FIX)
+    return _make_check(status.OK, f"py.sh resolved {probe.path}")
 
 
-def check_python_floor(ctx: Context):
+def check_python_floor(ctx: Context) -> Check:
     """The interpreter py.sh resolves must meet the shipped Python floor."""
+    status = _status()
     probe = ctx.probe()
     if probe.version is None:
-        return _check("python-floor", FAIL, "no interpreter resolved", FLOOR_FIX)
+        return _make_check(status.FAIL, "no interpreter resolved", FLOOR_FIX)
     dotted = ".".join(str(part) for part in probe.version)
     if probe.version[:2] < PYTHON_FLOOR:
         floor = ".".join(str(part) for part in PYTHON_FLOOR)
-        return _check(
-            "python-floor",
-            FAIL,
-            f"{probe.path} is {dotted}; floor is {floor}",
-            FLOOR_FIX,
+        return _make_check(
+            status.FAIL, f"{probe.path} is {dotted}; floor is {floor}", FLOOR_FIX
         )
-    return _check("python-floor", OK, f"{probe.path} is {dotted}")
+    return _make_check(status.OK, f"{probe.path} is {dotted}")
 
 
-REQUIRED_TOOL = "jq"
+REQUIRED_TOOLS = ("jq",)
 OPTIONAL_TOOLS = ("gh", "semgrep", "adr", "shellcheck", "uv")
-GIT_PROBE_TIMEOUT = 10
 
 
-def _which_set(ctx: Context, names: tuple[str, ...]) -> tuple[list[str], list[str]]:
+def _partition_by_availability(
+    ctx: Context, names: tuple[str, ...]
+) -> tuple[list[str], list[str]]:
     """Split ``names`` into those ``ctx.which`` finds and those it does not."""
     present = [name for name in names if ctx.which(name)]
     return present, [name for name in names if name not in present]
 
 
-def _listing(names: list[str]) -> str:
+def _join_or_none(names: list[str]) -> str:
     return ", ".join(names) or "none"
 
 
-def check_required_tools(ctx: Context):
+def check_required_tools(ctx: Context) -> Check:
     """``jq`` backs the shell hooks; its absence degrades them, so it only warns."""
-    if ctx.which(REQUIRED_TOOL):
-        return _check("required-tools", OK, f"{REQUIRED_TOOL} on PATH")
-    return _check(
-        "required-tools",
-        WARN,
-        f"{REQUIRED_TOOL} not on PATH (manual: brew install {REQUIRED_TOOL})",
-        "/setup",
+    status = _status()
+    present, absent = _partition_by_availability(ctx, REQUIRED_TOOLS)
+    if not absent:
+        return _make_check(status.OK, f"{', '.join(present)} on PATH")
+    return _make_check(
+        status.WARN,
+        f"{', '.join(absent)} not on PATH (manual: brew install {' '.join(absent)})",
+        SETUP_FIX,
     )
 
 
-def check_optional_tools(ctx: Context):
+def check_optional_tools(ctx: Context) -> Check:
     """Optional tools only extend what the plugin can do; absence is never a problem."""
-    present, absent = _which_set(ctx, OPTIONAL_TOOLS)
-    return _check(
-        "optional-tools",
-        OK,
-        f"present: {_listing(present)}; absent: {_listing(absent)}",
+    present, absent = _partition_by_availability(ctx, OPTIONAL_TOOLS)
+    return _make_check(
+        _status().OK,
+        f"present: {_join_or_none(present)}; absent: {_join_or_none(absent)}",
     )
 
 
@@ -505,42 +572,29 @@ def _parser() -> argparse.ArgumentParser:
         help="diagnose the project containing DIR (default: the current directory)",
     )
     # Internal: main() answers it before argparse runs; registered so it parses.
-    parser.add_argument("--probe", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(PROBE_FLAG, action="store_true", help=argparse.SUPPRESS)
     return parser
 
 
-def _in_git_repository(directory: Path) -> bool:
-    try:
-        done = subprocess.run(
-            ["git", "-C", str(directory), "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            timeout=GIT_PROBE_TIMEOUT,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return done.returncode == 0
-
-
 def main(argv: list[str] | None = None) -> int:
-    args = sys.argv[1:] if argv is None else list(argv)
-    if "--probe" in args:  # before any import beyond the standard library
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if PROBE_FLAG in argv:  # before any import beyond the standard library
         version = sys.version_info
         print(f"{sys.executable} {version[0]}.{version[1]}.{version[2]}")
         return 0
-    parsed = _parser().parse_args(args)
-    context = Context.from_args(parsed, dict(os.environ))
-    report = run(context, fix=parsed.fix)
+    args = _parser().parse_args(argv)
+    ctx = Context.from_args(args, dict(os.environ))
+    report = run(ctx, fix=args.fix)
     for line in report.errors:
         print(line, file=sys.stderr)
-    if parsed.json:
+    if args.json:
         print(json.dumps(report.to_json(), indent=2))
     else:
-        text = _model().format_human(
-            report, _in_git_repository(context.project_root), fix_ran=parsed.fix
+        print(
+            _model().format_human(report, ctx.in_git, fix_ran=args.fix),
+            end="",
         )
-        print(text, end="")
-    failed = report.overall.value == FAIL
+    failed = report.overall is _status().FAIL
     return 1 if failed or report.errors else 0
 
 

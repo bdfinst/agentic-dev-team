@@ -20,6 +20,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from test_codebase_recon import _hermetic_git_env
 
 from _repo_root import REPO_ROOT
 
@@ -35,13 +36,15 @@ Report = report_model.Report
 Status = report_model.Status
 format_human = report_model.format_human
 
-CHECK_IDS = (
+INSTALL_SIDE_IDS = (
     "plugin-version",
     "hook-registration",
     "interpreter",
     "python-floor",
     "required-tools",
     "optional-tools",
+)
+CHECK_IDS = INSTALL_SIDE_IDS + (
     "metrics-writable",
     "project-settings",
     "managed-sections",
@@ -61,19 +64,16 @@ def _context(tmp_path: Path, **overrides) -> doctor.Context:
     return doctor.Context(**values)
 
 
-def _constant_check(
-    check_id: str, status: Status, summary: str = "s", fix: str | None = None
-):
-    return lambda ctx: Check(check_id, status, summary, fix)
+def _constant_check(status: Status, summary: str = "s", fix: str | None = None):
+    """A check function that, like the real ones, leaves its id for the runner."""
+    return lambda ctx: Check("", status, summary, fix)
 
 
 def _checks_returning(*statuses: Status):
     return tuple(
         (
             f"check-{i}",
-            _constant_check(
-                f"check-{i}", status, fix=None if status is Status.OK else "/x"
-            ),
+            _constant_check(status, fix=None if status is Status.OK else "/x"),
         )
         for i, status in enumerate(statuses)
     )
@@ -115,7 +115,7 @@ def test_json_schema_version_is_one_and_fixed_is_empty_without_fix(tmp_path):
 
 def test_json_each_check_has_exactly_id_status_summary_fix_and_null_fix(tmp_path):
     payload = doctor.run(
-        _context(tmp_path), checks=(("a", _constant_check("a", Status.OK, "fine")),)
+        _context(tmp_path), checks=(("a", _constant_check(Status.OK, "fine")),)
     ).to_json()
 
     (entry,) = payload["checks"]
@@ -150,16 +150,27 @@ def test_overall_is_the_worst_status(tmp_path, statuses, expected):
 
 
 def test_checks_appear_in_table_order(tmp_path):
-    table = tuple((cid, _constant_check(cid, Status.OK)) for cid in ("z", "a", "m"))
+    table = tuple((cid, _constant_check(Status.OK)) for cid in ("z", "a", "m"))
 
     report = doctor.run(_context(tmp_path), checks=table)
 
     assert [c["id"] for c in report.to_json()["checks"]] == ["z", "a", "m"]
 
 
+def test_the_table_id_replaces_whatever_id_a_check_function_returns(tmp_path):
+    table = (
+        ("from-table", lambda ctx: Check("self-claimed", Status.OK, "s")),
+        ("also-from-table", lambda ctx: Check("", Status.OK, "s")),
+    )
+
+    report = doctor.run(_context(tmp_path), checks=table)
+
+    assert [c.id for c in report.checks] == ["from-table", "also-from-table"]
+
+
 def _nine_checks_with(failing_id: str, exc: Exception):
     return tuple(
-        (cid, _raising(exc) if cid == failing_id else _constant_check(cid, Status.OK))
+        (cid, _raising(exc) if cid == failing_id else _constant_check(Status.OK))
         for cid in CHECK_IDS
     )
 
@@ -178,7 +189,7 @@ def test_a_raising_check_is_fail_with_the_issue_tracker_fix_and_others_still_rep
     assert ISSUES_URL in by_id["hook-registration"].fix
     assert [c.status for c in report.checks if c.id != "hook-registration"] == [
         Status.OK
-    ] * 8
+    ] * (len(CHECK_IDS) - 1)
 
 
 def test_a_check_raising_import_error_points_at_upgrade(tmp_path):
@@ -214,7 +225,7 @@ def _sample_report(**overrides) -> Report:
 
 
 def test_human_output_has_header_one_line_per_check_and_overall():
-    lines = format_human(_sample_report(), git_toplevel=True).splitlines()
+    lines = format_human(_sample_report(), in_git_repository=True).splitlines()
 
     assert lines[:2] == ["plugin: /p/plugin", "project: /p/project"]
     assert "ok    alpha  all good" in lines
@@ -224,7 +235,7 @@ def test_human_output_has_header_one_line_per_check_and_overall():
 
 
 def test_human_output_prints_a_fix_line_only_for_a_non_null_fix():
-    lines = format_human(_sample_report(), git_toplevel=True).splitlines()
+    lines = format_human(_sample_report(), in_git_repository=True).splitlines()
 
     fix_lines = [line.strip() for line in lines if "fix:" in line]
     assert fix_lines == ["fix: /setup", "fix: edit /p/x"]
@@ -232,29 +243,31 @@ def test_human_output_prints_a_fix_line_only_for_a_non_null_fix():
 
 
 def test_human_output_notes_a_project_outside_git_after_the_header():
-    lines = format_human(_sample_report(), git_toplevel=False).splitlines()
+    lines = format_human(_sample_report(), in_git_repository=False).splitlines()
 
     assert lines[2] == "note: /p/project is not inside a git repository"
 
 
 def test_human_output_has_no_note_inside_git():
-    assert "note:" not in format_human(_sample_report(), git_toplevel=True)
+    assert "note:" not in format_human(_sample_report(), in_git_repository=True)
 
 
 def test_human_output_reads_fixed_none_when_fix_ran_and_nothing_was_created():
-    lines = format_human(_sample_report(), git_toplevel=True, fix_ran=True).splitlines()
+    lines = format_human(
+        _sample_report(), in_git_repository=True, fix_ran=True
+    ).splitlines()
 
     assert "fixed: none" in lines
 
 
 def test_human_output_omits_the_fixed_block_without_fix():
-    assert "fixed:" not in format_human(_sample_report(), git_toplevel=True)
+    assert "fixed:" not in format_human(_sample_report(), in_git_repository=True)
 
 
 def test_human_output_lists_what_fix_created():
     report = _sample_report(fixed=["created /p/project/.claude/metrics"])
 
-    lines = format_human(report, git_toplevel=True, fix_ran=True).splitlines()
+    lines = format_human(report, in_git_repository=True, fix_ran=True).splitlines()
 
     assert lines[lines.index("fixed:") + 1] == "  created /p/project/.claude/metrics"
 
@@ -262,14 +275,14 @@ def test_human_output_lists_what_fix_created():
 def test_human_output_prints_the_errors_block_before_overall_when_errors_exist():
     report = _sample_report(errors=["fix failed: /p/x: denied"])
 
-    lines = format_human(report, git_toplevel=True, fix_ran=True).splitlines()
+    lines = format_human(report, in_git_repository=True, fix_ran=True).splitlines()
 
     assert lines[-3:] == ["errors:", "  fix failed: /p/x: denied", "overall: fail"]
 
 
 def test_human_output_has_no_errors_block_when_there_are_none():
     assert "errors:" not in format_human(
-        _sample_report(), git_toplevel=True, fix_ran=True
+        _sample_report(), in_git_repository=True, fix_ran=True
     )
 
 
@@ -365,18 +378,27 @@ def test_a_missing_install_record_is_warn_with_the_install_command(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "record_text",
+    "record_bytes",
     [
-        "{not json",
-        json.dumps({"plugins": {"dev-team@bfinster": [{"version": None}]}}),
-        json.dumps({"plugins": {"other@bfinster": [{"version": "1.0.0"}]}}),
-        json.dumps({"plugins": []}),
+        b"{not json",
+        json.dumps({"plugins": {"dev-team@bfinster": [{"version": None}]}}).encode(),
+        json.dumps({"plugins": {"other@bfinster": [{"version": "1.0.0"}]}}).encode(),
+        json.dumps({"plugins": []}).encode(),
+        json.dumps({"plugins": {"dev-team@bfinster": {"version": "14.0.1"}}}).encode(),
+        b'{"plugins": "\xff"}',
     ],
-    ids=["unparsable", "null-version", "no-dev-team-entry", "plugins-not-an-object"],
+    ids=[
+        "unparsable",
+        "null-version",
+        "no-dev-team-entry",
+        "plugins-not-an-object",
+        "entry-is-an-object-not-a-list",
+        "not-utf-8",
+    ],
 )
-def test_an_unusable_install_record_is_warn_naming_the_file(tmp_path, record_text):
+def test_an_unusable_install_record_is_warn_naming_the_file(tmp_path, record_bytes):
     config = _config_dir(tmp_path)
-    (config / "plugins" / "installed_plugins.json").write_text(record_text)
+    (config / "plugins" / "installed_plugins.json").write_bytes(record_bytes)
 
     check = doctor.check_plugin_version(_context(tmp_path, config_dir=config))
 
@@ -404,7 +426,7 @@ def test_version_tuple_accepts_only_dotted_ascii_digits(text, expected):
     assert doctor._version_tuple(text) == expected
 
 
-def _args(project: Path | None = None) -> SimpleNamespace:
+def _args(project: Path) -> SimpleNamespace:
     return SimpleNamespace(project=project)
 
 
@@ -412,27 +434,31 @@ def test_from_args_falls_back_to_the_real_plugin_root_for_a_non_directory(tmp_pa
     not_a_dir = tmp_path / "file"
     not_a_dir.write_text("x")
 
-    context = doctor.Context.from_args(_args(), {"CLAUDE_PLUGIN_ROOT": str(not_a_dir)})
+    context = doctor.Context.from_args(
+        _args(tmp_path), {doctor.PLUGIN_ROOT_ENV: str(not_a_dir)}
+    )
 
     assert context.plugin_root == PLUGIN.resolve()
 
 
 def test_from_args_uses_claude_plugin_root_when_it_is_a_directory(tmp_path):
-    context = doctor.Context.from_args(_args(), {"CLAUDE_PLUGIN_ROOT": str(tmp_path)})
+    context = doctor.Context.from_args(
+        _args(tmp_path), {doctor.PLUGIN_ROOT_ENV: str(tmp_path)}
+    )
 
     assert context.plugin_root == tmp_path.resolve()
 
 
 def test_from_args_reads_the_config_dir_from_the_injected_env(tmp_path):
     context = doctor.Context.from_args(
-        _args(), {"CLAUDE_CONFIG_DIR": str(tmp_path / "cfg")}
+        _args(tmp_path), {doctor.CONFIG_DIR_ENV: str(tmp_path / "cfg")}
     )
 
     assert context.config_dir == tmp_path / "cfg"
 
 
-def test_from_args_defaults_the_config_dir_to_home_dot_claude():
-    context = doctor.Context.from_args(_args(), {})
+def test_from_args_defaults_the_config_dir_to_home_dot_claude(tmp_path):
+    context = doctor.Context.from_args(_args(tmp_path), {})
 
     assert context.config_dir == Path.home() / ".claude"
 
@@ -444,7 +470,9 @@ def test_from_args_resolves_a_directory_outside_git_to_itself(tmp_path):
 
 
 def test_from_args_defaults_the_shim_and_script_under_the_plugin_root(tmp_path):
-    context = doctor.Context.from_args(_args(), {"CLAUDE_PLUGIN_ROOT": str(tmp_path)})
+    context = doctor.Context.from_args(
+        _args(tmp_path), {doctor.PLUGIN_ROOT_ENV: str(tmp_path)}
+    )
 
     assert context.shim == tmp_path.resolve() / "hooks" / "py.sh"
     assert context.script == tmp_path.resolve() / "scripts" / "doctor.py"
@@ -459,7 +487,7 @@ def test_a_plugin_root_without_hooks_lib_still_builds_a_context_and_fails_the_ve
     project.mkdir()
 
     context = doctor.Context.from_args(
-        _args(project), {"CLAUDE_PLUGIN_ROOT": str(bare_root)}
+        _args(project), {doctor.PLUGIN_ROOT_ENV: str(bare_root)}
     )
     report = doctor.run(
         context, checks=(("plugin-version", doctor.check_plugin_version),)
@@ -472,8 +500,115 @@ def test_a_plugin_root_without_hooks_lib_still_builds_a_context_and_fails_the_ve
     assert "check_version_drift" in check.summary
 
 
-def test_plugin_version_is_the_first_registered_check():
-    assert doctor.CHECKS[0][0] == "plugin-version"
+def test_a_check_version_drift_that_raises_at_import_is_fail_naming_the_helper(
+    tmp_path,
+):
+    root = tmp_path / "plugin"
+    helper_dir = root / "skills" / "upgrade" / "scripts"
+    helper_dir.mkdir(parents=True)
+    (helper_dir / "check_version_drift.py").write_text('raise RuntimeError("boom")\n')
+
+    report = doctor.run(
+        _context(tmp_path, plugin_root=root),
+        checks=(("plugin-version", doctor.check_plugin_version),),
+    )
+
+    (check,) = report.checks
+    assert check.status is Status.FAIL
+    assert check.fix == "/upgrade"
+    assert "cannot load check_version_drift" in check.summary
+
+
+def _completed(returncode: int) -> SimpleNamespace:
+    return SimpleNamespace(returncode=returncode)
+
+
+def _no_git_on_path(tmp_path: Path, monkeypatch) -> None:
+    """Git cannot be started: PATH names an empty directory."""
+    empty = tmp_path / "no-git-bin"
+    empty.mkdir()
+    monkeypatch.setenv("PATH", str(empty))
+
+
+def _project_dir(tmp_path: Path) -> Path:
+    project = tmp_path / "project"
+    project.mkdir()
+    return project
+
+
+def test_git_absent_means_not_in_git_and_the_human_output_notes_it(
+    tmp_path, monkeypatch
+):
+    _no_git_on_path(tmp_path, monkeypatch)
+    project = _project_dir(tmp_path)
+
+    context = doctor.Context.from_args(_args(project), {})
+    text = format_human(doctor.run(context, checks=()), context.in_git)
+
+    assert (context.project_root, context.in_git) == (project.resolve(), False)
+    assert (
+        f"note: {project.resolve()} is not inside a git repository" in text.splitlines()
+    )
+
+
+def _raising_run(exc: Exception):
+    def run_process(*args, **kwargs):
+        raise exc
+
+    return run_process
+
+
+@pytest.mark.parametrize(
+    ("run_process", "expected"),
+    [
+        (lambda *a, **k: _completed(0), True),
+        (lambda *a, **k: _completed(128), False),
+        (_raising_run(subprocess.TimeoutExpired("git", 1)), False),
+        (_raising_run(FileNotFoundError("git")), False),
+    ],
+    ids=["toplevel-resolved", "not-a-repository", "timeout", "git-missing"],
+)
+def test_in_git_follows_the_one_git_membership_call(
+    tmp_path, monkeypatch, run_process, expected
+):
+    _no_git_on_path(tmp_path, monkeypatch)  # the helper's own git lookup finds nothing
+
+    context = doctor.Context.from_args(
+        _args(_project_dir(tmp_path)), {}, run_process=run_process
+    )
+
+    assert context.in_git is expected
+
+
+def test_an_unloadable_artifact_paths_falls_back_to_start_and_is_not_in_git(tmp_path):
+    root = tmp_path / "plugin"
+    (root / "hooks" / "lib").mkdir(parents=True)
+    (root / "hooks" / "lib" / "artifact_paths.py").write_text("def broken(:\n")
+    project = _project_dir(tmp_path)
+
+    context = doctor.Context.from_args(
+        _args(project),
+        {doctor.PLUGIN_ROOT_ENV: str(root)},
+        run_process=lambda *a, **k: _completed(0),
+    )
+
+    assert (context.project_root, context.in_git) == (project.resolve(), False)
+
+
+def test_the_default_probe_write_removes_its_file_and_leaves_a_stale_probe(tmp_path):
+    stale = tmp_path / ".doctor-probe-stale"
+    stale.write_text("")
+
+    doctor._probe_write(tmp_path)
+
+    assert [path.name for path in tmp_path.iterdir()] == [stale.name]
+
+
+def test_the_default_probe_write_raises_when_the_directory_cannot_hold_a_file(
+    tmp_path,
+):
+    with pytest.raises(OSError):
+        doctor._probe_write(tmp_path / "absent")
 
 
 # ---------------------------------------------------------------------------
@@ -683,10 +818,6 @@ def test_the_shipped_hooks_json_resolves_every_command_against_the_real_plugin(
     )
 
 
-def test_hook_registration_is_the_second_registered_check():
-    assert doctor.CHECKS[1][0] == "hook-registration"
-
-
 # ---------------------------------------------------------------------------
 # Step 1.4: interpreter self-probe and python-floor
 # ---------------------------------------------------------------------------
@@ -780,7 +911,6 @@ def test_an_interpreter_path_containing_a_space_is_kept_whole(tmp_path):
         ("echo hello\n", "probe printed no version line"),
         ("exit 0\n", "probe printed no version line"),
         ('echo "/usr/bin/python3 3.12"\n', "probe printed no version line"),
-        ("exec sleep 5\n", "probe timed out after 1 s"),
     ],
     ids=[
         "exit-2",
@@ -790,13 +920,12 @@ def test_an_interpreter_path_containing_a_space_is_kept_whole(tmp_path):
         "garbage",
         "empty",
         "two-part-version",
-        "timeout",
     ],
 )
 def test_a_probe_without_a_version_fails_both_checks_with_a_distinct_summary(
     tmp_path, body, summary
 ):
-    context = _probe_context(tmp_path, _shim(tmp_path, body), probe_timeout=1)
+    context = _probe_context(tmp_path, _shim(tmp_path, body))
 
     interpreter, floor = _both(context)
 
@@ -804,6 +933,21 @@ def test_a_probe_without_a_version_fails_both_checks_with_a_distinct_summary(
     assert interpreter.fix == "set DEV_TEAM_PYTHON to a Python 3 path"
     assert (floor.status, floor.summary) == (Status.FAIL, "no interpreter resolved")
     assert floor.fix == "install Python 3.10+ (ADR 0031)"
+
+
+def test_a_probe_that_outlives_its_timeout_fails_both_checks_naming_the_timeout(
+    tmp_path,
+):
+    shim = _shim(tmp_path, "exec sleep 5\n")
+    context = _probe_context(tmp_path, shim, probe_timeout=0.2)
+
+    interpreter, floor = _both(context)
+
+    assert (interpreter.status, interpreter.summary) == (
+        Status.FAIL,
+        "probe timed out after 0.2 s",
+    )
+    assert floor.summary == "no interpreter resolved"
 
 
 def test_a_missing_shim_file_fails_without_running_anything(tmp_path):
@@ -817,7 +961,7 @@ def test_a_missing_shim_file_fails_without_running_anything(tmp_path):
     assert floor.summary == "no interpreter resolved"
 
 
-def test_an_exit_zero_with_a_version_is_not_ok_when_the_shim_also_exits_nonzero(
+def test_a_valid_version_line_is_ignored_when_the_shim_exits_nonzero(
     tmp_path,
 ):
     shim = _shim(tmp_path, 'echo "/usr/bin/python3 3.12.1"\nexit 1\n')
@@ -939,7 +1083,6 @@ def test_module_top_level_parses_as_python_3_8(module):
 # ---------------------------------------------------------------------------
 
 OPTIONAL_TOOLS = ("gh", "semgrep", "adr", "shellcheck", "uv")
-INSTALL_SIDE_IDS = CHECK_IDS[:6]
 
 
 def _which_finding(*present: str):
@@ -980,8 +1123,15 @@ def test_optional_tools_never_change_the_status_and_list_in_declared_order(
     assert (check.status, check.fix, check.summary) == (Status.OK, None, summary)
 
 
-def test_the_registered_checks_start_with_the_six_install_side_ids_in_order():
-    assert tuple(check_id for check_id, _ in doctor.CHECKS) == INSTALL_SIDE_IDS
+def test_the_registered_checks_start_with_the_install_side_ids_in_order():
+    ids = tuple(check_id for check_id, _ in doctor.CHECKS)
+
+    assert ids[: len(INSTALL_SIDE_IDS)] == INSTALL_SIDE_IDS
+
+
+def _install_side(checks):
+    """The install-side subset of a report's checks, in report order."""
+    return [c for c in checks if c.id in INSTALL_SIDE_IDS]
 
 
 def test_a_healthy_install_reports_every_install_side_check_ok(tmp_path):
@@ -997,12 +1147,12 @@ def test_a_healthy_install_reports_every_install_side_check_ok(tmp_path):
         which=_which_finding("jq"),
     )
 
-    report = doctor.run(context)
+    checks = _install_side(doctor.run(context).checks)
 
-    assert [c.id for c in report.checks] == list(INSTALL_SIDE_IDS)
-    assert [c.status for c in report.checks] == [Status.OK] * 6
-    assert [c.fix for c in report.checks] == [None] * 6
-    by_id = {c.id: c for c in report.checks}
+    assert [c.id for c in checks] == list(INSTALL_SIDE_IDS)
+    assert [c.status for c in checks] == [Status.OK] * len(INSTALL_SIDE_IDS)
+    assert [c.fix for c in checks] == [None] * len(INSTALL_SIDE_IDS)
+    by_id = {c.id: c for c in checks}
     assert sys.executable in by_id["interpreter"].summary
     assert "14.0.1" in by_id["plugin-version"].summary
 
@@ -1091,17 +1241,23 @@ def test_a_healthy_install_prints_json_with_every_install_check_ok(tmp_path):
     done = _run_cli(tmp_path, "--json")
 
     payload = json.loads(done.stdout)
-    assert [c["id"] for c in payload["checks"]] == list(INSTALL_SIDE_IDS)
-    assert {c["status"] for c in payload["checks"]} == {"ok"}
+    checks = [c for c in payload["checks"] if c["id"] in INSTALL_SIDE_IDS]
+    assert [c["id"] for c in checks] == list(INSTALL_SIDE_IDS)
+    assert {c["status"] for c in checks} == {"ok"}
     assert payload["overall"] == "ok"
+
+
+def _plugin_missing_hook_script(tmp_path: Path) -> Path:
+    """A temp plugin whose hooks.json names hooks/gone.py, which does not exist."""
+    return _temp_plugin(
+        tmp_path,
+        _hooks_json(_hook_command("hooks/gone.py"), _hook_command("hooks/a.py")),
+    )
 
 
 @pytest.mark.parametrize("flags", [(), ("--json",)], ids=["human", "json"])
 def test_a_broken_hooks_json_exits_1(tmp_path, flags):
-    plugin = _temp_plugin(
-        tmp_path,
-        _hooks_json(_hook_command("hooks/gone.py"), _hook_command("hooks/a.py")),
-    )
+    plugin = _plugin_missing_hook_script(tmp_path)
 
     done = _run_cli(tmp_path, *flags, plugin=plugin)
 
@@ -1109,10 +1265,7 @@ def test_a_broken_hooks_json_exits_1(tmp_path, flags):
 
 
 def test_a_broken_hooks_json_is_the_only_fail_in_the_json(tmp_path):
-    plugin = _temp_plugin(
-        tmp_path,
-        _hooks_json(_hook_command("hooks/gone.py"), _hook_command("hooks/a.py")),
-    )
+    plugin = _plugin_missing_hook_script(tmp_path)
 
     done = _run_cli(tmp_path, "--json", plugin=plugin)
 
@@ -1124,10 +1277,7 @@ def test_a_broken_hooks_json_is_the_only_fail_in_the_json(tmp_path):
 
 
 def test_a_broken_hooks_json_prints_the_fail_row_and_its_fix_in_human_output(tmp_path):
-    plugin = _temp_plugin(
-        tmp_path,
-        _hooks_json(_hook_command("hooks/gone.py"), _hook_command("hooks/a.py")),
-    )
+    plugin = _plugin_missing_hook_script(tmp_path)
 
     done = _run_cli(tmp_path, plugin=plugin)
 
@@ -1136,16 +1286,26 @@ def test_a_broken_hooks_json_prints_the_fail_row_and_its_fix_in_human_output(tmp
     assert done.stdout.endswith("overall: fail\n")
 
 
-@pytest.mark.parametrize("flags", [(), ("--json",)], ids=["human", "json"])
-def test_a_warn_only_run_exits_0(tmp_path, flags):
-    config = _config_dir(tmp_path, installed="14.0.0", catalog="14.0.1")
-    first = _run_cli(tmp_path, "--json", config=config)
-    statuses = {c["id"]: c["status"] for c in json.loads(first.stdout)["checks"]}
-    assert statuses["interpreter"] == "ok"
+def _behind_the_catalog(tmp_path: Path) -> Path:
+    """A config dir whose install record is one patch behind the cached catalog."""
+    return _config_dir(tmp_path, installed="14.0.0", catalog="14.0.1")
+
+
+def test_a_warn_only_run_exits_0_with_json(tmp_path):
+    done = _run_cli(tmp_path, "--json", config=_behind_the_catalog(tmp_path))
+
+    statuses = {c["id"]: c["status"] for c in json.loads(done.stdout)["checks"]}
+    assert statuses["interpreter"] == "ok"  # guard: only plugin-version varies
     assert statuses["plugin-version"] == "warn"
+    assert done.returncode == 0
 
-    done = _run_cli(tmp_path, *flags, config=config)
 
+def test_a_warn_only_run_exits_0_in_human_output(tmp_path):
+    done = _run_cli(tmp_path, config=_behind_the_catalog(tmp_path))
+
+    rows = [line.split()[:2] for line in done.stdout.splitlines()]
+    assert ["ok", "interpreter"] in rows  # guard: only plugin-version varies
+    assert ["warn", "plugin-version"] in rows
     assert done.returncode == 0
 
 
@@ -1198,10 +1358,20 @@ def test_a_project_outside_git_resolves_to_itself_and_the_human_output_notes_it(
     )
 
 
+def _git_repo(path: Path) -> None:
+    """``git init`` ``path`` under a scrubbed env, so ambient GIT_* never leak in."""
+    subprocess.run(
+        ["git", "init", "-q", str(path)],
+        check=True,
+        capture_output=True,
+        env=_hermetic_git_env(path.parent),
+    )
+
+
 def test_a_subdirectory_of_a_git_repository_resolves_to_the_toplevel(tmp_path):
     repo = tmp_path / "repo"
     (repo / "src" / "app").mkdir(parents=True)
-    subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+    _git_repo(repo)
     plugin = _temp_plugin(tmp_path)
 
     as_json = _run_cli(

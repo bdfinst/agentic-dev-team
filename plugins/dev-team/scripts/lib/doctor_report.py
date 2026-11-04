@@ -18,6 +18,11 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 
+#: Width of the status column in the human report; fix lines indent past it.
+STATUS_COLUMN_WIDTH = 4
+COLUMN_GAP = "  "
+FIX_INDENT = " " * (STATUS_COLUMN_WIDTH + len(COLUMN_GAP))
+
 
 class Status(enum.Enum):
     """A check result. Declaration order is severity order: ok < warn < fail."""
@@ -73,18 +78,19 @@ class Report:
         }
 
 
-def format_human(report: Report, git_toplevel: bool, fix_ran: bool = False) -> str:
+def format_human(report: Report, in_git_repository: bool, fix_ran: bool = False) -> str:
     """Render the report as text; ``fix_ran`` adds the ``fixed:`` block."""
     lines = [
         f"plugin: {report.plugin_root}",
         f"project: {report.project_root}",
     ]
-    if not git_toplevel:
+    if not in_git_repository:
         lines.append(f"note: {report.project_root} is not inside a git repository")
     for check in report.checks:
-        lines.append(f"{check.status.value:<4}  {check.id}  {check.summary}")
+        status = f"{check.status.value:<{STATUS_COLUMN_WIDTH}}"
+        lines.append(f"{status}{COLUMN_GAP}{check.id}{COLUMN_GAP}{check.summary}")
         if check.fix is not None:
-            lines.append(f"      fix: {check.fix}")
+            lines.append(f"{FIX_INDENT}fix: {check.fix}")
     if fix_ran:
         lines.extend(_block("fixed", report.fixed))
     if report.errors:
