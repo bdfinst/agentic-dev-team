@@ -165,6 +165,7 @@ SLICE_EXCLUSIONS = {
     "build_candidates.py": "stdlib argparse/collections.abc/json/math/re/sys only (plus the build_candidates_git and build_candidates_model modules); no floor-sensitive runtime API",
     "build_candidates_git.py": "stdlib collections.abc/dataclasses/os/pathlib/re/signal/subprocess/sys only (plus build_candidates_model and lib/plan_parse); no floor-sensitive runtime API",
     "build_candidates_model.py": "stdlib collections.abc/dataclasses/json/math/pathlib/typing only; no floor-sensitive runtime API",
+    "plan_summary_record.py": "stdlib argparse/dataclasses/json/pathlib/re only (plus build_candidates_model via build_candidates); no floor-sensitive runtime API",
     "build_jobs.py": "stdlib os/sys only; no floor-sensitive runtime API",
     "build_rollback_point.py": (
         "stdlib argparse/json/subprocess/pathlib only; its datetime usage is "
