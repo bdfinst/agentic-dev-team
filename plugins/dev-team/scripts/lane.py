@@ -52,10 +52,8 @@ NAME_PATTERN_PROBLEM = (
 NAME_GIT_PROBLEM = "git does not accept it as a branch name"
 
 #: Fast-forward when possible whatever `merge.ff` says, else a merge commit.
-#: `--no-overwrite-ignore` guards only the fast-forward case: git's `ort` merge
-#: ignores it (checked at runtime against git 2.43). A true merge is guarded by
-#: `_merge_attempt`, which refuses first when the merge would write a tracked
-#: file over an ignored local file.
+#: `--no-overwrite-ignore` guards only a fast-forward; a true merge is guarded
+#: by `_merge_attempt` before git runs.
 MERGE_ARGS = ("merge", "--ff", "--no-edit", "--no-overwrite-ignore")
 
 #: Appended to git's message when the unmerged paths could not be listed.
@@ -479,29 +477,39 @@ def _merge_and_read(
     """
     lane_path = entered.context.lane_path
     merged: list[MergeTarget] = []
+    restore_started = False
     try:
-        _merge_all(targets, snapshot, lane_path, merged)
-        tree = lane_core.head_tree(lane_path)
-        return tree, _next_step(entered, tree)
-    except SettledRefusal:
-        raise
-    except lane_core.RefusalError as failure:
-        if not _head_moved(snapshot, lane_path):
-            raise
-        raise SettledRefusal(
-            _settled(
-                snapshot,
-                lane_path,
-                _failure_step(merged),
-                failure.refusal.why,
-                lane_core.compose_restored_refusal(failure.refusal),
-            )
-        ) from failure
-    except BaseException as interruption:
         try:
-            verified = _restore_verified(snapshot, lane_path)
-        except BaseException:  # noqa: BLE001 - a second interrupt: not verified
-            verified = False
+            _merge_all(targets, snapshot, lane_path, merged)
+            tree = lane_core.head_tree(lane_path)
+            return tree, _next_step(entered, tree)
+        except lane_core.RefusalError as failure:
+            if isinstance(failure, SettledRefusal) or not _head_moved(
+                snapshot, lane_path
+            ):
+                raise
+            restore_started = True
+            raise SettledRefusal(
+                _settled(
+                    snapshot,
+                    lane_path,
+                    _failure_step(merged),
+                    failure.refusal.why,
+                    lane_core.compose_restored_refusal(failure.refusal),
+                )
+            ) from failure
+    except lane_core.RefusalError:
+        raise
+    except BaseException as interruption:
+        # One guard for every step after the snapshot: the merges, the reads,
+        # and the restore a failed read starts. An interrupt that stopped a
+        # restore is not re-run (it cannot be verified); any other is restored.
+        verified = False
+        if not restore_started:
+            try:
+                verified = _restore_verified(snapshot, lane_path)
+            except BaseException:  # noqa: BLE001 - a second interrupt: not verified
+                verified = False
         if not verified:
             # Say so before the interrupt propagates: a lane left half merged
             # must not look restored. The bare `raise` re-raises the original.
@@ -651,13 +659,14 @@ def _changed_files(lane_path: Path, trunk_ref: str) -> list[str]:
     Raises `RefusalError` (`git command failed`) when git cannot say: a
     timeout, a launch failure or a non-zero exit.
     """
-    command = f"git diff --name-only {trunk_ref}...HEAD"
+    target = f"{trunk_ref}...HEAD"
+    command = shlex.join(["git", "diff", "--name-only", target])
     try:
         completed = git_safe_diff.run_safe_git_diff(
             ["--name-only"],
             cwd=lane_path,
             text=True,
-            target=f"{trunk_ref}...HEAD",
+            target=target,
             timeout=lane_core.GIT_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as failure:
@@ -1436,8 +1445,8 @@ def cmd_integrate(args: argparse.Namespace, cwd: Path) -> int:
     """Fast-forward the local trunk branch to the lane, then remove the lane.
 
     The checks run first and change nothing (a git command that fails stops the
-    remaining checks); the apply steps run only when none refuses. The apply is bound to the lane HEAD and trunk commit the
-    checks saw.
+    remaining checks); the apply steps run only when none refuses. The apply is
+    bound to the lane HEAD and trunk commit the checks saw.
 
     Removing the lane worktree also deletes the ignored files inside it
     (`.claude/` and anything else the repository ignores): `git worktree

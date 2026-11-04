@@ -40,6 +40,7 @@ from lane_fixtures import (
     covers,
     enforce_covers,
     git,
+    git_calls_since,
     hermetic_process_env,
     plain_directory,
     repo_with_origin,
@@ -1063,36 +1064,39 @@ def test_refusals_for_a_git_failure_in_a_check_is_its_block_and_the_later_checks
     assert not git_calls_since(argv_spy, calls_before, "status")
 
 
-def git_calls_since(argv_spy, count: int, subcommand: str) -> list[list[str]]:
-    """The argv of the git calls recorded after the first `count` that ran `subcommand`."""
-    return [list(argv) for argv in argv_spy.records[count:] if subcommand in argv[:6]]
-
-
 @covers("git command failed")
 @pytest.mark.parametrize(
-    ("failure", "expected_detail"),
+    ("behavior", "expected_detail"),
     [
         (
             subprocess.TimeoutExpired(["git", "diff"], lane_core.GIT_TIMEOUT_SECONDS),
             lane_core.GIT_TIMED_OUT_DETAIL,
         ),
         (OSError("git vanished"), "git vanished"),
+        (
+            subprocess.CompletedProcess(
+                ["git", "diff"], 128, stdout="", stderr="fatal: boom\n"
+            ),
+            "fatal: boom",
+        ),
     ],
-    ids=["timeout", "launch failure"],
+    ids=["timeout", "launch failure", "non-zero exit"],
 )
 def test_refusals_for_a_git_failure_in_the_review_gate_changed_files_stops_the_checks(
-    composed_without_remote, monkeypatch, capsys, argv_spy, failure, expected_detail
+    composed_without_remote, monkeypatch, capsys, argv_spy, behavior, expected_detail
 ):
     composed = composed_without_remote
     # Check 4 would report this file if it ran.
     leave_untracked_file(composed.path)
 
     def failing_diff(*_args, **_kwargs):
-        raise failure
+        if isinstance(behavior, BaseException):
+            raise behavior
+        return behavior
 
     # double-waiver: B1 - `git_safe_diff.run_safe_git_diff` is the seam to the
-    # git child process; a timeout or a launch failure of it cannot be caused
-    # for real at a chosen call.
+    # git child process; a timeout, a launch failure or an exit status of it
+    # cannot be caused for real at a chosen call.
     monkeypatch.setattr(lane.git_safe_diff, "run_safe_git_diff", failing_diff)
     calls_before = len(argv_spy.records)
 

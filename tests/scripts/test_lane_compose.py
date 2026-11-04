@@ -68,8 +68,8 @@ import lane_core
 
 #: The `merge` arguments before the target: a fast-forward is wanted, and an
 #: editor is never opened.
-#: `--no-overwrite-ignore` guards only a fast-forward; `_merge_attempt` guards a
-#: true merge against writing over an ignored local file.
+#: `--no-overwrite-ignore` guards only a fast-forward; a true merge is guarded
+#: by `_merge_attempt` before git runs.
 MERGE_ARGS = ["git", "merge", "--ff", "--no-edit", "--no-overwrite-ignore"]
 
 
@@ -812,12 +812,24 @@ def test_a_failed_origin_lookup_with_nothing_to_merge_prints_no_next_line(
     assert unchanged_state(lane_path) == before
 
 
+#: Which `rev-parse --verify HEAD^{commit}` call of a compose whose tree read
+#: fails after the merges asks whether HEAD moved (the one before it is the
+#: snapshot read).
+HEAD_READ_THAT_ASKS_IF_HEAD_MOVED = 2
+
+
 def interrupt_the_second_merge(monkeypatch) -> GitFailure:
     """`KeyboardInterrupt` at the second compose merge (not `merge --abort`)."""
     # double-waiver: B1 - `GitFailure` patches `lane_core._run`, the one seam to
     # the git child process; an interrupt at a chosen call cannot be sent any
     # other way.
-    return GitFailure(monkeypatch, MERGE_ARGS[1:4], nth=2, raises=KeyboardInterrupt())
+    # The prefix excludes `merge --abort`: only the compose merges match.
+    return GitFailure(
+        monkeypatch,
+        ["merge", "--ff", "--no-edit"],
+        nth=2,
+        raises=KeyboardInterrupt(),
+    )
 
 
 def test_an_interrupt_during_the_second_merge_restores_the_lane_and_propagates(
@@ -858,7 +870,7 @@ def test_an_interrupt_whose_restore_is_unverified_says_so_and_propagates(
 
 
 @covers("compose restore unverified")
-def test_a_second_interrupt_during_the_restore_counts_as_unverified_and_the_first_propagates(
+def test_a_second_interrupt_during_the_restore_counts_as_unverified(
     repo_with_origin, capsys, monkeypatch
 ):
     lane_path = lane_needing_two_merges(repo_with_origin)
@@ -876,6 +888,51 @@ def test_a_second_interrupt_during_the_restore_counts_as_unverified_and_the_firs
     assert block["refused"] == "compose restore unverified"
     assert "KeyboardInterrupt" in block["why"]
     assert f"git reset --hard {before_head}" in block["how"]
+
+
+@covers("compose restore unverified")
+def test_an_interrupt_during_the_restore_after_a_failed_read_says_so_and_propagates(
+    repo_with_origin, capsys, monkeypatch
+):
+    lane_path = lane_needing_two_merges(repo_with_origin)
+    before_head = git(lane_path, "rev-parse", "HEAD")
+    monkeypatch.setattr(lane_core, "head_tree", lambda _path: raise_boom())
+    # double-waiver: B1 - the same seam: an interrupt at the restore's reset.
+    GitFailure(monkeypatch, ["reset"], nth=1, raises=KeyboardInterrupt())
+
+    with pytest.raises(KeyboardInterrupt):
+        lane.main(["compose"], cwd=lane_path)
+
+    captured = capsys.readouterr()
+    (block,) = parse_blocks(captured.err)
+    assert captured.out == ""
+    assert block["refused"] == "compose restore unverified"
+    assert "KeyboardInterrupt" in block["why"]
+    assert f"git reset --hard {before_head}" in block["how"]
+
+
+def test_an_interrupt_at_the_head_read_after_a_failed_read_still_restores_the_lane(
+    repo_with_origin, capsys, monkeypatch
+):
+    lane_path = lane_needing_two_merges(repo_with_origin)
+    before = unchanged_state(lane_path)
+    monkeypatch.setattr(lane_core, "head_tree", lambda _path: raise_boom())
+    # double-waiver: B1 - the same seam: an interrupt at the HEAD read.
+    head_reads = GitFailure(
+        monkeypatch,
+        ["rev-parse", "--verify", "HEAD^{commit}"],
+        nth=HEAD_READ_THAT_ASKS_IF_HEAD_MOVED,
+        raises=KeyboardInterrupt(),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        lane.main(["compose"], cwd=lane_path)
+
+    # The restore ran: its verification is the HEAD read after the interrupted one.
+    assert len(head_reads.matching) == HEAD_READ_THAT_ASKS_IF_HEAD_MOVED + 1
+    captured = capsys.readouterr()
+    assert (captured.out, captured.err) == ("", "")
+    assert unchanged_state(lane_path) == before
 
 
 @covers("git command failed")

@@ -235,7 +235,7 @@ DISPLAY_ESCAPED_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
 MAX_LATIN1_CODE_POINT = 0xFF
 MAX_BMP_CODE_POINT = 0xFFFF
 
-#: Paths named in a dirty-tree refusal before it says "and N more".
+#: Items (paths, git message lines) named before a list says "and N more".
 MAX_LISTED_ITEMS = 10
 
 
@@ -1100,9 +1100,9 @@ def local_files_a_merge_would_overwrite(commit: str, cwd: Path) -> list[str]:
     """Paths `commit` adds over HEAD that already exist in the work tree.
 
     Run in a lane with no uncommitted change, such a file can only be one git
-    ignores. A merge writes the tracked file over it without a word: `ort`
-    does not honor `--no-overwrite-ignore`, which guards only a fast-forward
-    (checked at runtime against git 2.43).
+    ignores. A merge writes the tracked file over it without a word.
+    `--no-overwrite-ignore` guards only a fast-forward; a true merge is guarded
+    by `_merge_attempt` before git runs.
     """
     args = ["diff-tree", "-r", "--name-only", "--no-renames", "--diff-filter=A", "-z"]
     added = _git_checked([*args, "HEAD", commit], cwd).stdout.split(NUL)

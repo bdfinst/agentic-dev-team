@@ -715,3 +715,11 @@ def set_origin_url(repo: Repo, url: str) -> None:
 def use_github_origin(repo: Repo, url: str = GITHUB_URL) -> None:
     """Point the repository's `origin` at a GitHub URL (nothing is contacted)."""
     set_origin_url(repo, url)
+
+
+def git_calls_since(argv_spy: ArgvSpy, count: int, subcommand: str) -> list[list[str]]:
+    """The argv of the git calls recorded after index `count` whose subcommand is
+    `subcommand`."""
+    return [
+        argv for argv in argv_spy.records[count:] if argv[:2] == ["git", subcommand]
+    ]
