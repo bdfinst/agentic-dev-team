@@ -4,13 +4,17 @@
 `open` and `compose` are registered so far. Usage errors exit 2, refusals exit 1
 (blocks on stderr), success 0.
 
-Import whitelist (pinned by an AST test): the standard library, `lane_core`
-and `git_origin_host`. Stdlib only otherwise. See ADR 0014 and ADR 0031.
+Import whitelist (pinned by an AST test): the standard library, `lane_core`,
+`git_origin_host` and, from the plugin's `hooks/lib`, `artifact_paths`,
+`git_safe_diff` and `review_gate_hash`. The PR hook `hooks/pre_pr_review.py`
+is loaded by path inside `_gate_verdict`, never imported. Stdlib only
+otherwise. See ADR 0014 and ADR 0031.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import shlex
 import sys
@@ -18,10 +22,17 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+_HOOKS_DIR = _SCRIPTS_DIR.parent / "hooks"
+for _import_dir in (_HOOKS_DIR / "lib", _SCRIPTS_DIR):
+    if str(_import_dir) not in sys.path:
+        sys.path.insert(0, str(_import_dir))
 
+import artifact_paths
 import git_origin_host
+import git_safe_diff
 import lane_core
+import review_gate_hash
 
 #: Between the primary checkout's name and the lane name in a default path.
 LANE_DIR_INFIX = "-lane-"
@@ -42,6 +53,10 @@ UNMERGED_UNREADABLE = "could not list the unmerged paths"
 #: What `compose` suggests in a PR repository, instead of an `integrate` line.
 PR_NEXT_STEP = "open a PR with /pr (or pass --local-trunk to integrate locally)"
 ORIGIN_HOST_GITHUB = "github"
+
+#: The PR hook whose review-gate decision `integrate` reuses, loaded by path.
+PR_HOOK_PATH = _HOOKS_DIR / "pre_pr_review.py"
+PR_HOOK_MODULE = "pre_pr_review"
 
 TRUNK_HELP = "trunk ref (default: origin's default branch, else main or master)"
 
@@ -477,6 +492,117 @@ def _check_tree_matches(ctx: CheckContext) -> lane_core.Refusal | None:
     return lane_core.tree_mismatch_refusal(ctx.expected_tree, live, context.trunk_ref)
 
 
+def _load_pr_hook():
+    """The PR hook module, executed from its file. Nothing is registered in `sys.modules`."""
+    spec = importlib.util.spec_from_file_location(PR_HOOK_MODULE, PR_HOOK_PATH)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {PR_HOOK_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+#: The hook's `matched_rule` -> what it means for a lane. The hook's own
+#: message is never shown: it says to retry `gh pr create` and offers a bypass
+#: variable that `integrate` ignores. A rule missing here still shows its name.
+GATE_RULE_WORDING = {
+    "pre-pr-review": (
+        "the review gate file is missing, unreadable, or was written for "
+        "different content than this lane's diff"
+    ),
+    "gate-setup-failure-empty-digest": (
+        "the lane's diff hashed to the empty digest, so no review can be bound to it"
+    ),
+    "registry-read-failure": (
+        "the registered review agents could not be read, so a review-agent "
+        "dispatch failure cannot be ruled out"
+    ),
+    "dispatch-failure-veto": (
+        "a review agent failed to dispatch for this content and has not been dispatched again"
+    ),
+    "dispatch-ledger-read-failure": "the review dispatch ledger could not be read",
+    "dispatch-evidence-insufficient": (
+        "too few distinct review agents were dispatched for this content"
+    ),
+    "dispatch-evidence-stale": (
+        "the review-agent dispatches for this content are outside the recency window"
+    ),
+    "dispatch-evidence-different-content": (
+        "review agents were dispatched, but for different content than this lane's diff"
+    ),
+    "dispatch-evidence-missing": (
+        "no review-agent dispatch was recorded for this content"
+    ),
+}
+GATE_RULE_UNKNOWN = "the PR review gate rejected this lane"
+
+
+def _gate_rejection_why(matched_rule: str) -> str:
+    wording = GATE_RULE_WORDING.get(matched_rule, GATE_RULE_UNKNOWN)
+    return f"{wording} (rule: {matched_rule or 'none given'})"
+
+
+def _changed_files(lane_path: Path, trunk_ref: str) -> list[str]:
+    """The paths of the lane's diff against trunk; raises when git cannot say."""
+    completed = git_safe_diff.run_safe_git_diff(
+        ["--name-only"], cwd=lane_path, text=True, target=f"{trunk_ref}...HEAD"
+    )
+    if completed.returncode != 0:
+        raise OSError(f"git diff exited {completed.returncode}")
+    return [line for line in completed.stdout.splitlines() if line]
+
+
+def _gate_verdict(lane_path: Path, trunk_ref: str) -> lane_core.Refusal | None:
+    """The refusal when the PR review gate would reject this lane, else None.
+
+    The same decision as `pre_pr_review`'s `main()` for the lane's diff against
+    `trunk_ref`: `_evaluate_gate` is the hook's own, loaded by path. This is the
+    one function that touches the hook's private names (`_evaluate_gate`,
+    `_GATE_FILE_NAME`); a rename there fails the parity tests, not a release.
+
+    Fail closed: an unloadable or degraded hook, a diff that cannot be read, an
+    empty diff, and any exception are all this one refusal, never a traceback.
+    Reading only: the gate path is resolved with `migrate=False` and nothing is
+    unlinked (the hook's `main()` does that on success; `integrate` does it at
+    apply time). `PR_GATE_BYPASS_REASON` lives in the hook's `main()`, which is
+    never called, so it has no effect here.
+    """
+
+    def refusal(why: str) -> lane_core.Refusal:
+        return lane_core.review_gate_refusal(trunk_ref, why)
+
+    try:
+        hook = _load_pr_hook()
+        if hook.branch_diff_gate_hash is not review_gate_hash.branch_diff_gate_hash:
+            return refusal(
+                "the PR hook loaded in degraded mode, so its decision cannot be used"
+            )
+        gate_hash = review_gate_hash.branch_diff_gate_hash(trunk_ref, cwd=lane_path)
+        if gate_hash == review_gate_hash.EMPTY_DIGEST:
+            return refusal(
+                f"the lane has no diff against trunk {trunk_ref} to review "
+                "(or git could not compute it)"
+            )
+        gate_file = artifact_paths.resolve_file(
+            "memory", hook._GATE_FILE_NAME, lane_path, migrate=False
+        )
+        verdict = hook._evaluate_gate(
+            gate_file, gate_hash, str(lane_path), _changed_files(lane_path, trunk_ref)
+        )
+        if verdict.passed:
+            return None
+        return refusal(_gate_rejection_why(verdict.matched_rule))
+    except Exception as failure:  # noqa: BLE001 - fail closed: nothing here may escape
+        return refusal(
+            f"the review gate could not be evaluated ({type(failure).__name__}: {failure})"
+        )
+
+
+def _check_review_gate(ctx: CheckContext) -> lane_core.Refusal | None:
+    context = ctx.entered.context
+    return _gate_verdict(context.lane_path, context.trunk_ref)
+
+
 def _check_trunk_has_not_moved(ctx: CheckContext) -> lane_core.Refusal | None:
     """Guards the trunk ref only; the local trunk branch is check 5's concern."""
     entered = ctx.entered
@@ -525,7 +651,7 @@ def _check_lane_is_clean(ctx: CheckContext) -> lane_core.Refusal | None:
 #: The integrate checks, in the order their blocks are printed. `order` is the
 #: slot number from the plan; a gap is a check a later step registers, so that
 #: step adds one entry and moves nothing:
-#:   2 review gate (Step 3.2), 6 PR repository (Step 3.3).
+#:   6 PR repository (Step 3.3).
 #:
 #: A check that hits a git failure: `collect_refusals` turns the
 #: `RefusalError` it raises into that check's refusal (the `git command
@@ -535,6 +661,7 @@ def _check_lane_is_clean(ctx: CheckContext) -> lane_core.Refusal | None:
 #: cannot hide the other checks' findings.
 CHECKS: tuple[Check, ...] = (
     Check(1, "tree matches", _check_tree_matches),
+    Check(2, "review gate holds", _check_review_gate),
     Check(3, "trunk has not moved", _check_trunk_has_not_moved),
     Check(4, "lane is clean", _check_lane_is_clean),
     Check(5, "trunk can fast-forward", _check_trunk_fast_forwards),

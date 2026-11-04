@@ -118,6 +118,7 @@ SAMPLE_ARGUMENTS = {
     "tree mismatch": ("a" * 40, "b" * 40, "origin/main"),
     "trunk moved": ("origin/main", "a" * 40, "b" * 40),
     "trunk cannot fast-forward": ("v1", None),
+    "review gate stale or missing": ("origin/main", "the gate file is missing"),
 }
 
 #: Every argv the guard rejects: id -> (args, text the reason must contain).

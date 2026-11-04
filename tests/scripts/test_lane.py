@@ -196,11 +196,21 @@ def test_a_guard_hit_renders_a_git_command_failed_block(
     assert "subcommand push" in block["why"]
 
 
-def test_lane_imports_only_stdlib_lane_core_and_the_origin_classifier():
-    """The whitelist of plan decision 1 and A7, as far as this module uses it."""
+def test_lane_imports_only_stdlib_lane_core_the_origin_classifier_and_the_gate_libraries():
+    """The whitelist of plan decision 1 and A7, as far as this module uses it.
+
+    The three `hooks/lib` modules are the review gate's; `pre_pr_review` is
+    loaded by path inside `_gate_verdict` and is not an import.
+    """
     modules = imported_modules(SCRIPTS_DIR / "lane.py")
 
-    assert non_stdlib(modules) == {"lane_core", "git_origin_host"}
+    assert non_stdlib(modules) == {
+        "lane_core",
+        "git_origin_host",
+        "artifact_paths",
+        "git_safe_diff",
+        "review_gate_hash",
+    }
 
 
 #: Private `lane_core` names `lane.py` may use. Empty: everything it needs is public.

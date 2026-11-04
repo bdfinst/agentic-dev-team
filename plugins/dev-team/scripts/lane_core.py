@@ -170,6 +170,7 @@ WHAT_COMPOSE_RESTORE_UNVERIFIED = "compose restore unverified"
 WHAT_TREE_MISMATCH = "tree mismatch"
 WHAT_TRUNK_MOVED = "trunk moved"
 WHAT_TRUNK_CANNOT_FAST_FORWARD = "trunk cannot fast-forward"
+WHAT_REVIEW_GATE = "review gate stale or missing"
 
 #: Unicode categories `display_text` escapes: control (C0, DEL, C1), line
 #: separator (U+2028) and paragraph separator (U+2029).
@@ -466,6 +467,20 @@ def tree_mismatch_refusal(expected: str, live: str, trunk_ref: str) -> Refusal:
             f"(expected: {expected}, live: {live})"
         ),
         how=_review_again(trunk_ref),
+    )
+
+
+@_registered(WHAT_REVIEW_GATE)
+def review_gate_refusal(trunk_ref: str, why: str) -> Refusal:
+    """`why` is lane-worded: it never quotes the PR hook's own message, which
+    tells the reader to retry `gh pr create` and to set a bypass variable."""
+    return Refusal(
+        what=WHAT_REVIEW_GATE,
+        why=why,
+        how=(
+            f"run /code-review --since {trunk_ref} inside the lane, "
+            "then run integrate again"
+        ),
     )
 
 

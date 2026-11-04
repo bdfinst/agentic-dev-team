@@ -615,35 +615,67 @@ GATE_DISPATCH_AGENTS = ("security-review", "structure-review")
 GATE_DISPATCH_AGE_SECONDS = 60
 
 
-def seed_gate(lane_path: Path, trunk_ref: str) -> str:
-    """Write the PR review gate for the lane's current state; return its hash.
+def ledger_row(
+    hook: str, decision: str, matched_rule: str, subject_hash: str, age_seconds: int
+) -> dict[str, str]:
+    """One boundary-events row stamped `age_seconds` before now."""
+    stamp = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
+    return {
+        "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "hook": hook,
+        "tool": "Agent",
+        "decision": decision,
+        "matched_rule": matched_rule,
+        "plugin_version": "0.0.0",
+        "subject_hash": subject_hash,
+    }
 
-    The hash is the real `branch_diff_gate_hash("<trunk_ref>")` of the lane, in
-    the gate file, and the ledger holds two distinct review-agent dispatches
-    bound to it, stamped `GATE_DISPATCH_AGE_SECONDS` before now (inside the hook's
-    window). Writes only inside the lane's `.claude/`.
-    """
-    gate_hash = branch_diff_gate_hash(trunk_ref, cwd=lane_path)
-    gate = lane_path / GATE_RELATIVE_PATH
-    gate.parent.mkdir(parents=True, exist_ok=True)
-    gate.write_text(gate_hash, encoding="utf-8")
-    stamp = (
-        datetime.now(timezone.utc) - timedelta(seconds=GATE_DISPATCH_AGE_SECONDS)
-    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+def dispatch_row(agent: str, subject_hash: str, age_seconds: int) -> dict[str, str]:
+    """A genuine review-agent dispatch, as the dispatch ledger records it."""
+    return ledger_row(
+        "agent_dispatch_ledger", "record", agent, subject_hash, age_seconds
+    )
+
+
+def append_ledger(lane_path: Path, rows: Iterable[dict[str, str]]) -> None:
     ledger = lane_path / LEDGER_RELATIVE_PATH
     ledger.parent.mkdir(parents=True, exist_ok=True)
     with ledger.open("a", encoding="utf-8") as stream:
-        for agent in GATE_DISPATCH_AGENTS:
-            row = {
-                "ts": stamp,
-                "hook": "agent_dispatch_ledger",
-                "tool": "Agent",
-                "decision": "record",
-                "matched_rule": agent,
-                "plugin_version": "0.0.0",
-                "subject_hash": gate_hash,
-            }
+        for row in rows:
             stream.write(json.dumps(row) + "\n")
+
+
+def gate_hash_of(lane_path: Path, trunk_ref: str) -> str:
+    """The real branch-diff gate hash of the lane against `trunk_ref`."""
+    return branch_diff_gate_hash(trunk_ref, cwd=lane_path)
+
+
+def write_gate_file(lane_path: Path, content: str) -> Path:
+    gate = lane_path / GATE_RELATIVE_PATH
+    gate.parent.mkdir(parents=True, exist_ok=True)
+    gate.write_text(content, encoding="utf-8")
+    return gate
+
+
+def seed_gate(
+    lane_path: Path,
+    trunk_ref: str,
+    agents: Sequence[str] = GATE_DISPATCH_AGENTS,
+    age_seconds: int = GATE_DISPATCH_AGE_SECONDS,
+) -> str:
+    """Write the PR review gate for the lane's current state; return its hash.
+
+    The hash is the real `branch_diff_gate_hash("<trunk_ref>")` of the lane, in
+    the gate file, and the ledger holds one dispatch per distinct agent bound to
+    it, stamped `age_seconds` before now (by default inside the hook's window).
+    Writes only inside the lane's `.claude/`.
+    """
+    gate_hash = gate_hash_of(lane_path, trunk_ref)
+    write_gate_file(lane_path, gate_hash)
+    append_ledger(
+        lane_path, [dispatch_row(agent, gate_hash, age_seconds) for agent in agents]
+    )
     return gate_hash
 
 
@@ -660,18 +692,24 @@ class ComposedLane:
 
 
 def composed_gated_lane(
-    repo: Repo, capsys, name: str = "feature", gate: bool = True
+    repo: Repo,
+    capsys,
+    name: str = "feature",
+    gate: bool = True,
+    lane_file: str | None = "lane.txt",
 ) -> ComposedLane:
     """`main(open)`, one lane commit, `main(compose)`, then `seed_gate`.
 
     The lane and its identities come from the tool's own stdout, as a user
     gets them. `gate=False` leaves the lane without a gate file (and without
-    the `.claude/` directory the gate would create).
+    the `.claude/` directory the gate would create). `lane_file` is the one
+    file the lane commits; None commits nothing (an empty lane).
     """
     code, out, _ = run_main(["open", name], repo.path, capsys)
     assert code == 0
     path = Path(parse_output(out)["worktree"])
-    commit_file(path, "lane.txt", "lane\n", "lane work")
+    if lane_file is not None:
+        commit_file(path, lane_file, "lane\n", "lane work")
     code, out, _ = run_main(["compose"], path, capsys)
     assert code == 0
     printed = parse_output(out)
