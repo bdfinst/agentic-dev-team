@@ -7,10 +7,12 @@ Ported from tests/hooks/settings_registration_test.bats (issue #676).
 from __future__ import annotations
 
 import json
+import re
 
 from _repo_root import REPO_ROOT
 
 SETTINGS = REPO_ROOT / "plugins" / "dev-team" / "settings.json"
+HOOKS_JSON = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "hooks.json"
 
 
 def _load() -> dict:
@@ -74,3 +76,36 @@ def test_verify_guard_edit_marker_py_is_registered_on_write_edit_notebookedit() 
     ]
     commands = _commands(entries)
     assert any("verify_guard_edit_marker.py" in cmd for cmd in commands)
+
+
+def _registrations(path, script: str) -> list[tuple[str, str, list[str]]]:
+    """Every `(event, matcher, [script basenames in the group])` whose group
+    runs `script`, one tuple per registration."""
+    found = []
+    for event, entries in json.loads(path.read_text())["hooks"].items():
+        for entry in entries:
+            names = [
+                re.findall(r"([A-Za-z0-9_]+\.py)", hook["command"])[-1]
+                for hook in entry.get("hooks", [])
+            ]
+            found += [
+                (event, entry.get("matcher", ""), names) for n in names if n == script
+            ]
+    return found
+
+
+def test_feature_record_guard_is_registered_once_in_each_file_in_matching_shape() -> (
+    None
+):
+    """#2275: the write guard sits in the Write|Edit PreToolUse group of both
+    hooks.json (the file current Claude Code loads) and settings.json (the
+    older-CLI mirror), once each, beside the same neighbours."""
+    script = "feature_record_guard.py"
+    in_hooks_json = _registrations(HOOKS_JSON, script)
+    in_settings = _registrations(SETTINGS, script)
+    assert len(in_hooks_json) == 1, in_hooks_json
+    assert len(in_settings) == 1, in_settings
+    assert in_hooks_json == in_settings
+    event, matcher, group = in_hooks_json[0]
+    assert (event, matcher) == ("PreToolUse", "Write|Edit")
+    assert group.count(script) == 1
