@@ -13,6 +13,7 @@ import ast
 import dataclasses
 import errno
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -158,7 +159,6 @@ def test_json_each_check_has_exactly_id_status_summary_fix_and_null_fix(tmp_path
     (entry,) = payload["checks"]
     assert list(entry) == ["id", "status", "summary", "fix"]
     assert entry == {"id": "a", "status": "ok", "summary": "fine", "fix": None}
-    assert '"fix": null' in json.dumps(payload)
 
 
 def test_json_roots_are_the_context_roots(tmp_path):
@@ -281,7 +281,7 @@ def _sample_report(**overrides) -> Report:
 
 
 def test_human_output_has_header_one_line_per_check_and_overall():
-    lines = format_human(_sample_report(), in_git_repository=True).splitlines()
+    lines = format_human(_sample_report(), in_git=True).splitlines()
 
     assert lines[:2] == ["plugin: /p/plugin", "project: /p/project"]
     assert "ok    alpha  all good" in lines
@@ -291,7 +291,7 @@ def test_human_output_has_header_one_line_per_check_and_overall():
 
 
 def test_human_output_prints_a_fix_line_only_for_a_non_null_fix():
-    lines = format_human(_sample_report(), in_git_repository=True).splitlines()
+    lines = format_human(_sample_report(), in_git=True).splitlines()
 
     fix_lines = [line.strip() for line in lines if "fix:" in line]
     assert fix_lines == ["fix: /setup", "fix: edit /p/x"]
@@ -299,31 +299,29 @@ def test_human_output_prints_a_fix_line_only_for_a_non_null_fix():
 
 
 def test_human_output_notes_a_project_outside_git_after_the_header():
-    lines = format_human(_sample_report(), in_git_repository=False).splitlines()
+    lines = format_human(_sample_report(), in_git=False).splitlines()
 
     assert lines[2] == "note: /p/project is not inside a git repository"
 
 
 def test_human_output_has_no_note_inside_git():
-    assert "note:" not in format_human(_sample_report(), in_git_repository=True)
+    assert "note:" not in format_human(_sample_report(), in_git=True)
 
 
 def test_human_output_reads_fixed_none_when_fix_ran_and_nothing_was_created():
-    lines = format_human(
-        _sample_report(), in_git_repository=True, fix_ran=True
-    ).splitlines()
+    lines = format_human(_sample_report(), in_git=True, fix_ran=True).splitlines()
 
     assert "fixed: none" in lines
 
 
 def test_human_output_omits_the_fixed_block_without_fix():
-    assert "fixed:" not in format_human(_sample_report(), in_git_repository=True)
+    assert "fixed:" not in format_human(_sample_report(), in_git=True)
 
 
 def test_human_output_lists_what_fix_created():
     report = _sample_report(fixed=["created /p/project/.claude/metrics"])
 
-    lines = format_human(report, in_git_repository=True, fix_ran=True).splitlines()
+    lines = format_human(report, in_git=True, fix_ran=True).splitlines()
 
     assert lines[lines.index("fixed:") + 1] == "  created /p/project/.claude/metrics"
 
@@ -331,15 +329,13 @@ def test_human_output_lists_what_fix_created():
 def test_human_output_prints_the_errors_block_before_overall_when_errors_exist():
     report = _sample_report(errors=["fix failed: /p/x: denied"])
 
-    lines = format_human(report, in_git_repository=True, fix_ran=True).splitlines()
+    lines = format_human(report, in_git=True, fix_ran=True).splitlines()
 
     assert lines[-3:] == ["errors:", "  fix failed: /p/x: denied", "overall: fail"]
 
 
 def test_human_output_has_no_errors_block_when_there_are_none():
-    assert "errors:" not in format_human(
-        _sample_report(), in_git_repository=True, fix_ran=True
-    )
+    assert "errors:" not in format_human(_sample_report(), in_git=True, fix_ran=True)
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +343,7 @@ def test_human_output_has_no_errors_block_when_there_are_none():
 # ---------------------------------------------------------------------------
 
 ABSENT = object()
-MARKET = "bfinster"
+MARKETPLACE = "bfinster"
 
 
 def _config_dir(tmp_path: Path, installed=ABSENT, catalog=ABSENT) -> Path:
@@ -360,7 +356,7 @@ def _config_dir(tmp_path: Path, installed=ABSENT, catalog=ABSENT) -> Path:
     plugins = config / "plugins"
     plugins.mkdir(parents=True, exist_ok=True)
     if installed is not ABSENT:
-        record = {"plugins": {f"dev-team@{MARKET}": [{"version": installed}]}}
+        record = {"plugins": {f"dev-team@{MARKETPLACE}": [{"version": installed}]}}
         (plugins / "installed_plugins.json").write_text(json.dumps(record))
     if catalog is not ABSENT:
         market_dir = tmp_path / "marketplace"
@@ -369,7 +365,7 @@ def _config_dir(tmp_path: Path, installed=ABSENT, catalog=ABSENT) -> Path:
             json.dumps({"plugins": [{"name": "dev-team", "version": catalog}]})
         )
         (plugins / "known_marketplaces.json").write_text(
-            json.dumps({MARKET: {"installLocation": str(market_dir)}})
+            json.dumps({MARKETPLACE: {"installLocation": str(market_dir)}})
         )
     return config
 
@@ -423,6 +419,27 @@ def test_an_uncached_or_incomparable_catalog_is_ok(
 
     assert (check.status, check.fix) == (Status.OK, None)
     assert summary in check.summary
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [5, {}, {"installLocation": 5}, {"installLocation": ""}],
+    ids=["not-an-object", "no-location", "location-not-a-string", "empty-location"],
+)
+def test_a_malformed_registry_entry_is_ok_and_not_cached(tmp_path, monkeypatch, entry):
+    config = _config_dir(tmp_path, installed="14.0.1")
+    # A relative catalog path (what "" would make) resolves under the cwd: plant an
+    # unusable catalog there, so only the guard keeps the row at "not cached".
+    monkeypatch.chdir(tmp_path)
+    planted = tmp_path / ".claude-plugin" / "marketplace.json"
+    planted.parent.mkdir()
+    _replace_with_oversize(planted)
+    _registry_file(tmp_path).write_text(json.dumps({MARKETPLACE: entry}))
+
+    check = doctor_checks.check_plugin_version(_context(tmp_path, config_dir=config))
+
+    assert (check.status, check.fix) == (Status.OK, None)
+    assert "catalog not cached" in check.summary
 
 
 def test_a_catalog_whose_plugins_is_not_a_list_is_ok_and_not_cached(tmp_path):
@@ -494,7 +511,7 @@ def _replace_with_oversize(path: Path) -> None:
 
 def _replace_with_self_loop(path: Path) -> None:
     path.unlink()
-    path.symlink_to(path.name)
+    _self_loop(path)
 
 
 MAX_DIGITS = doctor_checks.MAX_VERSION_DIGITS
@@ -654,7 +671,9 @@ def test_version_tuple_accepts_only_dotted_ascii_digits(text, expected):
 
 
 def test_an_installed_version_with_an_over_long_digit_run_is_not_comparable(tmp_path):
-    over_long = "1" * 5000  # past int()'s 4300-digit limit on 3.11+
+    # past sys.get_int_max_str_digits() (default 4300; present on every interpreter
+    # the floor gate runs, checked on 3.8.20, 3.9.25, 3.10.20 and 3.13), which int() refuses
+    over_long = "1" * 5000
 
     check = _plugin_version(tmp_path, installed=over_long, catalog="14.0.1")
 
@@ -1105,6 +1124,7 @@ REPORT_MODULE = SCRIPTS / "lib" / "doctor_report.py"
 CHECKS_MODULE = SCRIPTS / "lib" / "doctor_checks.py"
 PROBE_MODULE = SCRIPTS / "lib" / "doctor_probe.py"
 FILES_MODULE = SCRIPTS / "lib" / "doctor_files.py"
+DOCTOR_MODULES = (DOCTOR, REPORT_MODULE, CHECKS_MODULE, PROBE_MODULE, FILES_MODULE)
 REAL_SHIM = PLUGIN / "hooks" / "py.sh"
 
 
@@ -1256,6 +1276,34 @@ def test_a_missing_shim_file_fails_without_running_anything(tmp_path):
     assert interpreter.status is Status.FAIL
     assert interpreter.summary == f"shim not found: {gone}"
     assert interpreter.fix == "set DEV_TEAM_PYTHON to a Python 3 path"
+    assert floor.summary == "no interpreter resolved"
+
+
+@pytest.mark.parametrize(
+    ("failure", "reason"),
+    [
+        (OSError(errno.ENOSPC, "No space left on device"), "No space left on device"),
+        (OSError("x"), "x"),
+    ],
+    ids=["with-strerror", "without-strerror"],
+)
+def test_a_probe_scratch_directory_that_cannot_be_made_fails_both_checks_without_an_internal_error(
+    tmp_path, monkeypatch, failure, reason
+):
+    def full_disk(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(
+        doctor._probe(), "tempfile", SimpleNamespace(TemporaryDirectory=full_disk)
+    )
+    shim = _shim(tmp_path, 'echo "/usr/bin/python3 3.12.1"\n')
+
+    interpreter, floor = _both(_probe_context(tmp_path, shim))
+
+    assert (interpreter.status, interpreter.summary) == (
+        Status.FAIL,
+        f"cannot create probe scratch directory: {reason}",
+    )
     assert floor.summary == "no interpreter resolved"
 
 
@@ -1448,34 +1496,25 @@ def test_probe_mode_returns_before_the_lib_import(tmp_path):
     assert done.stdout.startswith(sys.executable)
 
 
-@pytest.mark.parametrize(
-    "module",
-    [DOCTOR, REPORT_MODULE, CHECKS_MODULE, PROBE_MODULE, FILES_MODULE],
-    ids=lambda m: m.name,
-)
+@pytest.mark.parametrize("module", DOCTOR_MODULES, ids=lambda m: m.name)
 def test_module_top_level_parses_as_python_3_8(module):
     ast.parse(module.read_text(), feature_version=(3, 8))
 
 
-#: ``str`` methods added after 3.8 that a parse check cannot see.
-STR_METHODS_NEWER_THAN_3_8 = {"removeprefix", "removesuffix"}
+#: ``str`` methods added in 3.9 that a parse check cannot see.
+STR_METHODS_ADDED_IN_3_9 = {"removeprefix", "removesuffix"}
 
 
-@pytest.mark.parametrize(
-    "module",
-    [DOCTOR, REPORT_MODULE, CHECKS_MODULE, PROBE_MODULE, FILES_MODULE],
-    ids=lambda m: m.name,
-)
-def test_no_module_calls_a_str_method_newer_than_python_3_8(module):
-    """A 3.8 interpreter reaches the checks (via ``--probe``'s sibling run); a call
-    that only exists from 3.9 would turn a check into an internal error there."""
+@pytest.mark.parametrize("module", DOCTOR_MODULES, ids=lambda m: m.name)
+def test_no_module_calls_removeprefix_or_removesuffix(module):
+    """A denylist for the two ``str`` methods a parse check cannot see."""
     attributes = {
         node.attr
         for node in ast.walk(ast.parse(module.read_text()))
         if isinstance(node, ast.Attribute)
     }
 
-    assert attributes & STR_METHODS_NEWER_THAN_3_8 == set()
+    assert attributes & STR_METHODS_ADDED_IN_3_9 == set()
 
 
 # ---------------------------------------------------------------------------
@@ -1598,7 +1637,7 @@ def _temp_plugin(tmp_path: Path, hooks_json: object | None = None) -> Path:
 
 
 def _cli_env(tmp_path: Path, plugin: Path, config: Path) -> dict[str, str]:
-    """A hermetic env: stub jq first on PATH, py.sh pinned, temp HOME and config."""
+    """A hermetic env: stub jq first on PATH, py.sh pinned, temp HOME and config, git bounded."""
     stub_bin = tmp_path / "stub-bin"
     stub_bin.mkdir(exist_ok=True)
     jq = stub_bin / "jq"
@@ -1612,6 +1651,8 @@ def _cli_env(tmp_path: Path, plugin: Path, config: Path) -> dict[str, str]:
         "CLAUDE_PLUGIN_ROOT": str(plugin),
         "CLAUDE_CONFIG_DIR": str(config),
         "HOME": str(home),
+        # No project in a test may find a repository above the test's own root.
+        "GIT_CEILING_DIRECTORIES": str(tmp_path),
     }
 
 
@@ -1903,10 +1944,7 @@ def test_the_import_scan_skips_only_type_checking_bodies_and_optionally_function
 #: The plugin-local modules each module may import at import time; no other
 #: lib module is imported eagerly, and none imports ``doctor`` itself.
 ALLOWED_LOCAL_IMPORTS = {
-    DOCTOR: set(),
-    REPORT_MODULE: set(),
-    PROBE_MODULE: set(),
-    FILES_MODULE: set(),
+    **{module: set() for module in DOCTOR_MODULES},
     CHECKS_MODULE: {"doctor_report", "doctor_files"},
 }
 
@@ -1969,7 +2007,12 @@ def _metrics_path(context: doctor.Context) -> Path:
 
 
 def _denying_writer(directory: Path) -> None:
-    raise PermissionError("denied")
+    """What ``_probe_write`` raises for real: the OS reason, then the random probe name."""
+    raise PermissionError(
+        errno.EACCES,
+        "Permission denied",
+        str(directory / (doctor.PROBE_FILE_PREFIX + "x")),
+    )
 
 
 def test_abs_path_names_a_relative_path_by_its_absolute_form():
@@ -1998,7 +2041,7 @@ def test_a_denied_probe_write_is_fail_with_chmod_on_the_absolute_path(tmp_path):
 
     assert check.status is Status.FAIL
     assert check.fix == f"chmod u+w {_metrics_path(context)}"
-    assert check.summary == f"{_metrics_path(context)}: denied"
+    assert check.summary == f"{_metrics_path(context)}: Permission denied"
 
 
 def _file_at_metrics(context: doctor.Context) -> Path:
@@ -2437,6 +2480,93 @@ def test_absent_project_settings_are_warn_with_the_setup_fix(tmp_path):
     assert check.summary == f"{path}: missing"
 
 
+def _opt_out_marker(context: doctor.Context) -> Path:
+    marker = context.project_root / ".claude" / "memory" / "autocompact-nudge-off"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("")
+    return marker
+
+
+@pytest.mark.parametrize(
+    "settings", ["{}", '{"env": {}}'], ids=["no-env", "env-without-the-key"]
+)
+def test_the_autocompact_opt_out_marker_makes_an_unset_key_ok(tmp_path, settings):
+    context = _project_context(tmp_path)
+    _write_settings(context, settings)
+    _opt_out_marker(context)
+
+    check = doctor_checks.check_project_settings(context)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.OK,
+        "autocompact opted out (.claude/memory/autocompact-nudge-off)",
+        None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "status"),
+    [("40", Status.OK), ("101", Status.WARN)],
+    ids=["valid", "invalid"],
+)
+def test_a_set_autocompact_key_wins_over_the_opt_out_marker(tmp_path, value, status):
+    context = _project_context(tmp_path)
+    _write_settings(context, _autocompact_settings(value))
+    _opt_out_marker(context)
+
+    check = doctor_checks.check_project_settings(context)
+
+    assert check.status is status
+    assert "opted out" not in check.summary
+
+
+def _load_module_by_path(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+def test_the_opt_out_marker_is_the_one_setup_writes_and_the_nudge_reads():
+    import set_autocompact_env
+
+    nudge = _load_module_by_path(
+        "autocompact_setup_nudge", PLUGIN / "hooks" / "autocompact_setup_nudge.py"
+    )
+    ours = Path(
+        doctor_checks.CLAUDE_DIR_NAME,
+        doctor_checks.MEMORY_DIR,
+        doctor_checks.AUTOCOMPACT_NUDGE_OFF_FILE,
+    )
+
+    assert ours == set_autocompact_env.NUDGE_OFF_RELPATH == nudge.OPT_OUT_MARKER
+
+
+def test_the_opt_out_marker_makes_a_missing_settings_file_ok(tmp_path):
+    context = _project_context(tmp_path)
+    _opt_out_marker(context)
+
+    check = doctor_checks.check_project_settings(context)
+
+    assert (check.status, check.summary, check.fix) == (
+        Status.OK,
+        "autocompact opted out (.claude/memory/autocompact-nudge-off)",
+        None,
+    )
+
+
+def test_a_directory_at_the_opt_out_marker_path_is_not_a_marker(tmp_path):
+    context = _project_context(tmp_path)
+    marker = _opt_out_marker(context)
+    marker.unlink()
+    marker.mkdir()
+
+    check = doctor_checks.check_project_settings(context)
+
+    assert (check.status, check.fix) == (Status.WARN, "/setup")
+    assert check.summary.endswith("settings.json: missing")
+
+
 @pytest.mark.parametrize(
     "content",
     ['{"permissions": {}}', '{"env": {}}', '{"env": {"OTHER": "1"}}'],
@@ -2738,7 +2868,9 @@ def test_current_absent_or_newer_managed_sections_are_ok(
 def test_a_gitignore_marker_with_an_over_long_version_is_stale_not_an_internal_error(
     tmp_path,
 ):
-    over_long = "1" * 5000  # past int()'s 4300-digit limit on 3.11+
+    # past sys.get_int_max_str_digits() (default 4300; present on every interpreter
+    # the floor gate runs, checked on 3.8.20, 3.9.25, 3.10.20 and 3.13), which int() refuses
+    over_long = "1" * 5000
 
     check = _managed_check(
         tmp_path, gitignore=GITIGNORE_MARKER.format(suffix=f" v{over_long}") + "\n"
@@ -2800,13 +2932,13 @@ def test_an_upgraded_gitignore_with_the_older_line_before_the_current_one_is_cur
                 f"{_stale(GITIGNORE, GITIGNORE_CURRENT_VERSION - 1)}"
             ),
         ),
+        # Pins the Gherkin outline row "CLAUDE.md marker at v0, .gitignore at v1 ->
+        # warn, /setup, '.gitignore at v1'". Literal versions, not `CURRENT - 1`,
+        # so it stays distinct from `both-stale` when a current version moves.
         (
             _claude_md_at(0),
-            _gitignore_at(GITIGNORE_CURRENT_VERSION - 1),
-            (
-                f"stale: {_stale(CLAUDE_MD, 0)}, "
-                f"{_stale(GITIGNORE, GITIGNORE_CURRENT_VERSION - 1)}"
-            ),
+            _gitignore_at(1),
+            f"stale: {_stale(CLAUDE_MD, 0)}, {_stale(GITIGNORE, 1)}",
         ),
     ],
     ids=[
@@ -3100,9 +3232,9 @@ def test_fix_creates_exactly_the_two_runtime_directories_and_lists_them(
     report = doctor.run(context, fix=True, checks=())
 
     claude_dir = context.project_root / ".claude"
-    assert report.fixed == _created(context, *doctor_checks.RUNTIME_DIRS)
+    assert report.fixed == _created(context, "metrics", "memory")
     assert sorted(path.name for path in claude_dir.iterdir()) == sorted(
-        [*doctor_checks.RUNTIME_DIRS, *kept]
+        ["metrics", "memory", *kept]
     )
 
 
@@ -3238,7 +3370,7 @@ def test_fix_needs_no_plugin_helper_to_find_the_runtime_directories(tmp_path):
     report = doctor.run(context, fix=True, checks=())
 
     assert (report.fixed, report.errors) == (
-        _created(context, *doctor_checks.RUNTIME_DIRS),
+        _created(context, "metrics", "memory"),
         [],
     )
 
@@ -3259,7 +3391,7 @@ def test_help_names_each_directory_fix_creates(tmp_path):
 
     text = " ".join(done.stdout.split())
     assert [
-        name for name in doctor_checks.RUNTIME_DIRS if f".claude/{name}" not in text
+        path for path in (".claude/metrics", ".claude/memory") if path not in text
     ] == []
 
 

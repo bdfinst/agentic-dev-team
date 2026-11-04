@@ -62,7 +62,7 @@ def _model():
     return doctor_report
 
 
-def _probe_module():
+def _probe():
     """The interpreter-probe module, imported lazily for the same reason as ``_model``."""
     _use_lib_path()
     import doctor_probe
@@ -253,7 +253,7 @@ class Context:
     @functools.cached_property
     def _probe_result(self) -> ProbeResult:
         assert self.shim is not None and self.script is not None  # set in __post_init__
-        return _probe_module().run_probe(
+        return _probe().run_probe(
             self.shim, self.script, PROBE_FLAG, self.env, self.probe_timeout
         )
 

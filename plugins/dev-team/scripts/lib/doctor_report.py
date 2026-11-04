@@ -110,13 +110,13 @@ class Report:
         }
 
 
-def format_human(report: Report, in_git_repository: bool, fix_ran: bool = False) -> str:
+def format_human(report: Report, in_git: bool, fix_ran: bool = False) -> str:
     """Render the report as text; ``fix_ran`` adds the ``fixed:`` block."""
     lines = [
         f"plugin: {report.plugin_root}",
         f"project: {report.project_root}",
     ]
-    if not in_git_repository:
+    if not in_git:
         lines.append(f"note: {report.project_root} is not inside a git repository")
     for check in report.checks:
         status_cell = f"{check.status.value:<{STATUS_COLUMN_WIDTH}}"

@@ -25,7 +25,10 @@ Run the script and report its output verbatim:
 sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/scripts/doctor.py" $ARGUMENTS
 ```
 
-Pass only the documented flags through `$ARGUMENTS`; drop anything else.
+Pass only these tokens through `$ARGUMENTS`: `--json`, `--fix`, and `--project <DIR>`.
+Wrap DIR in single quotes, and replace each `'` inside DIR with `'\''`.
+If any other token appears, refuse the whole invocation and run nothing.
+Also refuse if a shell metacharacter appears outside the quoted DIR: `;`, `|`, `&`, `$`, a backtick, `(`, `)`, `<`, `>`, or a newline.
 
 `hooks/py.sh` resolves a real Python 3 interpreter on every OS, or exits 2.
 

@@ -48,6 +48,14 @@ METRICS_DIR = "metrics"
 MEMORY_DIR = "memory"
 #: The directories under ``<project>/.claude`` that ``/doctor --fix`` creates.
 RUNTIME_DIRS = (METRICS_DIR, MEMORY_DIR)
+#: The marker file ``/setup --no-autocompact`` writes under ``.claude/memory`` to say
+#: "no autocompact threshold, stop nudging". Owned by
+#: ``scripts/set_autocompact_env.py`` (``NUDGE_OFF_RELPATH``) and
+#: ``hooks/autocompact_setup_nudge.py`` (``OPT_OUT_MARKER``); a test asserts
+#: ``.claude/memory/<this name>`` equals both. The hook tests the path with
+#: ``exists()``, doctor with ``is_file()``: a directory at the marker path silences
+#: the nudge but not ``/doctor`` (documented, not changed).
+AUTOCOMPACT_NUDGE_OFF_FILE = "autocompact-nudge-off"
 AUTOCOMPACT_HELPER = "autocompact_config"
 VERSION_DRIFT_HELPER = "check_version_drift"
 #: Where each plugin helper module lives, relative to the plugin root.
@@ -55,8 +63,11 @@ HELPER_DIRS = {
     AUTOCOMPACT_HELPER: ("hooks", "lib"),
     VERSION_DRIFT_HELPER: ("skills", "upgrade", "scripts"),
 }
-#: Longest digit run read as a version number; ``int`` refuses very long ones
-#: on newer interpreters (and answers slowly on every one).
+#: Longest digit run read as a version number. ``int()`` raises ``ValueError``
+#: above ``sys.get_int_max_str_digits()`` (default 4300; present on every
+#: interpreter the floor gate runs, checked on 3.8.20, 3.9.25, 3.10.20 and
+#: 3.13); 9 is a chosen margin, far below that and more than any real version
+#: component needs.
 MAX_VERSION_DIGITS = 9
 _ABSENT = object()  # a JSON key that is not there, as distinct from null
 
@@ -524,8 +535,33 @@ def check_metrics_writable(ctx: CheckContext) -> Check:
     try:
         ctx.probe_write(metrics)
     except OSError as exc:
-        return make_check(Status.FAIL, f"{where}: {exc}", _make_writable_fix(where))
+        return make_check(
+            Status.FAIL, f"{where}: {_reason(exc)}", _make_writable_fix(where)
+        )
     return make_check(Status.OK, f"{where} writable")
+
+
+def _nudge_off_marker(project_root: Path) -> Path:
+    """The file whose presence says the project chose no autocompact threshold."""
+    return runtime_dir(project_root, MEMORY_DIR) / AUTOCOMPACT_NUDGE_OFF_FILE
+
+
+def _opted_out_row(project_root: Path) -> Check | None:
+    """The ``ok`` row when the project opted out of autocompact, else None.
+
+    A marker that cannot be statted counts as no marker.
+    """
+    try:
+        is_opted_out = _nudge_off_marker(project_root).is_file()
+    except OSError:
+        return None
+    if not is_opted_out:
+        return None
+    return make_check(
+        Status.OK,
+        f"autocompact opted out ({CLAUDE_DIR_NAME}/{MEMORY_DIR}/"
+        f"{AUTOCOMPACT_NUDGE_OFF_FILE})",
+    )
 
 
 def _blocked_claude_dir(project_root: Path) -> Check | None:
@@ -556,7 +592,10 @@ def check_project_settings(ctx: CheckContext) -> Check:
     except OSError as exc:
         return _cannot_read(where, exc, edit_fix(where))
     if loaded.kind is LoadKind.MISSING:
-        return make_check(Status.WARN, f"{where}: missing", SETUP_FIX)
+        # ``/setup --no-autocompact`` writes the marker and no settings file.
+        return _opted_out_row(ctx.project_root) or make_check(
+            Status.WARN, f"{where}: missing", SETUP_FIX
+        )
     if loaded.kind is not LoadKind.LOADED:
         return _unloadable(where, loaded, edit_fix(where))
     settings_env = loaded.data.get("env", _ABSENT)
@@ -565,7 +604,9 @@ def check_project_settings(ctx: CheckContext) -> Check:
             Status.FAIL, f"{where}: env is not an object", edit_fix(where)
         )
     if not isinstance(settings_env, dict) or autocompact.KEY not in settings_env:
-        return make_check(Status.WARN, f"env.{autocompact.KEY} not set", SETUP_FIX)
+        return _opted_out_row(ctx.project_root) or make_check(
+            Status.WARN, f"env.{autocompact.KEY} not set", SETUP_FIX
+        )
     value = settings_env[autocompact.KEY]
     if autocompact.validate_pct(value) is None:
         return make_check(

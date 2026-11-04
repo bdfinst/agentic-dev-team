@@ -363,10 +363,11 @@ _resolve_python_ceiling() {
   return 1
 }
 
-# Interpreters BELOW the floor that doctor.py --probe must still answer on: its
-# top level stays parseable by them so a too-old interpreter reports its
-# version (the python-floor check names the floor) instead of a SyntaxError.
-# Parse-only tests cannot show it RUNS there, so run it.
+# Interpreters BELOW the floor that /doctor must still run on: its modules keep
+# a top level that parses and runs there, so a too-old interpreter reports its
+# version (--probe) and the python-floor row names the floor in the full report,
+# instead of a SyntaxError or traceback. Parse-only tests cannot show either RUNS
+# there, so run both.
 PROBE_BELOW_FLOOR_PYTHONS="3.8 3.9"
 
 _resolve_below_floor_python() {
@@ -377,19 +378,62 @@ _resolve_below_floor_python() {
   return 1
 }
 
+# Reads doctor.py --json on stdin. Passes when the report is valid JSON, its
+# python-floor row is a fail (the old interpreter was seen and named), and no
+# check ended as an internal error.
+DOCTOR_FLOOR_REPORT_CHECK='
+import json, sys
+checks = json.load(sys.stdin)["checks"]
+floor = [c for c in checks if c["id"] == "python-floor"]
+internal = [c["id"] for c in checks if c["summary"].startswith("internal error")]
+sys.exit(0 if floor and floor[0]["status"] == "fail" and not internal else 1)
+'
+
+# The full report under `$2` (version `$1`), judged by `$3`. Exit 0 or 1 is
+# judged as a report (the JSON check rejects a traceback that exits 1); exit 2
+# or higher, or a signal, is a crash. DEV_TEAM_PYTHON makes py.sh hand the probe
+# the same old interpreter, so the python-floor row sees it. CLAUDE_PLUGIN_ROOT
+# pins the run to this checkout, and CLAUDE_CONFIG_DIR points at a config
+# directory that does not exist under the scratch project, so the run never
+# reads the installed plugin cache or the real ~/.claude. GIT_CEILING_DIRECTORIES
+# stops git's upward search at the scratch project, so the run never finds the
+# checkout's own repository.
+_check_doctor_report_below_floor() {
+  local version="$1" interpreter="$2" validator="$3" project report code
+  project="$(mktemp -d "${RUNDIR:-${TMPDIR:-/tmp}}/doctor-floor-XXXXXX")" || return 1
+  # This function owns the RETURN trap for its lifetime and clears it on exit
+  # (a RETURN trap outlives the function that set it). A caller that sets its
+  # own RETURN trap must save and restore it around this call.
+  trap 'rm -rf "$project"; trap - RETURN' RETURN
+  report="$(CLAUDE_PLUGIN_ROOT="$PWD/plugins/dev-team" CLAUDE_CONFIG_DIR="$project/config" \
+    GIT_CEILING_DIRECTORIES="$project" \
+    DEV_TEAM_PYTHON="$interpreter" "$interpreter" plugins/dev-team/scripts/doctor.py --json --project "$project")"
+  code=$?
+  if [ "$code" -gt 1 ]; then
+    printf 'doctor.py --json exited %s under Python %s (%s).\n' "$code" "$version" "$interpreter" >&2
+    return 1
+  fi
+  if ! printf '%s\n' "$report" | "$validator" -c "$DOCTOR_FLOOR_REPORT_CHECK"; then
+    printf 'doctor.py --json under Python %s: no python-floor fail row, or an internal error:\n%s\n' \
+      "$version" "$report" >&2
+    return 1
+  fi
+}
+
 # Unlike the floor interpreter, a below-floor one is not required locally: a
 # machine that cannot resolve it prints a visible note and the rest of the gate
 # runs. In CI (`CI` or `GITHUB_ACTIONS` set) it is required, so a runner that
-# cannot resolve one fails instead of passing on nothing.
+# cannot resolve one fails instead of passing on nothing. `$1` is the
+# interpreter that judges the JSON report (the old one need not be trusted to).
 _check_doctor_probe_below_floor() {
-  local version interpreter output
+  local validator="$1" version interpreter output
   for version in $PROBE_BELOW_FLOOR_PYTHONS; do
     if ! interpreter="$(_resolve_below_floor_python "$version")" || [ -z "$interpreter" ]; then
       if [ -n "${CI:-}${GITHUB_ACTIONS:-}" ]; then
         printf 'No Python %s available in CI, and this gate does not skip there.\n' "$version" >&2
         return 1
       fi
-      printf 'note: no Python %s available; not checking doctor.py --probe under it.\n' "$version" >&2
+      printf 'note: no Python %s available; not checking doctor.py under it.\n' "$version" >&2
       continue
     fi
     if ! output="$("$interpreter" plugins/dev-team/scripts/doctor.py --probe)"; then
@@ -403,6 +447,8 @@ _check_doctor_probe_below_floor() {
       return 1
     fi
     printf 'doctor.py --probe under Python %s: %s\n' "$version" "$output"
+    _check_doctor_report_below_floor "$version" "$interpreter" "$validator" || return 1
+    printf 'doctor.py --json under Python %s: python-floor fails, no internal error\n' "$version"
   done
 }
 
@@ -423,7 +469,7 @@ chk_python_floor() {
 
   "$py310" scripts/import_probe_shipped.py || return 1
 
-  _check_doctor_probe_below_floor || return 1
+  _check_doctor_probe_below_floor "$py310" || return 1
 
   # Byte-compile + import prove the shipped tree PARSES and LOADS on the floor
   # interpreter, but neither executes a function BODY — a runtime-only API used
@@ -451,7 +497,7 @@ chk_python_floor() {
   #     property of that script that is floor-sensitive by design: the test module
   #     runs `doctor.py --probe` under the interpreter that runs pytest. The
   #     below-floor half of that claim is run above, by
-  #     `_check_doctor_probe_below_floor`.
+  #     `_check_doctor_probe_below_floor` (--probe and the full --json report).
   #
   # Every OTHER shipped, tested plugins/dev-team/scripts/*.py module is
   # accounted for in tests/repo/test_python_floor.py's SLICE_EXCLUSIONS, with

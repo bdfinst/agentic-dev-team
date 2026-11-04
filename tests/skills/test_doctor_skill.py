@@ -55,6 +55,15 @@ EXIT_SENTENCES = (
     ),
     "Exit 2: print stderr verbatim.",
 )
+ARGUMENT_RULE_SENTENCES = (
+    "Pass only these tokens through `$ARGUMENTS`: `--json`, `--fix`, and `--project <DIR>`.",
+    "Wrap DIR in single quotes, and replace each `'` inside DIR with `'\\''`.",
+    "If any other token appears, refuse the whole invocation and run nothing.",
+    (
+        "Also refuse if a shell metacharacter appears outside the quoted DIR: "
+        "`;`, `|`, `&`, `$`, a backtick, `(`, `)`, `<`, `>`, or a newline."
+    ),
+)
 WARN_ROWS_SENTENCE = "warn rows do not fail the run"
 CLOSING_SENTENCE = "Do not add commentary beyond the script's output."
 HELP_ROW = (
@@ -156,6 +165,20 @@ def test_body_flags_section_opens_a_bullet_for_each_flag(body, flag):
 
 @pytest.mark.parametrize("sentence", EXIT_SENTENCES, ids=["exit-0", "exit-1", "exit-2"])
 def test_body_exit_sentence_is_verbatim(collapsed_body, sentence):
+    assert sentence in collapsed_body
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    ARGUMENT_RULE_SENTENCES,
+    ids=[
+        "allowed-tokens",
+        "quote-the-directory",
+        "refuse-other-tokens",
+        "refuse-metacharacters",
+    ],
+)
+def test_body_states_the_argument_passthrough_rule_verbatim(collapsed_body, sentence):
     assert sentence in collapsed_body
 
 
