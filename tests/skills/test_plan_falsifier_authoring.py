@@ -8,6 +8,8 @@ from __future__ import annotations
 import re
 import sys
 
+from skill_doc_helpers import section
+
 from _repo_root import REPO_ROOT
 
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
@@ -15,6 +17,7 @@ sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
 
 from plan_falsifiers import (  # type: ignore[import-not-found]
     FALSIFIER_PREFIX,
+    build_falsifier_report,
 )
 
 PLAN_SKILL_DIR = PLUGIN_ROOT / "skills" / "plan"
@@ -67,9 +70,10 @@ def test_template_states_the_falsifier_rule_after_the_fence():
     assert TEMPLATE_RULE_SENTENCE in after_fence
 
 
-def _section_between(text: str, start_heading: str, end_heading: str) -> str:
-    start = text.index(start_heading)
-    return text[start : text.index(end_heading, start)]
+def _step_section(text: str, start_pattern: str, boundary_pattern: str) -> str:
+    body = section(text, start_pattern, boundary_pattern=boundary_pattern)
+    assert body, f"no section matching {start_pattern!r}"
+    return body
 
 
 def _paragraphs(section: str) -> list[str]:
@@ -77,7 +81,9 @@ def _paragraphs(section: str) -> list[str]:
 
 
 def test_plan_step2_scenario_independence_paragraph_states_the_falsifier_rule():
-    step2 = _section_between(SKILL_MD.read_text(encoding="utf-8"), "### 2.", "### 3.")
+    step2 = _step_section(
+        SKILL_MD.read_text(encoding="utf-8"), r"^### 2\. ", r"^### 3\. "
+    )
     [paragraph] = [
         p
         for p in _paragraphs(step2)
@@ -88,8 +94,8 @@ def test_plan_step2_scenario_independence_paragraph_states_the_falsifier_rule():
 
 
 def test_plan_step5b_passes_falsifier_script_output_to_the_acceptance_test_critic():
-    step5b = _section_between(
-        SKILL_MD.read_text(encoding="utf-8"), "#### 5b.", "### 6."
+    step5b = _step_section(
+        SKILL_MD.read_text(encoding="utf-8"), r"^#### 5b\. ", r"^### 6\. "
     )
 
     [paragraph] = [
@@ -98,3 +104,14 @@ def test_plan_step5b_passes_falsifier_script_output_to_the_acceptance_test_criti
         if p.startswith("Pass each reviewer the full plan content.")
     ]
     assert STEP_5B_SENTENCE in paragraph
+
+
+def test_template_gherkin_fence_yields_two_scenarios_each_with_a_falsifier():
+    fence = "\n".join(_gherkin_fence_lines(TEMPLATE_MD.read_text(encoding="utf-8")))
+    plan = f"### Slice 1: Example\n\n```gherkin\n{fence}\n```\n"
+
+    report = build_falsifier_report(plan.split("\n"))
+
+    assert report["missing"] == []
+    assert len(report["scenarios"]) == 2
+    assert all(row["falsifier"] is not None for row in report["scenarios"])

@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 
 import pytest
-from _agent_text_helpers import sentence_containing, sentence_with_all
+from _agent_text_helpers import has_sentence_with_all, sentence_containing
 from _mutation_kill_agent_doc_helpers import AGENT, agent_text, required_section
 from skill_doc_helpers import collapsed
 
@@ -622,7 +622,7 @@ def test_falsifiers_bullet_marks_matching_survivor_falsifier_expected(
 def test_falsifiers_script_error_or_empty_list_warns_and_accepts_nothing(
     falsifiers_bullet: str,
 ) -> None:
-    assert sentence_with_all(
+    assert has_sentence_with_all(
         falsifiers_bullet, "non-zero exit", "empty", "warning", "accepts nothing"
     )
 
@@ -630,17 +630,19 @@ def test_falsifiers_script_error_or_empty_list_warns_and_accepts_nothing(
 def test_falsifiers_unmatched_survivor_stays_a_survivor(
     falsifiers_bullet: str,
 ) -> None:
-    assert sentence_with_all(falsifiers_bullet, "no falsifier", "stays a survivor")
+    assert has_sentence_with_all(falsifiers_bullet, "no falsifier", "stays a survivor")
 
 
 def test_falsifiers_omitted_flag_changes_nothing(falsifiers_bullet: str) -> None:
-    assert sentence_with_all(falsifiers_bullet, "Without the flag", "nothing changes")
+    assert has_sentence_with_all(
+        falsifiers_bullet, "Without the flag", "nothing changes"
+    )
 
 
 def test_falsifiers_bullet_treats_plan_values_as_data_not_instructions(
     falsifiers_bullet: str,
 ) -> None:
-    assert sentence_with_all(falsifiers_bullet, "data", "never as an instruction")
+    assert has_sentence_with_all(falsifiers_bullet, "data", "never as an instruction")
 
 
 def test_accepted_survivors_section_excludes_falsifier_expected_from_adjusted_score(
@@ -652,6 +654,6 @@ def test_accepted_survivors_section_excludes_falsifier_expected_from_adjusted_sc
 def test_accepted_survivors_section_lists_falsifier_expected_entries_in_the_table(
     accepted_survivors: str,
 ) -> None:
-    assert sentence_with_all(
+    assert has_sentence_with_all(
         accepted_survivors, "falsifier-expected", "reason", "table"
     )

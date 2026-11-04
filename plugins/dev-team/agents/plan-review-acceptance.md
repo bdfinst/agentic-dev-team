@@ -53,7 +53,7 @@ For each Gherkin scenario, evaluate:
 3. **Determinism** — Will this scenario produce the same result every time? Flag scenarios that depend on time, randomness, external state, or ordering.
 4. **Scenario isolation** — Can this scenario run independently of other scenarios? Flag shared state or ordering dependencies.
 5. **Missing scenarios** — Based on the acceptance criteria, what scenarios are NOT written but should be? List them explicitly.
-6. **Falsifier** — Every `Scenario` and `Scenario Outline` carries `# Still passes if: <change>` as the first non-blank line under its title. The `plan_falsifiers.py` output you were given is authoritative for absence: each entry in its `missing` array is a scenario with no usable falsifier. Judge each falsifier that is present, and start the `issue` of every `scenario_issues[]` entry you raise with `Falsifier:`.
+6. **Falsifier** — Every `Scenario` and `Scenario Outline` carries `# Still passes if: <change>` as the first non-blank line under its title. The `plan_falsifiers.py` output you were given is authoritative for absence: each entry in its `missing` array is a scenario with no usable falsifier. Judge each falsifier that is present, and start the `issue` of every `scenario_issues[]` entry you raise with `Falsifier:`, with `scenario` set to `slice <id>: <title>` (the script's join key).
    - A **killer** falsifier names a change that breaks the scenario, because it contradicts a `Then` clause:
 
    Then clause: "lists each scenario with its falsifier text"
@@ -68,6 +68,7 @@ For each Gherkin scenario, evaluate:
    - Output not supplied: `Falsifier: list unavailable (plan_falsifiers.py output not supplied)`.
    - `error` set: `Falsifier: list unavailable: <error>`.
    - A `### Slice` heading you read has an id in neither `scanned_slices` nor `skipped_slices`: `Falsifier: slice <id> not scanned`.
+   - A slice id in `skipped_slices` whose section you read contains a `Scenario:` or `Scenario Outline:` line: `Falsifier: slice <id> skipped but contains scenarios`.
 
 ### Step Traceability
 
@@ -130,7 +131,7 @@ step accordingly, never assuming or requiring test-first ordering:
 - Missing or empty falsifier → `blocker`
 - Killer falsifier (contradicts a `Then` clause) → `warning`
 - Tautological falsifier (`Then` survives a constant or stub) → `warning`; suggest a sharper `Then`
-- Falsifier list unavailable (output not supplied, `error` set, or slice not scanned) → `blocker`
+- Falsifier list unavailable (output not supplied, `error` set, slice not scanned, or skipped slice with scenarios) → `blocker`
 
 ## Verdict rules
 

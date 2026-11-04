@@ -47,7 +47,7 @@ def _report_for_plan(*slices: str) -> dict:
     return build_falsifier_report(_plan_text(*slices).split("\n"))
 
 
-def _scan(*gherkins: str) -> dict:
+def _report_for_gherkins(*gherkins: str) -> dict:
     """In-process report for a plan with one slice per gherkin string."""
     return _report_for_plan(*(_slice_section(n, g) for n, g in enumerate(gherkins, 1)))
 
@@ -95,13 +95,19 @@ def test_one_scenario_without_a_falsifier_is_missing():
     out = build_falsifier_report(text.split("\n"))
     assert out["missing"] == [{"slice": "2", "scenario": "Gamma works"}]
     assert len(out["scenarios"]) == 3
-    assert out["scenarios"][-1] == {"slice": "2", "scenario": "Gamma works", "falsifier": None}
+    assert out["scenarios"][-1] == {
+        "slice": "2",
+        "scenario": "Gamma works",
+        "falsifier": None,
+    }
 
 
 def test_output_has_the_documented_key_set_and_string_slice_ids():
     out = _run_ok(_FIXTURES / "missing-one.md")
     assert set(out) == _KEY_SET
-    assert all(set(row) == {"slice", "scenario", "falsifier"} for row in out["scenarios"])
+    assert all(
+        set(row) == {"slice", "scenario", "falsifier"} for row in out["scenarios"]
+    )
     assert all(set(row) == {"slice", "scenario"} for row in out["missing"])
     assert all(type(row["slice"]) is str for row in out["scenarios"])
     assert all(type(row["slice"]) is str for row in out["missing"])
@@ -114,13 +120,17 @@ def test_unreadable_output_has_the_same_key_set_as_a_readable_one(tmp_path):
 
 
 def test_empty_falsifier_counts_as_missing():
-    out = _scan(_scenario_block("Blank one", f"{_FALSIFIER_COMMENT_PREFIX}   ", "Given x"))
+    out = _report_for_gherkins(
+        _scenario_block("Blank one", f"{_FALSIFIER_COMMENT_PREFIX}   ", "Given x")
+    )
     assert out["missing"] == [{"slice": "1", "scenario": "Blank one"}]
     assert out["scenarios"][0]["falsifier"] is None
 
 
 def test_single_character_falsifier_is_accepted():
-    out = _scan(_scenario_block("Tiny", f"{_FALSIFIER_COMMENT_PREFIX} x", "Given x"))
+    out = _report_for_gherkins(
+        _scenario_block("Tiny", f"{_FALSIFIER_COMMENT_PREFIX} x", "Given x")
+    )
     assert out["scenarios"][0]["falsifier"] == "x"
     assert out["missing"] == []
 
@@ -131,32 +141,38 @@ def test_single_character_falsifier_is_accepted():
     ids=["no-spaces", "extra-spaces", "tab-indented"],
 )
 def test_whitespace_around_the_falsifier_marker_is_tolerated(comment_line):
-    out = _scan(f"  Scenario: Spacey\n{comment_line}\n    Given x\n")
+    out = _report_for_gherkins(f"  Scenario: Spacey\n{comment_line}\n    Given x\n")
     assert out["scenarios"][0]["falsifier"] == "x"
     assert out["missing"] == []
 
 
 def test_falsifier_after_a_step_counts_as_missing():
-    out = _scan(_scenario_block("Late", "Given x", f"{_FALSIFIER_COMMENT_PREFIX} too late"))
+    out = _report_for_gherkins(
+        _scenario_block("Late", "Given x", f"{_FALSIFIER_COMMENT_PREFIX} too late")
+    )
     assert out["missing"] == [{"slice": "1", "scenario": "Late"}]
     assert out["scenarios"][0]["falsifier"] is None
 
 
 def test_wrong_case_key_counts_as_missing():
-    out = _scan(_scenario_block("Cased", "# still passes if: x", "Given x"))
+    out = _report_for_gherkins(
+        _scenario_block("Cased", "# still passes if: x", "Given x")
+    )
     assert out["missing"] == [{"slice": "1", "scenario": "Cased"}]
 
 
 def test_blank_lines_before_the_falsifier_are_allowed():
     gherkin = f"  Scenario: Spaced\n\n\n    {_FALSIFIER_COMMENT_PREFIX} spacing varies\n    Given x\n"
-    out = _scan(gherkin)
+    out = _report_for_gherkins(gherkin)
     assert out["scenarios"][0]["falsifier"] == "spacing varies"
     assert out["missing"] == []
 
 
 def test_another_comment_before_the_falsifier_counts_as_missing():
-    gherkin = _scenario_block("Noted", "# an unrelated note", f"{_FALSIFIER_COMMENT_PREFIX} x", "Given x")
-    out = _scan(gherkin)
+    gherkin = _scenario_block(
+        "Noted", "# an unrelated note", f"{_FALSIFIER_COMMENT_PREFIX} x", "Given x"
+    )
+    out = _report_for_gherkins(gherkin)
     assert out["missing"] == [{"slice": "1", "scenario": "Noted"}]
 
 
@@ -165,7 +181,7 @@ def test_scenario_indentation_does_not_matter():
         f"Scenario: Flush\n{_FALSIFIER_COMMENT_PREFIX} flush text\nGiven x\n\n"
         f"    Scenario: Indented\n    {_FALSIFIER_COMMENT_PREFIX} indented text\n    Given y\n"
     )
-    out = _scan(gherkin)
+    out = _report_for_gherkins(gherkin)
     assert [(r["scenario"], r["falsifier"]) for r in out["scenarios"]] == [
         ("Flush", "flush text"),
         ("Indented", "indented text"),
@@ -176,9 +192,11 @@ def test_background_block_needs_no_falsifier():
     gherkin = (
         "Feature: F\n\n  Background:\n"
         f"    {_FALSIFIER_COMMENT_PREFIX} background text\n    Given a setup\n\n"
-        + _scenario_block("Only one", f"{_FALSIFIER_COMMENT_PREFIX} the only row", "Given x")
+        + _scenario_block(
+            "Only one", f"{_FALSIFIER_COMMENT_PREFIX} the only row", "Given x"
+        )
     )
-    out = _scan(gherkin)
+    out = _report_for_gherkins(gherkin)
     assert [r["scenario"] for r in out["scenarios"]] == ["Only one"]
     assert out["missing"] == []
 
@@ -189,26 +207,32 @@ def test_scenario_outline_is_listed():
         "    Examples:\n      | a |\n      | 1 |\n\n"
         "  Scenario Outline: Without\n    Given <a>\n\n    Examples:\n      | a |\n"
     )
-    out = _scan(gherkin)
+    out = _report_for_gherkins(gherkin)
     assert [r["scenario"] for r in out["scenarios"]] == ["With", "Without"]
     assert out["missing"] == [{"slice": "1", "scenario": "Without"}]
 
 
 def test_scenario_without_falsifier_directly_before_one_with_falsifier():
-    gherkin = _scenario_block("A") + _scenario_block("B", f"{_FALSIFIER_COMMENT_PREFIX} b text", "Given x")
-    out = _scan(gherkin)
+    gherkin = _scenario_block("A") + _scenario_block(
+        "B", f"{_FALSIFIER_COMMENT_PREFIX} b text", "Given x"
+    )
+    out = _report_for_gherkins(gherkin)
     assert [(r["scenario"], r["falsifier"]) for r in out["scenarios"]] == [
         ("A", None),
         ("B", "b text"),
     ]
     assert out["missing"] == [{"slice": "1", "scenario": "A"}]
-    assert len(out["missing"]) == 1
 
 
 def test_scenarios_are_attributed_to_their_slice():
-    two = _scenario_block("One", f"{_FALSIFIER_COMMENT_PREFIX} a") + _scenario_block("Two", f"{_FALSIFIER_COMMENT_PREFIX} b")
+    two = _scenario_block("One", f"{_FALSIFIER_COMMENT_PREFIX} a") + _scenario_block(
+        "Two", f"{_FALSIFIER_COMMENT_PREFIX} b"
+    )
     out = _report_for_plan(_slice_section(1, two), _slice_section(3, None))
-    assert [(r["slice"], r["scenario"]) for r in out["scenarios"]] == [("1", "One"), ("1", "Two")]
+    assert [(r["slice"], r["scenario"]) for r in out["scenarios"]] == [
+        ("1", "One"),
+        ("1", "Two"),
+    ]
     assert out["scanned_slices"] == ["1"]
     assert out["skipped_slices"] == ["3"]
 
@@ -223,14 +247,16 @@ def test_only_the_first_gherkin_fence_per_slice_is_scanned():
 
 
 def test_duplicate_titles_are_not_merged():
-    gherkin = _scenario_block("Same", f"{_FALSIFIER_COMMENT_PREFIX} a") + _scenario_block("Same", "Given x")
-    out = _scan(gherkin)
+    gherkin = _scenario_block(
+        "Same", f"{_FALSIFIER_COMMENT_PREFIX} a"
+    ) + _scenario_block("Same", "Given x")
+    out = _report_for_gherkins(gherkin)
     assert [r["scenario"] for r in out["scenarios"]] == ["Same", "Same"]
     assert out["missing"] == [{"slice": "1", "scenario": "Same"}]
 
 
 def test_gherkin_fence_with_no_scenarios_is_scanned_and_empty():
-    out = _scan("Feature: Nothing yet\n")
+    out = _report_for_gherkins("Feature: Nothing yet\n")
     assert out["scenarios"] == []
     assert out["missing"] == []
     assert out["scanned_slices"] == ["1"]

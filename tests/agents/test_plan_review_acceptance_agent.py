@@ -13,9 +13,13 @@ import sys
 from itertools import pairwise
 
 import pytest
-from _agent_text_helpers import sentence_containing, sentence_with_all, sentences
+from _agent_text_helpers import (
+    has_sentence_with_all,
+    required_section,
+    sentence_containing,
+    sentences,
+)
 from _plugin_dirs import frontmatter_and_body, frontmatter_field
-from skill_doc_helpers import section
 
 from _repo_root import REPO_ROOT
 
@@ -37,6 +41,7 @@ BLOCKER_NOT_SUPPLIED = (
 )
 BLOCKER_ERROR = "Falsifier: list unavailable: <error>"
 BLOCKER_NOT_SCANNED = "Falsifier: slice <id> not scanned"
+BLOCKER_SKIPPED_WITH_SCENARIOS = "Falsifier: slice <id> skipped but contains scenarios"
 
 KILLER_THEN = '"lists each scenario with its falsifier text"'
 KILLER_FALSIFIER = '"the script reports only presence"'
@@ -48,20 +53,10 @@ def _text() -> str:
     return AGENT.read_text(encoding="utf-8")
 
 
-def _required_section(level: str, heading: str) -> str:
-    """Body of the `heading` section, up to the next heading of the same or higher level."""
-    body = section(
-        _text(),
-        rf"^{level} {re.escape(heading)}$",
-        boundary_pattern=rf"^#{{1,{len(level)}}} ",
-        include_start_line=False,
-    )
-    assert body, f"missing or empty section: {level} {heading}"
-    return body
-
-
 def _bdd_section() -> str:
-    return _required_section("###", "BDD Scenario Quality")
+    return required_section(
+        _text(), r"^### BDD Scenario Quality$", boundary_pattern=r"^#{1,3} "
+    )
 
 
 def _falsifier_item() -> str:
@@ -77,7 +72,9 @@ def _falsifier_item() -> str:
 def _severity_lines() -> list[str]:
     return [
         line
-        for line in _required_section("##", "Severity rules").splitlines()
+        for line in required_section(
+            _text(), r"^## Severity rules$", boundary_pattern=r"^#{1,2} "
+        ).splitlines()
         if line.startswith("- ")
     ]
 
@@ -116,28 +113,40 @@ def test_falsifier_item_requires_marker_as_first_non_blank_line_under_title() ->
 
 
 def test_what_you_receive_names_script_output_and_its_fields() -> None:
-    receive = _required_section("##", "What you receive")
+    receive = required_section(
+        _text(), r"^## What you receive$", boundary_pattern=r"^#{1,2} "
+    )
     assert SCRIPT in receive
     for field in ("scenarios", "missing", "scanned_slices", "skipped_slices", "error"):
         assert f"`{field}`" in receive, field
 
 
 def test_missing_array_is_authoritative_for_absence() -> None:
-    item = _falsifier_item()
-    assert "authoritative" in item
-    assert "`missing`" in item
+    assert has_sentence_with_all(
+        _falsifier_item(), "`missing`", "authoritative", "absence"
+    )
 
 
 def test_findings_use_the_falsifier_issue_prefix() -> None:
-    assert sentence_with_all(
+    assert has_sentence_with_all(
         _falsifier_item(), "start", "issue", "scenario_issues[]", ISSUE_PREFIX
     )
 
 
 @pytest.mark.parametrize(
     "blocker",
-    [BLOCKER_NOT_SUPPLIED, BLOCKER_ERROR, BLOCKER_NOT_SCANNED],
-    ids=["output-not-supplied", "error-set", "slice-not-scanned"],
+    [
+        BLOCKER_NOT_SUPPLIED,
+        BLOCKER_ERROR,
+        BLOCKER_NOT_SCANNED,
+        BLOCKER_SKIPPED_WITH_SCENARIOS,
+    ],
+    ids=[
+        "output-not-supplied",
+        "error-set",
+        "slice-not-scanned",
+        "slice-skipped-with-scenarios",
+    ],
 )
 def test_unavailability_blocker_is_spelled_out(blocker: str) -> None:
     assert blocker in _falsifier_item()
@@ -147,6 +156,13 @@ def test_not_scanned_blocker_names_both_slice_lists() -> None:
     sentence = sentence_containing(_falsifier_item(), BLOCKER_NOT_SCANNED)
     assert "`scanned_slices`" in sentence
     assert "`skipped_slices`" in sentence
+
+
+def test_skipped_slice_blocker_is_conditioned_on_scenarios_in_the_section() -> None:
+    sentence = sentence_containing(_falsifier_item(), BLOCKER_SKIPPED_WITH_SCENARIOS)
+    assert "`skipped_slices`" in sentence
+    assert "`Scenario:`" in sentence
+    assert "`Scenario Outline:`" in sentence
 
 
 def test_critic_is_told_it_has_no_bash_tool() -> None:
@@ -165,7 +181,13 @@ def test_no_sentence_instructs_the_critic_to_run_the_script() -> None:
 
 
 def test_report_instruction_covers_plan_and_slice_scopes() -> None:
-    assert sentence_with_all(_falsifier_item(), "scenario_issues[]", "slice <id>")
+    assert has_sentence_with_all(_falsifier_item(), "scenario_issues[]", "slice <id>")
+
+
+def test_scenario_field_is_the_scripts_slice_join_key() -> None:
+    assert has_sentence_with_all(
+        _falsifier_item(), "scenario_issues[]", "slice <id>: <title>", ISSUE_PREFIX
+    )
 
 
 def test_unavailability_blocker_is_never_read_as_a_complete_list() -> None:
@@ -195,6 +217,7 @@ def test_unavailable_falsifier_list_is_a_blocker_on_one_line() -> None:
     assert "not scanned" in line
     assert "not supplied" in line
     assert "error" in line
+    assert "skipped" in line
 
 
 def _pair_is_adjacent(then_text: str, falsifier_text: str) -> bool:

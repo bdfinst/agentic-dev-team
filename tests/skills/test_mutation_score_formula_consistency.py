@@ -245,3 +245,23 @@ def test_field_deleted_from_one_file_fails_naming_missing_field(tmp_path, monkey
     message = str(excinfo.value)
     assert "mutation-score-formulas.md" in message
     assert "honest_score" in message
+
+
+# =============================================================================
+# Scenario: falsifier-expected survivors are reported apart from Accepted (#2271)
+# =============================================================================
+
+
+def test_knowledge_doc_reports_falsifier_expected_apart_from_accepted():
+    text = " ".join(KNOWLEDGE_PATH.read_text().split())
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+
+    assert "falsifier-expected" in text
+    assert "`Falsifier-expected: N`" in text
+    assert any(
+        "falsifier-expected" in s and "is not `Accepted` in the formula" in s
+        for s in sentences
+    )
+    assert re.search(
+        r'"Accepted Survivors \(deferred\)" table \([^)]*\bstatus\b[^)]*\)', text
+    )
