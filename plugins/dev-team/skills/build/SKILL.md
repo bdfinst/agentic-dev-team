@@ -7,7 +7,7 @@ description: >-
   inline review checkpoints, and produces verification evidence. Use when
   the user says "build this", "implement the plan", "start building", or
   after /plan has been approved.
-argument-hint: "[--plan <path>] [--yes] [--backstop-review=skip]"
+argument-hint: "[--plan <path>] [--yes] [--backstop-review=skip] [--candidates N] [--max-cost-usd X]"
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion
 ---
@@ -37,6 +37,16 @@ Arguments: $ARGUMENTS
 - `--plan <path>`: Path to the plan file. If omitted, search `plans/` for the most recently modified plan with status `approved`.
 - `--yes`: Auto-approve the build's approval gates (steps 2 and 3) without prompting (non-interactive opt-in).
 - `--backstop-review=skip`: Suppress **only** Step 6's backstop `/code-review` (#1962). Legal **only** when the caller has its own review pass over a diff that strictly contains this build's — an enclosing orchestrator's end-of-phase review loop, not a human running `/build` directly. Default **off**: an unflagged `/build` runs Step 6 exactly as before. Everything else is untouched — the inline checkpoints (sub-steps 4/6), the full-suite run (Step 5), runtime verification (4.9), invariants (4.10), and the Farley Score (Step 7) all still run, so this narrows one duplicated layer rather than trading review for speed. When set, print an audit line into the build output naming the enclosing reviewer: `Step-6 backstop review skipped (--backstop-review=skip) — enclosing reviewer: <name>.` Never set it on a `/build` whose diff nothing else reviews.
+- `--candidates N`: **experimental**. Applies only to steps whose `**Complexity**` is `complex`. N is between 1 and 8. 1 is the unchanged build. The `--max-cost-usd` cap bounds candidate dispatch spend, not screening. It is checked between batches, so one batch may overrun it. The procedure is in [`skills/speculative-build/SKILL.md`](../speculative-build/SKILL.md).
+- `--max-cost-usd X`: Required with N of 2 or more. The step's speculative spend cap in dollars.
+
+Validate the speculative flags before Step 0. Pass each raw value with the `=` form, so a value that begins with `-` reaches the validator instead of argparse. Omit a flag the user did not pass.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_candidates.py" validate-flags --candidates=<raw> --max-cost-usd=<raw> --jobs=<raw>
+```
+
+On exit 2, print its stderr and stop. When the printed JSON has `"speculative": true`, locate the session transcript as [`/cost-report`](../cost-report/SKILL.md) does. Then run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_worktree_baseref.py" detect`, which must print `head`. Otherwise stop before Step 0 with exactly one of these messages. No transcript located: `--candidates needs the session transcript to enforce --max-cost-usd; none located — run without --candidates`. Any value other than `head`: `--candidates needs worktree.baseRef = head (detected: <value>); set it in .claude/settings.json or run without --candidates`. When `"speculative": true`, print this line after Step 1 finds the plan: `speculative dispatch: <n> complex step(s) will use <N> candidates under a $<X> cap; other steps run as normal`. Count n as the steps in the plan whose `**Complexity**` is `complex`. When n is 0, print `speculative dispatch: no complex steps in this plan; --candidates has no effect` instead.
 
 **Interactivity.** The run is **non-interactive** when any of these hold: `--yes` was passed, `DEV_TEAM_AUTO_APPROVE=1` is set, or stdin is not a usable TTY (`test -t 0` is false — the headless/CI/automation case). The approval gates in steps 2 and 3 use this: interactive runs prompt exactly as before; non-interactive runs auto-proceed and **record the bypass in the build output** rather than hanging.
 
@@ -48,7 +58,7 @@ Invoke the [Context Loading Protocol](../context-loading-protocol/SKILL.md) at t
 
 ### 1. Find the plan
 
-If `--plan` was provided, read that file. Otherwise, search `plans/` for `.md` files and find the most recently modified one with `**Status**: approved`. If no approved plan is found, tell the user: "No approved plan found. Run `/plan` first, then approve it."
+If `--plan` was provided, read that file. Otherwise, search `plans/` for `.md` files and find the most recently modified one with `**Status**: approved`. If no approved plan is found, tell the user: "No approved plan found. Run `/plan` first, then approve it." When the Parse Arguments validation reported `"speculative": true`, print the `speculative dispatch:` line defined there once the plan is found.
 
 ### 1.5. JS project bootstrap gate
 
