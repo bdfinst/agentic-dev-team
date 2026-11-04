@@ -6071,7 +6071,7 @@
       "anchor": "preconditions"
     },
     "Base and batches": {
-      "summary": "Set `base` to the build worktree's current commit:",
+      "summary": "Run the step as a loop of batches.",
       "anchor": "base-and-batches"
     },
     "Dispatch": {

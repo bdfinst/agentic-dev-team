@@ -12,7 +12,7 @@ tests/lib/hermetic.bash.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import NamedTuple
 
@@ -276,6 +276,17 @@ def grep_multiline(pattern: str, text: str, ignore_case: bool = False) -> bool:
     return re.search(_posix_classes(pattern), text, flags) is not None
 
 
+def _lines_outside_code(text: str) -> Iterator[tuple[int, str]]:
+    """Yield `(1-based line number, line)` for every line outside a fenced
+    code block; the fence lines themselves are skipped."""
+    code = False
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("```"):
+            code = not code
+        elif not code:
+            yield lineno, line
+
+
 def first_line_outside_code(text: str, pattern: str) -> int | None:
     """Mirror the repeated awk idiom:
 
@@ -286,14 +297,21 @@ def first_line_outside_code(text: str, pattern: str) -> int | None:
     fenced code block, or None if no such line exists.
     """
     pattern_re = re.compile(_posix_classes(pattern))
-    code = False
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        if line.startswith("```"):
-            code = not code
-            continue
-        if not code and pattern_re.search(line):
+    for lineno, line in _lines_outside_code(text):
+        if pattern_re.search(line):
             return lineno
     return None
+
+
+def headings_outside_code(text: str, level: int) -> list[str]:
+    """Titles of the `level`-deep markdown headings (`## ` for level 2) found
+    outside fenced code blocks, in file order."""
+    prefix = "#" * level + " "
+    return [
+        line[len(prefix) :].strip()
+        for _, line in _lines_outside_code(text)
+        if line.startswith(prefix)
+    ]
 
 
 def section_outside_code(
