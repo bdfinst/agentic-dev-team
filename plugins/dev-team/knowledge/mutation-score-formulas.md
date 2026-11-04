@@ -51,6 +51,8 @@ table (file, line, operator, reason). Never let `adjusted_score` stand
 alone — `raw_score` plus the reason table is what keeps a documented
 deferral from silently vanishing.
 
+A survivor marked `status: "falsifier-expected"` (a mutation a plan scenario's `# Still passes if:` falsifier describes; written only by `mutation-kill --falsifiers`) is not `Accepted` in the formula above and is reported on its own `Falsifier-expected: N` line; the raw/adjusted pair prints only when ordinary accepted survivors exist.
+
 ## NoCoverage is a first-class signal
 
 Each `NoCoverage → Killed` conversion improves the score as much as killing

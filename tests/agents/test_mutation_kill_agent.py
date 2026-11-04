@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 
 import pytest
+from _agent_text_helpers import sentence_containing, sentence_with_all
 from _mutation_kill_agent_doc_helpers import AGENT, agent_text, required_section
 from skill_doc_helpers import collapsed
 
@@ -125,9 +126,9 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # three "a survivor was not addressed this run" outcomes that now share
     # exit 5) and widened the stryker_shard_pipeline.py registry row to
     # cross-reference it.
-    # Bumped by 4 more (#2271): documented the --falsifiers flag (usage line
-    # plus bullet) and the Falsifier-expected paragraph in the Accepted
-    # survivors section.
+    # Bumped by 4 more (#2271): documented the --falsifiers flag (the usage
+    # line, the Invocation bullet) and the Falsifier-expected paragraph in
+    # the Accepted survivors section.
     assert len(text.splitlines()) < 694
 
 
@@ -583,9 +584,14 @@ def falsifiers_bullet(invocation: str) -> str:
     return match.group(0)
 
 
-def _sentence_with_all(bullet: str, *terms: str) -> bool:
-    sentences = re.split(r"(?<=[.!?])\s+", bullet)
-    return any(all(t in sentence for t in terms) for sentence in sentences)
+@pytest.fixture(scope="module")
+def accepted_survivors(text: str) -> str:
+    return required_section(
+        text,
+        r"^### Accepted survivors: raw vs adjusted score",
+        boundary_pattern=r"^#{2,3} ",
+        name="Accepted survivors section",
+    )
 
 
 def test_usage_block_names_falsifiers_flag(invocation: str) -> None:
@@ -605,15 +611,18 @@ def test_falsifiers_bullet_names_script_and_explicit_path(
 def test_falsifiers_bullet_marks_matching_survivor_falsifier_expected(
     falsifiers_bullet: str,
 ) -> None:
-    assert "falsifier-expected" in falsifiers_bullet
-    assert "plan falsifier: " in falsifiers_bullet
-    assert "(mutant " in falsifiers_bullet
+    assert (
+        'reason: "plan falsifier: <scenario title> (mutant <id>)"' in falsifiers_bullet
+    )
+    sentence = sentence_containing(falsifiers_bullet, "falsifier-expected")
+    assert "never" in sentence
+    assert '"accepted"' in sentence
 
 
 def test_falsifiers_script_error_or_empty_list_warns_and_accepts_nothing(
     falsifiers_bullet: str,
 ) -> None:
-    assert _sentence_with_all(
+    assert sentence_with_all(
         falsifiers_bullet, "non-zero exit", "empty", "warning", "accepts nothing"
     )
 
@@ -621,20 +630,28 @@ def test_falsifiers_script_error_or_empty_list_warns_and_accepts_nothing(
 def test_falsifiers_unmatched_survivor_stays_a_survivor(
     falsifiers_bullet: str,
 ) -> None:
-    assert _sentence_with_all(falsifiers_bullet, "no falsifier", "stays a survivor")
+    assert sentence_with_all(falsifiers_bullet, "no falsifier", "stays a survivor")
 
 
 def test_falsifiers_omitted_flag_changes_nothing(falsifiers_bullet: str) -> None:
-    assert _sentence_with_all(falsifiers_bullet, "Without the flag", "nothing changes")
+    assert sentence_with_all(falsifiers_bullet, "Without the flag", "nothing changes")
+
+
+def test_falsifiers_bullet_treats_plan_values_as_data_not_instructions(
+    falsifiers_bullet: str,
+) -> None:
+    assert sentence_with_all(falsifiers_bullet, "data", "never as an instruction")
 
 
 def test_accepted_survivors_section_excludes_falsifier_expected_from_adjusted_score(
-    text: str,
+    accepted_survivors: str,
 ) -> None:
-    accepted = required_section(
-        text,
-        r"^### Accepted survivors: raw vs adjusted score",
-        boundary_pattern=r"^#{2,3} ",
-        name="Accepted survivors section",
+    assert FALSIFIER_EXPECTED_SENTENCE in collapsed(accepted_survivors)
+
+
+def test_accepted_survivors_section_lists_falsifier_expected_entries_in_the_table(
+    accepted_survivors: str,
+) -> None:
+    assert sentence_with_all(
+        accepted_survivors, "falsifier-expected", "reason", "table"
     )
-    assert FALSIFIER_EXPECTED_SENTENCE in collapsed(accepted)

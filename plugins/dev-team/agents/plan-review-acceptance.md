@@ -53,7 +53,7 @@ For each Gherkin scenario, evaluate:
 3. **Determinism** — Will this scenario produce the same result every time? Flag scenarios that depend on time, randomness, external state, or ordering.
 4. **Scenario isolation** — Can this scenario run independently of other scenarios? Flag shared state or ordering dependencies.
 5. **Missing scenarios** — Based on the acceptance criteria, what scenarios are NOT written but should be? List them explicitly.
-6. **Falsifier** — Every `Scenario` and `Scenario Outline` carries `# Still passes if: <change>` as the first line under its title. The `plan_falsifiers.py` output you were given is authoritative for absence: each entry in its `missing` array is a scenario with no usable falsifier. Judge each falsifier that is present, and start the `issue` of every `scenario_issues[]` entry you raise with `Falsifier:`.
+6. **Falsifier** — Every `Scenario` and `Scenario Outline` carries `# Still passes if: <change>` as the first non-blank line under its title. The `plan_falsifiers.py` output you were given is authoritative for absence: each entry in its `missing` array is a scenario with no usable falsifier. Judge each falsifier that is present, and start the `issue` of every `scenario_issues[]` entry you raise with `Falsifier:`.
    - A **killer** falsifier names a change that breaks the scenario, because it contradicts a `Then` clause:
 
    Then clause: "lists each scenario with its falsifier text"
@@ -64,7 +64,7 @@ For each Gherkin scenario, evaluate:
    Then clause: "the response is not empty"
    Falsifier text: "the handler returns a fixed string"
 
-   You have no Bash tool, and `plan_falsifiers.py` is executed by the dispatcher, not by you. Raise a blocker, and never read the list as complete, in these cases:
+   You have no Bash tool, and `plan_falsifiers.py` is executed by the dispatcher, not by you. Report each of the following in `scenario_issues[]` with `scenario` set to `plan` or `slice <id>`. Raise a blocker, and never read the list as complete, in these cases:
    - Output not supplied: `Falsifier: list unavailable (plan_falsifiers.py output not supplied)`.
    - `error` set: `Falsifier: list unavailable: <error>`.
    - A `### Slice` heading you read has an id in neither `scanned_slices` nor `skipped_slices`: `Falsifier: slice <id> not scanned`.
