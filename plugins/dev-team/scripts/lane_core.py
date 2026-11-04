@@ -8,9 +8,12 @@ every command shares:
   renderer prints it as a `refused:`/`why:`/`how:` block on stderr.
 - `_run` and `_git`: the only seam for the process calls this module makes
   itself. `_run` holds the single `subprocess.run` call; `_git` guards the
-  argv before it reaches `_run`. `review_gate_hash.default_base_ref` is the one
-  delegated exception: it runs its own `git` calls, without this module's
-  timeout, and a runtime spy in the tests covers it.
+  argv before it reaches `_run`. Two things are delegated and bypass the guard
+  and this module's timeout: `review_gate_hash.default_base_ref` (trunk
+  resolution), and the review-gate computation in `lane.py` (`_gate_verdict`:
+  the gate hash, the changed-file list and the PR hook). The gate computation
+  runs under `filtered_process_environment` and passes the timeout to the one
+  call that takes one; a runtime spy in the tests covers both.
 - `resolve_trunk_commit`, `local_branch_of` and `lane_context`: which ref is
   the trunk, which local branch it maps to (None for a tag or SHA), and
   whether the working directory is a lane.
@@ -37,6 +40,7 @@ This module never pushes, never skips git hooks and never forces anything.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import os
 import re
@@ -44,7 +48,7 @@ import shlex
 import subprocess
 import sys
 import unicodedata
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -621,13 +625,34 @@ def _git_env() -> dict[str, str]:
     `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` are kept: they name a whole
     config file the operator chose, and the test fixtures point them at
     /dev/null. `review_gate_hash.default_base_ref` (delegated) still inherits
-    the full environment.
+    the full environment; the review-gate computation runs under
+    `filtered_process_environment`.
     """
     return {
         key: value
         for key, value in os.environ.items()
         if key not in GIT_ENV_DROPPED and not key.startswith(GIT_ENV_DROPPED_PREFIXES)
     }
+
+
+@contextlib.contextmanager
+def filtered_process_environment() -> Iterator[None]:
+    """Run the body with `os.environ` replaced by the filtered git environment.
+
+    For delegated code that starts its own git processes and so inherits
+    `os.environ`: an exported `GIT_DIR` must not point it at another
+    repository. The original environment is restored on exit, whatever the
+    body raises.
+    """
+    saved = os.environ.copy()
+    filtered = _git_env()
+    os.environ.clear()
+    os.environ.update(filtered)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
 
 
 def _run(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:

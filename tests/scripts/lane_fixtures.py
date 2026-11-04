@@ -670,6 +670,10 @@ def seed_gate(
     the gate file, and the ledger holds one dispatch per distinct agent bound to
     it, stamped `age_seconds` before now (by default inside the hook's window).
     Writes only inside the lane's `.claude/`.
+
+    Provenance: the hash is the real `branch_diff_gate_hash`, whose correctness
+    the `review_gate_hash` tests cover; this only binds a gate to the lane's
+    current state.
     """
     gate_hash = gate_hash_of(lane_path, trunk_ref)
     write_gate_file(lane_path, gate_hash)

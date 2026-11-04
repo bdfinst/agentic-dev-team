@@ -21,6 +21,7 @@ import ast
 import importlib.util
 import io
 import json
+import os
 import subprocess
 import sys
 import types
@@ -64,6 +65,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import lane
 import lane_core
+import review_agent_registry
 
 NOT_IN_A_LANE = "not in a lane"
 UNCOMMITTED = "lane has uncommitted changes"
@@ -71,13 +73,35 @@ REVIEW_GATE = "review gate stale or missing"
 PR_HOOK_PATH = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_pr_review.py"
 
 
+def claude_snapshot(worktree: Path) -> list[tuple[str, bool, bytes | None]]:
+    """Every entry under `<worktree>/.claude`: (relative path, is a directory, bytes).
+
+    `unchanged_state` collapses an ignored directory to one status line, so it
+    cannot see a file written or changed inside `.claude/`; this can.
+    """
+    root = worktree / ".claude"
+    if not root.exists():
+        return []
+    return sorted(
+        (
+            str(entry.relative_to(root)),
+            entry.is_dir(),
+            None if entry.is_dir() else entry.read_bytes(),
+        )
+        for entry in root.rglob("*")
+    )
+
+
 def observed_state(composed: ComposedLane) -> dict[str, object]:
-    """What must be equal before and after a refused run: both worktrees, and
-    the gate file's bytes (None when absent)."""
+    """What must be equal before and after a refused run: both worktrees (git
+    state and everything under their `.claude/`), and the gate file's bytes
+    (None when absent)."""
     gate = composed.path / GATE_RELATIVE_PATH
     return {
         "lane": unchanged_state(composed.path),
         "trunk": unchanged_state(composed.repo.path),
+        "lane .claude": claude_snapshot(composed.path),
+        "trunk .claude": claude_snapshot(composed.repo.path),
         "gate": gate.read_bytes() if gate.is_file() else None,
     }
 
@@ -184,8 +208,20 @@ def load_pr_hook():
     """The PR hook module, loaded here independently of `lane.py`."""
     spec = importlib.util.spec_from_file_location("pr_hook_under_parity", PR_HOOK_PATH)
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    saved_path = list(sys.path)  # the hook puts its own lib directory first
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = saved_path
     return module
+
+
+def test_loading_the_hook_for_parity_leaves_sys_path_as_it_was():
+    before = list(sys.path)
+
+    load_pr_hook()
+
+    assert sys.path == before
 
 
 def hook_exit_code(composed: ComposedLane, monkeypatch) -> int:
@@ -279,6 +315,14 @@ def seed_doc_only_exemption(composed, trunk_hash):
     )
 
 
+def seed_dispatches_for_other_content(composed, trunk_hash):
+    seed_hash_only(composed, trunk_hash)
+    append_ledger(
+        composed.path,
+        [dispatch_row(agent, "e" * 64, 60) for agent in GATE_DISPATCH_AGENTS],
+    )
+
+
 def seed_dispatch_failure(composed, trunk_hash):
     seed_two_dispatches(composed, trunk_hash)
     append_ledger(
@@ -327,6 +371,11 @@ GATE_STATES = {
         "dispatch-evidence-stale",
     ),
     "right hash, doc-only exemption": (seed_doc_only_exemption, "notes.md", None),
+    "right hash, dispatches for other content": (
+        seed_dispatches_for_other_content,
+        "lane.txt",
+        "dispatch-evidence-different-content",
+    ),
     "right hash, dispatch-failure veto": (
         seed_dispatch_failure,
         "lane.txt",
@@ -341,6 +390,34 @@ GATE_STATES = {
 }
 
 
+def assert_gate_parity(composed, hook_rule, capsys, monkeypatch) -> None:
+    """The lane's gate check and the hook's `main()` decide alike on `composed`.
+
+    `hook_rule` is the `matched_rule` the hook logs when it blocks, None when it
+    accepts. An accepting hook removes the gate file (so it got as far as
+    `_evaluate_gate`); a rejecting one leaves it as it was.
+    """
+    gate = composed.path / GATE_RELATIVE_PATH
+    had_gate = gate.exists()
+    before = observed_state(composed)
+
+    lane_blocks = review_gate_blocks(composed, capsys)
+    assert observed_state(composed) == before
+    hook_code = hook_exit_code(composed, monkeypatch)
+
+    assert (hook_code == 0) == (hook_rule is None)
+    assert (lane_blocks == []) == (hook_code == 0)
+    if hook_rule is None:
+        assert not gate.exists()
+        return
+    assert gate.exists() == had_gate
+    assert hook_block_rule(composed) == hook_rule
+    (block,) = lane_blocks
+    assert f"(rule: {hook_rule})" in block["why"]
+    assert "PR_GATE_BYPASS_REASON" not in block["why"] + block["how"]
+    assert "gh pr create" not in block["why"] + block["how"]
+
+
 @pytest.mark.parametrize("state", sorted(GATE_STATES))
 def test_collect_the_gate_decision_equals_the_pr_hooks_decision(
     state, repo_with_origin, monkeypatch, capsys
@@ -350,20 +427,19 @@ def test_collect_the_gate_decision_equals_the_pr_hooks_decision(
         repo_with_origin, capsys, gate=False, lane_file=lane_file
     )
     seed(composed, gate_hash_of(composed.path, composed.trunk_ref))
-    before = observed_state(composed)
 
-    lane_blocks = review_gate_blocks(composed, capsys)
-    assert observed_state(composed) == before
-    hook_code = hook_exit_code(composed, monkeypatch)
+    assert_gate_parity(composed, hook_rule, capsys, monkeypatch)
 
-    assert (hook_code == 0) == (hook_rule is None)
-    assert (lane_blocks == []) == (hook_code == 0)
-    if hook_rule is not None:
-        assert hook_block_rule(composed) == hook_rule
-        (block,) = lane_blocks
-        assert f"(rule: {hook_rule})" in block["why"]
-        assert "PR_GATE_BYPASS_REASON" not in block["why"] + block["how"]
-        assert "gh pr create" not in block["why"] + block["how"]
+
+def test_collect_a_registry_that_cannot_be_read_is_the_hooks_registry_failure(
+    repo_with_origin, monkeypatch, capsys
+):
+    composed = composed_gated_lane(repo_with_origin, capsys)
+    monkeypatch.setattr(
+        review_agent_registry, "read_registered_review_agent_names", lambda _dir: None
+    )
+
+    assert_gate_parity(composed, "registry-read-failure", capsys, monkeypatch)
 
 
 @covers("review gate stale or missing")
@@ -495,18 +571,69 @@ def test_the_hooks_private_names_are_used_in_one_function_only():
     }
 
 
-def test_every_rule_the_hook_can_log_has_lane_wording():
-    tree = ast.parse(PR_HOOK_PATH.read_text(encoding="utf-8"))
-    rules = {
-        node.args[2].value
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and getattr(node.func, "id", None) == "GateVerdict"
-        and len(node.args) >= 3
-        and isinstance(node.args[2], ast.Constant)
-    }
+def gate_verdict_rules(source: str) -> set[str]:
+    """The `matched_rule` literal of every rejecting `GateVerdict(...)` call.
 
-    assert rules  # the scan found the hook's verdicts
+    Fails on a call whose rule is not a string constant: a rule given by
+    keyword, by variable, or left out (two positional arguments) would escape
+    the wording table unseen. The one-argument accepting form
+    `GateVerdict(True)` is the only call without a rule.
+    """
+    rules: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if not (
+            isinstance(node, ast.Call)
+            and getattr(node.func, "id", None) == "GateVerdict"
+        ):
+            continue
+        accepting = (
+            len(node.args) == 1
+            and not node.keywords
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value is True
+        )
+        if accepting:
+            continue
+        rule = node.args[2] if len(node.args) >= 3 else None
+        assert (
+            rule is not None
+            and not node.keywords
+            and isinstance(rule, ast.Constant)
+            and isinstance(rule.value, str)
+        ), f"GateVerdict rule is not a string constant: {ast.unparse(node)}"
+        rules.add(rule.value)
+    return rules
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        'GateVerdict(False, "m", rule)',
+        'GateVerdict(False, "m", matched_rule="r")',
+        'GateVerdict(False, "m")',
+        "GateVerdict(passed=False)",
+        "GateVerdict(False)",
+    ],
+)
+def test_the_rule_scan_rejects_a_verdict_whose_rule_is_not_a_constant(call):
+    with pytest.raises(AssertionError, match="not a string constant"):
+        gate_verdict_rules(call)
+
+
+def test_every_rule_the_hook_can_log_has_lane_wording():
+    rules = gate_verdict_rules(PR_HOOK_PATH.read_text(encoding="utf-8"))
+
+    assert rules == {
+        "pre-pr-review",
+        "gate-setup-failure-empty-digest",
+        "registry-read-failure",
+        "dispatch-failure-veto",
+        "dispatch-ledger-read-failure",
+        "dispatch-evidence-insufficient",
+        "dispatch-evidence-stale",
+        "dispatch-evidence-different-content",
+        "dispatch-evidence-missing",
+    }
     assert rules <= set(lane.GATE_RULE_WORDING)
 
 
@@ -516,6 +643,68 @@ def test_an_unknown_rule_still_names_the_rule():
 
 def test_the_gate_file_name_is_the_hooks():
     assert load_pr_hook()._GATE_FILE_NAME == GATE_RELATIVE_PATH.name
+
+
+def other_repository(tmp_path) -> Path:
+    path = tmp_path / "other-root"
+    path.mkdir()
+    return build_repo_without_remote(path).path
+
+
+def test_the_gate_verdict_ignores_an_exported_git_dir(
+    composed_with_origin, tmp_path, monkeypatch
+):
+    other = other_repository(tmp_path)
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+
+    assert collect(composed_with_origin) == []
+
+
+def test_the_gate_verdict_restores_the_environment_it_swapped(
+    composed_with_origin, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("GIT_DIR", str(other_repository(tmp_path) / ".git"))
+    before = dict(os.environ)
+
+    collect(composed_with_origin)
+
+    assert dict(os.environ) == before
+
+
+def test_the_gate_verdict_restores_the_environment_when_the_evaluation_raises(
+    composed_with_origin, tmp_path, monkeypatch
+):
+    def explode(*_args):
+        raise RuntimeError("evaluator broke")
+
+    hook = stand_in_hook(_evaluate_gate=explode)
+    monkeypatch.setattr(lane, "_load_pr_hook", lambda: hook)
+    monkeypatch.setenv("GIT_DIR", str(other_repository(tmp_path) / ".git"))
+    before = dict(os.environ)
+
+    collect(composed_with_origin)
+
+    assert dict(os.environ) == before
+
+
+def test_the_gate_verdicts_changed_file_list_runs_filtered_and_with_a_timeout(
+    composed_with_origin, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("GIT_DIR", str(other_repository(tmp_path) / ".git"))
+    seen: list[tuple[dict, str | None]] = []
+    real = lane.git_safe_diff.run_safe_git_diff
+
+    def spy(*args, **kwargs):
+        seen.append((kwargs, os.environ.get("GIT_DIR")))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(lane.git_safe_diff, "run_safe_git_diff", spy)
+
+    collect(composed_with_origin)
+
+    ((kwargs, git_dir),) = seen
+    assert kwargs["timeout"] == lane_core.GIT_TIMEOUT_SECONDS
+    assert git_dir is None
 
 
 @covers("tree mismatch")

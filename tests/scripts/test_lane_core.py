@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -1550,6 +1551,29 @@ def test_a_yes_or_no_reader_raises_on_a_git_failure_instead_of_saying_no(
         ask(repo_without_remote.path)
 
     assert failure.value.refusal.what == GIT_FAILED
+
+
+def test_the_filtered_environment_hides_git_dir_and_restores_everything(monkeypatch):
+    monkeypatch.setenv("GIT_DIR", "/elsewhere/.git")
+    monkeypatch.setenv("LANE_TEST_KEEP", "kept")
+    before = dict(os.environ)
+
+    with lane_core.filtered_process_environment():
+        assert "GIT_DIR" not in os.environ
+        assert os.environ["LANE_TEST_KEEP"] == "kept"
+        os.environ["LANE_TEST_ADDED"] = "inside"
+
+    assert dict(os.environ) == before
+
+
+def test_the_filtered_environment_is_restored_when_the_body_raises(monkeypatch):
+    monkeypatch.setenv("GIT_DIR", "/elsewhere/.git")
+    before = dict(os.environ)
+
+    with pytest.raises(RuntimeError), lane_core.filtered_process_environment():
+        raise RuntimeError("boom")
+
+    assert dict(os.environ) == before
 
 
 def test_branch_commit_names_a_local_branch_tip_and_not_a_tag(repo_without_remote):

@@ -296,6 +296,12 @@ def _restore_verified(snapshot: Snapshot, lane_path: Path) -> bool:
     try:
         if lane_core.merge_in_progress(lane_path):
             lane_core.git_ok(["merge", "--abort"], lane_path)
+    except lane_core.RefusalError:
+        # The probe failed. `reset --hard` below also ends a merge, and the
+        # verification decides whether the lane is back: a failed probe must
+        # not leave a failed merge standing.
+        pass
+    try:
         lane_core.git_ok(["reset", "--hard", snapshot.head], lane_path)
         return (
             _snapshot(lane_path) == snapshot
@@ -545,7 +551,11 @@ def _gate_rejection_why(matched_rule: str) -> str:
 def _changed_files(lane_path: Path, trunk_ref: str) -> list[str]:
     """The paths of the lane's diff against trunk; raises when git cannot say."""
     completed = git_safe_diff.run_safe_git_diff(
-        ["--name-only"], cwd=lane_path, text=True, target=f"{trunk_ref}...HEAD"
+        ["--name-only"],
+        cwd=lane_path,
+        text=True,
+        target=f"{trunk_ref}...HEAD",
+        timeout=lane_core.GIT_TIMEOUT_SECONDS,
     )
     if completed.returncode != 0:
         raise OSError(f"git diff exited {completed.returncode}")
@@ -566,32 +576,41 @@ def _gate_verdict(lane_path: Path, trunk_ref: str) -> lane_core.Refusal | None:
     unlinked (the hook's `main()` does that on success; `integrate` does it at
     apply time). `PR_GATE_BYPASS_REASON` lives in the hook's `main()`, which is
     never called, so it has no effect here.
+
+    The delegated code (hash, hook, `project_root`) starts its own git
+    processes, so the whole evaluation runs under the filtered git environment
+    (an exported `GIT_DIR` cannot redirect it), and the one call that takes a
+    timeout gets `GIT_TIMEOUT_SECONDS`.
     """
 
     def refusal(why: str) -> lane_core.Refusal:
         return lane_core.review_gate_refusal(trunk_ref, why)
 
     try:
-        hook = _load_pr_hook()
-        if hook.branch_diff_gate_hash is not review_gate_hash.branch_diff_gate_hash:
-            return refusal(
-                "the PR hook loaded in degraded mode, so its decision cannot be used"
+        with lane_core.filtered_process_environment():
+            hook = _load_pr_hook()
+            if hook.branch_diff_gate_hash is not review_gate_hash.branch_diff_gate_hash:
+                return refusal(
+                    "the PR hook loaded in degraded mode, so its decision cannot be used"
+                )
+            gate_hash = review_gate_hash.branch_diff_gate_hash(trunk_ref, cwd=lane_path)
+            if gate_hash == review_gate_hash.EMPTY_DIGEST:
+                return refusal(
+                    f"the lane has no diff against trunk {trunk_ref} to review "
+                    "(or git could not compute it)"
+                )
+            gate_file = artifact_paths.resolve_file(
+                "memory", hook._GATE_FILE_NAME, lane_path, migrate=False
             )
-        gate_hash = review_gate_hash.branch_diff_gate_hash(trunk_ref, cwd=lane_path)
-        if gate_hash == review_gate_hash.EMPTY_DIGEST:
-            return refusal(
-                f"the lane has no diff against trunk {trunk_ref} to review "
-                "(or git could not compute it)"
+            verdict = hook._evaluate_gate(
+                gate_file,
+                gate_hash,
+                str(lane_path),
+                _changed_files(lane_path, trunk_ref),
             )
-        gate_file = artifact_paths.resolve_file(
-            "memory", hook._GATE_FILE_NAME, lane_path, migrate=False
-        )
-        verdict = hook._evaluate_gate(
-            gate_file, gate_hash, str(lane_path), _changed_files(lane_path, trunk_ref)
-        )
-        if verdict.passed:
-            return None
-        return refusal(_gate_rejection_why(verdict.matched_rule))
+            if verdict.passed:
+                return None
+            return refusal(_gate_rejection_why(verdict.matched_rule))
     except Exception as failure:  # noqa: BLE001 - fail closed: nothing here may escape
         return refusal(
             f"the review gate could not be evaluated ({type(failure).__name__}: {failure})"

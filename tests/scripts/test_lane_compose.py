@@ -716,6 +716,61 @@ def test_the_unverified_report_after_a_non_merge_failure_omits_a_target_it_skipp
     assert pre_compose in block["why"]
 
 
+def fail_the_merge_probe_after_a_failed_merge(monkeypatch, times: int | None) -> None:
+    """`lane_core.merge_in_progress` raises (exit 128) from the first call after a
+    failed `merge`: `times` calls, or every call when None."""
+    real_attempt = lane_core.git_attempt
+    real = lane_core.merge_in_progress
+    state = {"merge_failed": False, "raised": 0}
+
+    def attempt(args, cwd):
+        result = real_attempt(args, cwd)
+        if args[:1] == ["merge"] and not result.ok:
+            state["merge_failed"] = True
+        return result
+
+    def probe(cwd):
+        if state["merge_failed"] and (times is None or state["raised"] < times):
+            state["raised"] += 1
+            raise_boom()
+        return real(cwd)
+
+    monkeypatch.setattr(lane_core, "git_attempt", attempt)
+    monkeypatch.setattr(lane_core, "merge_in_progress", probe)
+
+
+@covers("compose conflict")
+def test_a_failed_merge_probe_does_not_stop_the_reset_that_restores_the_lane(
+    repo_without_remote, capsys, monkeypatch
+):
+    lane_path = conflicting_lane(repo_without_remote)
+    before = unchanged_state(lane_path)
+    fail_the_merge_probe_after_a_failed_merge(monkeypatch, times=1)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    single_refusal(code, out, err, "compose conflict")
+    assert unchanged_state(lane_path) == before
+    assert not has_unfinished_merge(lane_path)
+
+
+@covers("compose restore unverified")
+def test_a_merge_probe_that_keeps_failing_still_resets_and_reports_unverified(
+    repo_without_remote, capsys, monkeypatch
+):
+    lane_path = conflicting_lane(repo_without_remote)
+    before = unchanged_state(lane_path)
+    pre_compose = git(lane_path, "rev-parse", "HEAD")
+    fail_the_merge_probe_after_a_failed_merge(monkeypatch, times=None)
+
+    code, out, err = run_main(["compose"], lane_path, capsys)
+
+    block = single_refusal(code, out, err, "compose restore unverified")
+    assert f"git reset --hard {pre_compose}" in block["how"]
+    assert unchanged_state(lane_path) == before
+    assert not has_unfinished_merge(lane_path)
+
+
 def test_an_interrupt_during_the_second_merge_restores_the_lane_and_propagates(
     repo_with_origin, capsys, monkeypatch
 ):
