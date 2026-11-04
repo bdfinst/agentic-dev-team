@@ -34,6 +34,15 @@ if _LIB_DIR not in sys.path:
 from stdin_json import read_stdin_json
 
 ESCAPE_ENV = "DEV_TEAM_FEATURE_RECORD_GUARD"
+HOOK_NAME = "feature_record_guard"
+RULE_ID = "feature-record-violation"
+MAX_BLOCKS = 5
+# Appended to every HOW line of an Edit refusal: the hook checks the state
+# after each write, so a change that is invalid midway must go in one write.
+EDIT_HOW_SUFFIX = (
+    " Make the change in a single Edit or Write;"
+    " the hook checks the state after each write."
+)
 
 PLAN = "plan"
 SPEC = "spec"
@@ -192,6 +201,38 @@ def decide(payload: dict, read_text) -> list[dict]:
     return record.introduced(known, check(after))
 
 
+def format_refusal(rel_path: str, found: list[dict], tool: str | None) -> str:
+    """Return the refusal text: a `[BLOCK]` header, then WHAT / WHY / HOW per
+    violation, at most `MAX_BLOCKS` of them. The words come from the violations
+    themselves, which `feature_record` fills from its one copy table."""
+    lines = [
+        f"[BLOCK] feature record: {rel_path} - {len(found)} violation(s) introduced"
+    ]
+    for violation in found[:MAX_BLOCKS]:
+        how = violation["how"] + (EDIT_HOW_SUFFIX if tool == "Edit" else "")
+        lines += [
+            "",
+            f"WHAT: {violation['what']}",
+            f"WHY: {violation['why']}",
+            f"HOW: {how}",
+        ]
+    if len(found) > MAX_BLOCKS:
+        lines += ["", f"and {len(found) - MAX_BLOCKS} more."]
+    return "\n".join(lines) + "\n"
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Record the refusal. A failing emitter, or a missing helper, must never
+    change this hook's exit code or output (same safety net as
+    `verify_guard.py`). The import is local so an allowed write never pays it."""
+    try:
+        from boundary_events import emit_boundary_event as _emit
+
+        _emit(*args, **kwargs)
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
+        pass
+
+
 def _skip(reason: str) -> int:
     sys.stderr.write(f"feature record check skipped: {reason}\n")
     return 0
@@ -218,11 +259,22 @@ def main() -> int:
         return _skip(f"{type(exc).__name__}: {detail}".rstrip(": "))
     if not found:
         return 0
-    sys.stderr.write(
-        f"[BLOCK] feature record: {target[1]} - {len(found)} violation(s) introduced\n"
+    tool = payload.get("tool_name")
+    message = format_refusal(target[1], found, tool)
+    # Stderr is what Claude Code surfaces on a block; stdout mirrors it as the
+    # hook contract asks of an exit-2 hook.
+    sys.stderr.write(message)
+    sys.stdout.write(message)
+    cwd = payload.get("cwd")
+    session_id = payload.get("session_id")
+    emit_boundary_event(
+        cwd if isinstance(cwd, str) and cwd else os.getcwd(),
+        HOOK_NAME,
+        tool if isinstance(tool, str) else "Write",
+        "block",
+        RULE_ID,
+        session_id if isinstance(session_id, str) else None,
     )
-    for violation in found:
-        sys.stderr.write(violation["what"] + "\n")
     return 2
 
 

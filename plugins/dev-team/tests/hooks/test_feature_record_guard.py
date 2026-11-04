@@ -1,7 +1,8 @@
 """Tests for hooks/feature_record_guard.py (#2275, Slice 4).
 
 Step 4.1 covers the path matcher, the payload layer and the no-work fast path;
-Step 4.2 the decision (what a write introduces) and its fail-open handling.
+Step 4.2 the decision (what a write introduces) and its fail-open handling;
+Step 4.3 the refusal text and the boundary event.
 """
 
 from __future__ import annotations
@@ -931,3 +932,205 @@ def test_a_generated_500_line_plan_is_checked_within_a_second(
         runs.append(time.perf_counter() - start)
         assert result == (0, "", "")
     assert min(runs) < 1.0, runs
+
+
+# ---------------------------------------------------------------------------
+# Step 4.3: refusal text (pinned copy) and the boundary event
+# ---------------------------------------------------------------------------
+
+NO_COVERS = tuple({**spec, "covers": ()} for spec in DEFAULT_SLICES)
+
+
+def _stranded_slice_two() -> str:
+    """Slice 2 has a scenario and no step; no `Covers` line, so nothing else breaks."""
+    return build_plan(
+        slices=(
+            NO_COVERS[0],
+            {"covers": (), "scenarios": 1, "steps": 0},
+            NO_COVERS[2],
+        )
+    )
+
+
+def _refusal(work, rel: str, content: str, **env) -> tuple[int, str, str]:
+    return work.write(rel, content, env or None)
+
+
+def test_refusal_text_for_scenario_no_step_is_the_pinned_copy(work) -> None:
+    path = work.put("plans/p.md", build_plan(slices=NO_COVERS))
+    before = path.read_bytes()
+    code, out, err = _refusal(work, "plans/p.md", _stranded_slice_two())
+    assert code == 2
+    assert err == (
+        "[BLOCK] feature record: plans/p.md - 1 violation(s) introduced\n"
+        "\n"
+        "WHAT: Slice 2 has a scenario and no step heading. [scenario-no-step]\n"
+        "WHY: A scenario with no step is behavior nobody is told to build.\n"
+        'HOW: Add a "#### Step 2.1: <title>" heading under **Steps:** in Slice 2.\n'
+    )
+    assert out == err
+    assert path.read_bytes() == before
+
+
+def test_refusal_text_for_ac_no_scenario_is_the_pinned_copy(work) -> None:
+    uncovered = build_plan(slices=(DEFAULT_SLICES[0], DEFAULT_SLICES[1], NO_COVERS[2]))
+    work.put("plans/p.md", build_plan())
+    code, _, err = _refusal(work, "plans/p.md", uncovered)
+    assert code == 2
+    assert err == (
+        "[BLOCK] feature record: plans/p.md - 1 violation(s) introduced\n"
+        "\n"
+        'WHAT: AC3 "Criterion 3" has no scenario: no step names it, or its '
+        "covering slices have none. [ac-no-scenario]\n"
+        "WHY: A criterion with no scenario has no behavior that proves it.\n"
+        'HOW: Add "**Covers**: AC3" to a step, and a Scenario: under '
+        "**Behavior:** in that step's slice.\n"
+    )
+
+
+def test_refusal_text_for_closed_slice_open_blocker_is_the_pinned_copy(work) -> None:
+    work.put("plans/p.md", build_plan())
+    blocked = build_plan(blockers=("Slice 2 - missing error path",), ticked=(2,))
+    code, _, err = _refusal(work, "plans/p.md", blocked)
+    assert code == 2
+    assert err == (
+        "[BLOCK] feature record: plans/p.md - 1 violation(s) introduced\n"
+        "\n"
+        "WHAT: Slice 2 is ticked done while an open blocker names it. "
+        "[closed-slice-open-blocker]\n"
+        "WHY: A critic blocker means the slice is not done.\n"
+        'HOW: Resolve the blocker and add "**Resolved blocker**: Slice 2 - <text>" '
+        "under ## Plan Review Summary, or untick Slice 2 under ## Build Progress.\n"
+    )
+
+
+def test_refusal_text_for_spec_missing_section_is_the_pinned_copy(work) -> None:
+    work.put("docs/specs/x.md", COMPLETE_SPEC)
+    code, _, err = _refusal(
+        work, "docs/specs/x.md", _spec_without("## Architecture Specification")
+    )
+    assert code == 2
+    assert err == (
+        "[BLOCK] feature record: docs/specs/x.md - 1 violation(s) introduced\n"
+        "\n"
+        'WHAT: The spec has no "## Architecture Specification" section, or it is '
+        "empty. [spec-missing-section]\n"
+        "WHY: A plan built on an incomplete spec has no intent or criteria to "
+        "check against.\n"
+        'HOW: Add "## Architecture Specification" with at least one line of text.\n'
+    )
+
+
+def test_an_edit_refusal_adds_the_single_write_advice_to_how(work) -> None:
+    work.put("plans/p.md", build_plan(slices=NO_COVERS))
+    code, _, err = work.edit("plans/p.md", "#### Step 2.1: step", "Step 2.1: step")
+    assert code == 2
+    how = [line for line in err.splitlines() if line.startswith("HOW:")]
+    assert how == [
+        (
+            'HOW: Add a "#### Step 2.1: <title>" heading under **Steps:** in Slice 2.'
+            " Make the change in a single Edit or Write;"
+            " the hook checks the state after each write."
+        )
+    ]
+
+
+def test_a_write_refusal_has_no_single_write_advice(work) -> None:
+    work.put("plans/p.md", build_plan(slices=NO_COVERS))
+    _, _, err = _refusal(work, "plans/p.md", _stranded_slice_two())
+    assert "single Edit or Write" not in err
+
+
+def test_a_refusal_lists_at_most_five_violations(work) -> None:
+    seven = build_plan(
+        slices=tuple({"covers": (), "scenarios": 1, "steps": 0} for _ in range(7)),
+        criteria=1,
+    )
+    code, _, err = _refusal(work, "plans/p.md", seven)
+    assert code == 2
+    lines = err.splitlines()
+    assert lines[0] == "[BLOCK] feature record: plans/p.md - 7 violation(s) introduced"
+    assert sum(line.startswith("WHAT:") for line in lines) == 5
+    assert sum(line.startswith("WHY:") for line in lines) == 5
+    assert sum(line.startswith("HOW:") for line in lines) == 5
+    assert lines[-1] == "and 2 more."
+    assert [ln for ln in lines if ln.startswith("WHAT:")][-1].startswith(
+        "WHAT: Slice 5 has"
+    )
+
+
+def test_exactly_five_violations_have_no_overflow_line(work) -> None:
+    five = build_plan(
+        slices=tuple({"covers": (), "scenarios": 1, "steps": 0} for _ in range(5)),
+        criteria=1,
+    )
+    _, _, err = _refusal(work, "plans/p.md", five)
+    assert "more." not in err
+    assert sum(line.startswith("WHAT:") for line in err.splitlines()) == 5
+
+
+def test_the_hook_holds_no_copy_of_the_pinned_words() -> None:
+    source = HOOK_PATH.read_text(encoding="utf-8")
+    for copy in hook._load_record().COPY.values():
+        for field in ("why", "how"):
+            assert copy[field] not in source
+
+
+def _events(root: Path) -> list[dict]:
+    log = root / ".claude" / "metrics" / "boundary-events.jsonl"
+    if not log.exists():
+        return []
+    return [json.loads(line) for line in log.read_text().splitlines()]
+
+
+def test_a_refusal_emits_one_boundary_event(work, monkeypatch, capsys) -> None:
+    work.put("plans/p.md", build_plan(slices=NO_COVERS))
+    payload = {
+        "tool_name": "Write",
+        "cwd": str(work.root),
+        "session_id": "sess-1",
+        "tool_input": {"file_path": "plans/p.md", "content": _stranded_slice_two()},
+    }
+    assert _run_main(monkeypatch, capsys, payload)[0] == 2
+    events = _events(work.root)
+    assert len(events) == 1
+    event = events[0]
+    assert {k: event[k] for k in ("hook", "tool", "decision", "matched_rule")} == {
+        "hook": "feature_record_guard",
+        "tool": "Write",
+        "decision": "block",
+        "matched_rule": "feature-record-violation",
+    }
+    assert event["session_id"] == "sess-1"
+
+
+def test_an_edit_refusal_records_the_edit_tool(work) -> None:
+    work.put("plans/p.md", build_plan(slices=NO_COVERS))
+    work.edit("plans/p.md", "#### Step 2.1: step", "Step 2.1: step")
+    assert [e["tool"] for e in _events(work.root)] == ["Edit"]
+
+
+def test_an_allowed_write_emits_no_event(work) -> None:
+    work.write("plans/p.md", build_plan())
+    assert _events(work.root) == []
+
+
+def test_a_failing_emitter_does_not_change_the_refusal(work, monkeypatch) -> None:
+    import boundary_events  # type: ignore[import-not-found]
+
+    work.put("plans/p.md", build_plan(slices=NO_COVERS))
+    with_emitter = _refusal(work, "plans/p.md", _stranded_slice_two())
+
+    def boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(boundary_events, "emit_boundary_event", boom)
+    assert _refusal(work, "plans/p.md", _stranded_slice_two()) == with_emitter
+    assert with_emitter[0] == 2
+
+
+def test_a_missing_event_helper_does_not_change_the_refusal(work, monkeypatch) -> None:
+    work.put("plans/p.md", build_plan(slices=NO_COVERS))
+    expected = _refusal(work, "plans/p.md", _stranded_slice_two())
+    monkeypatch.setitem(sys.modules, "boundary_events", None)  # import raises
+    assert _refusal(work, "plans/p.md", _stranded_slice_two()) == expected
