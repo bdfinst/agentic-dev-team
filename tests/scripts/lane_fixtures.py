@@ -7,6 +7,9 @@
 Both commit a `.gitignore` containing `.claude/` on trunk before any lane
 exists, so gate and ledger files never make a lane dirty.
 
+`GitFailure` makes, races or watches the calls of `lane_core._run`; the
+integrate builders and assertions are in `lane_fixtures_integrate.py`.
+
 The autouse fixtures here (`hermetic_process_env`, `argv_spy`,
 `enforce_covers`) apply only to a test module that imports them by name.
 
@@ -17,7 +20,6 @@ a plain importable module, like `_mutation_test_helpers.py`.
 from __future__ import annotations
 
 import ast
-import json
 import os
 import re
 import shlex
@@ -27,7 +29,6 @@ import sys
 import tempfile
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -41,11 +42,15 @@ if str(_SCRIPTS_DIR) not in sys.path:
 import lane
 import lane_core
 
+#: Every lane script, `lane_core.py` included; and the ones that are commands
+#: built on it (they must start no process and use only `lane_core`'s public names).
+LANE_SOURCES = sorted(_SCRIPTS_DIR.glob("lane*.py"))
+LANE_COMMAND_SOURCES = [path for path in LANE_SOURCES if path.name != "lane_core.py"]
+
 _HOOKS_LIB_DIR = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
-from review_gate_hash import branch_diff_gate_hash
 
 _HERMETIC_DIR = REPO_ROOT / "plugins" / "dev-team" / "tests" / "lib"
 if str(_HERMETIC_DIR) not in sys.path:
@@ -583,277 +588,97 @@ def merge_argvs(argv_spy: ArgvSpy, start: int) -> list[list[str]]:
     ]
 
 
-def stub_git_call(
-    monkeypatch,
-    name: str,
-    prefixes: Sequence[Sequence[str]],
-    outcome: Callable[[], object],
-) -> None:
-    """Make `lane_core.<name>` return `outcome()` for a call whose arguments start
-    with one of `prefixes`; every other call runs for real."""
-    real = getattr(lane_core, name)
+class GitFailure:
+    """Make, race or watch the calls of `lane_core._run`, the one seam every git call
+    of `lane_core` goes through.
 
-    def stubbed(args, cwd):
-        if any(list(args[: len(prefix)]) == list(prefix) for prefix in prefixes):
-            return outcome()
-        return real(args, cwd)
+    A call matches when its git arguments start with `prefix` (`[]` matches
+    every call) and, when `cwd` is given, it runs there. `matching` records the
+    argv of every match, so a test can assert that a failed command was
+    attempted exactly once. The `nth` match (1-based; `None` is every match) is
+    then:
 
-    monkeypatch.setattr(lane_core, name, stubbed)
+    - with `then`: a race. `then(argv, cwd)` runs first, for a real action
+      (a commit, a ref update) that lands between two steps of the tool, and
+      the real git call runs after it;
+    - with `raises`: that exception is raised, as `_run` does for a timeout;
+    - otherwise: git "answers" `exit_code`, `stdout` and `stderr` and the real
+      call does not run.
 
-
-def fail_git_ok_for(monkeypatch, *prefixes: Sequence[str]) -> None:
-    """`lane_core.git_ok` reports failure, and runs nothing, for these argument prefixes."""
-    stub_git_call(monkeypatch, "git_ok", prefixes, lambda: False)
-
-
-# --- builders for the integrate tests ---------------------------------------
-
-GATE_RELATIVE_PATH = Path(".claude") / "memory" / ".pr-review-passed"
-LEDGER_RELATIVE_PATH = Path(".claude") / "metrics" / "boundary-events.jsonl"
-#: Two distinct registered review agents: the PR hook counts distinct names.
-GATE_DISPATCH_AGENTS = ("security-review", "structure-review")
-GATE_DISPATCH_AGE_SECONDS = 60
-
-
-def ledger_row(
-    hook: str, decision: str, matched_rule: str, subject_hash: str, age_seconds: int
-) -> dict[str, str]:
-    """One boundary-events row stamped `age_seconds` before now."""
-    stamp = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
-    return {
-        "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "hook": hook,
-        "tool": "Agent",
-        "decision": decision,
-        "matched_rule": matched_rule,
-        "plugin_version": "0.0.0",
-        "subject_hash": subject_hash,
-    }
-
-
-def dispatch_row(agent: str, subject_hash: str, age_seconds: int) -> dict[str, str]:
-    """A genuine review-agent dispatch, as the dispatch ledger records it."""
-    return ledger_row(
-        "agent_dispatch_ledger", "record", agent, subject_hash, age_seconds
-    )
-
-
-def append_ledger(lane_path: Path, rows: Iterable[dict[str, str]]) -> None:
-    ledger = lane_path / LEDGER_RELATIVE_PATH
-    ledger.parent.mkdir(parents=True, exist_ok=True)
-    with ledger.open("a", encoding="utf-8") as stream:
-        for row in rows:
-            stream.write(json.dumps(row) + "\n")
-
-
-def gate_hash_of(lane_path: Path, trunk_ref: str) -> str:
-    """The real branch-diff gate hash of the lane against `trunk_ref`."""
-    return branch_diff_gate_hash(trunk_ref, cwd=lane_path)
-
-
-def write_gate_file(lane_path: Path, content: str) -> Path:
-    gate = lane_path / GATE_RELATIVE_PATH
-    gate.parent.mkdir(parents=True, exist_ok=True)
-    gate.write_text(content, encoding="utf-8")
-    return gate
-
-
-def seed_gate(
-    lane_path: Path,
-    trunk_ref: str,
-    agents: Sequence[str] = GATE_DISPATCH_AGENTS,
-    age_seconds: int = GATE_DISPATCH_AGE_SECONDS,
-) -> str:
-    """Write the PR review gate for the lane's current state; return its hash.
-
-    The hash is the real `branch_diff_gate_hash("<trunk_ref>")` of the lane, in
-    the gate file, and the ledger holds one dispatch per distinct agent bound to
-    it, stamped `age_seconds` before now (by default inside the hook's window).
-    Writes only inside the lane's `.claude/`.
-
-    Provenance: the hash is the real `branch_diff_gate_hash`, whose correctness
-    the `review_gate_hash` tests cover; this only binds a gate to the lane's
-    current state.
+    Every other call runs for real.
     """
-    gate_hash = gate_hash_of(lane_path, trunk_ref)
-    write_gate_file(lane_path, gate_hash)
-    append_ledger(
-        lane_path, [dispatch_row(agent, gate_hash, age_seconds) for agent in agents]
-    )
-    return gate_hash
+
+    def __init__(
+        self,
+        monkeypatch,
+        prefix: Sequence[str],
+        *,
+        nth: int | None = 1,
+        cwd: Path | None = None,
+        exit_code: int = 1,
+        stdout: str = "",
+        stderr: str = "injected failure\n",
+        raises: BaseException | None = None,
+        then: Callable[[list[str], Path], None] | None = None,
+    ) -> None:
+        self.matching: list[list[str]] = []
+        real = lane_core._run
+
+        def matches(argv: Sequence[str], where: Path) -> bool:
+            return list(argv[1 : 1 + len(prefix)]) == list(prefix) and (
+                cwd is None or Path(where).resolve() == cwd.resolve()
+            )
+
+        def run(argv, where):
+            if matches(argv, where):
+                self.matching.append(list(argv))
+                if nth is None or len(self.matching) == nth:
+                    if then is not None:
+                        then(list(argv), Path(where))
+                    elif raises is not None:
+                        raise raises
+                    else:
+                        return subprocess.CompletedProcess(
+                            argv, exit_code, stdout=stdout, stderr=stderr
+                        )
+            return real(argv, where)
+
+        # double-waiver: B1 - `lane_core._run` is the single `subprocess.run`
+        # wrapper: the git child process is an out-of-process handle a test
+        # cannot make fail, or race, at a chosen call any other way.
+        monkeypatch.setattr(lane_core, "_run", run)
 
 
-@dataclass(frozen=True)
-class ComposedLane:
-    """A lane after `compose`, with its gate seeded and the identities printed."""
+class UnlinkFailure:
+    """`Path.unlink` of one path raises `error`; `attempts` counts the tries."""
 
-    repo: Repo
-    path: Path
-    name: str
-    trunk_ref: str
-    expected_trunk: str
-    expected_tree: str
+    def __init__(self, monkeypatch, path: Path, error: OSError) -> None:
+        self.attempts = 0
+        real = Path.unlink
 
+        def unlink(this, *args, **kwargs):
+            if this == path:
+                self.attempts += 1
+                raise error
+            return real(this, *args, **kwargs)
 
-def composed_gated_lane(
-    repo: Repo,
-    capsys,
-    name: str = "feature",
-    gate: bool = True,
-    lane_file: str | None = "lane.txt",
-) -> ComposedLane:
-    """`main(open)`, one lane commit, `main(compose)`, then `seed_gate`.
-
-    The lane and its identities come from the tool's own stdout, as a user
-    gets them. `gate=False` leaves the lane without a gate file (and without
-    the `.claude/` directory the gate would create). `lane_file` is the one
-    file the lane commits; None commits nothing (an empty lane).
-    """
-    code, out, _ = run_main(["open", name], repo.path, capsys)
-    assert code == 0
-    path = Path(parse_output(out)["worktree"])
-    if lane_file is not None:
-        commit_file(path, lane_file, "lane\n", "lane work")
-    code, out, _ = run_main(["compose"], path, capsys)
-    assert code == 0
-    printed = parse_output(out)
-    trunk_ref = printed["trunk"]
-    if gate:
-        seed_gate(path, trunk_ref)
-    return ComposedLane(
-        repo=repo,
-        path=path,
-        name=name,
-        trunk_ref=trunk_ref,
-        expected_trunk=printed["expected-trunk"],
-        expected_tree=printed["expected-tree"],
-    )
+        monkeypatch.setattr(Path, "unlink", unlink)
 
 
-# --- builders and probes shared by the integrate tests ----------------------
+def fail_unlink_of(monkeypatch, path: Path, error: OSError) -> UnlinkFailure:
+    """Make removing `path` raise `error` (the standard library's `Path.unlink` is
+    patched, not a first-party function); every other unlink runs for real."""
+    return UnlinkFailure(monkeypatch, path, error)
+
 
 GITHUB_URL = "https://github.com/acme/widgets.git"
 
-#: Git subcommands that talk to a remote. An `integrate` run starts none.
-NETWORK_ARGV_PREFIXES = (
-    ["git", "fetch"],
-    ["git", "pull"],
-    ["git", "ls-remote"],
-    ["git", "push"],
-    ["git", "clone"],
-    ["git", "remote", "update"],
-)
+
+def set_origin_url(repo: Repo, url: str) -> None:
+    """Point the repository's `origin` at `url` (nothing is contacted)."""
+    git(repo.path, "remote", "set-url", "origin", url)
 
 
 def use_github_origin(repo: Repo, url: str = GITHUB_URL) -> None:
     """Point the repository's `origin` at a GitHub URL (nothing is contacted)."""
-    git(repo.path, "remote", "set-url", "origin", url)
-
-
-def leave_untracked_file(worktree: Path) -> None:
-    (worktree / "scratch.txt").write_text("x\n", encoding="utf-8")
-
-
-def edit_tracked_file(worktree: Path) -> None:
-    (worktree / "base.txt").write_text("edited\n", encoding="utf-8")
-
-
-def branch_exists_in(repo_path: Path, branch: str) -> bool:
-    return git_succeeds(
-        repo_path, "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"
-    )
-
-
-def claude_snapshot(worktree: Path) -> list[tuple[str, bool, bytes | None]]:
-    """Every entry under `<worktree>/.claude`: (relative path, is a directory, bytes).
-
-    `unchanged_state` collapses an ignored directory to one status line, so it
-    cannot see a file written or changed inside `.claude/`; this can.
-    """
-    root = worktree / ".claude"
-    if not root.exists():
-        return []
-    return sorted(
-        (
-            str(entry.relative_to(root)),
-            entry.is_dir(),
-            None if entry.is_dir() else entry.read_bytes(),
-        )
-        for entry in root.rglob("*")
-    )
-
-
-def integrate_argv(
-    composed: ComposedLane, *extra: str, **identities: str | None
-) -> list[str]:
-    """`integrate` with the composed identities; `expected_trunk=` / `expected_tree=`
-    override one (a value of None leaves its flag out)."""
-    given = {
-        "expected_trunk": composed.expected_trunk,
-        "expected_tree": composed.expected_tree,
-        **identities,
-    }
-    argv = ["integrate"]
-    for key, flag in (
-        ("expected_trunk", "--expected-trunk"),
-        ("expected_tree", "--expected-tree"),
-    ):
-        if given[key] is not None:
-            argv += [flag, given[key]]
-    return [*argv, *extra]
-
-
-def run_integrate(composed: ComposedLane, capsys, *extra: str, cwd=None, **identities):
-    """`main(["integrate", ...])` in the lane; `(exit code, stdout, stderr)`."""
-    argv = integrate_argv(composed, *extra, **identities)
-    return run_main(argv, cwd or composed.path, capsys)
-
-
-class InjectedGitFailure:
-    """Make the nth `lane_core._run` call whose git arguments start with `prefix`
-    fail (exit 1, "injected failure") without running it.
-
-    `matching` records every argv that matched, run or not, so a test can assert
-    the failed command was attempted once and never retried. Every other call
-    runs for real.
-    """
-
-    def __init__(self, monkeypatch, prefix: Sequence[str], nth: int = 1) -> None:
-        self.matching: list[list[str]] = []
-        real = lane_core._run
-
-        def run(argv, cwd):
-            if list(argv[1 : 1 + len(prefix)]) == list(prefix):
-                self.matching.append(list(argv))
-                if len(self.matching) == nth:
-                    return subprocess.CompletedProcess(
-                        argv, 1, stdout="", stderr="injected failure\n"
-                    )
-            return real(argv, cwd)
-
-        monkeypatch.setattr(lane_core, "_run", run)
-
-
-def observed_state(composed: ComposedLane) -> dict[str, object]:
-    """What must be equal before and after a refused run: both worktrees (git
-    state and everything under their `.claude/`), and the gate file's bytes
-    (None when absent)."""
-    gate = composed.path / GATE_RELATIVE_PATH
-    return {
-        "lane": unchanged_state(composed.path),
-        "trunk": unchanged_state(composed.repo.path),
-        "lane .claude": claude_snapshot(composed.path),
-        "trunk .claude": claude_snapshot(composed.repo.path),
-        "gate": gate.read_bytes() if gate.is_file() else None,
-    }
-
-
-def composed_with_origin_kind(tmp_path, capsys, origin: str, url: str | None = None):
-    """A composed, gated lane whose origin is `github`, `other` or `none`."""
-    if origin == "none":
-        return composed_gated_lane(build_repo_without_remote(tmp_path), capsys)
-    repo = build_repo_with_origin(tmp_path)
-    composed = composed_gated_lane(repo, capsys)
-    if origin == "github":
-        use_github_origin(repo, url or GITHUB_URL)
-    return composed
+    set_origin_url(repo, url)

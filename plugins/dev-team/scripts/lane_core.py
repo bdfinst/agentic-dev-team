@@ -10,7 +10,7 @@ every command shares:
   itself. `_run` holds the single `subprocess.run` call; `_git` guards the
   argv before it reaches `_run`. Two things are delegated and bypass the guard
   and this module's timeout: `review_gate_hash.default_base_ref` (trunk
-  resolution), and the review-gate computation in `lane.py` (`_gate_verdict`:
+  resolution), and the review-gate computation in `lane.py` (`_review_gate_refusal`:
   the gate hash, the changed-file list and the PR hook). The gate computation
   runs under `filtered_process_environment` and passes the timeout to the one
   call that takes one; a runtime spy in the tests covers both.
@@ -52,8 +52,13 @@ from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+# The one owner of the import-path setup for every lane*.py: `lane.py` imports
+# this module before any hooks/lib library, and this module puts `hooks/lib`
+# (and its own directory, for `git_origin_host`) on `sys.path` first.
 _HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(_HERE.parent / "hooks" / "lib"))
+for _import_dir in (_HERE.parent / "hooks" / "lib", _HERE):
+    if str(_import_dir) not in sys.path:
+        sys.path.insert(0, str(_import_dir))
 
 from review_gate_hash import default_base_ref
 
@@ -179,6 +184,16 @@ WHAT_REVIEW_GATE = "review gate stale or missing"
 WHAT_PR_REPOSITORY = "PR repository"
 WHAT_INVALID_IDENTITY_ARGUMENT = "invalid identity argument"
 WHAT_INTEGRATE_STEP_FAILED = "integrate step failed"
+
+#: The apply steps of `integrate`, by the name `done:` and the failure block use.
+STEP_FAST_FORWARD = "fast-forward"
+STEP_GATE_FILE_REMOVAL = "gate file removal"
+STEP_WORKTREE_REMOVAL = "worktree removal"
+STEP_BRANCH_DELETION = "branch deletion"
+
+#: `git merge-base --is-ancestor` and `git rev-parse --quiet` answer with these.
+GIT_ANSWER_YES = 0
+GIT_ANSWER_NO = 1
 
 #: Unicode categories `display_text` escapes: control (C0, DEL, C1), line
 #: separator (U+2028) and paragraph separator (U+2029).
@@ -457,7 +472,7 @@ def compose_restored_refusal(cause: Refusal) -> Refusal:
     )
 
 
-def _review_again(trunk_ref: str) -> str:
+def _review_again_how(trunk_ref: str) -> str:
     """The fix for an identity that no longer holds: the reviewer starts over."""
     return (
         f"run compose again, run /code-review --since {trunk_ref} inside the "
@@ -474,7 +489,22 @@ def tree_mismatch_refusal(expected: str, live: str, trunk_ref: str) -> Refusal:
             "the lane's tree is not the tree that was reviewed "
             f"(expected: {expected}, live: {live})"
         ),
-        how=_review_again(trunk_ref),
+        how=_review_again_how(trunk_ref),
+    )
+
+
+@_building(WHAT_TREE_MISMATCH)
+def lane_head_moved_refusal(reviewed: str, live: str, trunk_ref: str) -> Refusal:
+    """The lane gained a commit since the checks, and the new commit has the
+    reviewed tree: the tree is not the problem, the commit is."""
+    return Refusal(
+        what=WHAT_TREE_MISMATCH,
+        why=(
+            "the lane's HEAD commit moved since the checks ran, so the commit "
+            f"that was checked is no longer the lane's head (checked: {reviewed}, "
+            f"live: {live})"
+        ),
+        how=_review_again_how(trunk_ref),
     )
 
 
@@ -523,7 +553,7 @@ def trunk_moved_refusal(trunk_ref: str, expected: str, live: str) -> Refusal:
             f"trunk {trunk_ref} moved since compose "
             f"(expected: {expected}, live: {live})"
         ),
-        how=_review_again(trunk_ref),
+        how=_review_again_how(trunk_ref),
     )
 
 
@@ -572,13 +602,27 @@ def trunk_checked_out_nowhere_refusal(branch: str) -> Refusal:
 
 
 @_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
+def trunk_worktree_switched_refusal(branch: str, worktree: Path) -> Refusal:
+    """The worktree that had the trunk branch checked out when the checks ran
+    holds another branch (or a detached HEAD) now."""
+    return Refusal(
+        what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
+        why=f"the trunk worktree {worktree} no longer has {branch} checked out",
+        how=(
+            f"switch it back to {branch} (git switch {branch} in that worktree), "
+            "then run integrate again"
+        ),
+    )
+
+
+@_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
 def trunk_worktree_dirty_refusal(
-    branch: str, worktree: Path, paths: Sequence[str], merge_unfinished: bool = False
+    branch: str, worktree: Path, paths: Sequence[str], merge_in_progress: bool = False
 ) -> Refusal:
     """The worktree that has the trunk branch holds uncommitted changes, an
     unfinished merge, or both."""
     found = [listed_paths(paths)] if paths else []
-    if merge_unfinished:
+    if merge_in_progress:
         found.append(f"a merge is in progress ({MERGE_HEAD} exists)")
     return Refusal(
         what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
@@ -613,9 +657,9 @@ def invalid_identity_argument_refusal(problems: Sequence[tuple[str, str]]) -> Re
 def integrate_step_failed_refusal(step: str, command: str, detail: str) -> Refusal:
     """A step of the apply sequence failed after the checks passed.
 
-    `step` names it ("fast-forward", "gate file removal", ...), `command` is what
-    it ran (or would run), `detail` is why it failed. Re-running integrate is
-    no fix: the checks already passed and the steps before this one are done.
+    `step` is one of the `STEP_*` names, `command` is what it ran (or would
+    run), `detail` is why it failed. Re-running integrate is no fix: the checks
+    already passed and the steps before this one are done.
     """
     return Refusal(
         what=WHAT_INTEGRATE_STEP_FAILED,
@@ -624,6 +668,18 @@ def integrate_step_failed_refusal(step: str, command: str, detail: str) -> Refus
             "run the remaining commands listed below by hand, in order; "
             "re-running integrate is not the fix"
         ),
+    )
+
+
+@_building(WHAT_INTEGRATE_STEP_FAILED)
+def integrate_step_not_repeatable_refusal(step: str, detail: str, how: str) -> Refusal:
+    """A step declined, or left the trunk somewhere unexpected: running it, or
+    the steps after it, by hand would do what the step refused to do. No command
+    is offered; `how` says what to look at."""
+    return Refusal(
+        what=WHAT_INTEGRATE_STEP_FAILED,
+        why=f"{step} failed: {detail.strip() or NO_GIT_MESSAGE}",
+        how=how,
     )
 
 
@@ -702,12 +758,15 @@ def filtered_process_environment() -> Iterator[None]:
     `os.environ`: an exported `GIT_DIR` must not point it at another
     repository. The original environment is restored on exit, whatever the
     body raises.
+
+    The swap is process-global, so it assumes one thread: nothing in `lane.py`
+    starts a thread.
     """
     saved = os.environ.copy()
     filtered = _git_env()
-    os.environ.clear()
-    os.environ.update(filtered)
     try:
+        os.environ.clear()
+        os.environ.update(filtered)
         yield
     finally:
         os.environ.clear()
@@ -884,7 +943,7 @@ def _git_yes_or_no(args: Sequence[str], cwd: Path) -> subprocess.CompletedProces
     failed` refusal: a broken call must never read as "no".
     """
     completed = _git(args, cwd)
-    if completed.returncode not in (0, 1):
+    if completed.returncode not in (GIT_ANSWER_YES, GIT_ANSWER_NO):
         raise _failure(["git", *args], git_message(completed))
     return completed
 
@@ -947,7 +1006,7 @@ def is_ancestor(ancestor: str, descendant: str, cwd: Path) -> bool:
 def is_ancestor_strict(ancestor: str, descendant: str, cwd: Path) -> bool:
     """`is_ancestor`, but a git failure raises instead of reading as "not an ancestor"."""
     args = ["merge-base", "--is-ancestor", ancestor, descendant]
-    return _git_yes_or_no(args, cwd).returncode == 0
+    return _git_yes_or_no(args, cwd).returncode == GIT_ANSWER_YES
 
 
 def unmerged_paths(cwd: Path) -> list[str]:
@@ -986,7 +1045,7 @@ def merge_in_progress(cwd: Path) -> bool:
     A git failure raises; it is not "no merge in progress".
     """
     args = ["rev-parse", "--verify", "--quiet", MERGE_HEAD]
-    return _git_yes_or_no(args, cwd).returncode == 0
+    return _git_yes_or_no(args, cwd).returncode == GIT_ANSWER_YES
 
 
 def branch_commit(name: str, cwd: Path) -> str | None:
@@ -1000,7 +1059,7 @@ def branch_commit(name: str, cwd: Path) -> str | None:
         return None
     args = ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"]
     completed = _git_yes_or_no(args, cwd)
-    return completed.stdout.strip() if completed.returncode == 0 else None
+    return completed.stdout.strip() if completed.returncode == GIT_ANSWER_YES else None
 
 
 def require_work_tree(cwd: Path) -> None:

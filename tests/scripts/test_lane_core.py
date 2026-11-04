@@ -24,12 +24,15 @@ from pathlib import Path
 import pytest
 from lane_fixtures import (
     GIT_FAILED,
+    LANE_COMMAND_SOURCES,
     ORACLE_FORBIDDEN_TOKENS,
     ArgvSpy,
+    GitFailure,
     add_linked_worktree,
     argv_spy,
     bare_clone_of,
     commit_file,
+    conflicting_lane,
     covered_whats,
     enforce_covers,
     forbidden_hits,
@@ -44,7 +47,6 @@ from lane_fixtures import (
     repo_without_remote,
     skipped_covers,
     skipped_covers_in,
-    stub_git_call,
 )
 
 from _repo_root import REPO_ROOT
@@ -68,12 +70,8 @@ def resolve_trunk(arg: str | None, cwd: Path) -> str | None:
         return None
 
 
-TEST_SOURCES = [
-    TEST_DIR / "test_lane.py",
-    TEST_DIR / "test_lane_compose.py",
-    TEST_DIR / "test_lane_core.py",
-    TEST_DIR / "test_lane_integrate.py",
-]
+#: Every test module of the lane scripts: a split of one adds itself.
+TEST_SOURCES = sorted(TEST_DIR.glob("test_lane*.py"))
 
 #: Every `what` the finished tool can print. A `covers` literal outside this
 #: set is a typo; every key registered so far must be covered.
@@ -491,6 +489,8 @@ def test_a_failing_git_command_raises_a_refusal_with_every_stderr_line(
     failed = subprocess.CompletedProcess(
         args=["git"], returncode=128, stdout="", stderr="hint: noise\nfatal: boom\n\n"
     )
+    # double-waiver: B1 - `lane_core._run` is the single `subprocess.run` wrapper;
+    # the git child process is an out-of-process handle.
     monkeypatch.setattr(lane_core, "_run", lambda argv, cwd: failed)
 
     with pytest.raises(lane_core.RefusalError) as caught:
@@ -527,6 +527,8 @@ def test_git_attempt_and_a_checked_call_summarize_a_failure_the_same_way(
     monkeypatch, tmp_path
 ):
     failed = _completed(stdout="out line", stderr="hint: noise\nfatal: boom\n")
+    # double-waiver: B1 - `lane_core._run` is the single `subprocess.run` wrapper;
+    # the git child process is an out-of-process handle.
     monkeypatch.setattr(lane_core, "_run", lambda argv, cwd: failed)
 
     attempt = lane_core.git_attempt(["status"], tmp_path)
@@ -707,8 +709,9 @@ def test_run_is_the_only_process_call_in_lane_core():
     assert _spawning_calls(source) == 1
 
 
-def test_lane_starts_no_process_itself():
-    assert _spawning_calls((SCRIPTS_DIR / "lane.py").read_text(encoding="utf-8")) == 0
+@pytest.mark.parametrize("path", LANE_COMMAND_SOURCES, ids=lambda path: path.name)
+def test_a_lane_command_starts_no_process_itself(path):
+    assert _spawning_calls(path.read_text(encoding="utf-8")) == 0
 
 
 def test_no_subprocess_call_in_lane_core_uses_shell_true():
@@ -760,6 +763,9 @@ def test_lane_core_never_imports_lane():
         ["git", "checkout", "-B", "x"],
         ["git", "worktree", "add", "-B", "x", "/p"],
         ["git", "-c", "core.hookspath", "status"],
+        ["git", "commit", "--no-verify", "-m", "x"],
+        ["git", "-c", "core.hooksPath=/dev/null", "status"],
+        ["git", "merge", "--force", "x"],
     ],
 )
 def test_the_oracle_flags_a_forbidden_call(argv):
@@ -1242,8 +1248,9 @@ def test_branch_worktree_is_the_path_that_holds_the_branch_or_none(
 @pytest.fixture
 def without_worktree_listing(monkeypatch):
     """`git worktree list` gives nothing, so only the common directory is left."""
-    empty = subprocess.CompletedProcess([], 0, stdout="", stderr="")
-    stub_git_call(monkeypatch, "_git_checked", [["worktree", "list"]], lambda: empty)
+    GitFailure(
+        monkeypatch, ["worktree", "list"], nth=None, exit_code=0, stdout="", stderr=""
+    )
 
 
 def test_without_a_listing_a_dot_git_directory_gives_its_parent(
@@ -1447,79 +1454,110 @@ def test_is_ancestor_is_true_for_history_and_the_commit_itself_and_false_otherwi
     assert not lane_core.is_ancestor(newer, older, repo)
 
 
+def merging_a_conflicting_lane(repo) -> Path:
+    """The primary checkout (on trunk) and a lane that both edit `base.txt`; no
+    merge has started. Returns the primary checkout."""
+    conflicting_lane(repo)
+    return repo.path
+
+
+def start_the_conflicting_merge(repo_path: Path) -> None:
+    assert not git_succeeds(repo_path, "merge", "--no-edit", "feature")
+
+
+def test_unmerged_paths_is_empty_before_a_merge(repo_without_remote):
+    repo = merging_a_conflicting_lane(repo_without_remote)
+
+    assert lane_core.unmerged_paths(repo) == []
+
+
 def test_unmerged_paths_lists_the_conflicted_paths_of_a_merge_in_progress(
     repo_without_remote,
 ):
-    repo = repo_without_remote.path
-    git(repo, "switch", "-q", "-c", "other")
-    commit_file(repo, "base.txt", "other\n", "other edits base")
-    git(repo, "switch", "-q", "main")
-    commit_file(repo, "base.txt", "main\n", "main edits base")
-    assert lane_core.unmerged_paths(repo) == []
-
-    assert not git_succeeds(repo, "merge", "--no-edit", "other")
+    repo = merging_a_conflicting_lane(repo_without_remote)
+    start_the_conflicting_merge(repo)
 
     assert lane_core.unmerged_paths(repo) == ["base.txt"]
 
 
-def test_has_unmerged_entries_reads_the_index_not_a_diff(repo_without_remote):
-    repo = repo_without_remote.path
-    git(repo, "switch", "-q", "-c", "other")
-    commit_file(repo, "base.txt", "other\n", "other edits base")
-    git(repo, "switch", "-q", "main")
-    commit_file(repo, "base.txt", "main\n", "main edits base")
+def test_has_unmerged_entries_is_false_before_a_merge(repo_without_remote):
+    repo = merging_a_conflicting_lane(repo_without_remote)
+
     assert not lane_core.has_unmerged_entries(repo)
 
-    assert not git_succeeds(repo, "merge", "--no-edit", "other")
+
+def test_has_unmerged_entries_reads_the_index_not_a_diff(repo_without_remote):
+    repo = merging_a_conflicting_lane(repo_without_remote)
+    start_the_conflicting_merge(repo)
+
     assert lane_core.has_unmerged_entries(repo)
 
+
+def test_has_unmerged_entries_is_false_again_after_the_merge_is_aborted(
+    repo_without_remote,
+):
+    repo = merging_a_conflicting_lane(repo_without_remote)
+    start_the_conflicting_merge(repo)
     git(repo, "merge", "--abort")
+
     assert not lane_core.has_unmerged_entries(repo)
 
 
-def test_local_files_a_merge_would_overwrite_are_the_added_paths_that_exist(
-    repo_without_remote,
-):
+@pytest.fixture
+def other_branch_adding_two_files(repo_without_remote) -> tuple[Path, str]:
+    """`(primary checkout on main, commit of a branch that adds new.txt and absent.txt)`."""
     repo = repo_without_remote.path
     git(repo, "switch", "-q", "-c", "other")
     commit_file(repo, "new.txt", "new\n", "other adds new")
     commit_file(repo, "absent.txt", "absent\n", "other adds absent")
     git(repo, "switch", "-q", "main")
-    other = git(repo, "rev-parse", "other")
-    (repo / "new.txt").write_text("mine\n")
-    assert lane_core.local_files_a_merge_would_overwrite(other, repo) == ["new.txt"]
-    (repo / "new.txt").unlink()
-    (repo / "absent.txt").write_text("mine\n")
-    assert lane_core.local_files_a_merge_would_overwrite(other, repo) == ["absent.txt"]
-    (repo / "absent.txt").unlink()
+    return repo, git(repo, "rev-parse", "other")
+
+
+@pytest.mark.parametrize("present", ["new.txt", "absent.txt"])
+def test_local_files_a_merge_would_overwrite_are_the_added_paths_that_exist(
+    present, other_branch_adding_two_files
+):
+    repo, other = other_branch_adding_two_files
+    (repo / present).write_text("mine\n")
+
+    assert lane_core.local_files_a_merge_would_overwrite(other, repo) == [present]
+
+
+def test_local_files_a_merge_would_overwrite_is_empty_when_no_added_path_exists(
+    other_branch_adding_two_files,
+):
+    repo, other = other_branch_adding_two_files
 
     assert lane_core.local_files_a_merge_would_overwrite(other, repo) == []
 
 
-def test_merge_in_progress_is_true_only_between_a_merge_and_its_conclusion(
-    repo_without_remote,
-):
-    repo = repo_without_remote.path
-    git(repo, "switch", "-q", "-c", "other")
-    commit_file(repo, "other.txt", "other\n", "other")
-    git(repo, "switch", "-q", "main")
-    commit_file(repo, "main.txt", "main\n", "main")
+def test_merge_in_progress_is_false_before_a_merge(repo_without_remote):
+    repo = merging_a_conflicting_lane(repo_without_remote)
+
     assert not lane_core.merge_in_progress(repo)
 
-    git(repo, "merge", "--no-commit", "--no-ff", "other")
+
+def test_merge_in_progress_is_true_after_a_merge_starts(repo_without_remote):
+    repo = merging_a_conflicting_lane(repo_without_remote)
+    start_the_conflicting_merge(repo)
+
     assert lane_core.merge_in_progress(repo)
 
+
+def test_merge_in_progress_is_false_again_after_the_merge_is_aborted(
+    repo_without_remote,
+):
+    repo = merging_a_conflicting_lane(repo_without_remote)
+    start_the_conflicting_merge(repo)
     git(repo, "merge", "--abort")
+
     assert not lane_core.merge_in_progress(repo)
 
 
 def fail_every_git_call(monkeypatch):
-    """Every `_git` call exits 128, as git does when it cannot answer at all."""
-    monkeypatch.setattr(
-        lane_core,
-        "_git",
-        lambda args, cwd: subprocess.CompletedProcess(args, 128, "", "fatal: injected"),
-    )
+    """Every git call exits 128, as git does when it cannot answer at all."""
+    GitFailure(monkeypatch, [], nth=None, exit_code=128, stderr="fatal: injected\n")
 
 
 def test_is_ancestor_strict_answers_like_is_ancestor_and_raises_on_a_git_failure(
@@ -1612,6 +1650,8 @@ def test_git_attempt_reports_a_failure_with_every_stderr_line(monkeypatch, tmp_p
     failed = subprocess.CompletedProcess(
         args=["git"], returncode=1, stdout="", stderr="hook said no\n\nNot committing\n"
     )
+    # double-waiver: B1 - `lane_core._run` is the single `subprocess.run` wrapper;
+    # the git child process is an out-of-process handle.
     monkeypatch.setattr(lane_core, "_run", lambda argv, cwd: failed)
 
     attempt = lane_core.git_attempt(["merge", "x"], tmp_path)
@@ -1627,6 +1667,8 @@ def test_git_attempt_falls_back_to_the_last_stdout_line(monkeypatch, tmp_path):
         stdout="CONFLICT in a\nAutomatic merge failed\n",
         stderr="",
     )
+    # double-waiver: B1 - `lane_core._run` is the single `subprocess.run` wrapper;
+    # the git child process is an out-of-process handle.
     monkeypatch.setattr(lane_core, "_run", lambda argv, cwd: failed)
 
     assert lane_core.git_attempt(["merge", "x"], tmp_path).detail == (
@@ -1668,17 +1710,13 @@ def test_origin_url_is_empty_without_an_origin(repo_without_remote):
     assert lane_core.origin_url(repo_without_remote.path) == ""
 
 
-def raise_git_failure():
-    raise lane_core.RefusalError(
-        lane_core.git_command_failed_refusal("git remote", "fatal: injected")
-    )
-
-
 @pytest.mark.parametrize("failing", [["remote"], ["remote", "get-url"]])
 def test_origin_url_raises_on_a_git_failure_instead_of_saying_there_is_no_origin(
     failing, repo_with_origin, monkeypatch
 ):
-    stub_git_call(monkeypatch, "git_text", [failing], raise_git_failure)
+    GitFailure(
+        monkeypatch, failing, nth=None, exit_code=128, stderr="fatal: injected\n"
+    )
 
     with pytest.raises(lane_core.RefusalError) as failure:
         lane_core.origin_url(repo_with_origin.path)

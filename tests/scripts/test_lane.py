@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 from lane_fixtures import (
     GIT_FAILED,
+    LANE_COMMAND_SOURCES,
     add_linked_worktree,
     argv_spy,
     commit_file,
@@ -200,7 +201,7 @@ def test_lane_imports_only_stdlib_lane_core_the_origin_classifier_and_the_gate_l
     """The whitelist of plan decision 1 and A7, as far as this module uses it.
 
     The three `hooks/lib` modules are the review gate's; `pre_pr_review` is
-    loaded by path inside `_gate_verdict` and is not an import.
+    loaded by path inside `_review_gate_refusal` and is not an import.
     """
     modules = imported_modules(SCRIPTS_DIR / "lane.py")
 
@@ -257,10 +258,15 @@ def test_the_seam_check_sees_private_core_references(source, expected):
     assert private_core_references(source) == expected
 
 
-def test_lane_reaches_lane_core_only_through_its_public_names():
-    source = (SCRIPTS_DIR / "lane.py").read_text(encoding="utf-8")
+@pytest.mark.parametrize("path", LANE_COMMAND_SOURCES, ids=lambda path: path.name)
+def test_a_lane_command_reaches_lane_core_only_through_its_public_names(path):
+    source = path.read_text(encoding="utf-8")
 
     assert private_core_references(source) - ALLOWED_PRIVATE_CORE_NAMES == set()
+
+
+def test_the_lane_scan_finds_the_command_script():
+    assert "lane.py" in [path.name for path in LANE_COMMAND_SOURCES]
 
 
 # --- open: the new lane -----------------------------------------------------

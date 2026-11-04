@@ -22,6 +22,7 @@ from lane_fixtures import (
     GIT_FAILED,
     HOOK_SENTINEL,
     REJECT_HOOK,
+    GitFailure,
     add_linked_worktree,
     advance_origin,
     advance_trunk,
@@ -33,7 +34,6 @@ from lane_fixtures import (
     covers,
     default_lane_dir,
     enforce_covers,
-    fail_git_ok_for,
     git,
     has_unfinished_merge,
     hermetic_process_env,
@@ -49,7 +49,6 @@ from lane_fixtures import (
     repo_without_remote,
     run_main,
     single_refusal,
-    stub_git_call,
     unchanged_state,
     use_github_origin,
 )
@@ -483,7 +482,7 @@ def test_a_merge_failure_whose_unmerged_paths_cannot_be_listed_still_restores_th
 ):
     lane_path = conflicting_lane(repo_without_remote)
     before = unchanged_state(lane_path)
-    stub_git_call(monkeypatch, "git_text", [["diff", "--name-only"]], raise_boom)
+    GitFailure(monkeypatch, ["diff", "--name-only"], stderr="boom\n")
 
     code, out, err = run_main(["compose"], lane_path, capsys)
 
@@ -505,7 +504,7 @@ def test_a_conflict_whose_restore_does_not_take_effect_is_reported_as_unverified
 ):
     lane_path = conflicting_lane(repo_with_origin, with_origin=True)
     pre_compose = git(lane_path, "rev-parse", "HEAD")
-    fail_git_ok_for(monkeypatch, ["reset"])
+    GitFailure(monkeypatch, ["reset"], nth=None)
 
     code, out, err = run_main(["compose"], lane_path, capsys)
 
@@ -532,7 +531,7 @@ def test_a_rejected_merge_whose_restore_does_not_take_effect_is_reported_as_unve
         rejecting_nth_merge_hook(tmp_path / "hook-calls"),
     )
     pre_compose = git(lane_path, "rev-parse", "HEAD")
-    fail_git_ok_for(monkeypatch, ["reset"])
+    GitFailure(monkeypatch, ["reset"], nth=None)
 
     code, out, err = run_main(["compose"], lane_path, capsys)
 
@@ -546,7 +545,8 @@ def test_a_rejected_merge_whose_restore_does_not_take_effect_is_reported_as_unve
 @pytest.fixture
 def restore_commands_do_nothing(monkeypatch):
     """`merge --abort` and `reset` report failure and change nothing."""
-    fail_git_ok_for(monkeypatch, ["reset"], ["merge", "--abort"])
+    GitFailure(monkeypatch, ["reset"], nth=None)
+    GitFailure(monkeypatch, ["merge", "--abort"], nth=None)
 
 
 def test_the_restore_undoes_a_merged_index_that_has_no_merge_head(
@@ -684,7 +684,7 @@ def test_a_failure_after_a_merge_with_a_restore_that_fails_is_reported_as_unveri
     lane_path = lane_needing_two_merges(repo_with_origin)
     pre_compose = git(lane_path, "rev-parse", "HEAD")
     fail_once_a_merge_has_succeeded(monkeypatch, "is_ancestor")
-    fail_git_ok_for(monkeypatch, ["reset"])
+    GitFailure(monkeypatch, ["reset"], nth=None)
 
     code, out, err = run_main(["compose"], lane_path, capsys)
 
@@ -707,7 +707,7 @@ def test_the_unverified_report_after_a_non_merge_failure_omits_a_target_it_skipp
     advance_trunk(repo_with_origin, "local.txt")
     pre_compose = git(lane_path, "rev-parse", "HEAD")
     fail_once_a_merge_has_succeeded(monkeypatch, "head_tree")
-    fail_git_ok_for(monkeypatch, ["reset"])
+    GitFailure(monkeypatch, ["reset"], nth=None)
 
     code, out, err = run_main(["compose"], lane_path, capsys)
 
@@ -779,7 +779,7 @@ def test_a_failed_origin_lookup_after_a_merge_restores_the_lane_instead_of_print
     lane_path = open_origin_lane(repo_with_origin)
     advance_origin(repo_with_origin)
     before = unchanged_state(lane_path)
-    stub_git_call(monkeypatch, "git_text", [["remote", "get-url"]], raise_boom)
+    GitFailure(monkeypatch, ["remote", "get-url"], nth=None, stderr="boom\n")
 
     code, out, err = run_main(["compose"], lane_path, capsys)
 
@@ -794,7 +794,7 @@ def test_a_failed_origin_lookup_with_nothing_to_merge_prints_no_next_line(
 ):
     lane_path = open_origin_lane(repo_with_origin)
     before = unchanged_state(lane_path)
-    stub_git_call(monkeypatch, "git_text", [["remote", "get-url"]], raise_boom)
+    GitFailure(monkeypatch, ["remote", "get-url"], nth=None, stderr="boom\n")
 
     code, out, err = run_main(["compose"], lane_path, capsys)
 
@@ -836,7 +836,14 @@ def test_a_failure_before_any_merge_runs_no_restore(
     git(repo_without_remote.path, "tag", "v1", "main")
     before = unchanged_state(lane_path)
     # A tag has no local branch, so only the merge loop asks about ancestry.
-    stub_git_call(monkeypatch, "git_ok", [["merge-base"]], raise_boom)
+    GitFailure(
+        monkeypatch,
+        ["merge-base"],
+        nth=None,
+        raises=lane_core.RefusalError(
+            lane_core.git_command_failed_refusal("git merge-base", "boom")
+        ),
+    )
     records_before = len(argv_spy.records)
 
     code, out, err = run_main(["compose", "--trunk", "v1"], lane_path, capsys)

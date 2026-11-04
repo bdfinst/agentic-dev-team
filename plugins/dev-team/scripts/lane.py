@@ -7,7 +7,7 @@ refusals exit 1 (blocks on stderr), success 0.
 Import whitelist (pinned by an AST test): the standard library, `lane_core`,
 `git_origin_host` and, from the plugin's `hooks/lib`, `artifact_paths`,
 `git_safe_diff` and `review_gate_hash`. The PR hook `hooks/pre_pr_review.py`
-is loaded by path inside `_gate_verdict`, never imported. Stdlib only
+is loaded by path inside `_review_gate_refusal`, never imported. Stdlib only
 otherwise. See ADR 0014 and ADR 0031.
 """
 
@@ -22,17 +22,20 @@ import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeVar
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent
-_HOOKS_DIR = _SCRIPTS_DIR.parent / "hooks"
-for _import_dir in (_HOOKS_DIR / "lib", _SCRIPTS_DIR):
-    if str(_import_dir) not in sys.path:
-        sys.path.insert(0, str(_import_dir))
+_HOOKS_DIR = Path(__file__).resolve().parent.parent / "hooks"
+
+# `lane_core` first: it is the one owner of the import-path setup (it puts
+# hooks/lib and this directory on sys.path), so the hooks/lib libraries below
+# resolve only after it has been imported.
+import lane_core
+
+# isort: split
 
 import artifact_paths
 import git_origin_host
 import git_safe_diff
-import lane_core
 import review_gate_hash
 
 #: Between the primary checkout's name and the lane name in a default path.
@@ -71,8 +74,19 @@ IDENTITY_PATTERN = re.compile(r"[0-9a-f]{40}")
 EXPECTED_TRUNK_FLAG = "--expected-trunk"
 EXPECTED_TREE_FLAG = "--expected-tree"
 
+#: The keys of `integrate`'s output lines, success and failure.
+KEY_TRUNK = "trunk"
+KEY_FORMER_HEAD = "former-head"
+KEY_NOW_AT = "now-at"
+KEY_CONTINUE_IN = "continue-in"
+KEY_RECOVER = "recover"
+LINE_DONE = "done"
+LINE_REMAINING = "remaining"
+#: `done:` names this when no step has finished.
+NOTHING = "nothing"
+
 #: Last line of a successful `integrate`: nothing was published.
-PUSHED_NOTHING = "pushed: nothing; run git push yourself if wanted"
+PUSHED_NOTHING_LINE = "pushed: nothing; run git push yourself if wanted"
 
 #: The PR hook's gate file, which `integrate` removes with the lane. A test
 #: pins it to the hook's own `_GATE_FILE_NAME`.
@@ -197,10 +211,10 @@ def _enter_lane(trunk_arg: str | None, cwd: Path) -> EnteredLane:
 def _dirty_refusal(lane_path: Path) -> lane_core.Refusal | None:
     """Why the lane is not clean: uncommitted changes or an unfinished merge."""
     dirty = lane_core.dirty_paths(lane_path)
-    unfinished = lane_core.merge_in_progress(lane_path)
-    if not dirty and not unfinished:
+    merge_in_progress = lane_core.merge_in_progress(lane_path)
+    if not dirty and not merge_in_progress:
         return None
-    if unfinished:
+    if merge_in_progress:
         return lane_core.unfinished_merge_refusal(dirty)
     return lane_core.lane_has_uncommitted_changes_refusal(dirty)
 
@@ -231,8 +245,8 @@ def _configure_compose(parser: argparse.ArgumentParser) -> None:
 def _integrate_command(entered: EnteredLane, tree: str) -> str:
     """The `integrate` line a reviewer runs next; `--trunk` only when it was given."""
     command = (
-        f"lane.py integrate --expected-trunk {entered.trunk_commit} "
-        f"--expected-tree {tree}"
+        f"lane.py integrate {EXPECTED_TRUNK_FLAG} {entered.trunk_commit} "
+        f"{EXPECTED_TREE_FLAG} {tree}"
     )
     if entered.trunk_arg is None:
         return command
@@ -530,12 +544,20 @@ def _check_tree_matches(ctx: CheckContext) -> lane_core.Refusal | None:
 
 
 def _load_pr_hook():
-    """The PR hook module, executed from its file. Nothing is registered in `sys.modules`."""
+    """The PR hook module, executed from its file. Nothing is registered in `sys.modules`.
+
+    The hook puts its own directories on `sys.path` when it runs; `sys.path`
+    is restored afterwards, so repeated loads in one process do not grow it.
+    """
     spec = importlib.util.spec_from_file_location(PR_HOOK_MODULE, PR_HOOK_PATH)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load {PR_HOOK_PATH}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    saved_path = list(sys.path)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = saved_path
     return module
 
 
@@ -571,12 +593,14 @@ GATE_RULE_WORDING = {
         "no review-agent dispatch was recorded for this content"
     ),
 }
-GATE_RULE_UNKNOWN = "the PR review gate rejected this lane"
+GATE_RULE_FALLBACK_WORDING = "the PR review gate rejected this lane"
+#: Shown as the rule when the hook gave no `matched_rule`.
+NO_RULE_NAMED = "none given"
 
 
 def _gate_rejection_why(matched_rule: str) -> str:
-    wording = GATE_RULE_WORDING.get(matched_rule, GATE_RULE_UNKNOWN)
-    return f"{wording} (rule: {matched_rule or 'none given'})"
+    wording = GATE_RULE_WORDING.get(matched_rule, GATE_RULE_FALLBACK_WORDING)
+    return f"{wording} (rule: {matched_rule or NO_RULE_NAMED})"
 
 
 def _changed_files(lane_path: Path, trunk_ref: str) -> list[str]:
@@ -593,7 +617,7 @@ def _changed_files(lane_path: Path, trunk_ref: str) -> list[str]:
     return [line for line in completed.stdout.splitlines() if line]
 
 
-def _gate_verdict(lane_path: Path, trunk_ref: str) -> lane_core.Refusal | None:
+def _review_gate_refusal(lane_path: Path, trunk_ref: str) -> lane_core.Refusal | None:
     """The refusal when the PR review gate would reject this lane, else None.
 
     The same decision as `pre_pr_review`'s `main()` for the lane's diff against
@@ -614,19 +638,19 @@ def _gate_verdict(lane_path: Path, trunk_ref: str) -> lane_core.Refusal | None:
     timeout gets `GIT_TIMEOUT_SECONDS`.
     """
 
-    def refusal(why: str) -> lane_core.Refusal:
+    def _refuse(why: str) -> lane_core.Refusal:
         return lane_core.review_gate_refusal(trunk_ref, why)
 
     try:
         with lane_core.filtered_process_environment():
             hook = _load_pr_hook()
             if hook.branch_diff_gate_hash is not review_gate_hash.branch_diff_gate_hash:
-                return refusal(
+                return _refuse(
                     "the PR hook loaded in degraded mode, so its decision cannot be used"
                 )
             gate_hash = review_gate_hash.branch_diff_gate_hash(trunk_ref, cwd=lane_path)
             if gate_hash == review_gate_hash.EMPTY_DIGEST:
-                return refusal(
+                return _refuse(
                     f"the lane has no diff against trunk {trunk_ref} to review "
                     "(or git could not compute it)"
                 )
@@ -641,16 +665,16 @@ def _gate_verdict(lane_path: Path, trunk_ref: str) -> lane_core.Refusal | None:
             )
             if verdict.passed:
                 return None
-            return refusal(_gate_rejection_why(verdict.matched_rule))
+            return _refuse(_gate_rejection_why(verdict.matched_rule))
     except Exception as failure:  # noqa: BLE001 - fail closed: nothing here may escape
-        return refusal(
+        return _refuse(
             f"the review gate could not be evaluated ({type(failure).__name__}: {failure})"
         )
 
 
 def _check_review_gate(ctx: CheckContext) -> lane_core.Refusal | None:
     context = ctx.entered.context
-    return _gate_verdict(context.lane_path, context.trunk_ref)
+    return _review_gate_refusal(context.lane_path, context.trunk_ref)
 
 
 def _check_trunk_has_not_moved(ctx: CheckContext) -> lane_core.Refusal | None:
@@ -661,6 +685,37 @@ def _check_trunk_has_not_moved(ctx: CheckContext) -> lane_core.Refusal | None:
     return lane_core.trunk_moved_refusal(
         entered.context.trunk_ref, ctx.expected_trunk, entered.trunk_commit
     )
+
+
+def _trunk_target(
+    context: lane_core.LaneContext,
+) -> tuple[str, str] | lane_core.Refusal:
+    """`(trunk branch, its tip commit)`, or the refusal saying it does not exist.
+
+    The one lookup of the branch `integrate` fast-forwards: check 5 and the
+    plan both ask it, so the two cannot disagree about what is missing.
+    """
+    trunk_branch = context.trunk_branch
+    if trunk_branch is None:
+        return lane_core.trunk_branch_missing_refusal(context.trunk_ref, None)
+    trunk_tip = lane_core.branch_commit(trunk_branch, context.lane_path)
+    if trunk_tip is None:
+        return lane_core.trunk_branch_missing_refusal(context.trunk_ref, trunk_branch)
+    return trunk_branch, trunk_tip
+
+
+def _trunk_worktree(trunk_branch: str, lane_path: Path) -> Path | lane_core.Refusal:
+    """The worktree that has the trunk branch checked out, or the refusal."""
+    trunk_worktree = lane_core.branch_worktree(trunk_branch, lane_path)
+    if trunk_worktree is None:
+        return lane_core.trunk_checked_out_nowhere_refusal(trunk_branch)
+    return trunk_worktree
+
+
+def _require(refusal: lane_core.Refusal | None) -> None:
+    """Raise `refusal` as a `RefusalError`; do nothing for None."""
+    if refusal is not None:
+        raise lane_core.RefusalError(refusal)
 
 
 def _check_trunk_fast_forwards(ctx: CheckContext) -> lane_core.Refusal | None:
@@ -674,22 +729,20 @@ def _check_trunk_fast_forwards(ctx: CheckContext) -> lane_core.Refusal | None:
     """
     context = ctx.entered.context
     lane_path = context.lane_path
-    branch = context.trunk_branch
-    if branch is None:
-        return lane_core.trunk_branch_missing_refusal(context.trunk_ref, None)
-    branch_commit = lane_core.branch_commit(branch, lane_path)
-    if branch_commit is None:
-        return lane_core.trunk_branch_missing_refusal(context.trunk_ref, branch)
-    if not lane_core.is_ancestor_strict(branch_commit, "HEAD", lane_path):
-        return lane_core.trunk_not_an_ancestor_refusal(branch, context.trunk_ref)
-    worktree = lane_core.branch_worktree(branch, lane_path)
-    if worktree is None:
-        return lane_core.trunk_checked_out_nowhere_refusal(branch)
-    dirty = lane_core.dirty_paths(worktree)
-    unfinished = lane_core.merge_in_progress(worktree)
-    if dirty or unfinished:
+    target = _trunk_target(context)
+    if isinstance(target, lane_core.Refusal):
+        return target
+    trunk_branch, trunk_tip = target
+    if not lane_core.is_ancestor_strict(trunk_tip, "HEAD", lane_path):
+        return lane_core.trunk_not_an_ancestor_refusal(trunk_branch, context.trunk_ref)
+    trunk_worktree = _trunk_worktree(trunk_branch, lane_path)
+    if isinstance(trunk_worktree, lane_core.Refusal):
+        return trunk_worktree
+    dirty = lane_core.dirty_paths(trunk_worktree)
+    merge_in_progress = lane_core.merge_in_progress(trunk_worktree)
+    if dirty or merge_in_progress:
         return lane_core.trunk_worktree_dirty_refusal(
-            branch, worktree, dirty, merge_unfinished=unfinished
+            trunk_branch, trunk_worktree, dirty, merge_in_progress=merge_in_progress
         )
     return None
 
@@ -714,7 +767,7 @@ def _check_lane_is_clean(ctx: CheckContext) -> lane_core.Refusal | None:
 #: slot number from the plan (1 tree, 2 review gate, 3 trunk moved, 4 lane
 #: clean, 5 trunk fast-forward, 6 PR repository).
 #:
-#: A check that hits a git failure: `collect_refusals` turns the
+#: A check that hits a git failure: `_run_check` turns the
 #: `RefusalError` it raises into that check's refusal (the `git command
 #: failed` block) and runs the rest. A check does not catch git errors, and its
 #: readers must raise on one instead of answering "no" (a yes/no question git
@@ -739,10 +792,10 @@ def _run_check(check: Check, ctx: CheckContext) -> lane_core.Refusal | None:
 
 @dataclass(frozen=True)
 class CheckedLane:
-    """The outcome of the checks: `context` is what the apply is bound to
+    """The outcome of the checks: `check_context` is what the apply is bound to
     (None after an early stop), `refusals` the blocks to print."""
 
-    context: CheckContext | None
+    check_context: CheckContext | None
     refusals: list[lane_core.Refusal]
 
 
@@ -767,19 +820,6 @@ def check_lane(
     ctx = CheckContext(entered, head, expected_trunk, expected_tree, local_trunk)
     outcomes = (_run_check(check, ctx) for check in CHECKS)
     return CheckedLane(ctx, [refusal for refusal in outcomes if refusal is not None])
-
-
-def collect_refusals(
-    trunk_arg: str | None,
-    expected_trunk: str,
-    expected_tree: str,
-    cwd: Path,
-    local_trunk: bool = False,
-) -> list[lane_core.Refusal]:
-    """Every refusal `integrate` would print, in check order. Changes nothing."""
-    return check_lane(
-        trunk_arg, expected_trunk, expected_tree, cwd, local_trunk
-    ).refusals
 
 
 def emit_integrate_refusals(refusals: Sequence[lane_core.Refusal]) -> int:
@@ -829,50 +869,84 @@ class IntegratePlan:
 
     lane_path: Path
     lane_branch: str
+    trunk_ref: str
     trunk_branch: str
     trunk_worktree: Path
     former_head: str
     gate_file: Path
 
 
-def _plan_integrate(ctx: CheckContext) -> IntegratePlan:
-    """Read everything the apply steps need, while the lane still exists.
+_Found = TypeVar("_Found")
 
-    Bound to what the checks saw: `former_head` is `ctx.head`, the commit whose
-    tree check 1 compared. The lane's HEAD is read once more here, and a lane
-    that moved since the checks is refused instead of fast-forwarded to a
-    commit nobody reviewed. (A SHA names one tree for good, so the tree of
-    `ctx.head` needs no second read.) The checks passed, so the trunk branch
-    and its worktree exist; a refusal here means that changed since they ran.
+
+def _require(found: _Found | lane_core.Refusal) -> _Found:
+    """`found`, or a `RefusalError` when it is a refusal.
+
+    Turns the lookups the checks share (`_trunk_target`, `_trunk_worktree`)
+    into raising calls for the plan, which must stop at the first refusal.
+    """
+    if isinstance(found, lane_core.Refusal):
+        raise lane_core.RefusalError(found)
+    return found
+
+
+def _lane_moved_refusal(ctx: CheckContext, live_head: str) -> lane_core.Refusal:
+    """Why a lane whose HEAD moved since the checks is refused.
+
+    A new commit with another tree is a tree mismatch. A new commit with the
+    reviewed tree is not, and saying "the tree is not the reviewed tree" for
+    two equal trees would contradict itself: it says the commit moved.
+    """
+    context = ctx.entered.context
+    live_tree = lane_core.commit_tree(live_head, context.lane_path)
+    if live_tree != ctx.expected_tree:
+        return lane_core.tree_mismatch_refusal(
+            ctx.expected_tree, live_tree, context.trunk_ref
+        )
+    return lane_core.lane_head_moved_refusal(ctx.head, live_head, context.trunk_ref)
+
+
+def _revalidate(ctx: CheckContext) -> None:
+    """Read again what the checks read, and refuse when it changed since.
+
+    Two facts: the trunk ref (resolved again, not taken from the checks'
+    copy) and the lane's HEAD. The apply is bound to `ctx.head`, the commit
+    whose tree check 1 compared, so a lane that moved is refused instead of
+    fast-forwarded to a commit nobody reviewed. (A SHA names one tree for
+    good, so the tree of `ctx.head` needs no second read.)
     """
     entered = ctx.entered
     context = entered.context
     lane_path = context.lane_path
-    if entered.trunk_commit != ctx.expected_trunk:
+    _, live_trunk = lane_core.resolve_trunk_commit(entered.trunk_arg, lane_path)
+    if live_trunk != ctx.expected_trunk:
         raise lane_core.RefusalError(
             lane_core.trunk_moved_refusal(
-                context.trunk_ref, ctx.expected_trunk, entered.trunk_commit
+                context.trunk_ref, ctx.expected_trunk, live_trunk
             )
         )
     live_head = lane_core.head_commit(lane_path)
     if live_head != ctx.head:
-        raise lane_core.RefusalError(
-            lane_core.tree_mismatch_refusal(
-                ctx.expected_tree,
-                lane_core.commit_tree(live_head, lane_path),
-                context.trunk_ref,
-            )
-        )
-    trunk_branch = context.trunk_branch
-    if trunk_branch is None:
-        raise lane_core.RefusalError(
-            lane_core.trunk_branch_missing_refusal(context.trunk_ref, None)
-        )
-    trunk_worktree = lane_core.branch_worktree(trunk_branch, lane_path)
-    if trunk_worktree is None:
-        raise lane_core.RefusalError(
-            lane_core.trunk_checked_out_nowhere_refusal(trunk_branch)
-        )
+        raise lane_core.RefusalError(_lane_moved_refusal(ctx, live_head))
+
+
+def _plan_integrate(ctx: CheckContext) -> IntegratePlan:
+    """Read everything the apply steps need, while the lane still exists.
+
+    Revalidated first (`_revalidate`). The checks passed, so the trunk branch
+    and its worktree exist; a refusal here means that changed since they ran.
+
+    The window between this recheck and the apply is narrower, not closed. A
+    commit added to the lane after it still lets the fast-forward (which
+    targets `former_head`, never the new commit) and the worktree removal
+    succeed; the last step then fails on its old-value guard and is reported
+    as a partial state, with the new commit kept on the lane branch.
+    """
+    _revalidate(ctx)
+    context = ctx.entered.context
+    lane_path = context.lane_path
+    trunk_branch, _ = _require(_trunk_target(context))
+    trunk_worktree = _require(_trunk_worktree(trunk_branch, lane_path))
     with lane_core.filtered_process_environment():
         gate_file = artifact_paths.resolve_file(
             "memory", GATE_FILE_NAME, lane_path, migrate=False
@@ -880,6 +954,7 @@ def _plan_integrate(ctx: CheckContext) -> IntegratePlan:
     return IntegratePlan(
         lane_path=lane_path,
         lane_branch=context.branch,
+        trunk_ref=context.trunk_ref,
         trunk_branch=trunk_branch,
         trunk_worktree=trunk_worktree,
         former_head=ctx.head,
@@ -894,7 +969,37 @@ def _plan_integrate(ctx: CheckContext) -> IntegratePlan:
 
 
 class StepFailed(Exception):
-    """An apply step could not finish; the message is why."""
+    """An apply step could not finish; the message is why.
+
+    With `not_repeatable_how`, running the step (or any later one) by hand is
+    unsafe: the failure block carries that text instead of a command list.
+    """
+
+    def __init__(self, message: str, not_repeatable_how: str | None = None) -> None:
+        super().__init__(message)
+        self.not_repeatable_how = not_repeatable_how
+
+
+class StepRefused(Exception):
+    """The first step found, before changing anything, that the checks no longer
+    hold. It is reported as a plain refusal: nothing is done, nothing remains."""
+
+    def __init__(self, refusal: lane_core.Refusal) -> None:
+        super().__init__(refusal.what)
+        self.refusal = refusal
+
+
+#: `how` of a step whose own safety check declined: the lane branch is kept.
+BRANCH_KEPT_HOW = (
+    "the lane branch is kept because the trunk branch does not contain its "
+    "HEAD; check where the trunk branch is, and delete the lane branch only "
+    "when its commits are safe"
+)
+#: `how` when the fast-forward ran but the trunk branch is not at the lane's HEAD.
+TRUNK_NOT_AT_LANE_HEAD_HOW = (
+    "the lane and its branch are kept; look at the trunk worktree and the "
+    "trunk branch with git before doing anything else"
+)
 
 
 def _fast_forward_args(plan: IntegratePlan) -> list[str]:
@@ -920,14 +1025,83 @@ def _run_step_git(args: Sequence[str], plan: IntegratePlan) -> None:
         raise StepFailed(attempt.detail)
 
 
+def _trunk_branch_ref(plan: IntegratePlan) -> str:
+    return f"{lane_core.HEAD_REFS_PREFIX}{plan.trunk_branch}"
+
+
+def _trunk_tip_diverged(plan: IntegratePlan) -> bool:
+    """True when the trunk branch has a commit the lane's HEAD lacks: trunk
+    moved on, so a fast-forward can never succeed. False when it cannot be told."""
+    try:
+        tip = lane_core.branch_commit(plan.trunk_branch, plan.trunk_worktree)
+        return tip is not None and not lane_core.is_ancestor_strict(
+            tip, plan.former_head, plan.trunk_worktree
+        )
+    except lane_core.RefusalError:
+        return False
+
+
+def _require_trunk_worktree_on_the_branch(plan: IntegratePlan) -> None:
+    """Refuse (nothing is changed yet) when the trunk worktree switched branch."""
+    on = lane_core.git_attempt(["symbolic-ref", "-q", "HEAD"], plan.trunk_worktree)
+    if not on.ok or on.stdout != _trunk_branch_ref(plan):
+        raise StepRefused(
+            lane_core.trunk_worktree_switched_refusal(
+                plan.trunk_branch, plan.trunk_worktree
+            )
+        )
+
+
 def _fast_forward(plan: IntegratePlan) -> None:
     """Move the trunk branch to the lane's HEAD.
 
+    Bound to the trunk branch in three ways: the trunk worktree must still
+    have the branch checked out (else `git merge` would move whatever branch it
+    holds now), a failure because trunk moved on is a refusal (compose again),
+    and afterwards the branch is read back and must be at `former_head`.
     `--ff-only` leaves the branch at exactly the commit it was given, so the
-    new tip is `former_head` and is never read back: a failed read after a
-    completed fast-forward must not be reported as a failed fast-forward.
+    read-back can only differ when the worktree changed branch in the instant
+    between the first check and the merge; that window is the residual one, and
+    it is reported, not prevented.
     """
-    _run_step_git(_fast_forward_args(plan), plan)
+    _require_trunk_worktree_on_the_branch(plan)
+    attempt = lane_core.git_attempt(_fast_forward_args(plan), plan.trunk_worktree)
+    if not attempt.ok:
+        if _trunk_tip_diverged(plan):
+            raise StepRefused(
+                lane_core.trunk_not_an_ancestor_refusal(
+                    plan.trunk_branch, plan.trunk_ref
+                )
+            )
+        raise StepFailed(attempt.detail)
+    try:
+        tip = lane_core.branch_commit(plan.trunk_branch, plan.trunk_worktree)
+    except lane_core.RefusalError as unreadable:
+        raise StepFailed(
+            f"the new tip of {plan.trunk_branch} could not be read: "
+            f"{unreadable.refusal.why}",
+            TRUNK_NOT_AT_LANE_HEAD_HOW,
+        ) from unreadable
+    if tip != plan.former_head:
+        raise StepFailed(
+            f"the merge ran but {plan.trunk_branch} is at {tip}, not at "
+            f"{plan.former_head}",
+            TRUNK_NOT_AT_LANE_HEAD_HOW,
+        )
+
+
+def _gate_file_in_lane(plan: IntegratePlan) -> bool:
+    """True when the gate path lives inside the lane. May raise OSError or, for
+    a symlink loop, RuntimeError."""
+    return plan.gate_file.parent.resolve().is_relative_to(plan.lane_path.resolve())
+
+
+def _gate_file_is_the_lanes(plan: IntegratePlan) -> bool:
+    """`_gate_file_in_lane`, where a path that cannot be resolved is not the lane's."""
+    try:
+        return _gate_file_in_lane(plan)
+    except (OSError, RuntimeError):
+        return False
 
 
 def _remove_gate_file(plan: IntegratePlan) -> None:
@@ -936,12 +1110,16 @@ def _remove_gate_file(plan: IntegratePlan) -> None:
     The gate path is read through whatever `.claude/memory` is. When that is a
     symlink out of the lane, the file belongs to someone else and stays; the
     lane's removal does not touch it either.
+
+    Accepted: the containment check and the unlink are two calls, so a writer
+    that swaps `.claude/memory` for a symlink between them, inside a lane that
+    is being removed, could point the unlink elsewhere.
     """
-    if not plan.gate_file.parent.resolve().is_relative_to(plan.lane_path.resolve()):
-        return
     try:
+        if not _gate_file_in_lane(plan):
+            return
         plan.gate_file.unlink(missing_ok=True)
-    except OSError as failure:
+    except (OSError, RuntimeError) as failure:
         raise StepFailed(str(failure)) from failure
 
 
@@ -957,13 +1135,20 @@ def _delete_branch(plan: IntegratePlan) -> None:
     for a lane that was pushed with `-u`. The ancestry check (strict, so a git
     failure is a failure and not "not merged") stands in for it, and
     `update-ref -d` takes the lane's former HEAD as the old value, so a branch
-    that moved since the plan is not deleted.
+    that moved since the plan is not deleted. The ancestry is read from the
+    trunk branch itself, not from whatever the trunk worktree has checked out.
+
+    `update-ref -d` removes only the ref: the `branch.<lane>.*` config that
+    `git push -u` wrote stays (this tool never writes git config).
     """
-    tip = lane_core.head_commit(plan.trunk_worktree)
-    if not lane_core.is_ancestor_strict(plan.former_head, tip, plan.trunk_worktree):
+    trunk_tip = lane_core.branch_commit(plan.trunk_branch, plan.trunk_worktree)
+    if trunk_tip is None or not lane_core.is_ancestor_strict(
+        plan.former_head, trunk_tip, plan.trunk_worktree
+    ):
         raise StepFailed(
             f"the lane's former HEAD {plan.former_head} is not contained in "
-            f"{plan.trunk_branch}"
+            f"{plan.trunk_branch}",
+            BRANCH_KEPT_HOW,
         )
     _run_step_git(_branch_deletion_args(plan), plan)
 
@@ -973,14 +1158,24 @@ def _trunk_git_command(args: Sequence[str], plan: IntegratePlan) -> str:
     return shlex.join(["git", "-C", str(plan.trunk_worktree), *args])
 
 
+def _always(plan: IntegratePlan) -> bool:
+    return True
+
+
 @dataclass(frozen=True)
 class ApplyStep:
     """One apply step: its name for `done:`, the command a person would type for
-    `remaining:`, and what runs."""
+    `remaining:`, and what runs.
+
+    `applies` is False when the step does nothing for this plan (the gate file
+    is not the lane's): it is then neither `done:` nor `remaining:`, so no
+    command is printed that the step itself would refuse to run.
+    """
 
     name: str
     command: str
     run: Callable[[IntegratePlan], None]
+    applies: Callable[[IntegratePlan], bool] = _always
 
 
 def _apply_steps(plan: IntegratePlan) -> list[ApplyStep]:
@@ -988,18 +1183,23 @@ def _apply_steps(plan: IntegratePlan) -> list[ApplyStep]:
     step is the module's current function."""
     return [
         ApplyStep(
-            "fast-forward",
+            lane_core.STEP_FAST_FORWARD,
             _trunk_git_command(_fast_forward_args(plan), plan),
             _fast_forward,
         ),
-        ApplyStep("gate file removal", _gate_removal_command(plan), _remove_gate_file),
         ApplyStep(
-            "worktree removal",
+            lane_core.STEP_GATE_FILE_REMOVAL,
+            _gate_removal_command(plan),
+            _remove_gate_file,
+            applies=_gate_file_is_the_lanes,
+        ),
+        ApplyStep(
+            lane_core.STEP_WORKTREE_REMOVAL,
             _trunk_git_command(_worktree_removal_args(plan), plan),
             _remove_worktree,
         ),
         ApplyStep(
-            "branch deletion",
+            lane_core.STEP_BRANCH_DELETION,
             _trunk_git_command(_branch_deletion_args(plan), plan),
             _delete_branch,
         ),
@@ -1009,47 +1209,91 @@ def _apply_steps(plan: IntegratePlan) -> list[ApplyStep]:
 class ApplyFailed(Exception):
     """A step failed after the checks passed. `done` are the names of the steps
     that finished; `remaining` are the commands of the failed step and every
-    step after it."""
+    step after it. `interrupted` is the `KeyboardInterrupt` (or other
+    non-`Exception`) to raise again once the report is printed."""
 
     def __init__(
-        self, refusal: lane_core.Refusal, done: list[str], remaining: list[str]
+        self,
+        refusal: lane_core.Refusal,
+        done: list[str],
+        remaining: list[str],
+        interrupted: BaseException | None = None,
     ) -> None:
         super().__init__(refusal.what)
         self.refusal = refusal
         self.done = done
         self.remaining = remaining
+        self.interrupted = interrupted
 
 
-def _failure_detail(failure: StepFailed | lane_core.RefusalError) -> str:
-    """Why a step failed: its own message, or the refusal a git read raised."""
+def _failure_detail(failure: BaseException) -> str:
+    """Why a step failed: its own message, the refusal a git read raised, or the
+    unexpected exception's type and message."""
     if isinstance(failure, lane_core.RefusalError):
         return failure.refusal.why
-    return str(failure)
+    if isinstance(failure, StepFailed):
+        return str(failure)
+    return f"{type(failure).__name__}: {failure}"
+
+
+def _failure_refusal(step: ApplyStep, failure: BaseException) -> lane_core.Refusal:
+    detail = _failure_detail(failure)
+    if isinstance(failure, StepFailed) and failure.not_repeatable_how is not None:
+        return lane_core.integrate_step_not_repeatable_refusal(
+            step.name, detail, failure.not_repeatable_how
+        )
+    return lane_core.integrate_step_failed_refusal(step.name, step.command, detail)
+
+
+def _apply_failed(
+    plan: IntegratePlan, steps: Sequence[ApplyStep], index: int, failure: BaseException
+) -> ApplyFailed:
+    """What is done and what remains after `steps[index]` failed with `failure`.
+
+    A step that declined for its own safety (`not_repeatable_how`) leaves
+    nothing to run by hand: its command, and the steps after it, would do what
+    it refused to do.
+    """
+    repeatable = not (
+        isinstance(failure, StepFailed) and failure.not_repeatable_how is not None
+    )
+    return ApplyFailed(
+        _failure_refusal(steps[index], failure),
+        done=[step.name for step in steps[:index] if step.applies(plan)],
+        remaining=(
+            [step.command for step in steps[index:] if step.applies(plan)]
+            if repeatable
+            else []
+        ),
+        interrupted=None if isinstance(failure, Exception) else failure,
+    )
 
 
 def _apply(plan: IntegratePlan) -> None:
     """Run the apply steps in order. The first failure stops the sequence (nothing
-    is retried) and raises `ApplyFailed` naming what is done and what remains."""
+    is retried) and raises `ApplyFailed` naming what is done and what remains.
+
+    Any exception ends the sequence the same way, `KeyboardInterrupt` included
+    (carried on `ApplyFailed.interrupted`): the report is the only record of a
+    half-done apply. `StepRefused` is the exception: only the first step raises
+    it, before anything changed, so there is nothing to report.
+    """
     steps = _apply_steps(plan)
     for index, step in enumerate(steps):
         try:
             step.run(plan)
-        except (StepFailed, lane_core.RefusalError) as failure:
-            raise ApplyFailed(
-                lane_core.integrate_step_failed_refusal(
-                    step.name, step.command, _failure_detail(failure)
-                ),
-                done=[earlier.name for earlier in steps[:index]],
-                remaining=[later.command for later in steps[index:]],
-            ) from failure
+        except StepRefused as refused:
+            raise lane_core.RefusalError(refused.refusal) from refused
+        except BaseException as failure:
+            raise _apply_failed(plan, steps, index, failure) from failure
 
 
 def _emit_apply_failure(failed: ApplyFailed) -> int:
     """The failure block, then what is done and what remains. Returns exit 1."""
     code = lane_core.emit_refusals([failed.refusal])
-    done = failed.done or ["nothing"]
-    lines = [f"done: {name}" for name in done]
-    lines += [f"remaining: {command}" for command in failed.remaining]
+    done = failed.done or [NOTHING]
+    lines = [f"{LINE_DONE}: {name}" for name in done]
+    lines += [f"{LINE_REMAINING}: {command}" for command in failed.remaining]
     shown = "\n".join(lane_core.display_text(line) for line in lines)
     sys.stderr.write(f"\n{shown}\n")
     return code
@@ -1062,12 +1306,12 @@ def _print_integrated(plan: IntegratePlan) -> None:
     `former-head`: the fast-forward moved the trunk branch to exactly it."""
     recover = shlex.join(["git", "branch", plan.lane_branch, plan.former_head])
     lines = (
-        f"trunk: {plan.trunk_branch}",
-        f"former-head: {plan.former_head}",
-        f"now-at: {plan.former_head}",
-        f"continue-in: {plan.trunk_worktree}",
-        f"recover: {recover}",
-        PUSHED_NOTHING,
+        f"{KEY_TRUNK}: {plan.trunk_branch}",
+        f"{KEY_FORMER_HEAD}: {plan.former_head}",
+        f"{KEY_NOW_AT}: {plan.former_head}",
+        f"{KEY_CONTINUE_IN}: {plan.trunk_worktree}",
+        f"{KEY_RECOVER}: {recover}",
+        PUSHED_NOTHING_LINE,
     )
     for line in lines:
         print(lane_core.display_text(line))
@@ -1094,11 +1338,14 @@ def cmd_integrate(args: argparse.Namespace, cwd: Path) -> int:
     )
     if checked.refusals:
         return emit_integrate_refusals(checked.refusals)
-    plan = _plan_integrate(checked.context)
+    plan = _plan_integrate(checked.check_context)
     try:
         _apply(plan)
     except ApplyFailed as failed:
-        return _emit_apply_failure(failed)
+        code = _emit_apply_failure(failed)
+        if failed.interrupted is not None:
+            raise failed.interrupted
+        return code
     _print_integrated(plan)
     return lane_core.EXIT_OK
 
