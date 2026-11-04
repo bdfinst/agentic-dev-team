@@ -165,7 +165,7 @@ SLICE_EXCLUSIONS = {
     "build_candidates.py": "stdlib argparse/collections.abc/json/math/re/sys only (plus the build_candidates_git and build_candidates_model modules); no floor-sensitive runtime API",
     "build_candidates_git.py": "stdlib collections.abc/dataclasses/os/pathlib/re/signal/subprocess/sys only (plus build_candidates_model and lib/plan_parse); no floor-sensitive runtime API",
     "build_candidates_model.py": "stdlib collections.abc/dataclasses/json/math/pathlib/typing only; no floor-sensitive runtime API",
-    "plan_summary_record.py": "stdlib argparse/dataclasses/json/pathlib/re only (plus build_candidates_model via build_candidates); no floor-sensitive runtime API",
+    "plan_summary_record.py": "stdlib argparse/dataclasses/os/pathlib/re/stat/sys/tempfile/typing only (plus build_candidates_model); no floor-sensitive runtime API",
     "build_jobs.py": "stdlib os/sys only; no floor-sensitive runtime API",
     "build_rollback_point.py": (
         "stdlib argparse/json/subprocess/pathlib only; its datetime usage is "
@@ -756,6 +756,12 @@ class TestTheFloorSliceAccountsForEveryShippedScript:
         )
         missing = [m for m in modules if not SLICE_EXCLUSIONS.get(m, "").strip()]
         assert not missing, f"SLICE_EXCLUSIONS has no reason for: {missing}"
+
+    def test_plan_summary_record_is_excluded_with_a_reason(self):
+        """The plan-summary writer (#2273) is exempt from the floor slice; if
+        its entry drops out it must fail here by name."""
+        reason = SLICE_EXCLUSIONS.get("plan_summary_record.py", "")
+        assert reason.strip(), "SLICE_EXCLUSIONS has no reason for plan_summary_record.py"
 
     def test_no_script_is_both_slice_covered_and_excluded(self):
         """A script in both is a contradiction — is it exercised under the

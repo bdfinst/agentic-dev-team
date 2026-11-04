@@ -493,6 +493,14 @@ def test_rank_rejects_a_file_that_is_not_json(tmp_path) -> None:
     assert "not JSON" in r.stderr
 
 
+def test_rank_rejects_json_nested_too_deeply_to_parse(tmp_path) -> None:
+    path = tmp_path / "deep.json"
+    path.write_text("[" * 100_000, encoding="utf-8")
+    r = run_cli("rank", "--candidates-json", str(path))
+    assert (r.returncode, r.stdout) == (1, "")
+    assert "not JSON" in r.stderr
+
+
 def test_rank_rejects_a_path_that_does_not_exist(tmp_path) -> None:
     r = run_cli("rank", "--candidates-json", str(tmp_path / "missing.json"))
     assert (r.returncode, r.stdout) == (1, "")
