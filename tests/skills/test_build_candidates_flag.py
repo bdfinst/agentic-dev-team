@@ -116,12 +116,16 @@ DEFAULT_TEXT_FORBIDDEN = ("candidates", "speculative")
 #: "every other step runs unchanged".
 ROUTING_PHRASES = (
     ("names_the_flag", r"`--candidates N`"),
+    (
+        "ties_the_trigger_to_the_printed_speculative_flag",
+        r'Parse Arguments printed `"speculative": true`',
+    ),
     ("conditions_on_n_at_least_2", r"(?<![\w-])N ≥ 2(?!\d)"),
     ("conditions_on_complexity_being_complex", r"`\*\*Complexity\*\*` is `complex`"),
     ("names_the_skill", r"speculative-build/SKILL\.md"),
     (
         "runs_self_verification_on_the_merged_winner_first",
-        r"Run sub-step 3's self-verification on the merged winner first\.",
+        r"Run sub-step 3's self-verification on the merged winner first, then resume",
     ),
     (
         "resumes_at_the_inline_checkpoint_on_the_merged_winner",
@@ -164,6 +168,8 @@ def _complex_checkpoint(text: str) -> str:
     return _line_starting(_step_4(text), COMPLEX_BULLET_START)
 
 
+#: Keys ending in `_bullet` are Parse Arguments bullets; the bullet-swap test
+#: selects their Facts by that suffix.
 SECTIONS: dict[str, Callable[[str], str]] = {
     "frontmatter": frontmatter,
     "candidates_bullet": _bullet(CANDIDATES_BULLET_START),
@@ -206,7 +212,7 @@ FACTS = [
         "candidates_bullet_says_the_cap_is_checked_between_batches",
         "candidates_bullet",
         literal_required=(
-            "It is checked between batches, so one batch may overrun it.",
+            "The skill checks the cap between batches, so one batch may overrun it.",
         ),
     ),
     Fact(
@@ -497,8 +503,10 @@ def test_routing_paragraph_states(skill_text, pattern):
 
 def test_routing_paragraph_states_the_checkpoint_before_the_cleanup(skill_text):
     paragraph = collapsed(_routing_paragraph(skill_text))
-    checkpoint = paragraph.index("inline checkpoint on the merged winner")
-    cleanup = paragraph.index("## Cleanup")
+    checkpoint = paragraph.find("inline checkpoint on the merged winner")
+    cleanup = paragraph.find("## Cleanup")
+    assert checkpoint >= 0, "the paragraph does not name the inline checkpoint"
+    assert cleanup >= 0, "the paragraph does not name `## Cleanup`"
     assert checkpoint < cleanup, "the paragraph names the Cleanup before the checkpoint"
 
 
@@ -508,13 +516,15 @@ def _missing_routing_phrases(paragraph: str) -> list[str]:
 
 
 def _pair_moved_after_the_cycle(skill_text: str, routing: str) -> str:
-    """`skill_text` with the routing and single-dispatch paragraphs moved to just
-    before the end of the per-behavior cycle, the routing text replaced by
-    `routing`."""
+    """`skill_text` with the routing and single-dispatch paragraphs moved to
+    after the per-behavior cycle (before `PER_BEHAVIOR_CYCLE_END_LINE`), the
+    routing text replaced by `routing`."""
     original = _routing_paragraph(skill_text)
     dispatch = _single_dispatch_paragraph(skill_text)
     pair = f"{original}\n\n{dispatch}\n\n"
-    assert pair in skill_text
+    assert pair in skill_text, (
+        "routing and single-dispatch paragraphs are not separated by one blank line"
+    )
     end = PER_BEHAVIOR_CYCLE_END_LINE
     return skill_text.replace(pair, "", 1).replace(
         end, f"\n{routing}\n\n{dispatch}\n\n{end}", 1
