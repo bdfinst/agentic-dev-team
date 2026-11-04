@@ -7,8 +7,10 @@ Fixtures live in tests/scripts/fixtures/feature_record/.
 from __future__ import annotations
 
 import json
+import socket
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -20,13 +22,21 @@ sys.path.insert(0, str(_SCRIPTS))
 sys.path.insert(0, str(_SCRIPTS / "lib"))
 
 import feature_record
-import plan_parse
 
 FIXTURES = Path(__file__).parent / "fixtures" / "feature_record"
 
 
 def _fixture(name: str) -> str:
     return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+def _swap(text: str, old: str, new: str) -> str:
+    """`text.replace(old, new)` that fails loudly when it would change nothing,
+    so a variant built from a fixture cannot silently equal its base."""
+    assert old in text, f"needle {old!r} is not in the base text"
+    result = text.replace(old, new)
+    assert result != text
+    return result
 
 
 def _run(argv: list[str], capsys) -> tuple[int, str, str]:
@@ -115,8 +125,10 @@ def test_the_record_is_json_serialisable():
 
 
 def test_unknown_covers_are_listed_once_in_first_seen_order():
-    md = _fixture("plan_complete.md").replace(
-        "**Covers**: AC1", "**Covers**: AC1, AC9, AC8, AC9"
+    md = _swap(
+        _fixture("plan_complete.md"),
+        "**Covers**: AC1",
+        "**Covers**: AC1, AC9, AC8, AC9",
     )
     plan = feature_record.build_record(md)["plan"]
     assert plan["unknown_covers"] == ["AC9", "AC8"]
@@ -124,10 +136,10 @@ def test_unknown_covers_are_listed_once_in_first_seen_order():
 
 
 def test_a_plan_without_covers_is_not_applicable_with_a_reason():
-    md = _fixture("plan_complete.md").replace("**Covers**", "**Notes**")
+    md = _swap(_fixture("plan_complete.md"), "**Covers**", "**Notes**")
     applicability = feature_record.build_record(md)["applicability"]
     assert applicability["criterion_coverage"] == "not-applicable"
-    assert applicability["reason"]
+    assert applicability["reason"] == "plan has no Covers line"
 
 
 def test_a_plan_without_a_build_progress_section_is_legacy():
@@ -146,8 +158,7 @@ def test_a_slice_heading_inside_a_fence_does_not_start_a_slice():
 def test_slices_end_at_the_next_heading_so_build_progress_is_not_a_slice():
     md = _fixture("plan_complete.md")
     ours = [s["number"] for s in feature_record.build_record(md)["plan"]["slices"]]
-    theirs = [sid for sid, _t, _g in plan_parse.slice_gherkin_blocks(md.splitlines())]
-    assert ours == theirs == ["1", "2"]
+    assert ours == ["1", "2"]
 
 
 # ---------------------------------------------------------------------------
@@ -255,8 +266,23 @@ def test_an_explicit_spec_path_that_cannot_be_read_is_an_input_error(capsys):
     assert missing in err
 
 
-def test_a_spec_line_naming_a_missing_local_file_is_recorded_not_an_error(capsys):
-    plan = FIXTURES / "plan_local_spec_missing.md"
+def _isolated(tmp_path: Path, monkeypatch) -> Path:
+    """A fresh repository root marked with `.git`, with the working directory
+    moved to a sibling, so local spec resolution cannot see the real checkout."""
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    return root
+
+
+def test_a_spec_line_naming_a_missing_local_file_is_recorded_not_an_error(
+    tmp_path, monkeypatch, capsys
+):
+    root = _isolated(tmp_path, monkeypatch)
+    plan = root / "plan.md"
+    plan.write_text(_fixture("plan_local_spec_missing.md"))
     code, out, _err = _run(["view", str(plan)], capsys)
     assert code == 0
     assert json.loads(out)["spec"] == {
@@ -267,18 +293,26 @@ def test_a_spec_line_naming_a_missing_local_file_is_recorded_not_an_error(capsys
     }
 
 
-def test_a_spec_url_is_recorded_and_not_fetched(capsys):
+def test_a_spec_url_is_recorded_and_not_fetched(monkeypatch, capsys):
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("a spec URL must never be fetched")
+
+    monkeypatch.setattr(socket, "socket", refuse)
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
     code, out, _err = _run(["view", str(FIXTURES / "plan_complete.md")], capsys)
     assert code == 0
     part = json.loads(out)["spec"]
     assert (part["loaded"], part["reason"]) == (False, "url-not-fetched")
 
 
-def test_a_local_spec_is_found_relative_to_the_plans_repository(tmp_path, capsys):
-    (tmp_path / "docs" / "specs").mkdir(parents=True)
-    (tmp_path / "plans").mkdir()
-    (tmp_path / "docs" / "specs" / "x.md").write_text(_fixture("spec_sample.md"))
-    plan = tmp_path / "plans" / "1-x.md"
+def test_a_local_spec_is_found_relative_to_the_plans_repository(
+    tmp_path, monkeypatch, capsys
+):
+    root = _isolated(tmp_path, monkeypatch)
+    (root / "docs" / "specs").mkdir(parents=True)
+    (root / "plans").mkdir()
+    (root / "docs" / "specs" / "x.md").write_text(_fixture("spec_sample.md"))
+    plan = root / "plans" / "1-x.md"
     plan.write_text("# P\n\n**Spec**: docs/specs/x.md\n")
     code, out, _err = _run(["view", str(plan)], capsys)
     part = json.loads(out)["spec"]
@@ -287,10 +321,13 @@ def test_a_local_spec_is_found_relative_to_the_plans_repository(tmp_path, capsys
     assert "## Acceptance Criteria" in part["sections"]
 
 
-def test_an_unreadable_local_spec_is_recorded_as_not_found(tmp_path, capsys):
-    (tmp_path / "docs" / "specs").mkdir(parents=True)
-    (tmp_path / "docs" / "specs" / "x.md").write_bytes(b"\xff\xfe\x00bad")
-    plan = tmp_path / "1-x.md"
+def test_an_unreadable_local_spec_is_recorded_as_not_found(
+    tmp_path, monkeypatch, capsys
+):
+    root = _isolated(tmp_path, monkeypatch)
+    (root / "docs" / "specs").mkdir(parents=True)
+    (root / "docs" / "specs" / "x.md").write_bytes(b"\xff\xfe\x00bad")
+    plan = root / "1-x.md"
     plan.write_text("# P\n\n**Spec**: docs/specs/x.md\n")
     code, out, _err = _run(["view", str(plan)], capsys)
     assert code == 0
@@ -380,8 +417,9 @@ def test_build_record_is_total(text):
 
 
 # ---------------------------------------------------------------------------
-# The pinned copy table (plans/2275-feature-record-validator.md, "Refusal copy
-# (pinned)"). Written out here on purpose: the plan file is not committed.
+# The pinned copy table: GitHub issue #2275, Design 13 ("Refusal copy
+# (pinned)"). Written out here on purpose, as the durable source: the plan file
+# that first held it is gitignored.
 # ---------------------------------------------------------------------------
 
 PINNED_COPY = {
@@ -489,38 +527,44 @@ def test_a_criterion_whose_covering_slice_has_no_scenario_is_a_violation():
 
 
 def test_a_criterion_covered_in_two_slices_needs_only_one_to_hold_a_scenario():
-    text = _fixture("plan_covering_slice_no_scenario.md").replace(
-        "**Covers**: AC2", "**Covers**: AC2, AC3"
+    text = _swap(
+        _fixture("plan_covering_slice_no_scenario.md"),
+        "**Covers**: AC2",
+        "**Covers**: AC2, AC3",
     )
     assert _found(text) == []
 
 
 def test_a_covers_id_that_is_not_a_criterion_is_ignored_and_listed():
-    text = _fixture("plan_complete.md").replace(
-        "**Covers**: AC1", "**Covers**: AC1, AC9"
+    text = _swap(
+        _fixture("plan_complete.md"), "**Covers**: AC1", "**Covers**: AC1, AC9"
     )
     assert _found(text) == []
     assert feature_record.build_record(text)["plan"]["unknown_covers"] == ["AC9"]
 
 
 def test_a_typo_in_a_covers_id_leaves_the_real_criterion_unnamed():
-    text = _fixture("plan_complete.md").replace("**Covers**: AC2", "**Covers**: AC22")
+    text = _swap(_fixture("plan_complete.md"), "**Covers**: AC2", "**Covers**: AC22")
     assert _found(text) == [("ac-no-scenario", "AC2")]
     assert feature_record.build_record(text)["plan"]["unknown_covers"] == ["AC22"]
 
 
 def test_a_plan_with_no_covers_line_is_not_checked_for_coverage():
-    text = _fixture("plan_complete.md").replace("**Covers**", "**Notes**")
+    text = _swap(_fixture("plan_complete.md"), "**Covers**", "**Notes**")
     record = feature_record.build_record(text)
     assert record["applicability"]["criterion_coverage"] == "not-applicable"
     assert feature_record.violations(record) == []
 
 
 def test_a_covers_line_inside_a_fence_does_not_make_coverage_apply():
-    text = (
-        _fixture("plan_complete.md")
-        .replace("**Covers**: AC1\n", "```\n**Covers**: AC1\n```\n")
-        .replace("**Covers**: AC2\n", "")
+    text = _swap(
+        _swap(
+            _fixture("plan_complete.md"),
+            "**Covers**: AC1\n",
+            "```\n**Covers**: AC1\n```\n",
+        ),
+        "**Covers**: AC2\n",
+        "",
     )
     record = feature_record.build_record(text)
     assert record["applicability"]["criterion_coverage"] == "not-applicable"
@@ -554,7 +598,7 @@ _OPEN = "**Open blocker**: Slice 1 - missing error path\n"
 
 
 def _closed(extra: str = "") -> str:
-    return _fixture("plan_closed_slice_open_blocker.md").replace(_OPEN, _OPEN + extra)
+    return _swap(_fixture("plan_closed_slice_open_blocker.md"), _OPEN, _OPEN + extra)
 
 
 def test_a_resolved_blocker_with_the_same_slice_and_text_clears_the_slice():
@@ -590,15 +634,17 @@ def test_two_open_blockers_on_one_slice_raise_one_violation():
 
 
 def test_an_open_slice_with_an_open_blocker_passes():
-    text = _fixture("plan_closed_slice_open_blocker.md").replace(
-        "- [x] Slice 1", "- [ ] Slice 1"
+    text = _swap(
+        _fixture("plan_closed_slice_open_blocker.md"), "- [x] Slice 1", "- [ ] Slice 1"
     )
     assert _found(text) == []
 
 
 def test_a_blocker_naming_a_slice_that_does_not_exist_is_ignored():
-    text = _fixture("plan_closed_slice_open_blocker.md").replace(
-        "**Open blocker**: Slice 1", "**Open blocker**: Slice 9"
+    text = _swap(
+        _fixture("plan_closed_slice_open_blocker.md"),
+        "**Open blocker**: Slice 1",
+        "**Open blocker**: Slice 9",
     )
     assert _found(text) == []
 
@@ -611,7 +657,7 @@ def test_a_slice_with_no_build_progress_line_is_not_closed():
 
 def test_violations_come_in_invariant_order_then_plan_order():
     text = _fixture("plan_closed_slice_open_blocker.md")
-    text = text.replace("**Covers**: AC2\n", "")  # AC2 now uncovered
+    text = _swap(text, "**Covers**: AC2\n", "")  # AC2 now uncovered
     start = text.index("#### Step 2.1")
     end = text.index("## Plan Review Summary")
     text = text[:start] + text[end:]  # slice 2 now has no step
@@ -628,17 +674,10 @@ def test_inserting_an_unprefixed_criterion_keeps_the_keys_of_existing_violations
         "### Slice 1: S\n\n```gherkin\nScenario: s\n```\n\n"
         "#### Step 1.1: t\n\n**Covers**: AC1\n"
     )
-    after = before.replace("- AC7 not", "- a fresh unprefixed one\n- AC7 not")
+    after = _swap(before, "- AC7 not", "- a fresh unprefixed one\n- AC7 not")
     assert ("ac-no-scenario", "AC7") in _found(before)
     assert ("ac-no-scenario", "AC7") in _found(after)
     assert _found(after) == [("ac-no-scenario", "AC2"), ("ac-no-scenario", "AC7")]
-
-
-def test_plan_violations_agrees_with_violations_of_the_record():
-    text = _fixture("plan_uncovered_criterion.md")
-    assert feature_record.plan_violations(text) == feature_record.violations(
-        feature_record.build_record(text)
-    )
 
 
 def test_unverifiable_lists_ticked_items_without_evidence_only_when_evaluated():
@@ -685,17 +724,21 @@ def test_check_exits_2_for_an_explicit_spec_path_that_cannot_be_read(capsys):
     assert missing in err
 
 
-def test_check_with_a_missing_command_is_a_usage_error(capsys):
+def test_check_with_no_subcommand_is_a_usage_error():
     with pytest.raises(SystemExit) as raised:
         feature_record.main([])
     assert raised.value.code == 2
 
 
 def test_a_ticked_build_progress_line_for_a_slice_with_no_heading_is_not_a_closed_slice():
-    text = (
-        _fixture("plan_closed_slice_open_blocker.md")
-        .replace("- [ ] Slice 2: Build", "- [x] Slice 9: Ghost")
-        .replace("**Open blocker**: Slice 1", "**Open blocker**: Slice 9")
+    text = _swap(
+        _swap(
+            _fixture("plan_closed_slice_open_blocker.md"),
+            "- [ ] Slice 2: Build",
+            "- [x] Slice 9: Ghost",
+        ),
+        "**Open blocker**: Slice 1",
+        "**Open blocker**: Slice 9",
     )
     assert _found(text) == []
 
@@ -766,9 +809,18 @@ def test_a_spec_missing_a_required_section_is_a_violation_naming_it(heading):
         "<!-- placeholder -->",
         "<!-- one -->\n<!-- two -->",
         "<!--\nspread over\nseveral lines\n-->",
-        "<!-- unclosed comment swallows the rest",
+        "<!--\n```\n- a commented-out example criterion\n```\n-->",
+        "<!--\n```text\n## Not a heading\n```\n--> ",
     ],
-    ids=["blank", "spaces", "comment", "two-comments", "multiline-comment", "unclosed"],
+    ids=[
+        "blank",
+        "spaces",
+        "comment",
+        "two-comments",
+        "multiline-comment",
+        "commented-out-fence",
+        "commented-out-fence-with-heading",
+    ],
 )
 def test_a_section_with_no_text_outside_comments_is_empty(heading, body):
     assert _spec_keys(_with_body(heading, body)) == [("spec-missing-section", heading)]
@@ -792,12 +844,12 @@ def test_a_section_with_a_list_item_or_text_is_not_empty(body):
 
 def test_a_heading_with_trailing_text_or_different_case_does_not_match():
     for variant in ("## Acceptance Criteria (v2)", "## acceptance criteria"):
-        text = _fixture("spec_sample.md").replace(CRITERIA, variant)
+        text = _swap(_fixture("spec_sample.md"), CRITERIA, variant)
         assert _spec_keys(text) == [("spec-missing-section", CRITERIA)]
 
 
 def test_surrounding_whitespace_on_a_heading_is_trimmed():
-    text = _fixture("spec_sample.md").replace(CRITERIA, CRITERIA + "   ")
+    text = _swap(_fixture("spec_sample.md"), CRITERIA, CRITERIA + "   ")
     assert _spec_keys(text) == []
 
 
@@ -810,7 +862,7 @@ def test_a_heading_inside_a_code_fence_does_not_count():
 
 
 def test_content_after_the_next_heading_does_not_fill_an_empty_section():
-    text = _with_body(INTENT, "").replace(ARCH, "## Notes\n\nSome notes.\n\n" + ARCH)
+    text = _swap(_with_body(INTENT, ""), ARCH, "## Notes\n\nSome notes.\n\n" + ARCH)
     assert _spec_keys(text) == [("spec-missing-section", INTENT)]
 
 
@@ -829,7 +881,14 @@ def test_every_missing_section_is_reported_in_required_order():
 
 @pytest.mark.parametrize(
     "text",
-    ["", "x", "\x00\xff￾" * 1000, "<!--" * 250_000, "-->" * 300_000, "## " * 100_000],
+    [
+        "",
+        "x",
+        "\x00\xff￾" * 1000,
+        "<!--" * 250_000,
+        "-->" * 300_000,
+        "## h\n" * 100_000,
+    ],
     ids=[
         "empty",
         "one-char",
@@ -963,6 +1022,217 @@ def test_a_write_that_fixes_one_violation_and_adds_another_introduces_only_the_n
     ] == [("ac-no-scenario", "AC2")]
 
 
-def test_an_unclosed_comment_in_one_occurrence_of_a_heading_does_not_hide_the_next():
-    text = _with_body(INTENT, "<!-- never closed") + f"\n{INTENT}\n\nThe real intent.\n"
+def test_a_commented_out_required_section_does_not_count_as_present():
+    text = (
+        _without_section(CRITERIA)
+        + f"\n<!--\n{CRITERIA}\n\n- a criterion that is commented out\n-->\n"
+    )
+    assert _spec_keys(text) == [("spec-missing-section", CRITERIA)]
+
+
+def test_a_commented_out_heading_does_not_end_the_section_before_it():
+    text = _with_body(ARCH, f"Real text.\n<!--\n{CRITERIA}\n-->\nMore text.")
     assert _spec_keys(text) == []
+
+
+def test_text_after_a_comment_closes_on_a_fenced_line_still_counts():
+    text = _with_body(INTENT, "<!--\n```\nexample\n```\n-->\nThe real intent.")
+    assert _spec_keys(text) == []
+
+
+def test_comment_markers_inside_a_code_fence_are_literal_text():
+    text = _with_body(INTENT, "```\n<!-- literal marker, not a comment\n```")
+    assert _spec_keys(text) == []
+    # ... and the open marker does not swallow the sections after it.
+    assert _spec_keys(text.replace("How it is shaped.", "How.")) == []
+
+
+def test_an_unclosed_comment_swallows_the_rest_of_the_document():
+    text = _with_body(ARCH, "<!-- never closed")
+    assert _spec_keys(text) == [
+        ("spec-missing-section", ARCH),
+        ("spec-missing-section", CRITERIA),
+    ]
+    reopened = text + f"\n{ARCH}\n\nThe real architecture.\n"
+    assert _spec_keys(reopened) == [
+        ("spec-missing-section", ARCH),
+        ("spec-missing-section", CRITERIA),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Review fixes (slice 2)
+# ---------------------------------------------------------------------------
+
+
+def test_a_ticked_slice_line_outside_a_build_progress_section_is_not_closed():
+    text = _fixture("plan_legacy_ticked_slice.md")
+    record = feature_record.build_record(text)
+    assert record["build_progress"]["legacy"] is True
+    ticked = {
+        i["id"]: i["done"]
+        for i in record["build_progress"]["items"]
+        if i["kind"] == "slice"
+    }
+    assert ticked == {"1": True, "2": False}  # the line is read as a ticked slice
+    assert record["plan"]["blockers"]["open"] == [
+        {"slice": "1", "text": "missing error path"}
+    ]
+    assert _found(text) == []
+
+
+def test_the_same_plan_with_a_build_progress_section_is_closed():
+    text = _swap(
+        _fixture("plan_legacy_ticked_slice.md"),
+        "## Progress notes",
+        "## Build Progress",
+    )
+    assert _found(text) == [("closed-slice-open-blocker", "Slice 1")]
+
+
+EXPECTED_UNCOVERED = {
+    "id": "ac-no-scenario",
+    "subject": "AC2",
+    "what": 'AC2 "The builder writes the output" has no scenario: no step names it, or its covering slices have none. [ac-no-scenario]',
+    "why": "A criterion with no scenario has no behavior that proves it.",
+    "how": 'Add "**Covers**: AC2" to a step, and a Scenario: under **Behavior:** in that step\'s slice.',
+}
+EXPECTED_NO_STEP = {
+    "id": "scenario-no-step",
+    "subject": "Slice 2",
+    "what": "Slice 2 has a scenario and no step heading. [scenario-no-step]",
+    "why": "A scenario with no step is behavior nobody is told to build.",
+    "how": 'Add a "#### Step 2.1: <title>" heading under **Steps:** in Slice 2.',
+}
+EXPECTED_CLOSED = {
+    "id": "closed-slice-open-blocker",
+    "subject": "Slice 1",
+    "what": "Slice 1 is ticked done while an open blocker names it. [closed-slice-open-blocker]",
+    "why": "A critic blocker means the slice is not done.",
+    "how": 'Resolve the blocker and add "**Resolved blocker**: Slice 1 - <text>" under ## Plan Review Summary, or untick Slice 1 under ## Build Progress.',
+}
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("plan_uncovered_criterion.md", EXPECTED_UNCOVERED),
+        ("plan_scenario_no_step.md", EXPECTED_NO_STEP),
+        ("plan_closed_slice_open_blocker.md", EXPECTED_CLOSED),
+    ],
+)
+def test_each_structural_violation_carries_its_exact_pinned_wording(
+    name, expected, capsys
+):
+    assert feature_record.plan_violations(_fixture(name)) == [expected]
+    code, out, _err = _run(["check", str(FIXTURES / name)], capsys)
+    assert code == 1
+    assert json.loads(out)["violations"] == [expected]
+
+
+def test_a_nul_in_the_spec_line_is_recorded_as_not_found(tmp_path, monkeypatch, capsys):
+    root = _isolated(tmp_path, monkeypatch)
+    plan = root / "plan.md"
+    plan.write_text("# P\n\n**Spec**: docs/specs/x\x00.md\n")
+    for command, expected_code in (("view", 0), ("check", 0)):
+        code, _out, err = _run([command, str(plan)], capsys)
+        assert code == expected_code
+        assert "Traceback" not in err
+    assert (
+        json.loads(_run(["view", str(plan)], capsys)[1])["spec"]["reason"]
+        == "not-found"
+    )
+
+
+def _repo_with_spec(root: Path, plan_text: str) -> Path:
+    (root / "docs" / "specs").mkdir(parents=True)
+    (root / "docs" / "specs" / "x.md").write_text(_fixture("spec_sample.md"))
+    (root / "README.md").write_text("# Readme\n\n## Intent Description\n\ntext\n")
+    (root.parent / "x").write_text(_fixture("spec_sample.md"))
+    (root / "plans").mkdir()
+    plan = root / "plans" / "1-x.md"
+    plan.write_text(plan_text)
+    return plan
+
+
+@pytest.mark.parametrize(
+    "ref, loaded",
+    [
+        ("docs/specs/x.md", True),
+        ("./docs/specs/x.md", True),
+        ("docs/specs/./x.md", True),
+        ("README.md", False),
+        ("../x", False),
+        ("docs/specs/../../README.md", False),
+        ("docs/specs/../../../x", False),
+        ("docs/other/x.md", False),
+        ("docs/specsx.md", False),
+    ],
+)
+def test_only_a_relative_path_under_docs_specs_is_read(
+    ref, loaded, tmp_path, monkeypatch, capsys
+):
+    root = _isolated(tmp_path, monkeypatch)
+    plan = _repo_with_spec(root, f"# P\n\n**Spec**: {ref}\n")
+    code, out, _err = _run(["view", str(plan)], capsys)
+    part = json.loads(out)["spec"]
+    assert code == 0
+    assert part["loaded"] is loaded
+    assert part["reason"] == (None if loaded else "not-found")
+
+
+def test_an_absolute_spec_path_is_not_read(tmp_path, monkeypatch, capsys):
+    root = _isolated(tmp_path, monkeypatch)
+    plan = _repo_with_spec(root, "# P\n")
+    absolute = root / "docs" / "specs" / "x.md"
+    plan.write_text(f"# P\n\n**Spec**: {absolute}\n")
+    part = json.loads(_run(["view", str(plan)], capsys)[1])["spec"]
+    assert (part["loaded"], part["reason"]) == (False, "not-found")
+
+
+def test_an_explicit_spec_path_is_not_limited_to_docs_specs(
+    tmp_path, monkeypatch, capsys
+):
+    root = _isolated(tmp_path, monkeypatch)
+    plan = _repo_with_spec(root, "# P\n")
+    code, out, _err = _run(
+        ["view", str(plan), "--spec", str(root / "README.md")], capsys
+    )
+    assert code == 0
+    assert json.loads(out)["spec"]["loaded"] is True
+
+
+def test_the_walk_up_from_the_plan_stops_at_the_repository_root(
+    tmp_path, monkeypatch, capsys
+):
+    outer = tmp_path / "outer"
+    (outer / "docs" / "specs").mkdir(parents=True)
+    (outer / "docs" / "specs" / "x.md").write_text(_fixture("spec_sample.md"))
+    inner = outer / "repo"
+    (inner / ".git").mkdir(parents=True)
+    (inner / "plans").mkdir()
+    plan = inner / "plans" / "1-x.md"
+    plan.write_text("# P\n\n**Spec**: docs/specs/x.md\n")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    part = json.loads(_run(["view", str(plan)], capsys)[1])["spec"]
+    assert (part["loaded"], part["reason"]) == (False, "not-found")
+
+
+def test_the_repository_root_itself_is_searched(tmp_path, monkeypatch, capsys):
+    root = _isolated(tmp_path, monkeypatch)
+    plan = _repo_with_spec(root, "# P\n\n**Spec**: docs/specs/x.md\n")
+    assert json.loads(_run(["view", str(plan)], capsys)[1])["spec"]["loaded"] is True
+
+
+def test_the_working_directory_is_searched_first(tmp_path, monkeypatch, capsys):
+    root = tmp_path / "work"
+    (root / "docs" / "specs").mkdir(parents=True)
+    (root / "docs" / "specs" / "x.md").write_text(_fixture("spec_sample.md"))
+    plan = tmp_path / "loose" / "1-x.md"
+    plan.parent.mkdir()
+    plan.write_text("# P\n\n**Spec**: docs/specs/x.md\n")
+    (tmp_path / "loose" / ".git").mkdir()
+    monkeypatch.chdir(root)
+    assert json.loads(_run(["view", str(plan)], capsys)[1])["spec"]["loaded"] is True

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import posixpath
 import re
 import sys
 from collections import Counter
@@ -39,6 +40,7 @@ _HEADING_RE = re.compile(r"^#{1,3}\s")
 _H2_RE = re.compile(r"^##\s+\S")
 _URL_RE = re.compile(r"^https?://\S+", re.IGNORECASE)
 _MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+_SPEC_DIR = "docs/specs/"
 
 
 def _header_value(plan_text: str, name: str) -> str | None:
@@ -302,7 +304,13 @@ def _blocker_key(blocker: dict[str, str]) -> tuple[str, str]:
 
 
 def _closed_slice_violations(plan: dict, progress: dict) -> list[dict[str, str]]:
-    closed = {i["id"] for i in progress["items"] if i["kind"] == "slice" and i["done"]}
+    # A plan with no `## Build Progress` heading is read whole-file ("legacy"):
+    # a ticked-looking line anywhere is not a progress line, so nothing is closed.
+    closed = (
+        set()
+        if progress["legacy"]
+        else {i["id"] for i in progress["items"] if i["kind"] == "slice" and i["done"]}
+    )
     existing = {s["number"] for s in plan["slices"]}
     # A resolved blocker with the same slice and text cancels exactly one open one.
     resolved = Counter(_blocker_key(b) for b in plan["blockers"]["resolved"])
@@ -376,24 +384,26 @@ def _visible_text(line: str, in_comment: bool) -> tuple[str, bool]:
 def _section_has_content(spec_text: str, heading: str) -> bool:
     """True when some `heading` section holds a non-blank line outside a comment.
 
-    A section runs to the next `## ` heading. Headings inside a code fence
-    neither start nor end a section; fenced lines are content.
+    A section runs to the next `## ` heading. The comment state is tracked on
+    every line and never reset: a `## ` heading or a fenced block inside an
+    open comment is commented out, and an unclosed comment runs to the end of
+    the document. Outside a comment, fenced lines are literal content, and a
+    heading inside a code fence neither starts nor ends a section.
     """
     in_section = False
     in_comment = False
     for line, in_fence in plan_parse.iter_slice_body_lines(spec_text):
-        if in_fence:
-            if in_section and line.strip():
-                return True
-            continue
-        if line.startswith("## "):
+        if in_comment:
+            visible, in_comment = _visible_text(line, True)
+        elif in_fence:
+            visible = line
+        elif line.startswith("## "):
             in_section = line.strip() == heading
-            in_comment = False
+            _, in_comment = _visible_text(line, False)
             continue
-        if not in_section:
-            continue
-        visible, in_comment = _visible_text(line, in_comment)
-        if visible.strip():
+        else:
+            visible, in_comment = _visible_text(line, False)
+        if in_section and visible.strip():
             return True
     return False
 
@@ -463,23 +473,35 @@ def _read_text(path: str, what: str) -> str:
     raise _InputError(f"feature_record: cannot read {what} {path}: {reason}")
 
 
+def _spec_candidates(plan_path: str, ref: str) -> list[Path]:
+    """Where a `docs/specs/...` reference may live: the working directory, then
+    each ancestor of the plan file up to and including the first directory that
+    holds `.git` (the repository root)."""
+    candidates = [Path(ref)]
+    for parent in Path(plan_path).resolve().parents:
+        candidates.append(parent / ref)
+        if (parent / ".git").exists():
+            break
+    return candidates
+
+
 def _load_referenced_spec(plan_path: str, plan_text: str) -> str | None:
     """Read the local spec the plan's `**Spec**:` line names, or None.
 
-    The path is tried against the working directory, then against each parent
-    of the plan file, so a plan checked from a subdirectory still finds
-    `docs/specs/...`. A URL is never fetched.
+    Only a relative path that stays under `docs/specs/` after normalisation is
+    read, so a Spec line cannot make the tool open `README.md`, `../x` or an
+    absolute path. A URL is never fetched. An unreadable file reads as None.
     """
     ref = spec_reference(plan_text)
     if ref is None or _URL_RE.match(ref):
         return None
-    candidates = [Path(ref)]
-    if not Path(ref).is_absolute():
-        candidates += [parent / ref for parent in Path(plan_path).resolve().parents]
-    for candidate in candidates:
+    normalized = posixpath.normpath(ref)
+    if not normalized.startswith(_SPEC_DIR):
+        return None
+    for candidate in _spec_candidates(plan_path, normalized):
         try:
             return candidate.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except (OSError, UnicodeDecodeError, ValueError):
             continue
     return None
 
