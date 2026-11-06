@@ -38,10 +38,19 @@ TIMEOUT_SECONDS = 120
 
 def run_detector(paths: list[str], files_from: str | None) -> tuple[int, str]:
     """Run the detector gate. Returns ``(returncode, stdout)``; -1 on timeout."""
-    command = [sys.executable, str(DETECTOR), "--gate"]
-    if files_from:
-        command += ["--files-from", files_from]
-    command += paths
+    # Read the list here: a process-substitution path such as /dev/fd/63 is
+    # closed in the child, so the detector cannot open it.
+    try:
+        if files_from == "-":
+            listed = sys.stdin.read()
+        elif files_from:
+            listed = Path(files_from).read_text(encoding="utf-8")
+        else:
+            listed = ""
+    except (OSError, UnicodeDecodeError):
+        return -1, ""
+    all_paths = paths + [line.strip() for line in listed.splitlines() if line.strip()]
+    command = [sys.executable, str(DETECTOR), "--gate", *all_paths]
     try:
         proc = subprocess.run(
             command,
@@ -49,7 +58,7 @@ def run_detector(paths: list[str], files_from: str | None) -> tuple[int, str]:
             text=True,
             timeout=TIMEOUT_SECONDS,
             check=False,
-            stdin=None if files_from == "-" else subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
         )
     except (OSError, subprocess.TimeoutExpired):
         return -1, ""

@@ -10,9 +10,10 @@ Scan mode (default)
 Gate mode
     ``sql_anti_patterns.py --gate [--dialect D] PATH...``
     Prints ``{"status", "dispatch", "hits", "errors", "skipped_fragments"}``.
-    Always exits 0. An unexpected exception becomes
-    ``{"status": "error", "message": ...}`` with no traceback, so
-    ``/code-review`` can report a detector failure instead of skipping the lens.
+    Exits 0 once arguments parse (an argparse usage error exits 2). An
+    unexpected exception becomes ``{"status": "error", "message": ...}`` with
+    no traceback, so ``/code-review`` can report a detector failure instead of
+    silently skipping the lens.
 
 Paths come from the command line and from ``--files-from FILE`` (``-`` reads
 standard input), one path per line. Files the detector does not handle, such
@@ -47,7 +48,7 @@ def _read_paths(args: argparse.Namespace) -> list[str]:
             text = sys.stdin.read()
         else:
             text = Path(args.files_from).read_text(encoding="utf-8")
-        paths.extend(line for line in text.splitlines() if line.strip())
+        paths.extend(line.strip() for line in text.splitlines() if line.strip())
     return paths
 
 
@@ -105,7 +106,20 @@ def main(argv: list[str] | None = None) -> int:
             )
             return EXIT_OK
         return _run_gate(paths, args.dialect)
-    return _run_scan(_read_paths(args), args.dialect)
+    try:
+        paths = _read_paths(args)
+    except (OSError, UnicodeDecodeError) as exc:
+        print(
+            json.dumps(
+                {
+                    "findings": [],
+                    "errors": [f"cannot read {args.files_from}: {exc}"],
+                    "skipped_fragments": {},
+                }
+            )
+        )
+        return EXIT_FILE_ERRORS
+    return _run_scan(paths, args.dialect)
 
 
 if __name__ == "__main__":

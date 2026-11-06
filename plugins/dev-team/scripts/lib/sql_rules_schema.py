@@ -28,13 +28,13 @@ def _name_end(tokens, i: int) -> int:
     if i >= n or tokens[i].kind not in (WORD, QUOTED):
         return i
     i += 1
-    while (
-        i + 1 < n
-        and tokens[i].kind == PUNCT
-        and tokens[i].text == "."
-        and tokens[i + 1].kind in (WORD, QUOTED)
-    ):
-        i += 2
+    while i + 1 < n and tokens[i].kind == PUNCT and tokens[i].text == ".":
+        j = i + 1
+        while j < n and tokens[j].kind == PUNCT and tokens[j].text == ".":
+            j += 1  # T-SQL omitted schema part, as in db..t
+        if j >= n or tokens[j].kind not in (WORD, QUOTED):
+            break
+        i = j + 1
     return i
 
 

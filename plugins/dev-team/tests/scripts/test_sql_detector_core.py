@@ -567,3 +567,47 @@ def test_tokenizer_never_raises_on_odd_bytes():
         "a" * 5000 + "'",
     ]:
         tokenize(text)
+
+
+def test_scan_reports_unreadable_files_from_as_a_file_error(tmp_path):
+    code, out, _ = run_cli(tmp_path, "--files-from", str(tmp_path / "missing.txt"))
+    assert code == 2
+    payload = json.loads(out)
+    assert payload["findings"] == []
+    assert payload["errors"][0].startswith("cannot read ")
+
+
+def test_files_from_strips_trailing_whitespace_on_paths(tmp_path):
+    sql = tmp_path / "a.sql"
+    sql.write_text("INSERT INTO t VALUES (1)\n")
+    listing = tmp_path / "list.txt"
+    listing.write_text(f"{sql} \n")
+    _, out, _ = run_cli(tmp_path, "--files-from", str(listing))
+    assert [f["rule"] for f in json.loads(out)["findings"]] == [
+        "sql.schema.positional-insert"
+    ]
+
+
+def test_tsql_omitted_schema_part_is_still_positional(tmp_path):
+    sql = tmp_path / "b.sql"
+    sql.write_text("INSERT INTO db..t VALUES (1)\n")
+    _, out, _ = run_cli(tmp_path, str(sql))
+    assert len(json.loads(out)["findings"]) == 1
+
+
+def test_marker_in_a_multi_line_block_comment_uses_the_marker_line(tmp_path):
+    seed(
+        tmp_path,
+        "/* header\n -- sql-review: ignore sql.schema.positional-insert */\nINSERT INTO t VALUES (1)\n",
+    )
+    _, out, _ = run_cli(tmp_path, "db/seed.sql")
+    assert json.loads(out)["findings"] == []
+
+
+def test_marker_two_lines_above_a_block_comment_end_does_not_suppress(tmp_path):
+    seed(
+        tmp_path,
+        "/* sql-review: ignore sql.schema.positional-insert\n\n */\n\nINSERT INTO t VALUES (1)\n",
+    )
+    _, out, _ = run_cli(tmp_path, "db/seed.sql")
+    assert [f["line"] for f in json.loads(out)["findings"]] == [5]

@@ -179,6 +179,52 @@ def test_changeset_with_sql_dispatches_sql_review_with_the_hits(tmp_path):
     ]
 
 
+def test_roster_accepts_the_process_substitution_form_code_review_uses(tmp_path):
+    """/dev/fd/N is closed in a child process, so the roster must read it."""
+    write(tmp_path, "db/seed.sql", "INSERT INTO t VALUES (1)\n")
+    proc = subprocess.run(
+        [
+            "bash",
+            "-c",
+            f"{sys.executable} {ROSTER_CLI} --files-from <(printf '%s\\n' db/seed.sql)",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    decision = json.loads(proc.stdout)
+    assert decision["status"] == "ok", decision
+    assert decision["dispatch"] is True
+    assert [h["rule"] for h in decision["hits"]] == [RULE]
+
+
+def test_roster_accepts_the_file_list_on_stdin(tmp_path):
+    write(tmp_path, "db/seed.sql", "INSERT INTO t VALUES (1)\n")
+    proc = subprocess.run(
+        [sys.executable, str(ROSTER_CLI), "--files-from", "-"],
+        cwd=tmp_path,
+        input="README.md\ndb/seed.sql\n",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    decision = json.loads(proc.stdout)
+    assert decision["status"] == "ok" and decision["dispatch"] is True
+
+
+def test_roster_reports_an_unreadable_file_list_as_an_error(tmp_path):
+    proc = subprocess.run(
+        [sys.executable, str(ROSTER_CLI), "--files-from", str(tmp_path / "nope")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    decision = json.loads(proc.stdout)
+    assert decision["status"] == "error"
+    assert decision["dispatchFailure"]["agentName"] == "sql-review"
+
+
 @pytest.mark.parametrize(
     "files",
     [("README.md", "src/app.ts"), ("README.md",), ()],
@@ -287,6 +333,7 @@ def test_a_crashing_detector_surfaces_as_an_error_end_to_end(
 ):
     crash = tmp_path / "crash.py"
     crash.write_text("raise SystemExit(7)\n")
+    # double-waiver: B1 - the detector is a subprocess boundary
     monkeypatch.setattr(sql_review_roster, "DETECTOR", crash)
     assert sql_review_roster.main(["db/seed.sql"]) == 0
     decision = json.loads(capsys.readouterr().out)
@@ -296,6 +343,7 @@ def test_a_crashing_detector_surfaces_as_an_error_end_to_end(
 
 
 def test_a_missing_detector_surfaces_as_an_error(tmp_path, monkeypatch, capsys):
+    # double-waiver: B1 - the detector is a subprocess boundary
     monkeypatch.setattr(sql_review_roster, "DETECTOR", tmp_path / "absent.py")
     sql_review_roster.main(["db/seed.sql"])
     decision = json.loads(capsys.readouterr().out)
