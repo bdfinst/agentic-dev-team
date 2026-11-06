@@ -1,0 +1,965 @@
+{
+  "run_id": "20261009T122901Z-js-fp-review-haiku-medium-9363",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-10-09T12:29:01Z",
+  "git_sha": "9adf2f2ce2e097a166c047b1028a8d646f5a0f53",
+  "agent": "js-fp-review",
+  "grader": "expected-findings",
+  "fidelity": "read-only-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-haiku-5-5",
+    "permissionMode": "default",
+    "tools": [
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "low",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 0.0733545,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "fp-array-mutations",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0036609000000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00330388,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 9"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0032682999999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0047623000000000006,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 9"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0036948000000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 9",
+                "severities.error: expected 2-5, got 8"
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-effect-boundary.adapter",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00128884,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0022640600000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0021963300000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00248039,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00218506,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-global-state",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0033450599999999995,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 11",
+                "severities.error: expected 2-5, got 9"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00334168,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 12",
+                "severities.error: expected 2-5, got 10"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00394046,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 13",
+                "severities.error: expected 2-5, got 11"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0034037800000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 13",
+                "severities.error: expected 2-5, got 11"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00404757,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 14",
+                "severities.error: expected 2-5, got 10"
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-immutable-state",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0024137000000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00254201,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0024571,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0023628,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00248588,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-impure-computations",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0026747000000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00168481,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00269899,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00299818,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0029759099999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-object-mutations",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0032283900000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 8",
+                "severities.error: expected 1-4, got 7"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0031316,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 8",
+                "severities.error: expected 1-4, got 7"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00338429,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 9",
+                "severities.error: expected 1-4, got 7"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0031141,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 8",
+                "severities.error: expected 1-4, got 8"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00328861,
+              "cost_reported": true,
+              "grader_messages": [
+                "severities.error: expected 1-4, got 7"
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-point-free-wrappers",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00250001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00250151,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00257394,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'compose'"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00270003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00278003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-pure-transforms",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00235361,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00246772,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00244899,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0024002999999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0024465199999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-safe-sort",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0024783,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0023882,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00256049,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00240088,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0025624,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "graded_fail": 14,
+        "pass": 31,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.12618741,
+        "unreported_trials_estimate_usd": 0.0
+      }
+    },
+    {
+      "label": "candidate",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "medium",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 0.0733545,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "fp-array-mutations",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0038872100000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "severities.error: expected 2-5, got 8"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00420739,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 9",
+                "severities.error: expected 2-5, got 8"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00417211,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 9",
+                "severities.error: expected 2-5, got 8"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00427169,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 9"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0045103,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 9",
+                "severities.error: expected 2-5, got 8"
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-effect-boundary.adapter",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00234559,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00255969,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00235075,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00273122,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00246993,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-global-state",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.004670280000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 12",
+                "severities.error: expected 2-5, got 10"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.004609360000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 12",
+                "severities.error: expected 2-5, got 10"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.004331570000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 12",
+                "severities.error: expected 2-5, got 10"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00467938,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 13",
+                "severities.error: expected 2-5, got 10"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00504539,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 4-8, got 12",
+                "severities.error: expected 2-5, got 10"
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-immutable-state",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00263719,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00294071,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0025038900000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00256531,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00283729,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-impure-computations",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0030202,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0032624099999999994,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0030993999999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0030463099999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0028339000000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-object-mutations",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0034847999999999997,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 8",
+                "severities.error: expected 1-4, got 7"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00375951,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 8",
+                "severities.error: expected 1-4, got 7"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0042399,
+              "cost_reported": true,
+              "grader_messages": [
+                "severities.error: expected 1-4, got 6"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00328791,
+              "cost_reported": true,
+              "grader_messages": [
+                "severities.error: expected 1-4, got 7"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0035786800000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "severities.error: expected 1-4, got 7"
+              ],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-point-free-wrappers",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0027922100000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00308031,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0028236400000000005,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'compose'"
+              ],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00317521,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00276882,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-pure-transforms",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00289441,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0026783100000000006,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00259862,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0025330100000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00306172,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        },
+        {
+          "stem": "fp-safe-sort",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0026558,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0028460000000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00272621,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0027391100000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00302968,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "graded_fail": 16,
+        "pass": 29,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.14634233,
+        "unreported_trials_estimate_usd": 0.0
+      }
+    }
+  ]
+}

@@ -14,7 +14,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import json
 import re
 import subprocess
@@ -25,59 +24,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
-# ---------------------------------------------------------------------------
-# Module constants (REFACTOR: extracted for easy maintenance)
-# ---------------------------------------------------------------------------
+# Bare sibling import, as `feature_record.py` does: `scripts/lib` is not a
+# package, and the shared git-evidence rule must be one module object.
+_LIB = str(Path(__file__).resolve().parent / "lib")
+if _LIB not in sys.path:
+    sys.path.insert(0, _LIB)
 
-# Matches: - [x] Step 1.1: Header text  OR  - [ ] Just a header
-STEP_PATTERN = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
-
-# Matches backtick-quoted paths in plan text (declared file references)
-BACKTICK_PATH_RE = re.compile(r"`([^`\s]+\.[a-zA-Z0-9_]+)`")
-
-# Matches backtick-quoted directory declarations (trailing '/'), e.g.
-# `plugins/dev-team/skills/new-feature/`. Kept separate from
-# BACKTICK_PATH_RE so extension-less, non-path backtick tokens (e.g.
-# `runHook()`, `SomeClass`) are never mistaken for declared paths — see
-# issue #713.
-BACKTICK_DIR_RE = re.compile(r"`([^`\s]+/)`")
-
-# Matches a slice's `**Files:** ...` declaration line. Captures the
-# remainder of the line so BACKTICK_PATH_RE/BACKTICK_DIR_RE can extract
-# the paths from it.
-SLICE_FILES_RE = re.compile(r"^\*\*Files:\*\*\s*(.+)$")
-
-
-def _extract_declared_paths(text: str) -> list[str]:
-    """Return backtick-quoted file paths and directory paths declared in
-    text: exact file paths (ending in a dot-extension) plus directory
-    declarations (ending in '/'). A directory declaration means "this
-    slice touches things under here" — matched with startswith, not
-    equality, by callers. Bare backtick-quoted tokens with no extension
-    and no trailing slash (e.g. `` `runHook()` ``) are not paths and are
-    intentionally excluded (see issue #713).
-    """
-    return BACKTICK_PATH_RE.findall(text) + BACKTICK_DIR_RE.findall(text)
-
-
-def _is_path_declared(file_path: str, declared_paths) -> bool:
-    """True if file_path exactly matches a declared file, falls under
-    a declared directory (trailing '/') prefix, or matches a declared glob
-    pattern (fnmatch, stdlib — issue #865 AC9, e.g. `src/auth/**`). Single
-    source of truth shared by check_commit_discipline, check_scope, and
-    check_declared_scope_adherence so these checks cannot drift on what
-    counts as "declared" (see issue #525/#713/#865).
-    """
-    for declared in declared_paths:
-        if declared.endswith("/"):
-            if file_path.startswith(declared):
-                return True
-        elif file_path == declared or any(ch in declared for ch in "*?[") and fnmatch.fnmatch(
-            file_path, declared
-        ):
-            return True
-    return False
-
+import commit_evidence
+import feature_record
+from commit_evidence import STEP_PATTERN, run_git  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Data model
@@ -95,21 +50,6 @@ class Step:
 # ---------------------------------------------------------------------------
 
 
-def run_git(args: list[str], cwd: str) -> str:
-    """Run a git command in cwd, return stdout. Returns '' on failure."""
-    try:
-        result = subprocess.run(
-            ["git"] + args,
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            check=False,
-        )
-        return result.stdout
-    except (FileNotFoundError, OSError):
-        return ""
-
-
 # ---------------------------------------------------------------------------
 # Core checks
 # ---------------------------------------------------------------------------
@@ -118,71 +58,21 @@ def run_git(args: list[str], cwd: str) -> str:
 def parse_plan(path: Path) -> tuple[list[Step], list[dict]]:
     """Parse plan file and return (steps, errors).
 
-    Scopes checkbox parsing with two flags when a Build Progress section
-    exists (issue #525):
-
-    - `in_build_progress` (outer scope) — when the plan contains a
-      `## Build Progress` heading, only lines between that heading and the
-      next `## ` H2 are eligible for step parsing. This prevents the
-      top-level `## Acceptance Criteria` section's checkboxes from being
-      treated as Build Progress steps.
-    - `in_acceptance` (inner skip) — within the Build Progress section,
-      the `/plan` skill renders a documentation mirror of the top-level
-      AC list under a `### Acceptance Criteria` H3 sub-heading. Those
-      mirror items lack work-tracking semantics (no `### Slice` heading,
-      no `**Files:**` line, no commit subject anchor). They are skipped
-      so the pre-PR gate doesn't demand a commit for each one. The
-      structural problem behind the workaround is tracked in #526.
-
-    When no `## Build Progress` heading is present (legacy/minimal plans),
-    falls back to whole-file scanning — preserves backward compatibility
-    with the pre-existing bats fixtures that construct minimal plans.
+    The steps are the feature record's `build_progress.items`
+    (`feature_record.build_record`), so the guardian and the record share one
+    reading of `## Build Progress`: only lines inside that section are steps
+    (issue #525), and the `### Acceptance Criteria` documentation mirror under
+    it is skipped (issue #526; the skip lives in `plan_record_parse`). A plan
+    with no `## Build Progress` heading is legacy and is scanned whole.
 
     Returns an error finding (naming the file) if no checkboxes found.
     """
     text = path.read_text(encoding="utf-8")
-
-    # First, see whether the plan has a `## Build Progress` heading. If it
-    # does, narrow the scan to that section only. Otherwise, scan the whole
-    # file (preserves backward compatibility with plans that don't carry
-    # the section structure).
-    lines = text.splitlines()
-    has_build_progress = any(
-        line.rstrip().startswith("## Build Progress") for line in lines
-    )
-
-    steps: list[Step] = []
-    in_build_progress = not has_build_progress  # legacy plans: scan everything
-    in_acceptance = False
-    for raw in lines:
-        line = raw.rstrip()
-        if has_build_progress:
-            if line.startswith("## Build Progress"):
-                in_build_progress = True
-                in_acceptance = False
-                continue
-            # Any other H2 closes the section.
-            if in_build_progress and line.startswith("## "):
-                in_build_progress = False
-                continue
-            # The `### Acceptance Criteria` subheading inside Build Progress
-            # is a documentation mirror — the same items appear in the
-            # top-level `## Acceptance Criteria`. Skip its checkboxes so
-            # they don't demand commits of their own. The structural
-            # redesign of where ACs live is tracked in #526; this PR
-            # ships the workaround so the gate stops false-positiving.
-            if in_build_progress and line.startswith("### Acceptance Criteria"):
-                in_acceptance = True
-                continue
-            # Any other H3 within Build Progress exits the AC subsection.
-            if in_acceptance and line.startswith("### "):
-                in_acceptance = False
-        if not in_build_progress or in_acceptance:
-            continue
-        m = STEP_PATTERN.match(line)
-        if m:
-            flag, header = m.group(1), m.group(2).strip()
-            steps.append(Step(done=(flag.lower() == "x"), header=header))
+    record = feature_record.build_record(text, spec_text=None)
+    steps = [
+        Step(done=item["done"], header=item["header"])
+        for item in record["build_progress"]["items"]
+    ]
 
     if not steps:
         return [], [
@@ -194,80 +84,6 @@ def parse_plan(path: Path) -> tuple[list[Step], list[dict]]:
             )
         ]
     return steps, []
-
-
-def _parse_slice_files(plan_text: str, slice_header: str) -> list[str]:
-    """Return backtick-quoted paths from the `**Files:**` line declared
-    under the slice identified by `slice_header`. Empty list when not found.
-
-    Two layouts are supported:
-      1. **Heading-anchored** (the /plan skill convention): the slice is
-         declared with `### Slice N: title` and `**Files:** ...` lives in
-         that section's body. Build Progress checkboxes mirror the heading
-         text — we match the heading and scan forward.
-      2. **Inline** (minimal plans): `- [x] Slice N: title` followed by a
-         `**Files:** ...` line in the same checkbox block. Scan forward
-         from the checkbox until another checkbox or a heading.
-
-    Heading-anchored is tried first because real plans always use it. The
-    inline form preserves a smaller fixture surface for tests and the
-    minimal plans the existing bats fixtures construct.
-    """
-    lines = plan_text.splitlines()
-
-    # Try heading-anchored layout first.
-    in_block = False
-    for raw in lines:
-        line = raw.rstrip()
-        if line.startswith("### ") and line[4:].strip() == slice_header:
-            in_block = True
-            continue
-        if not in_block:
-            continue
-        if line.startswith(("## ", "### ")):
-            break
-        fm = SLICE_FILES_RE.match(line)
-        if fm:
-            return _extract_declared_paths(fm.group(1))
-
-    # Fall back to inline layout: `**Files:**` line near a `- [x] <header>`.
-    in_block = False
-    for raw in lines:
-        line = raw.rstrip()
-        m = STEP_PATTERN.match(line)
-        if m:
-            header = m.group(2).strip()
-            if header == slice_header:
-                in_block = True
-                continue
-            if in_block:
-                # A different checkbox closes the block.
-                break
-        if not in_block:
-            continue
-        if line.startswith(("## ", "### ")):
-            break
-        fm = SLICE_FILES_RE.match(line)
-        if fm:
-            return _extract_declared_paths(fm.group(1))
-    return []
-
-
-def _branch_base_sha(repo_root: str) -> str | None:
-    """Resolve the branch base SHA (the merge-base with trunk).
-
-    Prefers remote tracking refs over local refs — local main lags
-    origin/main the moment any work begins. Returns None when no
-    trunk-like ref resolves to a divergence point; callers should
-    treat None as "no meaningful branch base — use whole history."
-    See issue #525.
-    """
-    head_sha = run_git(["rev-parse", "HEAD"], repo_root).strip()
-    for branch in ("origin/main", "origin/master", "main", "master"):
-        out = run_git(["merge-base", "HEAD", branch], repo_root).strip()
-        if out and out != head_sha:
-            return out
-    return None
 
 
 def check_commit_discipline(
@@ -292,21 +108,28 @@ def check_commit_discipline(
     if not done_steps:
         return []
 
-    base_sha = _branch_base_sha(repo_root)
+    base_sha = commit_evidence.branch_base_sha(repo_root)
 
     # Build the commit range. When no base resolves (orphan HEAD), fall
-    # back to whole-history matching so legacy behavior is preserved.
+    # back to whole-history matching so legacy behavior is preserved. That
+    # fallback is this checker's policy; the feature record reports the same
+    # case as unverifiable instead.
     if base_sha:
-        range_arg = f"{base_sha}..HEAD"
-        log_subjects_out = run_git(
-            ["log", "--no-merges", "--format=%s", range_arg], repo_root
+        commit_subjects, branch_files = commit_evidence.commits_since(
+            repo_root, base_sha
         )
     else:
-        range_arg = "HEAD"
         log_subjects_out = run_git(
             ["log", "--no-merges", "--format=%s", "HEAD"], repo_root
         )
-    if not log_subjects_out.strip():
+        commit_subjects = [
+            s.lower() for s in log_subjects_out.strip().splitlines() if s.strip()
+        ]
+        diff_out = run_git(
+            ["log", "--name-only", "--pretty=format:", "HEAD"], repo_root
+        )
+        branch_files = {p for p in diff_out.strip().splitlines() if p.strip()}
+    if not commit_subjects:
         # Zero commits on this branch — emit a warning, not a hard error.
         return [
             make_issue(
@@ -315,28 +138,19 @@ def check_commit_discipline(
                 suggested_fix="Commit work before marking steps done.",
             )
         ]
-    commit_subjects = [
-        s.lower() for s in log_subjects_out.strip().splitlines() if s.strip()
-    ]
-
-    # Collect file paths touched by commits in the range (file-path path).
-    if base_sha:
-        diff_out = run_git(["diff", "--name-only", range_arg], repo_root)
-    else:
-        diff_out = run_git(
-            ["log", "--name-only", "--pretty=format:", "HEAD"], repo_root
-        )
-    branch_files = {p for p in diff_out.strip().splitlines() if p.strip()}
 
     errors: list[dict] = []
     for step in done_steps:
-        declared = _parse_slice_files(plan_text, step.header) if plan_text else []
+        if commit_evidence.item_backed(
+            step.header, plan_text, commit_subjects, branch_files
+        ):
+            continue
+        declared = (
+            commit_evidence.parse_slice_files(plan_text, step.header)
+            if plan_text
+            else []
+        )
         if declared:
-            # File-path path: pass when any declared file was touched on
-            # this branch, or any branch file falls under a declared
-            # directory (see issue #713).
-            if any(_is_path_declared(bf, declared) for bf in branch_files):
-                continue
             errors.append(
                 make_issue(
                     "error",
@@ -353,21 +167,19 @@ def check_commit_discipline(
             )
             continue
         # Substring fallback: no `**Files:**` declared.
-        header_lower = step.header.lower()
-        if not any(header_lower in subject for subject in commit_subjects):
-            errors.append(
-                make_issue(
-                    "error",
-                    message=(
-                        f"Done step '{step.header}' has no matching commit in git log. "
-                        f"Expected a commit whose subject contains: '{step.header}'"
-                    ),
-                    suggested_fix=(
-                        f"Commit your work with a message containing '{step.header}' "
-                        f"before marking this step done."
-                    ),
-                )
+        errors.append(
+            make_issue(
+                "error",
+                message=(
+                    f"Done step '{step.header}' has no matching commit in git log. "
+                    f"Expected a commit whose subject contains: '{step.header}'"
+                ),
+                suggested_fix=(
+                    f"Commit your work with a message containing '{step.header}' "
+                    f"before marking this step done."
+                ),
             )
+        )
     return errors
 
 
@@ -521,7 +333,7 @@ def _collect_branch_changed_files(repo_root: str) -> list[str]:
     branch base, plus any currently uncommitted (staged/unstaged) files.
     Mirrors check_scope's branch-scope resolution (issue #727).
     """
-    base_ref = _branch_base_sha(repo_root)
+    base_ref = commit_evidence.branch_base_sha(repo_root)
     if not base_ref:
         base_ref = run_git(["rev-list", "--max-parents=0", "HEAD"], repo_root).strip()
 
@@ -593,7 +405,7 @@ def check_verify_log(repo_root: str, changed_files: list[str]) -> list[dict]:
 def _all_slice_headers(steps: list[Step]) -> list[str]:
     """Return the subset of Build Progress checkbox headers that are slice
     headers (`"Slice N: <title>"`), not step headers — the shape
-    `_parse_slice_files` expects (issue #865 AC8)."""
+    `commit_evidence.parse_slice_files` expects (issue #865 AC8)."""
     return [s.header for s in steps if s.header.startswith("Slice ")]
 
 
@@ -615,7 +427,7 @@ def check_declared_scope_adherence(
     """
     declared: list[str] = []
     for header in _all_slice_headers(steps):
-        declared.extend(_parse_slice_files(plan_text, header))
+        declared.extend(commit_evidence.parse_slice_files(plan_text, header))
     if not declared:
         return []
 
@@ -632,7 +444,9 @@ def check_declared_scope_adherence(
     if not changed_files:
         return []
 
-    out_of_scope = sorted(f for f in changed_files if not _is_path_declared(f, declared))
+    out_of_scope = sorted(
+        f for f in changed_files if not commit_evidence.is_path_declared(f, declared)
+    )
     if not out_of_scope:
         return []
 
@@ -665,14 +479,14 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> list[dict]:
     LLM unavailability always produces a warning, never an error.
     """
     text = plan_path.read_text(encoding="utf-8")
-    declared_paths = set(_extract_declared_paths(text))
+    declared_paths = set(commit_evidence.extract_declared_paths(text))
 
     # Single source of truth for base-ref resolution — shared with
     # check_commit_discipline so the two checks cannot drift on what
     # counts as "trunk" (see issue #525). When no meaningful divergence
     # point exists (no remote, no local trunk), fall back to the root
     # commit so check_scope can still flag every file touched in the repo.
-    base_ref = _branch_base_sha(repo_root)
+    base_ref = commit_evidence.branch_base_sha(repo_root)
     if not base_ref:
         base_ref = run_git(["rev-list", "--max-parents=0", "HEAD"], repo_root).strip()
 
@@ -719,7 +533,11 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> list[dict]:
     out_of_plan = (
         changed_files
         if not declared_paths
-        else {f for f in changed_files if not _is_path_declared(f, declared_paths)}
+        else {
+            f
+            for f in changed_files
+            if not commit_evidence.is_path_declared(f, declared_paths)
+        }
     )
 
     if not out_of_plan:
@@ -875,9 +693,7 @@ def main(argv: list[str] | None = None) -> int:
             # only, never a gate failure — freeze (when engaged) is the
             # real enforcement mechanism.
             warnings.extend(
-                check_declared_scope_adherence(
-                    steps, plan_path, repo_root, plan_text
-                )
+                check_declared_scope_adherence(steps, plan_path, repo_root, plan_text)
             )
 
     result = build_result(errors, warnings)

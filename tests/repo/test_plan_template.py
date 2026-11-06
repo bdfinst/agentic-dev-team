@@ -2,14 +2,15 @@
 an `### Acceptance Criteria` mirror inside `## Build Progress`, and /build
 no longer tries to tick items in that (removed) subsection. Ships with a
 belt-and-suspenders assertion that the #525 guardian inner-skip logic is
-still present in plugins/dev-team/scripts/progress_guardian.py so legacy
-plans still work.
+still present so legacy plans still work. Since #2275 the guardian reads the
+feature record and the skip lives in plugins/dev-team/scripts/lib/plan_record_parse.py.
 
 Ported from tests/repo/plan-template-tests.bats (#673).
 """
 
 from __future__ import annotations
 
+import importlib.util
 import re
 
 from _repo_root import REPO_ROOT
@@ -27,7 +28,11 @@ PLAN_TEMPLATE = (
     / "plan-template.md"
 )
 BUILD_SKILL = REPO_ROOT / "plugins" / "dev-team" / "skills" / "build" / "SKILL.md"
-GUARDIAN = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "progress_guardian.py"
+# Since #2275 the guardian reads the feature record; the Build Progress parse
+# (and the Acceptance Criteria mirror skip) lives here.
+PLAN_RECORD_PARSE = (
+    REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib" / "plan_record_parse.py"
+)
 
 # ---------------------------------------------------------------------------
 # Slice 1 - /plan template + Step 4 prose
@@ -87,15 +92,23 @@ def test_526_2_1c_build_skill_still_contains_verify_acceptance_criteria_step() -
 # ---------------------------------------------------------------------------
 
 
-def test_526_3_1b_guardian_parse_plan_carries_in_acceptance_inner_skip_state() -> None:
+def test_526_3_1b_build_progress_parse_skips_the_acceptance_criteria_mirror() -> None:
     # Belt-and-suspenders - legacy plans on branches that still carry the AC
     # mirror rely on this skip. Removing it would silently regress every such
-    # branch's pre-PR gate.
-    assert "in_acceptance" in GUARDIAN.read_text()
+    # branch's pre-PR gate. Behavioral: the mirror lines are not items, the
+    # real slice after the mirror is.
+    spec = importlib.util.spec_from_file_location(
+        "plan_record_parse_under_test", PLAN_RECORD_PARSE
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
 
+    plan = (
+        "## Build Progress\n\n"
+        "### Acceptance Criteria\n- [x] AC1 mirrored\n\n"
+        "### Slices\n- [ ] Slice 1: real work\n"
+    )
+    headers = [i["header"] for i in module.parse_build_progress(plan)["items"]]
 
-def test_526_3_1c_guardian_parse_plan_checks_for_acceptance_criteria_skip_trigger() -> (
-    None
-):
-    # The other half of the inner-skip pair.
-    assert "### Acceptance Criteria" in GUARDIAN.read_text()
+    assert headers == ["Slice 1: real work"]

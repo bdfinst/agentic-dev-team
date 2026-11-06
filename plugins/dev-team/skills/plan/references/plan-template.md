@@ -65,7 +65,12 @@ Feature: <feature name>
 **TEST**: Write test covering <scenario / behavior>; full suite green
 **REFACTOR**: <What to clean up — runs every cycle; never "skip">
 **Files**: `path/to/file.ts`, `path/to/file.test.ts`
+**Covers**: <AC ids>
 **Commit**: `<draft commit message>`
+<!-- **Covers** is OPTIONAL. Name the acceptance criteria this step proves,
+     for example `AC1` or `AC1, AC3`. A plan with at least one Covers line
+     opts in to the feature-record check that every criterion is named by a
+     step in a slice that holds a scenario. -->
 
 #### Step 1.2: <Description>
 
@@ -164,6 +169,14 @@ section when there are none.
 ## Risks & Open Questions
 
 - <Risk or question, with mitigation or who should answer>
+
+<!-- OPTIONAL. Plan review appends a `## Plan Review Summary` section (see
+     SKILL.md). Under it, a critic blocker is one line each:
+       `**Open blocker**: Slice <n> - <text>`
+       `**Resolved blocker**: Slice <n> - <text>`
+     A slice ticked in Build Progress while an open blocker names it fails the
+     feature-record check. A resolved line with the same slice and text
+     cancels one open line. -->
 
 ## Build Progress
 
