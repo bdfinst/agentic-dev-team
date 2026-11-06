@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: bisque-cloud/presenter@v1
         with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # The action default, anthropic/claude-opus-5, returns "Not Found".
-          model: anthropic/claude-opus-5-5
+          # Claude Code engine. With anthropic-api-key, the action's OpenCode
+          # engine appears to call the API without /v1: every request is "Not Found".
+          claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           tag: ${{ inputs.tag }}
