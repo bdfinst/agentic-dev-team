@@ -27,7 +27,7 @@ import validate_review_output
 
 EVALS = REPO_ROOT / "evals"
 CATALOG = PLUGIN_DIR / "knowledge" / "sql-anti-patterns"
-CASES = ["sql-positional-insert", "sql-clean"]
+CASES = ["sql-positional-insert", "sql-clean", "sql-boundary-injection-loop"]
 RULES = {r.id: r for r in sql_rules.discover_rules()}
 
 
@@ -53,7 +53,10 @@ def agent_output_for(stem):
     """What a correct sql-review emits for the fixture: confirmed detector hits."""
     spec = load_expected(stem)
     fixture = EVALS / "fixtures" / spec["fixture"]
-    hits = sql_scan.scan_text(fixture.read_text(encoding="utf-8"), spec["fixture"])
+    if fixture.suffix == ".sql":
+        hits = sql_scan.scan_text(fixture.read_text(encoding="utf-8"), spec["fixture"])
+    else:  # embedded SQL: the detector extracts the literals first
+        hits = sql_scan.scan_paths([str(fixture)]).findings
     issues = [
         {
             "category": h["rule"],
@@ -138,6 +141,17 @@ def test_every_issue_carries_a_one_line_message_and_fix_from_the_rule():
             assert "\n" not in issue["message"] + issue["suggestedFix"]
 
 
-def test_both_fixtures_are_sql_files():
-    for stem in CASES:
-        assert load_expected(stem)["fixture"].endswith(".sql")
+def test_fixtures_are_sql_files_or_embedded_source():
+    suffixes = {Path(load_expected(stem)["fixture"]).suffix for stem in CASES}
+    assert suffixes == {".sql", ".py"}
+
+
+def test_boundary_fixture_has_embedded_sql_but_no_issues():
+    """Vacuity guard: the clean verdict comes from scanned SQL, not an empty scan."""
+    fixture = (
+        EVALS / "fixtures" / load_expected("sql-boundary-injection-loop")["fixture"]
+    )
+    result = sql_scan.scan_paths([str(fixture)])
+    assert result.dispatch is True
+    assert result.skipped_fragments
+    assert agent_output_for("sql-boundary-injection-loop")["issues"] == []
