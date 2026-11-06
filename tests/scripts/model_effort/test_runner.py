@@ -89,10 +89,12 @@ class TestStagingFixtures:
         assert not Path(stub.calls[0]["cwd"]).exists()
 
     def test_temp_dir_is_removed_after_a_timeout(self, stub_dir, fixture_root):
-        stub = StubClaude(stub_dir, sleep=30)
+        stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
-        runner.run_trial(fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS)
+        runner.run_trial(
+            fixture, _config(stub), trial_timeout_seconds=STARTUP_TIMEOUT_SECONDS
+        )
 
         assert stub.calls, "the stub never started, so the timeout proved nothing"
         assert not Path(stub.calls[0]["cwd"]).exists()
@@ -274,6 +276,12 @@ class TestTrialEnvironment:
 GRANDCHILD_DELAY_SECONDS = 4
 # Short grace for the output of an exited child, so the tests do not wait the real 5 s.
 HOLDER_GRACE_SECONDS = 1
+# How long a stub (or its pipe holder) runs when a test needs it to outlast the run.
+# Elapsed-time bounds are fractions of this, not fixed seconds, so a loaded machine
+# running the suite under `-n auto` does not fail them.
+STUB_RUN_SECONDS = 30
+# A trial deadline long enough for the stub to start on a loaded machine.
+STARTUP_TIMEOUT_SECONDS = TIMEOUT_SECONDS * 3
 
 
 def _wait_until_after(started: float, delay: float) -> None:
@@ -343,11 +351,11 @@ class TestExecution:
     def test_run_exceeding_the_time_limit_is_marked_timed_out(
         self, stub_dir, fixture_root
     ):
-        stub = StubClaude(stub_dir, sleep=30)
+        stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS
+            fixture, _config(stub), trial_timeout_seconds=STARTUP_TIMEOUT_SECONDS
         )
 
         assert stub.calls, "the stub never started, so the timeout proved nothing"
@@ -357,15 +365,18 @@ class TestExecution:
     def test_clean_exit_is_not_a_timeout_when_a_descendant_holds_the_pipes_open(
         self, stub_dir, fixture_root, short_output_grace
     ):
-        stub = StubClaude(stub_dir, stdout="result", exit_code=0, holder_sleep=30)
+        stub = StubClaude(
+            stub_dir, stdout="result", exit_code=0, holder_sleep=STUB_RUN_SECONDS
+        )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
         started = time.monotonic()
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS * 10
+            fixture, _config(stub), trial_timeout_seconds=STUB_RUN_SECONDS
         )
 
-        assert time.monotonic() - started < TIMEOUT_SECONDS
+        # Well short of the holder's sleep: the run did not wait for it.
+        assert time.monotonic() - started < STUB_RUN_SECONDS / 2
         assert (record.exit_code, record.stdout, record.timed_out) == (
             0,
             "result",
@@ -397,14 +408,14 @@ class TestExecution:
     ):
         stub = StubClaude(
             stub_dir,
-            sleep=30,
+            sleep=STUB_RUN_SECONDS,
             early_stdout="partial stdout",
             early_stderr="partial stderr",
         )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS
+            fixture, _config(stub), trial_timeout_seconds=STARTUP_TIMEOUT_SECONDS
         )
 
         assert record.timed_out is True
@@ -428,17 +439,18 @@ class TestExecution:
         stub = StubClaude(
             stub_dir,
             stdout="result",
-            holder_sleep=HOLDER_GRACE_SECONDS * 6,
+            holder_sleep=STUB_RUN_SECONDS,
             holder_new_session=True,
         )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
         started = time.monotonic()
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS * 10
+            fixture, _config(stub), trial_timeout_seconds=STUB_RUN_SECONDS
         )
 
-        assert time.monotonic() - started < HOLDER_GRACE_SECONDS * 4
+        # Well short of the holder's sleep: the run did not wait for it.
+        assert time.monotonic() - started < STUB_RUN_SECONDS / 2
         assert (record.exit_code, record.stdout, record.timed_out) == (
             0,
             "result",
@@ -448,11 +460,13 @@ class TestExecution:
     def test_child_that_outlives_the_deadline_is_still_a_timeout_with_a_descendant_holding_the_pipes(
         self, stub_dir, fixture_root
     ):
-        stub = StubClaude(stub_dir, sleep=30, holder_sleep=30)
+        stub = StubClaude(
+            stub_dir, sleep=STUB_RUN_SECONDS, holder_sleep=STUB_RUN_SECONDS
+        )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS
+            fixture, _config(stub), trial_timeout_seconds=STARTUP_TIMEOUT_SECONDS
         )
 
         assert (record.exit_code, record.timed_out) == (None, True)
@@ -483,11 +497,13 @@ class TestExecution:
         self, stub_dir, fixture_root
     ):
         marker, spawned = stub_dir / "late.txt", stub_dir / "spawned.txt"
+        # The grandchild writes its marker only after the deadline has passed.
+        grandchild_delay = STARTUP_TIMEOUT_SECONDS + GRANDCHILD_DELAY_SECONDS
         stub = StubClaude(
             stub_dir,
-            sleep=30,
+            sleep=STUB_RUN_SECONDS,
             grandchild_marker=str(marker),
-            grandchild_delay=GRANDCHILD_DELAY_SECONDS,
+            grandchild_delay=grandchild_delay,
             grandchild_spawned=str(spawned),
         )
         started = time.monotonic()
@@ -495,9 +511,9 @@ class TestExecution:
         runner.run_trial(
             _make_file_fixture(fixture_root, "a.txt", "a"),
             _config(stub),
-            trial_timeout_seconds=TIMEOUT_SECONDS,
+            trial_timeout_seconds=STARTUP_TIMEOUT_SECONDS,
         )
-        _wait_until_after(started, GRANDCHILD_DELAY_SECONDS)
+        _wait_until_after(started, grandchild_delay)
 
         assert spawned.exists(), (
             "the grandchild never started, so the kill proved nothing"
