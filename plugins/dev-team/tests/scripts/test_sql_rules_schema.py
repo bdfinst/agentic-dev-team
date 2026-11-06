@@ -184,7 +184,7 @@ def rules_by_line(stmt):
             id="select-after-go",
         ),
         pytest.param(
-            "INSERT INTO a SELECT x FROM b\nUPDATE t SET y = 1\nSELECT * FROM c",
+            "INSERT INTO a SELECT x FROM b\nUPDATE t SET y = 1 WHERE id = 1\nSELECT * FROM c",
             [(3, SELECT_STAR)],
             id="select-after-update",
         ),
