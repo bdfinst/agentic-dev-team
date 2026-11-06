@@ -56,7 +56,16 @@ example.
   unless the catalog marks it `agent`-owned.
 - **Agent-owned rules.** Find these yourself. They need judgment that a
   tokenizer cannot give. If the catalog lists none, report only confirmed
-  detector hits.
+  detector hits. Today these are `sql.correctness.distinct-masks-join` (a
+  `DISTINCT` over a join that repeats rows) and `sql.index.implicit-conversion`
+  (a character column compared to a number). Report each only when the
+  statement and, for conversion, the column type are in the changeset.
+- **`sql.correctness.not-in-subquery` hits.** The detector cannot see
+  nullability. Find the `CREATE TABLE` for the subquery column in the
+  changeset. Keep the hit when the column is nullable (for example
+  `t_id int NULL`) or its definition is not in the changeset. Dismiss it when
+  the column is `NOT NULL`, or the subquery filters with `IS NOT NULL`, and
+  name the reason in `summary`.
 - **Unreadable files.** For each entry in `errors`, name the file in `summary`.
   Never add an issue for it: every issue needs a catalog rule id.
 
