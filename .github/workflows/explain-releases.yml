@@ -25,9 +25,11 @@ jobs:
       endsWith(github.event.release.tag_name, '.0'))
     runs-on: ubuntu-latest
     steps:
-      - uses: bisque-cloud/presenter@v1
+      # Pinned to a commit: the step receives a long-lived Claude plan token.
+      - uses: bisque-cloud/presenter@1bcc1ea0f91811ae0a54d9ef70d6d493ad9132a0 # v1.10.0
         with:
           # Claude Code engine. With anthropic-api-key, the action's OpenCode
           # engine appears to call the API without /v1: every request is "Not Found".
+          # The model is the one Claude Code picks for the plan.
           claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           tag: ${{ inputs.tag }}
