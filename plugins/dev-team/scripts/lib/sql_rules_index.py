@@ -142,15 +142,56 @@ _NOT_A_COLUMN = frozenset(
 )
 
 
-def _has_column(tokens, start: int, end: int) -> bool:
+# Functions whose first argument is a type or a date part, not a column.
+_FIRST_ARGUMENT_IS_NOT_A_COLUMN = frozenset(
+    {
+        "CONVERT",
+        "TRY_CONVERT",
+        "DATEADD",
+        "DATEDIFF",
+        "DATEDIFF_BIG",
+        "DATEPART",
+        "DATENAME",
+    }
+)
+# Words that continue a type name: DOUBLE PRECISION, TIMESTAMP WITH TIME ZONE.
+_TYPE_TAIL = frozenset(
+    {"PRECISION", "VARYING", "WITH", "WITHOUT", "TIME", "ZONE", "UNSIGNED", "SIGNED"}
+)
+
+
+def _skip_type(tokens, pairs: dict[int, int], i: int, end: int) -> int:
+    """Index after the type name that starts at ``i``, with its length and tail."""
+    if i < end and tokens[i].kind in (WORD, QUOTED):
+        i += 1
+    while i < end:
+        if is_punct(tokens[i], "(") and i in pairs:
+            i = pairs[i] + 1
+        elif word(tokens[i]) in _TYPE_TAIL:
+            i += 1
+        else:
+            break
+    return i
+
+
+def _has_column(tokens, pairs: dict[int, int], start: int, end: int) -> bool:
     """True when ``tokens[start:end]`` names a column, not only literals."""
     i = start
     while i < end:
         token = tokens[i]
-        if word(token) == "AS":
-            i += 2  # skip the target type
-            if i < end and word(tokens[i]) in ("PRECISION", "VARYING"):
-                i += 1
+        name = word(token)
+        if name == "AS":
+            i = _skip_type(tokens, pairs, i + 1, end)
+            continue
+        if (
+            name in _FIRST_ARGUMENT_IS_NOT_A_COLUMN
+            and i + 1 < end
+            and is_punct(tokens[i + 1], "(")
+        ):
+            j = i + 2  # skip the type or date part, up to the first comma
+            while j < end and not is_punct(tokens[j], ","):
+                j = pairs[j] + 1 if j in pairs and is_punct(tokens[j], "(") else j + 1
+            i = j + 1
             continue
         if token.kind in (WORD, QUOTED):
             called = i + 1 < end and is_punct(tokens[i + 1], "(")
@@ -220,7 +261,7 @@ def check_function_on_column(ctx: Context) -> Iterator[Hit]:
                 close = pairs[i + 1]
                 name = token.text.upper()
                 skip = name in _AGGREGATES or name in _INDEXABLE_FUNCTIONS
-                if not skip and _has_column(tokens, i + 2, close):
+                if not skip and _has_column(tokens, pairs, i, close + 1):
                     yield Hit(token.line, render(tokens[i : close + 1]))
                 i = close + 1
 
