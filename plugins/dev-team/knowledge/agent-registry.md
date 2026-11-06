@@ -53,6 +53,7 @@ Each row below is also classified as a **discovery lens** or **verification gate
 | refactor-opportunity-review | `agents/refactor-opportunity-review.md` | Post-GREEN refactoring opportunities, semantic vs structural duplication |
 | security-review | `agents/security-review.md` | Injection, auth/authz, data exposure, crypto |
 | session-analysis | `agents/session-analysis.md` | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
+| sql-review | `agents/sql-review.md` | SQL anti-patterns that break under schema or data change: positional INSERT, correctness traps, index-defeating predicates, unsafe migrations. Dispatched by `/code-review` only when the SQL detector gate reports SQL present. |
 | spec-compliance-review | `agents/spec-compliance-review.md` | Spec-to-code matching — general first gate before quality review (final `/code-review` gate; pre-build criteria-verification mode and batched/complex-slice checkpoints in `/build`) |
 | spec-reviewer | `agents/spec-reviewer.md` | Spec-to-diff matching for a single freshly-implemented unit — Stage 1 of the three-stage inline review, narrower and diff-scoped vs. `spec-compliance-review`'s broader file-scoped check. Dispatched by `agents/orchestrator.md` Phase 3, never directly. |
 | acceptance-examiner | `agents/acceptance-examiner.md` | Source-blind acceptance examination — runs only the plan's run commands and reports one verdict per acceptance criterion; a verification gate, not a code-review lens. Dispatched by `/build` Step 7.6, never directly. |
@@ -77,7 +78,7 @@ before naming:
 3. Else name ends `-review` or starts `plan-review-` → **green** (reviewer).
 4. Else → **cyan** (all others).
 
-Current fleet: 2 purple, 8 yellow, 32 green, 20 cyan (62 agents total, no
+Current fleet: 2 purple, 8 yellow, 33 green, 20 cyan (63 agents total, no
 ties). `tests/agents/test_agent_fleet_conventions.py` asserts every agent's
 declared `color:` matches the rule; `agent-create`/`agent-add` suggest the
 computed value the same way they already do `model:`/`effort:`.
@@ -94,7 +95,7 @@ same category as ADR 0026/0027):
   exactly `memory: project` (no other value, no omission). Neither tool →
   omit `memory:`.
 
-Current fleet: 12/62 agents carry `skills:`, 9/62 carry `memory: project`.
+Current fleet: 12/63 agents carry `skills:`, 9/63 carry `memory: project`.
 Same test file as color (`tests/agents/test_agent_fleet_conventions.py`)
 asserts both, via pure `classify_skills_declaration()` /
 `classify_memory_declaration()` functions; `agent-create`/`agent-add`
@@ -171,7 +172,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 
 | Name | File | ~Tokens | Used By |
 | ------ | ------ | --------- | --------- |
-| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~2,589 | all 25 review agents (a11y-review, ai-provenance-review, angular-reactivity-review, arch-review, claude-setup-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, react-reactivity-review, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, test-review, test-smell-review, token-efficiency-review, vue-reactivity-review) |
+| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~2,589 | all 26 review agents (a11y-review, ai-provenance-review, angular-reactivity-review, arch-review, claude-setup-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, react-reactivity-review, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, sql-review, structure-review, test-review, test-smell-review, token-efficiency-review, vue-reactivity-review) |
 | Agent Registry | `knowledge/agent-registry.md` | 5,543 | Orchestrator (routing decisions) |
 | Shared Review Methodology | `knowledge/agent-review-methodology.md` | ~1,052 | correctness-review, naming-review |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 1,187 | arch-review |
