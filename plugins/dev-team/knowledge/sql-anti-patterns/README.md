@@ -2,12 +2,10 @@
 
 The catalog lists every rule that the `sql-review` agent and the
 `scripts/sql_anti_patterns.py` detector report. Each rule has one entry in a
-family file in this directory. The registry in `scripts/lib/sql_rules_*.py` and
-the catalog must match, rule for rule.
-
-For how to change a schema safely, see
-[`database-change-management.md`](../database-change-management.md). Catalog
-entries cite that file and do not repeat it.
+family file in this directory, and one `Rule` in `scripts/lib/sql_rules_*.py`.
+For schema change practice, see
+[`database-change-management.md`](../database-change-management.md); entries
+cite it and do not repeat it.
 
 ## Entry format
 
@@ -48,9 +46,9 @@ Severity uses the scale in
 - `warning`: the statement is brittle and breaks under ordinary change.
 - `suggestion`: the statement works and has a safer form.
 
-The one-line message and fix of each finding live in the registry entry, not in
-the catalog. Every `category` that `sql-review` emits is a rule id from this
-catalog, and its `severity` equals the severity listed here.
+The one-line message and fix of each finding live in the registry entry. Every
+`category` that `sql-review` emits is a rule id from this catalog, with the
+severity listed here.
 
 ## Add a rule
 
@@ -72,7 +70,3 @@ The same text inside a string literal does nothing.
 -- sql-review: ignore sql.schema.positional-insert
 INSERT INTO audit_seed VALUES (1, 'bootstrap');
 ```
-
-## Families
-
-Each `*.md` file in this directory other than this one is one family.
