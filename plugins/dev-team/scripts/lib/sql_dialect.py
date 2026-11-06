@@ -40,8 +40,52 @@ def normalize_dialect(name: str) -> str:
 #: Bare keywords that only one dialect uses. Uppercase.
 KEYWORD_MARKERS = {
     TSQL: frozenset({"NOLOCK", "NVARCHAR"}),
-    POSTGRES: frozenset({"RETURNING", "ILIKE", "SERIAL", "CONCURRENTLY"}),
+    POSTGRES: frozenset({"RETURNING", "ILIKE", "CONCURRENTLY"}),
 }
+
+#: T-SQL scope and type qualifiers: ``SCHEMA::sales``, ``geography::Point(...)``.
+#: A ``::`` after one of these is not a Postgres cast.
+_SCOPE_QUALIFIERS = frozenset(
+    {
+        "SCHEMA",
+        "OBJECT",
+        "TYPE",
+        "XML",
+        "ASSEMBLY",
+        "DATABASE",
+        "LOGIN",
+        "USER",
+        "ROLE",
+        "SERVER",
+        "ENDPOINT",
+        "CERTIFICATE",
+        "GEOGRAPHY",
+        "GEOMETRY",
+        "HIERARCHYID",
+    }
+)
+#: A word before ``SERIAL`` that makes it a name, not a column type.
+_NOT_A_COLUMN_NAME = frozenset(
+    {
+        "SELECT",
+        "DISTINCT",
+        "COLUMN",
+        "BY",
+        "FROM",
+        "WHERE",
+        "AND",
+        "OR",
+        "NOT",
+        "ON",
+        "AS",
+        "SET",
+        "TABLE",
+        "ADD",
+        "TO",
+        "JOIN",
+        "IN",
+    }
+)
 
 #: ``[ident]`` that is a T-SQL quoted identifier, not a Postgres subscript.
 _BRACKET_IDENT = re.compile(r"^\[[A-Za-z_][\w ]*\]$")
@@ -83,11 +127,25 @@ def _is_bracket_ident(tokens: Sequence[Token], i: int) -> bool:
 
 
 def _is_cast(tokens: Sequence[Token], i: int) -> bool:
-    """``::`` as two adjacent colons."""
+    """``::`` as two adjacent colons, not a T-SQL ``SCHEMA::name`` qualifier."""
     if tokens[i].kind != PUNCT or tokens[i].text != ":" or i + 1 >= len(tokens):
         return False
     nxt = tokens[i + 1]
-    return nxt.kind == PUNCT and nxt.text == ":" and _adjacent(tokens[i], nxt)
+    if nxt.kind != PUNCT or nxt.text != ":" or not _adjacent(tokens[i], nxt):
+        return False
+    if i > 0 and tokens[i - 1].kind == WORD:
+        return tokens[i - 1].text.upper() not in _SCOPE_QUALIFIERS
+    return True
+
+
+def _is_serial_type(tokens: Sequence[Token], i: int) -> bool:
+    """``SERIAL`` as a column type (``id SERIAL``), not a column named serial."""
+    if tokens[i].kind != WORD or tokens[i].text.upper() != "SERIAL" or i < 2:
+        return False
+    name, lead = tokens[i - 1], tokens[i - 2]
+    if name.kind not in (WORD, QUOTED) or name.text.upper() in _NOT_A_COLUMN_NAME:
+        return False
+    return lead.text in ("(", ",") or lead.text.upper() in ("ADD", "COLUMN")
 
 
 def _is_dollar_quote(tokens: Sequence[Token], i: int) -> bool:
@@ -102,6 +160,7 @@ STRUCTURAL_MARKERS = (
     (TSQL, _is_bracket_ident),
     (POSTGRES, _is_cast),
     (POSTGRES, _is_dollar_quote),
+    (POSTGRES, _is_serial_type),
 )
 
 
