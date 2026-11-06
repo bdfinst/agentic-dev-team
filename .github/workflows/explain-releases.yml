@@ -1,0 +1,23 @@
+name: Release explainer
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write # append the watch link to the release notes
+  id-token: write # sign in with GitHub to publish
+
+jobs:
+  explain:
+    # dev-team minor and major releases only: every plugin tags its own
+    # releases, and patches ship most weeks.
+    if: >-
+      !github.event.release.prerelease &&
+      startsWith(github.event.release.tag_name, 'dev-team-v') &&
+      endsWith(github.event.release.tag_name, '.0')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: bisque-cloud/presenter@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
