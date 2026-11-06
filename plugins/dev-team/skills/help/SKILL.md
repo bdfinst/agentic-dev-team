@@ -50,6 +50,7 @@ edit to this file.
 | `/triage` | Investigate a bug and write a TDD fix plan |
 | `/fix` | Investigate a bug, prove it, fix it RED/GREEN, then delegate to `/pr` |
 | `/setup` | Provision a repo for the dev-team plugin |
+| `/doctor` | Diagnose the plugin install and this repo's dev-team configuration |
 | `/continue` | Resume work from a prior session |
 | `/help` | Show this list — pass `--all` for every command |
 

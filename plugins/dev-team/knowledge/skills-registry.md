@@ -66,6 +66,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/test-improve` | `skills/test-improve/SKILL.md` | orchestrator | Consolidated analyze-then-improve test orchestrator — 10 phases (0-9): Phase-0 approach contract → coverage + mutation baseline → optional `/gherkin-derive` → `/test-health` analyze → `/issues-from-assessment` plan fixes → `/build` + `/coverage-delta --workflow test-improve` + `mutation-kill` per Story (no-refactor) → refactor decision → optional refactor-for-testability → `/quality-targets-converge` → 10-section executive-summary report. Defaults to lightweight ceremony; opts into heavier capabilities only when the operator asks; Go-aware (mutation advisory); local-first with `--parent <url>` opt-in for tracker sinks |
 | `/triage` | `skills/triage/SKILL.md` | worker | Investigate a bug and write a triage record to `.dev-team-reports/triage/<slug>.md` with a TDD fix plan |
 | `/unfreeze` | `skills/unfreeze/SKILL.md` | worker | Lift the scope lock set by `/freeze` |
+| `/doctor` | `skills/doctor/SKILL.md` | worker | Diagnose the dev-team plugin install and this repo's dev-team configuration, and create missing runtime directories with --fix. |
 | `/upgrade` | `skills/upgrade/SKILL.md` | worker | Check for and apply plugin updates from within a session |
 | `/version` | `skills/version/SKILL.md` | worker | Report the installed plugin version |
 

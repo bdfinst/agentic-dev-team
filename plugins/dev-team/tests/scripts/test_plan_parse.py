@@ -174,3 +174,120 @@ def test_step_files_union_empty_when_no_step_files():
 **Files:** `slice-level.ts`
 """
     assert plan_parse.step_files_union(md.splitlines()) == {}
+
+
+# ---------------------------------------------------------------------------
+# iter_slice_body_lines — fence-aware body iterator (#2275)
+# ---------------------------------------------------------------------------
+
+_PARITY_FIXTURES = {
+    "single gherkin fence": """### Slice 1: First
+**Behavior:**
+
+```gherkin
+Feature: f
+  Scenario: a
+    Given x
+```
+#### Step 1.1: do it
+""",
+    "non-gherkin fence first, a second gherkin fence ignored": """### Slice 1: First
+
+```bash
+### Slice 9: not a heading
+echo hi
+```
+
+```gherkin
+Feature: f
+  Scenario: kept
+```
+
+```gherkin
+Feature: g
+  Scenario: dropped
+```
+""",
+    "heading-like and doc-string lines inside the fence": """### Slice 1: First
+
+```gherkin
+Feature: f
+  Scenario: a
+    Given a doc string
+      \"\"\"
+      ## Not a heading
+      #### Step 9.9: not a step
+      \"\"\"
+```
+**Covers**: AC1
+""",
+}
+
+
+def _fenced_blocks(text: str) -> list[tuple[str, list[str]]]:
+    """Group the iterator's in-fence lines into (opening line, body lines)."""
+    blocks: list[tuple[str, list[str]]] = []
+    opener: str | None = None
+    body: list[str] = []
+    for line, in_fence in plan_parse.iter_slice_body_lines(text):
+        if not in_fence:
+            assert opener is None, "fence left open on a prose line"
+            continue
+        if opener is None:
+            opener, body = line, []
+        elif line.startswith("```"):
+            blocks.append((opener, body))
+            opener = None
+        else:
+            body.append(line)
+    if opener is not None:
+        blocks.append((opener, body))
+    return blocks
+
+
+def test_body_iterator_agrees_with_slice_gherkin_blocks_on_the_gherkin_fence():
+    for name, text in _PARITY_FIXTURES.items():
+        expected = plan_parse.slice_gherkin_blocks(text.splitlines())[0][2]
+        gherkin = [
+            b for op, b in _fenced_blocks(text) if op[3:].strip().lower() == "gherkin"
+        ]
+        assert gherkin, name
+        assert "\n".join(gherkin[0]) + "\n" == expected, name
+
+
+def test_body_iterator_flags_every_fence_line_and_no_prose_line():
+    text = "prose\n```bash\nin 1\n```\nafter\n"
+    assert list(plan_parse.iter_slice_body_lines(text)) == [
+        ("prose", False),
+        ("```bash", True),
+        ("in 1", True),
+        ("```", True),
+        ("after", False),
+    ]
+
+
+def test_body_iterator_treats_an_unterminated_fence_as_open_to_the_end():
+    text = "```gherkin\nScenario: a\n### Slice 2: x\n"
+    assert [flag for _, flag in plan_parse.iter_slice_body_lines(text)] == [True] * 3
+
+
+def test_body_iterator_empty_text_yields_nothing():
+    assert list(plan_parse.iter_slice_body_lines("")) == []
+
+
+def test_body_iterator_limitation_a_four_backtick_outer_fence_closes_at_an_inner_three():
+    """Documented limitation, shared with `slice_gherkin_blocks`: `_FenceState`
+    closes any fence at the next line starting with three backticks, whatever
+    its opener length. So a four-backtick fence holding a three-backtick block
+    (as `plan-template.md` does) is read as closed at the inner opener and its
+    inner body is read as prose. Callers must strip such an outer fence first.
+    """
+    text = "````markdown\n```bash\nx\n```\n````\nafter\n"
+    assert [flag for _, flag in plan_parse.iter_slice_body_lines(text)] == [
+        True,  # ````markdown  opens
+        True,  # ```bash       closes the outer fence (the limitation)
+        False,  # x            inner body read as prose
+        True,  # ```           opens a new fence
+        True,  # ````          closes it
+        False,  # after
+    ]
