@@ -1,0 +1,20 @@
+{
+  "fixture": "sql-select-star-positional.sql",
+  "description": "SELECT * whose rows the comment says are read by row index (row[0], row[2], row[3]): the agent keeps the detector hit",
+  "applicableAgents": ["sql-review"],
+  "agents": {
+    "sql-review": {
+      "expectedStatus": "warn",
+      "issueCount": { "min": 1, "max": 1 },
+      "severities": { "warning": { "min": 1, "max": 1 } },
+      "expectedFindings": [
+        { "category": "sql.schema.select-star", "severity": "warning" }
+      ],
+      "mustMention": ["column"],
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Modeled on sql-positional-insert.json; not measured by a live agent-eval run"
+      }
+    }
+  }
+}
