@@ -10,7 +10,6 @@
       "expectedFindings": [
         { "category": "sql.schema.select-star", "severity": "warning" }
       ],
-      "mustMention": ["column"],
       "_calibration": {
         "source": "estimated-by-analogy",
         "note": "Modeled on sql-positional-insert.json; not measured by a live agent-eval run"

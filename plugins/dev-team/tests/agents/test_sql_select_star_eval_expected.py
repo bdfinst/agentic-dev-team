@@ -2,11 +2,12 @@
 
 ``/agent-eval`` needs a live model. This test pins the deterministic parts:
 
-- the detector hits the same ``SELECT *`` in both fixtures, so the agent is
-  graded on triage and not on detection,
+- the detector hits the same ``SELECT *`` in both fixtures, and the two
+  fixtures differ only in the comment that says how the rows are consumed,
+  so the agent is graded on triage and not on detection,
 - the keep case expects the catalog rule id and severity,
 - the dismiss case expects no categorized finding,
-- the output a correct agent emits for each case passes the output validator.
+- the agent definition carries the keep and dismiss criteria the fixtures test.
 """
 
 import json
@@ -25,6 +26,7 @@ import sql_scan
 import validate_review_output
 
 EVALS = REPO_ROOT / "evals"
+AGENT = PLUGIN_DIR / "agents" / "sql-review.md"
 RULE = "sql.schema.select-star"
 KEEP = "sql-select-star-positional"
 DISMISS = "sql-select-star-named"
@@ -40,6 +42,13 @@ def fixture_text(stem):
     )
 
 
+def code_only(text):
+    """The fixture without its ``--`` comment lines."""
+    return "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("--")
+    )
+
+
 def catalog_severity(rule_id):
     text = (PLUGIN_DIR / "knowledge" / "sql-anti-patterns" / "schema.md").read_text(
         encoding="utf-8"
@@ -48,31 +57,28 @@ def catalog_severity(rule_id):
     return re.search(r"\*\*Severity:\*\* (\S+)", section).group(1)
 
 
-def agent_output(stem, keep):
-    hits = sql_scan.scan_text(fixture_text(stem), f"{stem}.sql")
-    issues = [
-        {
-            "category": h["rule"],
-            "severity": h["severity"],
-            "confidence": "high",
-            "file": h["file"],
-            "line": h["line"],
-            "message": h["message"],
-            "suggestedFix": h["fix"],
-        }
-        for h in hits
-        if keep
-    ]
-    summary = (
-        "Confirmed detector hit. Confidence: High"
-        if keep
-        else "Dismissed sql.schema.select-star: rows are read by column name only. Confidence: High"
-    )
+def hits_for(stem):
+    return sql_scan.scan_text(fixture_text(stem), f"{stem}.sql")
+
+
+def issue_from_hit(hit):
+    """The issue a confirming agent emits for one detector hit."""
     return {
-        "status": "warn" if issues else "pass",
-        "issues": issues,
-        "summary": summary,
+        "category": hit["rule"],
+        "severity": hit["severity"],
+        "confidence": "high",
+        "file": hit["file"],
+        "line": hit["line"],
+        "message": hit["message"],
+        "suggestedFix": hit["fix"],
     }
+
+
+def triage_section():
+    text = AGENT.read_text(encoding="utf-8")
+    start = text.index(f"- **`{RULE}` triage.**")
+    end = text.index("- **Agent-owned rules.**", start)
+    return " ".join(text[start:end].split())
 
 
 @pytest.mark.parametrize("stem", [KEEP, DISMISS])
@@ -84,50 +90,49 @@ def test_fixture_and_expected_pair_exist(stem):
 
 @pytest.mark.parametrize("stem", [KEEP, DISMISS])
 def test_detector_hits_the_select_star_in_both_fixtures(stem):
-    hits = sql_scan.scan_text(fixture_text(stem), f"{stem}.sql")
-    assert [(h["rule"], h["line"]) for h in hits] == [(RULE, 3)]
+    assert [(h["rule"], h["line"]) for h in hits_for(stem)] == [(RULE, 3)]
 
 
-def test_keep_case_expects_the_catalog_rule_and_severity():
+def test_fixtures_differ_only_in_how_the_rows_are_consumed():
+    assert code_only(fixture_text(KEEP)) == code_only(fixture_text(DISMISS))
+    assert fixture_text(KEEP) != fixture_text(DISMISS)
+
+
+def test_keep_case_hit_becomes_a_valid_issue_matching_expected_findings():
     expected = load_expected(KEEP)["agents"]["sql-review"]
     assert expected["expectedFindings"] == [
         {"category": RULE, "severity": catalog_severity(RULE)}
     ]
     assert expected["expectedStatus"] == "warn"
+    issues = [issue_from_hit(h) for h in hits_for(KEEP)]
+    assert {(i["category"], i["severity"]) for i in issues} == {
+        (f["category"], f["severity"]) for f in expected["expectedFindings"]
+    }
+    output = {"status": "warn", "issues": issues, "summary": "Kept. Confidence: High"}
+    verdict = validate_review_output.classify_and_validate(json.dumps(output))
+    assert verdict["valid"] is True, verdict
 
 
-def test_dismiss_case_expects_no_categorized_finding():
+def test_dismiss_case_expects_no_categorized_finding_and_a_valid_pass():
     expected = load_expected(DISMISS)["agents"]["sql-review"]
     assert expected["expectedFindings"] == []
     assert expected["expectedStatus"] == "pass"
     assert expected["issueCount"] == {"min": 0, "max": 0}
-
-
-def test_fixtures_differ_only_in_how_the_rows_are_consumed():
-    assert "by index" in fixture_text(KEEP)
-    assert "by column name" in fixture_text(DISMISS)
-
-
-@pytest.mark.parametrize(("stem", "keep"), [(KEEP, True), (DISMISS, False)])
-def test_correct_output_passes_the_review_output_validator(stem, keep):
-    verdict = validate_review_output.classify_and_validate(
-        json.dumps(agent_output(stem, keep))
-    )
+    output = {"status": "pass", "issues": [], "summary": "Dismissed. Confidence: High"}
+    verdict = validate_review_output.classify_and_validate(json.dumps(output))
     assert verdict["valid"] is True, verdict
 
 
-def test_keep_output_matches_expected_findings():
-    expected = load_expected(KEEP)["agents"]["sql-review"]
-    want = {(f["category"], f["severity"]) for f in expected["expectedFindings"]}
-    got = {(i["category"], i["severity"]) for i in agent_output(KEEP, True)["issues"]}
-    assert got == want
-
-
-def test_dismiss_output_names_the_dismissal_reason_in_summary():
-    summary = agent_output(DISMISS, False)["summary"]
-    assert RULE in summary and "column name" in summary
-
-
-def test_agent_definition_describes_select_star_triage():
-    agent = (PLUGIN_DIR / "agents" / "sql-review.md").read_text(encoding="utf-8")
-    assert "sql.schema.select-star` triage" in agent
+@pytest.mark.parametrize(
+    "criterion",
+    [
+        "row index",
+        "tuple unpacking",
+        "positional binding",
+        "defines a view",
+        "named columns only",
+        "name that consumer in `summary`",
+    ],
+)
+def test_agent_triage_section_carries_keep_and_dismiss_criteria(criterion):
+    assert criterion in triage_section()

@@ -49,6 +49,38 @@ _BY_LIST_END = frozenset(
     ]
 )
 _SORT_SUFFIX = frozenset(["ASC", "DESC", "NULLS", "FIRST", "LAST"])
+#: Words that begin a new statement. T-SQL needs no ``;``, so a depth-0 one of
+#: these ends the statement being scanned.
+_STATEMENT_START = frozenset(
+    [
+        "GO",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "EXEC",
+        "EXECUTE",
+        "MERGE",
+        "CREATE",
+        "ALTER",
+        "DROP",
+        "BEGIN",
+        "DECLARE",
+        "SET",
+        "TRUNCATE",
+    ]
+)
+#: Words that join one query to the next, so a ``SELECT`` after one continues it.
+_SET_OPERATOR = frozenset(["UNION", "INTERSECT", "EXCEPT", "MINUS", "ALL", "DISTINCT"])
+#: A word before ``(`` that opens a query, as opposed to a function call.
+_QUERY_INTRO = frozenset(
+    [
+        "UNION", "INTERSECT", "EXCEPT", "MINUS", "ALL", "DISTINCT", "IN", "EXISTS",
+        "ANY", "SOME", "AS", "FROM", "JOIN", "APPLY", "LATERAL", "ON", "WHERE",
+        "AND", "OR", "NOT", "THEN", "ELSE", "WHEN", "MATERIALIZED", "INTO",
+    ]
+)  # fmt: skip
+#: Words that cannot be the target table of an INSERT (trigger headers, ``ON``).
+_NOT_A_TARGET = frozenset(["AS", "ON", "OR"])
 
 
 def _is(token, word: str) -> bool:
@@ -139,21 +171,80 @@ def _list_start(tokens, s: int) -> int:
     return i
 
 
-def _split_items(tokens, start: int, ends: frozenset) -> list[list]:
-    """Comma-separated items from ``start`` to the first depth-0 end marker."""
-    items: list[list] = [[]]
-    depth = 0
-    for token in tokens[start:]:
+def _continues_query(tokens, k: int) -> bool:
+    """True when the ``SELECT`` at ``k`` follows ``UNION`` and the like, or ``(``."""
+    if k == 0:
+        return False
+    prev = tokens[k - 1]
+    return _punct(prev, "(") or (
+        prev.kind == WORD and prev.text.upper() in _SET_OPERATOR
+    )
+
+
+def _starts_cte(tokens, k: int) -> bool:
+    """``WITH name AS`` or ``WITH RECURSIVE``, not a ``WITH (NOLOCK)`` hint."""
+    nxt = tokens[k + 1] if k + 1 < len(tokens) else None
+    after = tokens[k + 2] if k + 2 < len(tokens) else None
+    return bool(
+        nxt is not None
+        and nxt.kind in (WORD, QUOTED)
+        and ((after is not None and _is(after, "AS")) or _is(nxt, "RECURSIVE"))
+    )
+
+
+def _walk(tokens, start: int, depth: int = 0) -> Iterator[tuple[int, int]]:
+    """Yield ``(index, depth)`` for the tokens of one statement from ``start``.
+
+    ``depth`` is the paren level the token sits on: a ``(`` is yielded at the
+    level it opens from, a ``)`` at the level it closes to. The walk stops at
+    ``;``, at a closing paren with no opener, and at a level-0 token that begins
+    another statement: a ``_STATEMENT_START`` word, a ``SELECT`` that does not
+    continue the query, ``WITH name AS``, or an ``END`` with no ``CASE``.
+    """
+    case = 0
+    for k in range(start, len(tokens)):
+        token = tokens[k]
+        if _punct(token, ";"):
+            return
         if _punct(token, "("):
+            yield k, depth
             depth += 1
-        elif _punct(token, ")"):
+            continue
+        if _punct(token, ")"):
             depth -= 1
             if depth < 0:
-                break
-        elif depth == 0:
-            if _punct(token, ";") or (
-                token.kind == WORD and token.text.upper() in ends
-            ):
+                return
+            yield k, depth
+            continue
+        if token.kind == WORD:
+            word = token.text.upper()
+            if word == "CASE":
+                case += 1
+            elif word == "END":
+                if case:
+                    case -= 1
+                elif depth == 0:
+                    return
+            elif depth == 0 and case == 0:
+                if word in _STATEMENT_START:
+                    return
+                if word == "SELECT" and not _continues_query(tokens, k):
+                    return
+                if word == "WITH" and _starts_cte(tokens, k):
+                    return
+        yield k, depth
+
+
+def _split_items(tokens, start: int, ends: frozenset) -> list[list]:
+    """Comma-separated items from ``start`` to the end of the list.
+
+    The list ends at a level-0 word in ``ends`` or at the end of the statement.
+    """
+    items: list[list] = [[]]
+    for k, depth in _walk(tokens, start):
+        token = tokens[k]
+        if depth == 0:
+            if token.kind == WORD and token.text.upper() in ends:
                 break
             if _punct(token, ","):
                 items.append([])
@@ -191,52 +282,88 @@ def _star_item(tokens, s: int):
     return next((item for item in items if _is_star_item(item)), None)
 
 
+def _cte_end(tokens, j: int) -> int:
+    """Index after the ``WITH name AS (...)[, ...]`` definitions that start at ``j``."""
+    n = len(tokens)
+    j += 1
+    if j < n and _is(tokens[j], "RECURSIVE"):
+        j += 1
+    while j < n:
+        while j < n and not _is(tokens[j], "AS"):
+            if _punct(tokens[j], ";"):
+                return n
+            j = _skip_group(tokens, j) if _punct(tokens[j], "(") else j + 1
+        j += 1
+        while j < n and (_is(tokens[j], "NOT") or _is(tokens[j], "MATERIALIZED")):
+            j += 1
+        if j >= n or not _punct(tokens[j], "("):
+            return n
+        j = _skip_group(tokens, j)
+        if j < n and _punct(tokens[j], ","):
+            j += 1
+            continue
+        return j
+    return j
+
+
+def _insert_source_start(tokens, i: int) -> tuple[int, int] | None:
+    """``(select_index, paren_level)`` of the query the INSERT at ``i`` reads."""
+    n = len(tokens)
+    j = i + 1
+    if j < n and _is(tokens[j], "INTO"):
+        j += 1
+    end = _name_end(tokens, j)
+    if end == j or tokens[j].text.upper() in _NOT_A_TARGET:
+        return None  # ``AFTER INSERT, UPDATE AS`` in a trigger header, not an INSERT
+    j = end
+    if j + 1 < n and _is(tokens[j], "AS") and tokens[j + 1].kind in (WORD, QUOTED):
+        j += 2
+    if (
+        j < n
+        and _punct(tokens[j], "(")
+        and not (
+            j + 1 < n and (_is(tokens[j + 1], "SELECT") or _punct(tokens[j + 1], "("))
+        )
+    ):
+        j = _skip_group(tokens, j)  # the column list
+    if j < n and _is(tokens[j], "OUTPUT"):
+        while j < n and not any(
+            _is(tokens[j], w) for w in ("SELECT", "VALUES", "EXEC", "DEFAULT", "WITH")
+        ):
+            if _punct(tokens[j], ";"):
+                return None
+            j += 1
+    if j < n and _is(tokens[j], "WITH"):
+        j = _cte_end(tokens, j)
+    lead = 0
+    while j + lead < n and _punct(tokens[j + lead], "("):
+        lead += 1
+    if j + lead < n and _is(tokens[j + lead], "SELECT"):
+        return j + lead, lead
+    return None
+
+
 def _insert_sources(tokens) -> dict[int, list[int]]:
     """Map each ``INSERT`` index to the SELECTs that supply its rows.
 
-    The sources are the SELECTs at the statement's own depth after the target
-    and optional column list, so ``UNION`` branches count and a subquery in a
-    ``VALUES`` row or a ``FROM`` clause does not.
+    The sources are the first SELECT after the target, column list, and CTE
+    definitions, plus the ``UNION`` branches at its level. A subquery in a
+    ``FROM`` clause does not count, and neither does anything after the
+    statement ends.
     """
-    n = len(tokens)
     found: dict[int, list[int]] = {}
     for i, token in enumerate(tokens):
         if not _is(token, "INSERT"):
             continue
-        j = i + 1
-        if j < n and _is(tokens[j], "INTO"):
-            j += 1
-        j = _name_end(tokens, j)
-        if (
-            j < n
-            and _punct(tokens[j], "(")
-            and not (j + 1 < n and _is(tokens[j + 1], "SELECT"))
-        ):
-            j = _skip_group(tokens, j)  # the column list
-        base = None
-        depth = 0
-        sources: list[int] = []
-        for k in range(j, n):
-            t = tokens[k]
-            if _punct(t, ";"):
-                break
-            if _punct(t, "("):
-                depth += 1
-            elif _punct(t, ")"):
-                depth -= 1
-                if depth < 0:
-                    break
-            elif _is(t, "VALUES") and depth == 0 and base is None:
-                break
-            elif _is(t, "SELECT"):
-                if base is None and (
-                    depth == 0 or (depth == 1 and _punct(tokens[k - 1], "("))
-                ):
-                    base = depth
-                if depth == base:
-                    sources.append(k)
-        if sources:
-            found[i] = sources
+        start = _insert_source_start(tokens, i)
+        if start is None:
+            continue
+        first, level = start
+        found[i] = [first] + [
+            k
+            for k, depth in _walk(tokens, first + 1, level)
+            if depth == level and _is(tokens[k], "SELECT")
+        ]
     return found
 
 
@@ -278,6 +405,30 @@ def _enclosing_open(tokens, k: int) -> int | None:
     return None
 
 
+def _group_is_query(tokens, opener: int) -> bool:
+    """True when the group that opens at ``opener`` holds a query.
+
+    The group starts with ``SELECT`` or ``WITH``, or with more parens around one.
+    A nested paren right after a function name is an argument, so
+    ``STRING_AGG((SELECT 1), ',' ORDER BY 1)`` is not a query.
+    """
+    if opener + 1 >= len(tokens):
+        return False
+    nxt = tokens[opener + 1]
+    if _is(nxt, "SELECT") or _is(nxt, "WITH"):
+        return True
+    if not _punct(nxt, "("):
+        return False
+    before = tokens[opener - 1] if opener > 0 else None
+    if (
+        before is not None
+        and before.kind == WORD
+        and before.text.upper() not in _QUERY_INTRO
+    ):
+        return False
+    return _group_is_query(tokens, opener + 1)
+
+
 def _in_query_scope(tokens, k: int) -> bool:
     """True at statement level or inside a parenthesized query.
 
@@ -285,12 +436,7 @@ def _in_query_scope(tokens, k: int) -> bool:
     ``ORDER BY`` sort a function's input, not the result set.
     """
     opener = _enclosing_open(tokens, k)
-    if opener is None:
-        return True
-    nxt = tokens[opener + 1] if opener + 1 < len(tokens) else None
-    return nxt is not None and (
-        _is(nxt, "SELECT") or _is(nxt, "WITH") or _punct(nxt, "(")
-    )
+    return opener is None or _group_is_query(tokens, opener)
 
 
 def _is_ordinal(item) -> bool:
