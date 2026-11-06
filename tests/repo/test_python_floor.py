@@ -157,6 +157,7 @@ FLOOR_TEST_SLICE = (
     "plugins/dev-team/tests/scripts/test_autoship_reclaim.py",
     "tests/scripts/test_examination_gate.py",
     "tests/scripts/test_doctor.py",
+    "plugins/dev-team/tests/scripts/test_sql_detector_core.py",
 )
 
 #: Issue #1829: `FLOOR_TEST_SLICE` above is hand-maintained, so a new shipped,
@@ -1012,6 +1013,10 @@ _NONCANONICAL_TEST_FILES = {
     # scope), which required a sibling split -- #2048 deleted that
     # predecessor and merged the split back into this one file.
     "session_report.py": "tests/scripts/test_session_report_golden.py",
+    # sql_anti_patterns.py is the thin CLI over the lib/sql_* modules; one
+    # core test file drives the CLI and every lib module, so it is named for
+    # the detector core rather than for the script (#2283).
+    "sql_anti_patterns.py": "plugins/dev-team/tests/scripts/test_sql_detector_core.py",
 }
 
 
