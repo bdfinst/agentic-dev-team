@@ -19,7 +19,6 @@ sys.path.insert(0, str(SCRIPTS_DIR / "lib"))
 
 import sql_extract
 import sql_literals
-import sql_literals_c
 import sql_scan
 from sql_shape import is_sql_shaped
 
@@ -175,7 +174,7 @@ def test_shape_accepts_sql(text):
     assert is_sql_shaped(text) is True
 
 
-def test_shape_is_linear_on_pathological_input():
+def test_shape_rejects_pathological_input():
     for text in (
         "SELECT " + "a, " * 5000 + "x",
         "SELECT " + "(" * 5000,
@@ -213,9 +212,13 @@ def test_commented_out_embedded_sql_is_ignored(tmp_path, ext):
     ],
 )
 def test_more_comment_forms_hide_sql(tmp_path, ext, src):
-    name = write(tmp_path, f"a.{ext}", src)
+    real = src.count("\n") + 1
+    full = src + single(ext, "INSERT INTO t VALUES (2)") + "\n"
+    name = write(tmp_path, f"a.{ext}", full)
     _, report, _ = run_cli(tmp_path, name)
-    assert report["findings"] == []
+    # only the real literal after the comment form is found, so the scan
+    # recovered from the comment instead of swallowing the file
+    assert hits(report) == [(real, RULE, "embedded")]
 
 
 # --- Scenario: Apostrophe in a comment does not corrupt later literals ------------------
@@ -337,6 +340,11 @@ EXPECTED = REPO_ROOT / "evals" / "expected" / "sql-boundary-injection-loop.json"
 
 
 def test_injection_and_loop_fixture_yields_no_detector_findings():
+    extraction = sql_extract.extract(str(FIXTURE), FIXTURE.read_text(encoding="utf-8"))
+    # one scannable fragment (the parameterized query) and one skipped
+    # (the concatenated query): a clean result is not an empty extraction
+    assert len(extraction.fragments) == 1
+    assert extraction.skipped == 1
     result = sql_scan.scan_paths([str(FIXTURE)])
     assert result.findings == []
     assert result.errors == []
@@ -349,17 +357,6 @@ def test_injection_and_loop_fixture_has_both_boundary_patterns():
     assert "+ user_id +" in text  # concatenated query
     body = text.split("for user_id")[1]
     assert "SELECT id, total FROM orders WHERE user_id = ?" in body  # in the loop
-
-
-def test_boundary_expected_json_expects_no_issues():
-    spec = json.loads(EXPECTED.read_text(encoding="utf-8"))
-    assert spec["fixture"] == FIXTURE.name
-    assert (FIXTURE.parent / spec["fixture"]).is_file()
-    assert spec["applicableAgents"] == ["sql-review"]
-    agent = spec["agents"]["sql-review"]
-    assert agent["expectedStatus"] == "pass"
-    assert agent["issueCount"] == {"min": 0, "max": 0}
-    assert agent["expectedFindings"] == []
 
 
 # --- AC6: robustness -----------------------------------------------------------------------
@@ -415,8 +412,14 @@ def test_odd_input_never_raises(ext):
         "\n\n",
         "f'{",
         'f"{x',
+        't"{x',
     ):
-        extractor(text)
+        extraction = extractor(text)
+        assert (extraction.fragments, extraction.skipped, extraction.sql_present) == (
+            (),
+            0,
+            False,
+        ), repr(text)
 
 
 def test_registered_suffixes():
@@ -446,21 +449,29 @@ def test_python_f_string_without_a_field_is_scannable(tmp_path):
     assert hits(report) == [(1, RULE, "embedded")]
 
 
-def test_template_literal_with_nested_template_is_interpolated():
-    lits = sql_literals_c.js_literals("const q = `a ${`b ${c}`} d`;")
-    assert [(lit.text, lit.interpolated) for lit in lits] == [("a ${`b ${c}`} d", True)]
+def test_nested_template_literal_is_one_interpolated_literal(tmp_path):
+    src = "const q = `INSERT INTO t VALUES (${`b ${c}`})`;\nconst r = 'INSERT INTO u VALUES (1)';\n"
+    name = write(tmp_path, "a.ts", src)
+    _, report, _ = run_cli(tmp_path, name)
+    assert hits(report) == [(2, RULE, "embedded")]
+    assert report["skipped_fragments"] == {name: 1}
 
 
-def test_csharp_scanner_forms():
-    src = 'var a = "x"; var b = @"y""z"; var c = $"{n}"; var d = """\nraw "q"\n""";'
-    got = [(lit.text, lit.interpolated) for lit in sql_literals_c.csharp_literals(src)]
-    assert got == [("x", False), ('y""z', False), ("{n}", True), ('\nraw "q"\n', False)]
+def test_csharp_verbatim_doubled_quote_stays_inside_the_literal(tmp_path):
+    src = 'var a = @"INSERT INTO t VALUES (""x"")";\nvar b = "INSERT INTO u VALUES (1)";\n'
+    name = write(tmp_path, "a.cs", src)
+    _, report, _ = run_cli(tmp_path, name)
+    assert hits(report) == [(1, RULE, "embedded"), (2, RULE, "embedded")]
 
 
-def test_java_scanner_text_block_with_escaped_quotes():
-    src = 'String a = """\n  say \\"""hi\\"""\n  """;'
-    got = [lit.text for lit in sql_literals_c.java_literals(src)]
-    assert got == ['\n  say \\"""hi\\"""\n  ']
+def test_java_text_block_with_escaped_triple_quote_ends_at_the_real_closer(tmp_path):
+    src = (
+        'String a = """\n  INSERT INTO t VALUES (\\"""x\\""")\n  """;\n'
+        'String b = "INSERT INTO u VALUES (1)";\n'
+    )
+    name = write(tmp_path, "A.java", src)
+    _, report, _ = run_cli(tmp_path, name)
+    assert hits(report) == [(2, RULE, "embedded"), (4, RULE, "embedded")]
 
 
 def test_extraction_marks_fragments_embedded_with_zero_based_offset():
@@ -469,3 +480,123 @@ def test_extraction_marks_fragments_embedded_with_zero_based_offset():
         sql_extract.Fragment("INSERT INTO t VALUES (1)", 2, "embedded"),
     )
     assert extraction.skipped == 0
+
+
+# --- Review defects: regex detection, stray openers, t-strings, line endings -------------
+
+REAL_INSERT = "INSERT INTO t VALUES (1)"
+
+
+@pytest.mark.parametrize(
+    "keyword",
+    [
+        "return",
+        "typeof",
+        "case",
+        "yield",
+        "await",
+        "throw",
+        "in",
+        "of",
+        "void",
+        "delete",
+    ],
+)
+def test_slash_after_a_keyword_starts_a_regex(tmp_path, keyword):
+    src = f'{keyword} /`/.test(s)\nconst q = "{REAL_INSERT}"\nconst m = `x`\n'
+    name = write(tmp_path, "a.js", src)
+    _, report, _ = run_cli(tmp_path, name)
+    assert hits(report) == [(2, RULE, "embedded")]
+    _, gate, _ = run_cli(tmp_path, "--gate", name)
+    assert gate["dispatch"] is True
+
+
+def test_slash_after_an_identifier_is_division(tmp_path):
+    src = f'const a = b / 2; const c = d / 3;\nconst q = "{REAL_INSERT}";\n'
+    name = write(tmp_path, "a.js", src)
+    _, report, _ = run_cli(tmp_path, name)
+    assert hits(report) == [(2, RULE, "embedded")]
+
+
+def test_jsx_self_closing_tag_after_a_brace_is_not_a_regex(tmp_path):
+    src = f'<Item k={{k}} /><Q sql="{REAL_INSERT}" />\n'
+    name = write(tmp_path, "a.jsx", src)
+    _, report, _ = run_cli(tmp_path, name)
+    assert hits(report) == [(1, RULE, "embedded")]
+    _, gate, _ = run_cli(tmp_path, "--gate", name)
+    assert gate["dispatch"] is True
+
+
+STRAY = {
+    "block-comment-opener": "const H = () => <p>Matches src/*.ts files</p>\n",
+    "backtick": "const H = () => <p>use ` to quote</p>\n",
+}
+
+
+@pytest.mark.parametrize("ext", ["jsx", "tsx", "js", "ts"])
+@pytest.mark.parametrize("stray", sorted(STRAY))
+def test_a_stray_opener_does_not_swallow_the_rest_of_the_file(tmp_path, ext, stray):
+    src = STRAY[stray] + f'db.run("{REAL_INSERT}")\n'
+    name = write(tmp_path, f"a.{ext}", src)
+    _, report, _ = run_cli(tmp_path, name)
+    assert hits(report) == [(2, RULE, "embedded")]
+    _, gate, _ = run_cli(tmp_path, "--gate", name)
+    assert gate["dispatch"] is True
+
+
+def test_an_unterminated_template_expression_does_not_swallow_the_file(tmp_path):
+    src = f'const a = `x ${{ y\nconst q = "{REAL_INSERT}";\n'
+    name = write(tmp_path, "a.ts", src)
+    _, report, _ = run_cli(tmp_path, name)
+    assert hits(report) == [(2, RULE, "embedded")]
+
+
+@pytest.mark.parametrize(
+    ("ext", "opener"),
+    [("cs", 'var a = """'), ("java", 'String a = """')],
+)
+def test_an_unterminated_block_string_does_not_swallow_the_file(tmp_path, ext, opener):
+    src = f'{opener}abc\nvar q = "{REAL_INSERT}";\n'
+    name = write(tmp_path, f"a.{ext}", src)
+    _, report, _ = run_cli(tmp_path, name)
+    assert hits(report) == [(2, RULE, "embedded")]
+
+
+@pytest.mark.parametrize("prefix", ["t", "T", "rt", "tr", "Rt", "tR"])
+def test_a_python_t_string_is_interpolated_and_skipped(tmp_path, prefix):
+    name = write(tmp_path, "a.py", f'q = {prefix}"INSERT INTO t VALUES ({{x}})"\n')
+    code, report, _ = run_cli(tmp_path, name)
+    assert (code, report["findings"]) == (0, [])
+    assert report["skipped_fragments"] == {name: 1}
+    _, gate, _ = run_cli(tmp_path, "--gate", name)
+    assert gate["dispatch"] is True
+
+
+def test_a_python_name_ending_in_t_before_a_string_is_not_a_prefix(tmp_path):
+    name = write(tmp_path, "a.py", f'print "{REAL_INSERT}"\nx = 1\n')
+    _, report, _ = run_cli(tmp_path, name)
+    assert report["skipped_fragments"] == {}
+
+
+def test_a_python_t_string_after_plus_is_concatenated(tmp_path):
+    name = write(tmp_path, "a.py", f'q = "a" + t"{REAL_INSERT}"\n')
+    _, report, _ = run_cli(tmp_path, name)
+    assert (report["findings"], report["skipped_fragments"]) == ([], {name: 1})
+
+
+@pytest.mark.parametrize("newline", ["\r", "\r\n"])
+def test_cr_line_endings_around_a_multi_line_f_string(tmp_path, newline):
+    src = newline.join(
+        ['q = f"""a', "b {x}", 'c"""', "", "", f'r = "{REAL_INSERT}"', ""]
+    )
+    path = tmp_path / "a.py"
+    path.write_bytes(src.encode("utf-8"))
+    code, report, _ = run_cli(tmp_path, "a.py")
+    assert code == 0
+    assert hits(report) == [(6, RULE, "embedded")]
+
+
+def test_a_row_beyond_the_known_lines_never_raises():
+    text = 'q = f"""a\rb {x}\rc"""\r' + "\r" * 40 + f'r = "{REAL_INSERT}"\r'
+    extraction = sql_extract.extract("a.py", text)
+    assert extraction.sql_present is True

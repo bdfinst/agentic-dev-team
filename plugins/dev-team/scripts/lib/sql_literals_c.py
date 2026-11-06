@@ -39,6 +39,24 @@ CSHARP = Lang(csharp=True, char_literals=True)
 JAVA = Lang(text_blocks=True, char_literals=True)
 
 _REGEX_AFTER = set("(,=:[!&|?{};")
+#: a keyword before ``/`` makes it a regex start, not a division
+_REGEX_KEYWORDS = frozenset(
+    (
+        "return",
+        "typeof",
+        "case",
+        "yield",
+        "await",
+        "throw",
+        "in",
+        "of",
+        "void",
+        "delete",
+    )
+)
+_WORD_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$"
+)
 
 
 class _Lexer:
@@ -49,6 +67,8 @@ class _Lexer:
         self.i = 0
         self.out: list[Literal] = []
         self.prev = ""  # the last two significant characters
+        self.word = ""  # the identifier or keyword that ended the last token
+        self.in_word = False  # the cursor is still inside that word
         self.pending: Literal | None = None  # literal waiting for a following "+"
         self.newlines = [k for k, ch in enumerate(text) if ch == "\n"]
 
@@ -61,6 +81,12 @@ class _Lexer:
                 self.pending.concatenated = True
             self.pending = None
         self.prev = (self.prev + ch)[-2:]
+        if ch in _WORD_CHARS:
+            self.word = self.word + ch if self.in_word else ch
+            self.in_word = True
+        else:
+            self.word = ""
+            self.in_word = False
 
     def emit(self, start: int, end: int, interpolated: bool = False) -> None:
         concatenated = self.prev in ("+", "+=") or self.prev.endswith("+")
@@ -81,7 +107,8 @@ class _Lexer:
             return self.n if end < 0 else end
         if t.startswith("/*", i):
             end = t.find("*/", i + 2)
-            return self.n if end < 0 else end + 2
+            # an opener with no closer is a stray character, not a comment
+            return None if end < 0 else end + 2
         return None
 
     def line_string(self, i: int, quote: str) -> int | None:
@@ -122,7 +149,8 @@ class _Lexer:
                 end = self.line_string(i + 1, ch)
                 i = i + 1 if end is None else end + 1
             elif ch == "`":
-                i = self.template_end(i + 1)[0]
+                after, body_end, _ = self.template_end(i + 1)
+                i = after if body_end is not None else i + 1
             elif self.comment_end(i) is not None:
                 i = self.comment_end(i)
             else:
@@ -150,7 +178,10 @@ class _Lexer:
 
     def regex_literal(self) -> bool:
         """Skip a regex literal at ``i`` when the context allows one."""
-        if self.prev and self.prev[-1] not in _REGEX_AFTER:
+        if self.text.startswith("/>", self.i):
+            return False  # a JSX self-closing tag
+        after_operator = not self.prev or self.prev[-1] in _REGEX_AFTER
+        if not after_operator and self.word not in _REGEX_KEYWORDS:
             return False
         t, i, in_class = self.text, self.i + 1, False
         while i < self.n and t[i] != "\n":
@@ -196,7 +227,9 @@ class _Lexer:
         else:
             end = self.line_string(body, '"')
         if end is None:
-            self.i = self.skip_line(body)
+            multi_line = verbatim or quotes >= 3
+            # multi-line forms drop only the opener; a one-line string ends at the line
+            self.i = body if multi_line else self.skip_line(body)
             return True
         self.emit(body, end, bool(dollars))
         self.i = end + (quotes if quotes >= 3 and not verbatim else 1)
@@ -226,14 +259,18 @@ class _Lexer:
             return self.csharp_string()
         if lang.templates and ch == "`":
             after, end, interpolated = self.template_end(i + 1)
-            if end is not None:
-                self.emit(i + 1, end, interpolated)
+            if end is None:  # a stray backtick: drop it and keep scanning
+                self.sig("`")
+                self.i = i + 1
+                return True
+            self.emit(i + 1, end, interpolated)
             self.i = after
             return True
         if ch == '"' and lang.text_blocks and self.text.startswith('"""', i):
             end = self.block_string(i + 3, '"')
-            if end is None:
-                self.i = self.n
+            if end is None:  # no closer: drop the opener and keep scanning
+                self.sig('"')
+                self.i = i + 3
             else:
                 self.emit(i + 3, end)
                 self.i = end + 3
@@ -263,8 +300,10 @@ class _Lexer:
         while self.i < self.n:
             ch = t[self.i]
             if ch.isspace():
+                self.in_word = False
                 self.i += 1
             elif ch == "/" and self.comment_end(self.i) is not None:
+                self.in_word = False
                 self.i = self.comment_end(self.i)
             elif self.regex_or_string():
                 pass

@@ -60,13 +60,25 @@ def _split_string(token: str) -> tuple[str, str]:
 
 def python_literals(text: str) -> list[Literal]:
     """Literals of a Python source text, with concatenation flags set."""
+    # A lone CR ends a line for the tokenizer but not for ``split("\n")``;
+    # one newline form keeps token rows and the offset table in step.
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     starts = [0, *accumulate(len(ln) + 1 for ln in text.split("\n"))]
 
     def offset(pos: tuple[int, int]) -> int:
-        return starts[pos[0] - 1] + pos[1]
+        row = min(max(pos[0] - 1, 0), len(starts) - 1)
+        return min(starts[row] + pos[1], len(text))
 
-    fstart = getattr(tokenize, "FSTRING_START", None)
-    fend = getattr(tokenize, "FSTRING_END", None)
+    starts_of = {
+        name: getattr(tokenize, name, None)
+        for name in ("FSTRING_START", "TSTRING_START")
+    }
+    ends_of = {
+        name: getattr(tokenize, name, None) for name in ("FSTRING_END", "TSTRING_END")
+    }
+    fstart = {v for v in starts_of.values() if v is not None}
+    fend = {v for v in ends_of.values() if v is not None}
+    tstart = starts_of["TSTRING_START"]
     toks = list(_tokens(text))
     items: list[Literal | str] = []  # Literal, an operator, "n:<name>", or ""
     i = 0
@@ -78,17 +90,23 @@ def python_literals(text: str) -> list[Literal]:
         if tok.type == tokenize.STRING:
             prefix, body = _split_string(tok.string)
             interpolated = "f" in prefix.lower() and has_python_field(body)
+            if _is_template_prefix(toks, i - 1) and items:
+                items.pop()  # the ``t`` name token is part of this literal
+                interpolated = True  # PEP 750: a Template, never a plain str
             items.append(Literal(body, tok.start[0], interpolated))
-        elif fstart is not None and tok.type == fstart:
+        elif tok.type in fstart:
             depth, j = 1, i
             while j < len(toks) and depth:
-                depth += (toks[j].type == fstart) - (toks[j].type == fend)
+                depth += (toks[j].type in fstart) - (toks[j].type in fend)
                 j += 1
             closing = toks[j - 1]
-            ok = depth == 0 and closing.type == fend
+            ok = depth == 0 and closing.type in fend
             body = text[offset(tok.end) : offset(closing.start)] if ok else ""
-            interpolated = any(
-                t.type != tokenize.FSTRING_MIDDLE for t in toks[i : j - 1]
+            middle = {
+                getattr(tokenize, n, None) for n in ("FSTRING_MIDDLE", "TSTRING_MIDDLE")
+            }
+            interpolated = tok.type == tstart or any(
+                t.type not in middle for t in toks[i : j - 1]
             )
             items.append(Literal(body, tok.start[0], interpolated))
             i = j
@@ -100,6 +118,21 @@ def python_literals(text: str) -> list[Literal]:
             items.append("")
     _flag_concatenation(items)
     return [it for it in items if isinstance(it, Literal)]
+
+
+def _is_template_prefix(toks: list[tokenize.TokenInfo], k: int) -> bool:
+    """True when ``toks[k]`` is a string right after an adjacent ``t`` prefix.
+
+    Python before 3.14 tokenizes ``t"..."`` as a NAME and a STRING.
+    """
+    if k < 1:
+        return False
+    name, string = toks[k - 1], toks[k]
+    return (
+        name.type == tokenize.NAME
+        and name.string.lower() in ("t", "rt", "tr")
+        and name.end == string.start
+    )
 
 
 def _flag_concatenation(items: list[Literal | str]) -> None:
