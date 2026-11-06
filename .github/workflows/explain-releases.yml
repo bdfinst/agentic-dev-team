@@ -31,4 +31,3 @@ jobs:
           # The action default, anthropic/claude-opus-5, returns "Not Found".
           model: anthropic/claude-opus-5-5
           tag: ${{ inputs.tag }}
-

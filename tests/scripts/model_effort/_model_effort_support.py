@@ -223,12 +223,17 @@ if BEHAVIOR.get("lock_subdir"):
     (locked / "inner.txt").write_text("x")
     locked.chmod(0o500)
 if BEHAVIOR.get("grandchild_marker"):
-    code = "import pathlib, time; time.sleep(%s); pathlib.Path(%r).write_text('late')" % (
+    # The grandchild touches the spawned file itself as it starts sleeping, so its
+    # mtime marks when the delay began, however slowly the interpreter started.
+    code = (
+        "import pathlib, time; pathlib.Path(%r).write_text('spawned'); "
+        "time.sleep(%s); pathlib.Path(%r).write_text('late')"
+    ) % (
+        BEHAVIOR["grandchild_spawned"],
         BEHAVIOR["grandchild_delay"],
         BEHAVIOR["grandchild_marker"],
     )
     subprocess.Popen([sys.executable, "-c", code])
-    Path(BEHAVIOR["grandchild_spawned"]).write_text("spawned")
 if BEHAVIOR.get("holder_sleep"):
     # Inherits stdout and stderr, so it keeps both pipes open after this process exits.
     holder = subprocess.Popen(
