@@ -101,6 +101,9 @@ plugin's own settings.json sets them:
   Claude Code sets this env var for hooks that do not parse stdin.
 - `MUTATION_SMOKE_GATE_SKIP` — hook-specific escape hatch (see the
   smoke-gate hook).
+- `DEV_TEAM_FEATURE_RECORD_GUARD` — escape hatch for `feature_record_guard.py`.
+  The value `off` (case-insensitive) allows every plan and spec write; the
+  hook prints a one-line notice on stderr.
 - `DEV_TEAM_VERSION_CHECK_CACHE_DIR` — overrides `version_check.py`'s daily
   cache directory (default `/tmp`). This is a test-only escape hatch (#1574).
   It lets pytest give each worker or run its own cache path instead of racing
