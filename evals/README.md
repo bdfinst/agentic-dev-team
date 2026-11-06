@@ -235,6 +235,12 @@ Worked example:
 }
 ```
 
+An agent entry may also declare `expectedFindings`, a list of
+`{"category", "severity"}` pairs (#2283). The grader requires the set of
+`(category, severity)` pairs in the agent's `issues[]` to equal the declared
+set exactly. Use it where `category` is a stable rule id, as for `sql-review`;
+`"expectedFindings": []` asserts the agent reports no categorized issue.
+
 ## Convention: executable claims (issue #1629)
 
 **Any fixture line or `_calibration` note that asserts concrete runtime

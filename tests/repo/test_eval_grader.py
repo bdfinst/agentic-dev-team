@@ -253,6 +253,73 @@ def test_min_confidence_any_of_fails_when_no_issue_matches(case: Path) -> None:
     assert "minConfidenceAnyOf" in out
 
 
+_EXPECTED_FINDINGS = """{
+  "fixture": "ar-demo.ts",
+  "applicableAgents": ["arch-review"],
+  "agents": {
+    "arch-review": {
+      "expectedStatus": "warn",
+      "expectedFindings": [
+        { "category": "rule.one", "severity": "warning" }
+      ]
+    }
+  }
+}
+"""
+
+
+def _grade_findings(case: Path, issues: str) -> subprocess.CompletedProcess:
+    _write(case, "expected/ar-demo.json", _EXPECTED_FINDINGS)
+    actual = {
+        "ar-demo": {
+            "agents": {
+                "arch-review": {
+                    "status": "warn",
+                    "issues": json.loads(issues),
+                    "summary": "",
+                }
+            }
+        }
+    }
+    _write(case, "actuals.json", json.dumps(actual))
+    return _grade(
+        case,
+        "--expected-dir",
+        str(case / "expected"),
+        "--actuals",
+        str(case / "actuals.json"),
+    )
+
+
+def test_expected_findings_passes_on_an_exact_category_severity_match(
+    case: Path,
+) -> None:
+    res = _grade_findings(
+        case, '[{ "category": "rule.one", "severity": "warning", "message": "m" }]'
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+@pytest.mark.parametrize(
+    "issues",
+    [
+        '[{ "category": "rule.two", "severity": "warning", "message": "m" }]',
+        '[{ "category": "rule.one", "severity": "error", "message": "m" }]',
+        (
+            '[{ "category": "rule.one", "severity": "warning", "message": "m" },'
+            ' { "category": "rule.two", "severity": "warning", "message": "m" }]'
+        ),
+        "[]",
+        '[{ "severity": "warning", "message": "no category" }]',
+    ],
+    ids=["wrong-rule", "wrong-severity", "extra-finding", "missing", "no-category"],
+)
+def test_expected_findings_fails_on_any_difference(case: Path, issues: str) -> None:
+    res = _grade_findings(case, issues)
+    assert res.returncode == 1, res.stdout + res.stderr
+    assert "expectedFindings" in res.stdout + res.stderr
+
+
 def test_baseline_isolates_regressions(case: Path) -> None:
     """Baseline says arch-review WAS passing; a new failure is a [REGRESSION]."""
     (case / "baseline.json").write_text('{ "passing": ["ar-demo::arch-review"] }')

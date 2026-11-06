@@ -39,7 +39,8 @@ against eval fixtures and grade the results.
    agent — not the expected results, not other fixtures, not prior
    transcripts. One narrow exception: a `test-review` dispatch also
    receives its fixture's own `test_review_mechanics.py` mechanical
-   pre-phase result (Step 3 below, #2169 follow-up) — computed from the
+   pre-phase result (Step 3 below, #2169 follow-up), and a `sql-review`
+   dispatch receives its fixture's own `sql_anti_patterns.py --gate` result — computed from the
    fixture file itself, not from grading data, so it does not weaken this
    constraint's intent.
 4. **Track results.** Save transcripts for saturation detection. Do
@@ -370,11 +371,24 @@ For each fixture/agent pair (agent fixtures):
    grade Phase 1/2's judgment, never Phase 0's own detection accuracy
    (`mechanicalFail` gating). Skip this sub-step entirely for every other
    agent.
+1b. **SQL detector pre-phase (#2283).** When `<agent-name>` is `sql-review`,
+   compute the detector gate for the fixture file — the same invocation
+   `/code-review` Step 3 uses — and append its JSON to the dispatch prompt:
+
+   ```bash
+   python3 "$CLAUDE_PLUGIN_ROOT/scripts/sql_anti_patterns.py" --gate <fixture-path>
+   ```
+
+   Frame it as "Detector hits for this file (computed by
+   scripts/sql_anti_patterns.py — confirm or dismiss each hit): <gate JSON>".
+   Without it the agent has no hits to triage. Skip this sub-step for every
+   other agent.
 2. Dispatch the named review agent against the fixture file/directory:
    - **Default:** a fresh subprocess that reads the agent from disk —
      `claude -p "/review-agent <agent-name> <fixture-path>" --output-format json`
      (add `--model` per the agent's tier when known). Pass **only** the
-     fixture path, never the expected JSON — **except** for `test-review`,
+     fixture path, never the expected JSON — **except** for `sql-review`
+     (sub-step 1b's gate JSON, appended the same way) and for `test-review`,
      where sub-step 1's result is appended to the prompt text, framed
      exactly as `skills/code-review/SKILL.md` step 2b's "Test-review
      mechanical pre-phase" block frames it for a production dispatch
@@ -438,6 +452,12 @@ Compare agent output against expected JSON:
 - For each severity in expected `severities`, count matching issues
 - Count within `min` to `max` → PASS
 - Outside range → FAIL
+
+**Finding identity check (`expectedFindings`, optional):**
+
+- The set of `(category, severity)` pairs across the agent's `issues[]`
+  equals the expected set exactly → PASS. Any missing or extra pair → FAIL.
+  Used where `category` is a stable rule id (`sql-review`).
 
 **Keyword checks:**
 

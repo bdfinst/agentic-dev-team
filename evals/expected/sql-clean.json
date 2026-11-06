@@ -1,0 +1,12 @@
+{
+  "fixture": "sql-clean.sql",
+  "description": "Seed script whose INSERTs all name their columns or use DEFAULT VALUES",
+  "applicableAgents": ["sql-review"],
+  "agents": {
+    "sql-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "expectedFindings": []
+    }
+  }
+}

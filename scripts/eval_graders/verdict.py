@@ -49,6 +49,20 @@ def grade_verdict(spec: dict, actual: dict) -> list[str]:
             f"confidence in {min_conf!r}, found none"
         )
 
+    # `expectedFindings` (#2283): the set of (category, severity) pairs the
+    # agent reports must equal the declared set exactly. For agents whose
+    # `category` is a stable rule id (sql-review), this pins WHICH rule fired
+    # at WHICH severity, which a count range cannot.
+    expected_findings = spec.get("expectedFindings")
+    if expected_findings is not None:
+        want = {(f.get("category"), f.get("severity")) for f in expected_findings}
+        got = {(i.get("category"), i.get("severity")) for i in issues}
+        if want != got:
+            fails.append(
+                f"expectedFindings: expected {sorted(want, key=repr)!r}, "
+                f"got {sorted(got, key=repr)!r}"
+            )
+
     text = " ".join(str(i.get("message", "")) for i in issues)
     text += " " + str(actual.get("summary", ""))
     for kw in spec.get("mustMention", []):
