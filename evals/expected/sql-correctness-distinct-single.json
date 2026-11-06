@@ -1,0 +1,12 @@
+{
+  "fixture": "sql-correctness-distinct-single.sql",
+  "description": "SELECT DISTINCT over a single table is a plain de-duplication",
+  "applicableAgents": ["sql-review"],
+  "agents": {
+    "sql-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "expectedFindings": []
+    }
+  }
+}
