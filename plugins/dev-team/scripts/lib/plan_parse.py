@@ -263,46 +263,61 @@ def step_files_union(lines: Iterable[str]) -> dict[str, list[str]]:
     return unioned
 
 
-class _SliceSection:
-    """The slice section currently being walked."""
+def slice_sections(lines: Iterable[str]) -> list[tuple[str, str, list[str]]]:
+    """Return `(id, title, body_lines)` per `### Slice <id>: <title>` heading.
 
-    def __init__(self, slice_id: str, title: str) -> None:
-        self.slice_id = slice_id
-        self.title = title
-        self.gherkin: str | None = None
+    `body_lines` runs from the line after the heading to the next level-1..3
+    heading or EOF, fence content included. Same heading grammar as
+    the exporter's: headings inside fenced code blocks never split.
+    """
+    sections: list[tuple[str, str, list[str]]] = []
+    current: tuple[str, str, list[str]] | None = None
+    in_fence = False
 
-    def wants_gherkin(self) -> bool:
-        return self.gherkin is None
+    for raw in lines:
+        line = raw.rstrip("\n")
+        if in_fence or line.startswith("```"):
+            if line.startswith("```"):
+                in_fence = not in_fence
+            if current is not None:
+                current[2].append(line)
+            continue
 
-    def row(self) -> tuple[str, str, str | None]:
-        return (self.slice_id, self.title, self.gherkin)
+        match = _SLICE_HEADING_RE.match(line)
+        if match or _HEADING_RE.match(line):
+            if current is not None:
+                sections.append(current)
+            current = (
+                (match.group(1).strip(), match.group(2).strip(), []) if match else None
+            )
+            continue
+
+        if current is not None:
+            current[2].append(line)
+
+    if current is not None:
+        sections.append(current)
+    return sections
 
 
-class _FenceState:
-    """Tracks fenced code blocks and collects a gherkin fence's content."""
-
-    def __init__(self) -> None:
-        self.active = False
-        self._collecting = False
-        self._lines: list[str] = []
-
-    def enter(self, line: str, wants_gherkin: bool) -> None:
-        self.active = True
-        self._collecting = wants_gherkin and line[3:].strip().lower() == "gherkin"
-        self._lines = []
-
-    def consume(self, line: str) -> str | None:
-        """Advance one in-fence line; return the collected block (with one
-        trailing newline) when a collecting fence closes, else None."""
-        if line.startswith("```"):
-            self.active = False
-            block = "\n".join(self._lines) + "\n" if self._collecting else None
-            self._collecting = False
-            self._lines = []
-            return block
-        if self._collecting:
-            self._lines.append(line)
-        return None
+def _first_gherkin_fence(body: list[str]) -> str | None:
+    """Content of the first closed ```gherkin fence in `body`, else None."""
+    inner: list[str] | None = None
+    in_fence = False
+    for line in body:
+        if not line.startswith("```"):
+            if inner is not None:
+                inner.append(line)
+            continue
+        if in_fence:
+            if inner is not None:
+                return "\n".join(inner) + "\n"
+            in_fence = False
+        else:
+            in_fence = True
+            if line[3:].strip().lower() == "gherkin":
+                inner = []
+    return None
 
 
 def slice_gherkin_blocks(
@@ -315,47 +330,20 @@ def slice_gherkin_blocks(
     slice has no such block. Fence-aware: heading-like lines inside fenced
     code blocks never start or end a slice section.
 
-    Grammar note — this walker intentionally differs from `parse_slices`:
-    it requires the template shape (H1–H3 heading, colon after the id) and
-    is fence-aware, while `parse_slices` keeps its looser, fence-blind
-    grammar bug-for-bug with the bash original because `plan_waves.py`
-    depends on it. For template-conformant plans the two agree on the slice
-    set (pinned by `test_both_plan_walkers_agree_on_a_template_conformant_plan`);
-    they diverge only on malformed input, where the exporter's stricter
-    read is the safer one.
+    Grammar note — built on `slice_sections`, this walker intentionally
+    differs from `parse_slices`: it requires the template shape (H1–H3
+    heading, colon after the id) and is fence-aware, while `parse_slices`
+    keeps its looser, fence-blind grammar bug-for-bug with the bash original
+    because `plan_waves.py` depends on it. For template-conformant plans the
+    two agree on the slice set (pinned by
+    `test_both_plan_walkers_agree_on_a_template_conformant_plan`); they
+    diverge only on malformed input, where the exporter's stricter read is
+    the safer one.
     """
-    blocks: list[tuple[str, str, str | None]] = []
-    current: _SliceSection | None = None
-    fence = _FenceState()
-
-    for raw in lines:
-        line = raw.rstrip("\n")
-
-        if fence.active:
-            block = fence.consume(line)
-            if block is not None and current is not None:
-                current.gherkin = block
-            continue
-
-        if line.startswith("```"):
-            fence.enter(line, current is not None and current.wants_gherkin())
-            continue
-
-        match = _SLICE_HEADING_RE.match(line)
-        if match:
-            if current is not None:
-                blocks.append(current.row())
-            current = _SliceSection(match.group(1).strip(), match.group(2).strip())
-            continue
-
-        # Any other level-1..3 heading ends the current slice section.
-        if current is not None and _HEADING_RE.match(line):
-            blocks.append(current.row())
-            current = None
-
-    if current is not None:
-        blocks.append(current.row())
-    return blocks
+    return [
+        (slice_id, title, _first_gherkin_fence(body))
+        for slice_id, title, body in slice_sections(lines)
+    ]
 
 
 def iter_slice_body_lines(text: str) -> Iterator[tuple[str, bool]]:
@@ -364,16 +352,15 @@ def iter_slice_body_lines(text: str) -> Iterator[tuple[str, bool]]:
     `in_fence` is True for every line of a fenced code block, including its
     opening and closing fence lines, so a caller that scans prose (headings,
     `**Covers**:` lines) skips fenced content by testing the flag. Uses the
-    same `_FenceState` as `slice_gherkin_blocks`, so both agree on where a
-    fence starts and ends. Works on any text, not only a single slice.
+    same fence rule as `slice_sections` (a line starting with three
+    backticks opens and closes a fence), so both agree on where a fence
+    starts and ends. Works on any text, not only a single slice.
     """
-    fence = _FenceState()
+    in_fence = False
     for line in text.splitlines():
-        if fence.active:
-            fence.consume(line)
-            yield line, True
-        elif line.startswith("```"):
-            fence.enter(line, False)
+        if in_fence or line.startswith("```"):
+            if line.startswith("```"):
+                in_fence = not in_fence
             yield line, True
         else:
             yield line, False

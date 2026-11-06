@@ -301,6 +301,9 @@ SLICE_EXCLUSIONS = {
     "plan_gherkin_export.py": (
         "stdlib argparse/re/pathlib/typing only; no floor-sensitive runtime API"
     ),
+    "plan_falsifiers.py": (
+        "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
+    ),
     "plan_waves.py": (
         "stdlib argparse/fnmatch/json/re/pathlib only; no floor-sensitive "
         "runtime API"

@@ -23,6 +23,10 @@ Code-First Small Batches steps (implement, then test, then refactor) — the
 Gherkin was authored in this plan, not inherited from the spec, so you are
 its quality gate.
 
+The dispatcher also supplies the `plan_falsifiers.py` output: JSON with
+`scenarios`, `missing`, `scanned_slices`, `skipped_slices`,
+`skipped_with_scenarios`, and `error`.
+
 ## What you check
 
 ### Acceptance Criteria Quality
@@ -50,6 +54,22 @@ For each Gherkin scenario, evaluate:
 3. **Determinism** — Will this scenario produce the same result every time? Flag scenarios that depend on time, randomness, external state, or ordering.
 4. **Scenario isolation** — Can this scenario run independently of other scenarios? Flag shared state or ordering dependencies.
 5. **Missing scenarios** — Based on the acceptance criteria, what scenarios are NOT written but should be? List them explicitly.
+6. **Falsifier** — Every `Scenario` and `Scenario Outline` carries `# Still passes if: <change>` as the first non-blank line under its title. The `plan_falsifiers.py` output you were given is authoritative for absence: each entry in its `missing` array is a scenario with no usable falsifier. Judge each falsifier that is present, and start the `issue` of every `scenario_issues[]` entry you raise with `Falsifier:`, with `scenario` set to the scenario title and the slice id named in the `issue` text (`Falsifier: slice <id>: ...`) so the pair matches the script's `slice` and `scenario` fields; the unavailability blockers below use the `plan` or `slice <id>` sentinels instead.
+   - A **killer** falsifier names a change that breaks the scenario, because it contradicts a `Then` clause:
+
+   Then clause: "lists each scenario with its falsifier text"
+   Falsifier text: "the script reports only presence"
+
+   - A **tautological** falsifier shows that the `Then` outcome survives replacing the behavior with a constant or a stub. The fix is to state the sharper `Then`:
+
+   Then clause: "the response is not empty"
+   Falsifier text: "the handler returns a fixed string"
+
+   You have no Bash tool, and `plan_falsifiers.py` is executed by the dispatcher, not by you. Report each of the following in `scenario_issues[]` with `scenario` set to `plan` or `slice <id>`. Raise a blocker, and never read the list as complete, in these cases:
+   - Output not supplied: `Falsifier: list unavailable (plan_falsifiers.py output not supplied)`.
+   - `error` set: `Falsifier: list unavailable: <error>`.
+   - A `### Slice` heading you read has an id in neither `scanned_slices` nor `skipped_slices`: `Falsifier: slice <id> not scanned`.
+   - A slice id in `skipped_with_scenarios`: `Falsifier: slice <id> skipped but contains scenarios`.
 
 ### Step Traceability
 
@@ -109,6 +129,10 @@ step accordingly, never assuming or requiring test-first ordering:
 - Scenario that leaks implementation details → `warning`
 - Vague test description in a step → `warning`
 - Missing negative test → `warning`
+- Missing or empty falsifier → `blocker`
+- Killer falsifier (contradicts a `Then` clause) → `warning`
+- Tautological falsifier (`Then` survives a constant or stub) → `warning`; suggest a sharper `Then`
+- Falsifier list unavailable (output not supplied, `error` set, slice not scanned, or skipped slice with scenarios) → `blocker`
 
 ## Verdict rules
 
