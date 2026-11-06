@@ -1,0 +1,16 @@
+{
+  "fixture": "sql-select-star-named.sql",
+  "description": "SELECT * whose rows the comment says are read by column name only: the agent dismisses the detector hit and names the reason in summary",
+  "applicableAgents": ["sql-review"],
+  "agents": {
+    "sql-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "expectedFindings": [],
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Modeled on sql-clean.json; not measured by a live agent-eval run. The summary dismissal reason is not graded: mustMention reads issue messages only"
+      }
+    }
+  }
+}
