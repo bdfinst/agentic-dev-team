@@ -1,5 +1,23 @@
 # Changelog
 
+## [14.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.1.0...dev-team-v14.2.0) (2026-11-06)
+
+
+### Features
+
+* **sql-review:** correctness-trap and index-defeating rules ([#2292](https://github.com/bdfinst/agentic-dev-team/issues/2292)) ([ecd9cda](https://github.com/bdfinst/agentic-dev-team/commit/ecd9cdab9d3201e0afbc4acb8ef7e3ff8b9598b3))
+* **sql-review:** detect SQL embedded in application source ([#2293](https://github.com/bdfinst/agentic-dev-team/issues/2293)) ([2738d2d](https://github.com/bdfinst/agentic-dev-team/commit/2738d2dca19ee2678bb3b00bec1403fe351fcb0f))
+* **sql-review:** dialect inference, unsafe DDL, and dialect rules ([#2291](https://github.com/bdfinst/agentic-dev-team/issues/2291)) ([0d22695](https://github.com/bdfinst/agentic-dev-team/commit/0d22695e0e96b493e52cee7eea8d315913cafa37))
+* **sql-review:** positional-INSERT detection end to end through /code-review ([#2288](https://github.com/bdfinst/agentic-dev-team/issues/2288)) ([3bb1770](https://github.com/bdfinst/agentic-dev-team/commit/3bb17706945eca7b190541d304b52db464932911))
+* **sql-review:** remaining schema-coupling rules ([#2290](https://github.com/bdfinst/agentic-dev-team/issues/2290)) ([194313c](https://github.com/bdfinst/agentic-dev-team/commit/194313c12b3621660ca32533f50e2a4676f56ac3))
+
+
+### Bug Fixes
+
+* **sql-review:** harden DDL rules and dialect inference ([#2294](https://github.com/bdfinst/agentic-dev-team/issues/2294)) ([33f273e](https://github.com/bdfinst/agentic-dev-team/commit/33f273e7b92f915e3580e2e94dd4c7ea6d507d24))
+* **sql-review:** schema rules end at statement boundaries ([#2295](https://github.com/bdfinst/agentic-dev-team/issues/2295)) ([75d12c2](https://github.com/bdfinst/agentic-dev-team/commit/75d12c22070d8ab9272fe35ddfb3f66a675c73fa))
+* **sql-review:** type names, assignments, and T-SQL forms in correctness and index rules ([#2296](https://github.com/bdfinst/agentic-dev-team/issues/2296)) ([cdefb30](https://github.com/bdfinst/agentic-dev-team/commit/cdefb30ae7c32016ab5290253a1d77558365254b))
+
 ## [14.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.0.1...dev-team-v14.1.0) (2026-11-06)
 
 
