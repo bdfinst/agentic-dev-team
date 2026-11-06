@@ -325,6 +325,10 @@ SLICE_EXCLUSIONS = {
         "runtime API"
     ),
     "select_lenses.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
+    "sql_review_roster.py": (
+        "stdlib argparse/json/subprocess/sys/pathlib only (plus lib/review_roster, "
+        "stdlib json/re); no floor-sensitive runtime API"
+    ),
     "specs_convention_marker.py": "stdlib subprocess/pathlib only; no floor-sensitive runtime API",
     "test_improve_resume.py": (
         "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
@@ -1017,6 +1021,7 @@ _NONCANONICAL_TEST_FILES = {
     # core test file drives the CLI and every lib module, so it is named for
     # the detector core rather than for the script (#2283).
     "sql_anti_patterns.py": "plugins/dev-team/tests/scripts/test_sql_detector_core.py",
+    "sql_review_roster.py": "plugins/dev-team/tests/agents/test_sql_review_agent.py",
 }
 
 

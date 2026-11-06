@@ -84,7 +84,7 @@ distinct `file:line`, so a finding surfaced by several agents appears once:
 
 `dispatchFailures` (issue #1752, always present, empty array when none):
 agents whose `Agent` tool dispatch failed and then failed a single individual
-retry — the lens never actually ran. Distinct from an `agents[]` entry with
+retry — the lens never actually ran. `attempts: 0` marks a lens whose pre-dispatch gate failed before any dispatch (the SQL detector gate for `sql-review`, #2283). Distinct from an `agents[]` entry with
 `status: "skip"` (agent had nothing to review this run — see
 [`knowledge/review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md#status-values))
 and from `status: "fail"` (agent ran and found error-severity issues). A
