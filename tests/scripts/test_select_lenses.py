@@ -745,6 +745,11 @@ def test_cli_rejects_both_flags_reading_stdin():
 # `structure-review` (SRP, DRY, coupling, and — since #2093 folded
 # `complexity-review` into it — nesting depth, cognitive load, and
 # async-pattern judgment) already holds as `Scope: always`.
+# `sql-review` declares `Scope: on-demand` too (#2283), but for a gating
+# reason: `/code-review` Step 3 dispatches it only when the SQL detector gate
+# reports SQL present, so the per-diff resolver must never select it — not
+# even for a `.sql` file. `test_sql_review_is_never_selected_by_the_resolver`
+# pins that.
 # `test-smell-review` is not here either, but it is NOT on-demand (#1978) —
 # it declares the `test-files` sentinel below, so it still runs per-diff,
 # just only when the diff touches a test file. `test-review` deliberately
@@ -853,3 +858,16 @@ def test_file_type_lens_set_is_pinned_to_the_known_three():
 # set-difference test would be a self-referential tautology. Its presence is
 # guarded instead by the content-guard in test_code_review_frontend_dispatch.py
 # (review-config.json paragraph still in Step 3). See #1523 plan AC6.
+
+
+def test_sql_review_is_never_selected_by_the_resolver():
+    """The SQL detector gate dispatches `sql-review`; the resolver must not (#2283)."""
+    plugin = SL._HERE.parent
+    roster, _ = SL.build_review_roster(
+        plugin / "agents", plugin / "knowledge" / "agent-registry.md"
+    )
+    scopes = {name: scope for name, scope, _ in roster}
+    assert scopes["sql-review"] == SL.SCOPE_ON_DEMAND
+    lenses, warnings = SL.applicable_lenses(["db/seed.sql", "app.py"], roster)
+    assert "sql-review" not in lenses
+    assert "sql-review" not in warnings

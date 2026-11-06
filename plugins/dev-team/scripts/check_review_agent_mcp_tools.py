@@ -9,13 +9,14 @@ in each agent's `tools:` frontmatter allowlist.
 
 Grants are no longer one-size-fits-all (#1467). Three tiers:
 
-- ``EXEMPT_AGENTS`` (``claude-setup-review``, ``token-efficiency-review``) — pure
+- ``EXEMPT_AGENTS`` (``claude-setup-review``, ``token-efficiency-review``,
+  ``sql-review``) — pure
   text/regex/frontmatter validators on the ``haiku`` tier that never touch code
   structure. They require **none** of the code-intelligence MCP tools, and this
   check actively asserts they carry **none** of them — a "forbidden tools
   present" failure mode, reported and JSON-exposed distinctly from the ordinary
   "missing tools" offenders, so a future edit can't silently regrant the tools
-  these two never needed.
+  these agents never needed.
 - ``REASSIGNED_TOOLS`` agents (``refactor-opportunity-review``,
   ``performance-review``, ``doc-review``) — require their
   own specific tool set (see the mapping below) instead of the generic
@@ -95,7 +96,7 @@ MCP_TOOL_NAMES = BASE_MCP_TOOLS
 
 # Agents that do pure text/regex/frontmatter validation and never touch code
 # structure — they require zero code-intelligence MCP tools (#1467).
-EXEMPT_AGENTS = {"claude-setup-review", "token-efficiency-review"}
+EXEMPT_AGENTS = {"claude-setup-review", "token-efficiency-review", "sql-review"}
 
 # Agents whose grant is reassigned to a specific set instead of the generic
 # BASE_MCP_TOOLS five (#1467).

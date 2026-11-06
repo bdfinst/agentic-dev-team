@@ -83,6 +83,7 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 | software-engineer | plugins/dev-team/agents/software-engineer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | spec-compliance-review | plugins/dev-team/agents/spec-compliance-review.md | haiku | medium | haiku | medium | keep | 1 | insufficient fixtures |  |
 | spec-reviewer | plugins/dev-team/agents/spec-reviewer.md | haiku | high | haiku | high | keep | 0 | no fixture |  |
+| sql-review | plugins/dev-team/agents/sql-review.md | haiku | medium | haiku | medium | keep | 2 | insufficient fixtures |  |
 | structure-review | plugins/dev-team/agents/structure-review.md | sonnet | high | sonnet | high | keep | 12 | failed eval |  |
 | tech-writer | plugins/dev-team/agents/tech-writer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | test-review | plugins/dev-team/agents/test-review.md | sonnet | high | sonnet | high | keep | 13 | harness gap: Phase 0 not reproduced |  |

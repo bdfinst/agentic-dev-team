@@ -58,8 +58,12 @@ def test_mcp_tool_names_are_the_expected_literals():
     ]
 
 
-def test_exempt_agents_are_the_expected_two():
-    assert EXEMPT_AGENTS == {"claude-setup-review", "token-efficiency-review"}
+def test_exempt_agents_are_the_expected_three():
+    assert EXEMPT_AGENTS == {
+        "claude-setup-review",
+        "token-efficiency-review",
+        "sql-review",
+    }
 
 
 def test_reassigned_tools_cover_the_expected_three_agents():

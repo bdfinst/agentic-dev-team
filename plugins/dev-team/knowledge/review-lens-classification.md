@@ -53,6 +53,7 @@ and attempting the recomputation, not acting on either yet").
 | spec-compliance-review | **verification-gate** | The paradigm case named directly in #2007: confirms the implementation matches the spec. A gate that usually passes ("145 of 248 runs are pure pass") is doing its job — `$/finding` prices that silence as waste, which is the wrong metric for this class. |
 | spec-reviewer | verification-gate | Same family as `spec-compliance-review`, narrower — spec-to-diff matching for a single freshly-implemented unit (Stage 1 of the three-stage inline review). |
 | acceptance-examiner | verification-gate | Confirms the delivered behavior against the plan's acceptance criteria by running the plan's own run commands, source-blind — one fixed contract, one verdict per criterion. Dispatched by `/build` Step 7.6, never as a per-file lens. |
+| sql-review | discovery-lens | Scans SQL for schema-coupling, correctness, index, and migration anti-patterns; the detector decides mechanical rules, the agent triages hits and judges the rest. Dispatched by the detector gate, not the per-diff resolver. |
 | structure-review | discovery-lens | Scans SRP violations, DRY, coupling, file organization, nesting depth, cognitive load, and async-pattern pitfalls (folds `complexity-review`, retired #2093) — open-ended. |
 | angular-reactivity-review | discovery-lens | Scans Zone.js change-detection pitfalls, OnPush/immutability violations, RxJS leaks — open-ended. |
 | react-reactivity-review | discovery-lens | Scans hook-rule violations, stale closures, missing dependency arrays, subscription leaks — open-ended. |
@@ -61,8 +62,8 @@ and attempting the recomputation, not acting on either yet").
 | test-smell-review | discovery-lens | Scans xUnit test smells, test-double selection, test-pyramid placement — open-ended. |
 | token-efficiency-review | discovery-lens | Scans file/function size and LLM anti-patterns for token cost — open-ended. |
 
-**Tally:** 23 discovery-lens (2 of them analysis-only, noted), 5
-verification-gate, 1 not-applicable — 29 agents total, matching
+**Tally:** 24 discovery-lens (2 of them analysis-only, noted), 5
+verification-gate, 1 not-applicable — 30 agents total, matching
 `agent-registry.md`'s Review Agents table row count exactly.
 
 ## Applying the two metrics

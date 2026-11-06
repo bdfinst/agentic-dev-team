@@ -559,6 +559,7 @@ chk_python_floor() {
     plugins/dev-team/tests/scripts/test_autoship_reclaim.py \
     tests/scripts/test_examination_gate.py \
     tests/scripts/test_doctor.py \
+    plugins/dev-team/tests/scripts/test_sql_detector_core.py \
     -q || return 1
 }
 
