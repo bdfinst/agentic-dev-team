@@ -27,6 +27,23 @@ from _model_effort_support import (
 )
 from model_effort import invocation, runner
 
+# Timing bounds are derived from these, not fixed seconds, so a machine loaded by
+# `pytest -n auto` does not fail them.
+#
+# How long a stub, or its pipe holder, runs when a test needs it to outlast the trial.
+STUB_RUN_SECONDS = 30
+# Deadline for a trial the test expects to time out: long enough for the stub to
+# start on a loaded machine, and still well short of STUB_RUN_SECONDS.
+TRIAL_DEADLINE_SECONDS = TIMEOUT_SECONDS * 3
+# Deadline for a trial the test expects to finish on its own.
+LONG_TRIAL_DEADLINE_SECONDS = STUB_RUN_SECONDS
+# A run that returns within this did not wait for a holder sleeping STUB_RUN_SECONDS.
+MAX_ELAPSED_WITHOUT_WAITING_SECONDS = STUB_RUN_SECONDS / 2
+# How long after the trial deadline a surviving grandchild writes its marker.
+GRANDCHILD_MARGIN_SECONDS = 4
+# Short grace for the output of an exited child, so the tests do not wait the real 5 s.
+HOLDER_GRACE_SECONDS = 1
+
 
 class TestStagingFixtures:
     def test_file_fixture_is_staged_under_its_own_name(self, stub_dir, fixture_root):
@@ -89,10 +106,12 @@ class TestStagingFixtures:
         assert not Path(stub.calls[0]["cwd"]).exists()
 
     def test_temp_dir_is_removed_after_a_timeout(self, stub_dir, fixture_root):
-        stub = StubClaude(stub_dir, sleep=30)
+        stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
-        runner.run_trial(fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS)
+        runner.run_trial(
+            fixture, _config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
+        )
 
         assert stub.calls, "the stub never started, so the timeout proved nothing"
         assert not Path(stub.calls[0]["cwd"]).exists()
@@ -185,7 +204,7 @@ class TestSignalsAroundSpawn:
     def test_signal_arriving_during_the_spawn_still_kills_the_new_process_group(
         self, stub_dir, fixture_root, monkeypatch
     ):
-        stub = StubClaude(stub_dir, sleep=30)
+        stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
         children = []
         real_popen = subprocess.Popen
@@ -213,7 +232,7 @@ class TestSignalsAroundSpawn:
     def test_interrupt_signals_are_blocked_while_the_group_is_killed_and_free_afterwards(
         self, stub_dir, fixture_root, monkeypatch
     ):
-        stub = StubClaude(stub_dir, sleep=30)
+        stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
         blocked_during_kill = []
         # Call-through spy on `_kill_process_group`: it records the signal mask at
@@ -271,15 +290,14 @@ class TestTrialEnvironment:
         assert "KEEP_ME" in env_names and "HOME" in env_names
 
 
-GRANDCHILD_DELAY_SECONDS = 4
-# Short grace for the output of an exited child, so the tests do not wait the real 5 s.
-HOLDER_GRACE_SECONDS = 1
+def _wait_until_marker_due(spawned: Path, delay: float) -> None:
+    """Sleep until a grandchild that survived would have written its marker.
 
-
-def _wait_until_after(started: float, delay: float) -> None:
-    """Sleep until a grandchild started after `started` would have written its marker."""
+    The grandchild touches `spawned` as it starts its `delay`, so the wait counts
+    from the grandchild's own start: a slow start cannot end the wait early.
+    """
     margin = 1.5
-    remaining = started + delay + margin - time.monotonic()
+    remaining = spawned.stat().st_mtime + delay + margin - time.time()
     if remaining > 0:
         time.sleep(remaining)
 
@@ -343,11 +361,11 @@ class TestExecution:
     def test_run_exceeding_the_time_limit_is_marked_timed_out(
         self, stub_dir, fixture_root
     ):
-        stub = StubClaude(stub_dir, sleep=30)
+        stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS
+            fixture, _config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
         )
 
         assert stub.calls, "the stub never started, so the timeout proved nothing"
@@ -357,15 +375,18 @@ class TestExecution:
     def test_clean_exit_is_not_a_timeout_when_a_descendant_holds_the_pipes_open(
         self, stub_dir, fixture_root, short_output_grace
     ):
-        stub = StubClaude(stub_dir, stdout="result", exit_code=0, holder_sleep=30)
+        stub = StubClaude(
+            stub_dir, stdout="result", exit_code=0, holder_sleep=STUB_RUN_SECONDS
+        )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
         started = time.monotonic()
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS * 10
+            fixture, _config(stub), trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS
         )
 
-        assert time.monotonic() - started < TIMEOUT_SECONDS
+        # Well short of the holder's sleep: the run did not wait for it.
+        assert time.monotonic() - started < MAX_ELAPSED_WITHOUT_WAITING_SECONDS
         assert (record.exit_code, record.stdout, record.timed_out) == (
             0,
             "result",
@@ -379,32 +400,32 @@ class TestExecution:
         stub = StubClaude(
             stub_dir,
             stdout="result",
-            holder_sleep=30,
+            holder_sleep=STUB_RUN_SECONDS,
             holder_pid_file=str(pid_file),
         )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS * 10
+            fixture, _config(stub), trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS
         )
 
         holder_pid = int(pid_file.read_text(encoding="utf-8"))
         assert (record.exit_code, record.timed_out) == (0, False)
-        assert _process_gone_within(holder_pid, TIMEOUT_SECONDS)
+        assert _process_gone_within(holder_pid, TRIAL_DEADLINE_SECONDS)
 
     def test_a_timed_out_trial_keeps_the_output_written_before_the_kill(
         self, stub_dir, fixture_root
     ):
         stub = StubClaude(
             stub_dir,
-            sleep=30,
+            sleep=STUB_RUN_SECONDS,
             early_stdout="partial stdout",
             early_stderr="partial stderr",
         )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS
+            fixture, _config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
         )
 
         assert record.timed_out is True
@@ -413,11 +434,11 @@ class TestExecution:
     def test_failing_exit_code_is_kept_when_a_descendant_holds_the_pipes_open(
         self, stub_dir, fixture_root, short_output_grace
     ):
-        stub = StubClaude(stub_dir, stderr="boom", exit_code=3, holder_sleep=30)
+        stub = StubClaude(stub_dir, stderr="boom", exit_code=3, holder_sleep=STUB_RUN_SECONDS)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS * 10
+            fixture, _config(stub), trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS
         )
 
         assert (record.exit_code, record.stderr, record.timed_out) == (3, "boom", False)
@@ -425,20 +446,33 @@ class TestExecution:
     def test_output_is_kept_when_a_descendant_in_another_session_holds_the_pipes(
         self, stub_dir, fixture_root, short_output_grace
     ):
+        pid_file = stub_dir / "holder.pid"
         stub = StubClaude(
             stub_dir,
             stdout="result",
-            holder_sleep=HOLDER_GRACE_SECONDS * 6,
+            holder_sleep=STUB_RUN_SECONDS,
             holder_new_session=True,
+            holder_pid_file=str(pid_file),
         )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
         started = time.monotonic()
 
-        record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS * 10
-        )
+        try:
+            record = runner.run_trial(
+                fixture,
+                _config(stub),
+                trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS,
+            )
+        finally:
+            # Out of the trial's group, so the runner cannot kill it; the test does.
+            if pid_file.exists():
+                try:
+                    os.kill(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
-        assert time.monotonic() - started < HOLDER_GRACE_SECONDS * 4
+        # Well short of the holder's sleep: the run did not wait for it.
+        assert time.monotonic() - started < MAX_ELAPSED_WITHOUT_WAITING_SECONDS
         assert (record.exit_code, record.stdout, record.timed_out) == (
             0,
             "result",
@@ -448,13 +482,16 @@ class TestExecution:
     def test_child_that_outlives_the_deadline_is_still_a_timeout_with_a_descendant_holding_the_pipes(
         self, stub_dir, fixture_root
     ):
-        stub = StubClaude(stub_dir, sleep=30, holder_sleep=30)
+        stub = StubClaude(
+            stub_dir, sleep=STUB_RUN_SECONDS, holder_sleep=STUB_RUN_SECONDS
+        )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TIMEOUT_SECONDS
+            fixture, _config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
         )
 
+        assert stub.calls, "the stub never started, so the timeout proved nothing"
         assert (record.exit_code, record.timed_out) == (None, True)
 
     def test_process_that_survives_the_kill_is_left_unreaped_after_a_bounded_wait(
@@ -483,44 +520,45 @@ class TestExecution:
         self, stub_dir, fixture_root
     ):
         marker, spawned = stub_dir / "late.txt", stub_dir / "spawned.txt"
+        # The grandchild writes its marker only after the deadline has passed.
+        grandchild_delay = TRIAL_DEADLINE_SECONDS + GRANDCHILD_MARGIN_SECONDS
         stub = StubClaude(
             stub_dir,
-            sleep=30,
+            sleep=STUB_RUN_SECONDS,
             grandchild_marker=str(marker),
-            grandchild_delay=GRANDCHILD_DELAY_SECONDS,
+            grandchild_delay=grandchild_delay,
             grandchild_spawned=str(spawned),
         )
-        started = time.monotonic()
 
         runner.run_trial(
             _make_file_fixture(fixture_root, "a.txt", "a"),
             _config(stub),
-            trial_timeout_seconds=TIMEOUT_SECONDS,
+            trial_timeout_seconds=TRIAL_DEADLINE_SECONDS,
         )
-        _wait_until_after(started, GRANDCHILD_DELAY_SECONDS)
 
         assert spawned.exists(), (
             "the grandchild never started, so the kill proved nothing"
         )
+        _wait_until_marker_due(spawned, grandchild_delay)
         assert not marker.exists()
 
     def test_interrupt_kills_the_whole_process_group_before_propagating(
         self, stub_dir, fixture_root
     ):
         marker, spawned = stub_dir / "late.txt", stub_dir / "spawned.txt"
-        delay = GRANDCHILD_DELAY_SECONDS - 2
+        # Time for the SIGINT and the group kill to land on a loaded machine.
+        delay = TRIAL_DEADLINE_SECONDS
         stub = StubClaude(
             stub_dir,
-            sleep=30,
+            sleep=STUB_RUN_SECONDS,
             grandchild_marker=str(marker),
             grandchild_delay=delay,
             grandchild_spawned=str(spawned),
         )
-        started = time.monotonic()
         cancelled = threading.Event()
 
         def interrupt_once_spawned() -> None:
-            deadline = time.monotonic() + 10
+            deadline = time.monotonic() + TRIAL_DEADLINE_SECONDS
             while not spawned.exists() and time.monotonic() < deadline:
                 if cancelled.wait(0.05):
                     return
@@ -539,9 +577,9 @@ class TestExecution:
         finally:
             cancelled.set()
             interrupter.join()
-        _wait_until_after(started, delay)
 
         assert spawned.exists()
+        _wait_until_marker_due(spawned, delay)
         assert not marker.exists()
 
     def test_missing_claude_binary_yields_exit_127_with_the_os_error_as_stderr(
