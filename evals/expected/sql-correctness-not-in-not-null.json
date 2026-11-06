@@ -1,0 +1,12 @@
+{
+  "fixture": "sql-correctness-not-in-not-null.sql",
+  "description": "NOT IN over a subquery column declared NOT NULL: the detector hit is a false positive and the agent dismisses it",
+  "applicableAgents": ["sql-review"],
+  "agents": {
+    "sql-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "expectedFindings": []
+    }
+  }
+}

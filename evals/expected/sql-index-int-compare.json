@@ -1,0 +1,12 @@
+{
+  "fixture": "sql-index-int-compare.sql",
+  "description": "An int column compared to an integer literal needs no conversion",
+  "applicableAgents": ["sql-review"],
+  "agents": {
+    "sql-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "expectedFindings": []
+    }
+  }
+}
