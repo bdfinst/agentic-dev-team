@@ -285,6 +285,53 @@ def test_clause_extent_and_statement_boundaries(rule_id, stmt, expected):
     assert count(rule_id, stmt) == expected
 
 
+MEDIUM_CASES = [
+    # Type names and date parts are not columns.
+    (FUNC, "SELECT 1 FROM t WHERE a = CONVERT(int, @p)", 0),
+    (FUNC, "SELECT 1 FROM t WHERE a = CAST(@p AS nvarchar(max))", 0),
+    (FUNC, "SELECT 1 FROM t WHERE a = CAST(@p AS timestamp WITH TIME ZONE)", 0),
+    (FUNC, "SELECT 1 FROM t WHERE d > DATEADD(dd, -1, GETDATE())", 0),
+    (FUNC, "SELECT 1 FROM t WHERE a = COALESCE(CONVERT(int, @p), 0)", 0),
+    (FUNC, "SELECT 1 FROM t WHERE a = CAST(@p AS double precision)", 0),
+    (FUNC, "SELECT 1 FROM t WHERE CONVERT(varchar(10), created) = 'x'", 1),
+    (FUNC, "SELECT 1 FROM t WHERE DATEDIFF(day, created, GETDATE()) > 1", 1),
+    # Assignments that look like comparisons to NULL.
+    (NULL_EQ, "SELECT @a = 1, @b = NULL", 0),
+    (NULL_EQ, "INSERT INTO t (a) VALUES (1) ON DUPLICATE KEY UPDATE a = NULL", 0),
+    (NULL_EQ, "CREATE FUNCTION f(a int = NULL) RETURNS int LANGUAGE sql", 0),
+    (
+        NULL_EQ,
+        "CREATE OR REPLACE FUNCTION s.f (a int = NULL, b int = 1) RETURNS int",
+        0,
+    ),
+    (NULL_EQ, "SELECT 1 FROM t WHERE x IN (1, 2) AND (a = NULL)", 1),
+    # Statements without a semicolon do not share SET or EXEC state.
+    (NULL_EQ, "EXEC p @a = 1\nSELECT id FROM t WHERE b = NULL", 1),
+    (NULL_EQ, "SET @x = 1\nIF @y = NULL PRINT 'x'", 1),
+    (NULL_EQ, "SELECT 1\nEXEC p @a = NULL", 0),
+    (NULL_EQ, "SELECT id FROM t WHERE a = 1\nUPDATE u SET b = NULL", 0),
+    # T-SQL DELETE without FROM, and the legacy table hint.
+    (WRITE, "DELETE sessions", 1),
+    (WRITE, "DELETE dbo.sessions", 1),
+    (WRITE, "DELETE sessions\nSELECT 1", 1),
+    (WRITE, "DELETE sessions WHERE id = 1", 0),
+    (WRITE, "DELETE sessions OUTPUT deleted.id", 1),
+    (WRITE, "CREATE TABLE c (p int REFERENCES p ON DELETE CASCADE)", 0),
+    (CROSS, "SELECT * FROM a, b (NOLOCK)", 1),
+    (CROSS, "SELECT * FROM a (NOLOCK), b (NOLOCK)", 1),
+    (CROSS, "SELECT * FROM a, unnest(a.xs) AS x", 0),
+]
+
+
+@pytest.mark.parametrize(
+    ("rule_id", "stmt", "expected"),
+    MEDIUM_CASES,
+    ids=[f"{r.split('.')[-1]}-{i}" for i, (r, _, _) in enumerate(MEDIUM_CASES)],
+)
+def test_assignments_type_names_and_legacy_t_sql(rule_id, stmt, expected):
+    assert count(rule_id, stmt) == expected
+
+
 # --- Engine behavior for the new rules ------------------------------------
 
 
