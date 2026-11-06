@@ -10,7 +10,7 @@
       "expectedFindings": [
         { "category": "sql.index.implicit-conversion", "severity": "warning" }
       ],
-      "mustMention": ["varchar"]
+      "mustMention": ["convert"]
     }
   }
 }

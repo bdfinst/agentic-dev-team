@@ -73,7 +73,12 @@ def test_detector_boundary(rule_id, stmt, expected):
 
 def test_boundary_table_covers_every_script_owned_rule_of_the_slice():
     covered = {rule for rule, _, _ in DETECTOR_BOUNDARIES}
-    assert covered == {NULL_EQ, WRITE, CROSS, NOT_IN, FUNC, WILDCARD}
+    script_owned = {
+        r.id
+        for r in RULES
+        if r.owner == "script" and r.family in ("correctness", "index")
+    }
+    assert covered == script_owned
 
 
 def test_slice_registers_the_expected_rule_ids_and_owners():
@@ -346,20 +351,32 @@ def test_hit_lines_and_text_name_the_statement():
     assert findings[0]["severity"] == "error"
 
 
-@pytest.mark.parametrize("rule_id", [NULL_EQ, WRITE, CROSS, NOT_IN, FUNC, WILDCARD])
-def test_suppression_marker_silences_only_the_named_rule(rule_id):
-    sql = {
-        NULL_EQ: "SELECT 1 FROM t WHERE a = NULL",
-        WRITE: "DELETE FROM t",
-        CROSS: "SELECT 1 FROM a, b",
-        NOT_IN: "SELECT 1 FROM t WHERE id NOT IN (SELECT 1 FROM u)",
-        FUNC: "SELECT 1 FROM t WHERE LOWER(a) = 'x'",
-        WILDCARD: "SELECT 1 FROM t WHERE a LIKE '%x'",
-    }[rule_id]
+SUPPRESSION_SQL = {
+    NULL_EQ: "SELECT 1 FROM t WHERE a = NULL",
+    WRITE: "DELETE FROM t",
+    CROSS: "SELECT 1 FROM a, b",
+    NOT_IN: "SELECT 1 FROM t WHERE id NOT IN (SELECT 1 FROM u)",
+    FUNC: "SELECT 1 FROM t WHERE LOWER(a) = 'x'",
+    WILDCARD: "SELECT 1 FROM t WHERE a LIKE '%x'",
+}
+OTHER_RULE = "sql.schema.positional-insert"
+
+
+@pytest.mark.parametrize("rule_id", SUPPRESSION_SQL)
+def test_unsuppressed_statement_is_reported_once(rule_id):
+    assert count(rule_id, SUPPRESSION_SQL[rule_id]) == 1
+
+
+@pytest.mark.parametrize("rule_id", SUPPRESSION_SQL)
+def test_suppression_marker_silences_the_named_rule(rule_id):
+    sql = f"-- sql-review: ignore {rule_id}\n{SUPPRESSION_SQL[rule_id]}"
+    assert count(rule_id, sql) == 0
+
+
+@pytest.mark.parametrize("rule_id", SUPPRESSION_SQL)
+def test_suppression_marker_for_another_rule_does_not_silence_it(rule_id):
+    sql = f"-- sql-review: ignore {OTHER_RULE}\n{SUPPRESSION_SQL[rule_id]}"
     assert count(rule_id, sql) == 1
-    assert count(rule_id, f"-- sql-review: ignore {rule_id}\n{sql}") == 0
-    other = "sql.schema.positional-insert"
-    assert count(rule_id, f"-- sql-review: ignore {other}\n{sql}") == 1
 
 
 def test_a_clean_statement_trips_none_of_the_new_rules():
@@ -372,15 +389,10 @@ def test_a_clean_statement_trips_none_of_the_new_rules():
     assert not {i for i in ids if i.startswith(("sql.correctness.", "sql.index."))}
 
 
-def test_unbalanced_and_empty_input_do_not_raise():
-    for sql in [
-        "",
-        "(",
-        ")",
-        "SELECT ( FROM",
-        "DELETE",
-        "UPDATE",
-        "x NOT IN (",
-        "LIKE",
-    ]:
-        sql_scan.scan_text(sql, "db/q.sql", rules=RULES)
+@pytest.mark.parametrize(
+    "sql",
+    ["", "(", ")", "SELECT ( FROM", "DELETE", "UPDATE", "x NOT IN (", "LIKE"],
+)
+def test_unbalanced_and_empty_input_reports_nothing(sql):
+    findings = sql_scan.scan_text(sql, "db/q.sql", rules=RULES)
+    assert [f["rule"] for f in findings if f["rule"] in SUPPRESSION_SQL] == []
