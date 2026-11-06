@@ -46,15 +46,19 @@ Steps are numbered `<slice>.<step>` (1.1, 1.2, 2.1, …).
 Feature: <feature name>
 
   Scenario: <happy path>
+    # Still passes if: <one change under which this scenario stays green>
     Given <precondition>
     When <action>
     Then <observable outcome>
 
   Scenario: <negative / edge / error case>
+    # Still passes if: <one change under which this scenario stays green>
     Given <precondition>
     When <action>
     Then <observable outcome>
 ```
+
+Every scenario names, in a `# Still passes if:` comment on the line after its title, one plausible change to the system under which it still passes: the thing the scenario does not check.
 
 **Steps:**
 

@@ -47,9 +47,11 @@ adjusted_score = Killed / (Killed + (Survived - Accepted) + NoCoverage)
 
 Label both clearly (e.g. `Raw: 68.57% (24/35) · Adjusted for 11 accepted
 survivors: 100% (24/24)`), plus a per-mutant "Accepted Survivors (deferred)"
-table (file, line, operator, reason). Never let `adjusted_score` stand
+table (file, line, operator, status, reason). Never let `adjusted_score` stand
 alone — `raw_score` plus the reason table is what keeps a documented
 deferral from silently vanishing.
+
+A survivor marked `status: "falsifier-expected"` (a mutation a plan scenario's `# Still passes if:` falsifier describes; written only by `mutation-kill --falsifiers`) is not `Accepted` in the formula above and is reported on its own `Falsifier-expected: N` line; the raw/adjusted pair prints only when ordinary accepted survivors exist. List each falsifier-expected row, with its reason, in the per-mutant "Accepted Survivors (deferred)" table whenever at least one exists, even when no ordinary accepted survivor does.
 
 ## NoCoverage is a first-class signal
 

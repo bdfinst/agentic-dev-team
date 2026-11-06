@@ -95,6 +95,15 @@ script: `_default_phase_plan` always dispatches all five critics
 persisted state at all. This is a known gap tracked against spec #1707,
 not yet implemented.
 
+**Script gap.** `orchestrator.py`'s `_default_phase_plan` dispatches
+`plan-review-acceptance` with only `{task, request, plan_draft}` and does not
+run `scripts/plan_falsifiers.py` or pass its output, so the critic's Falsifier
+check (`agents/plan-review-acceptance.md`, BDD item 6) raises
+`Falsifier: list unavailable (plan_falsifiers.py output not supplied)` as a
+blocker on every scripted Phase 2 run; only `/plan` Step 5b supplies the output
+today. Known gap; the fix is to run the script in `_default_phase_plan` and add
+its JSON to the dispatch payload.
+
 ## Phase 3: Implement
 
 **Implementation status.** `orchestrator.py`'s `run_pipeline` dispatches
