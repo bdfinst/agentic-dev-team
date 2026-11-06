@@ -1,0 +1,12 @@
+{
+  "fixture": "sql-boundary-injection-loop.py",
+  "description": "Python file with a string-concatenated query (injection) and a parameterized named-column query in a loop (N+1); both belong to other agents, so sql-review reports nothing",
+  "applicableAgents": ["sql-review"],
+  "agents": {
+    "sql-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "expectedFindings": []
+    }
+  }
+}
