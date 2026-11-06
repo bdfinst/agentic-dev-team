@@ -11,7 +11,14 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from sql_clauses import is_punct, matching_parens, render, segments, word
+from sql_clauses import (
+    is_punct,
+    is_statement_start,
+    matching_parens,
+    render,
+    segments,
+    word,
+)
 from sql_rules import OWNER_AGENT, OWNER_SCRIPT, Context, Fixture, Hit, Rule
 from sql_tokenize import QUOTED, STRING, WORD
 
@@ -35,6 +42,13 @@ _CLAUSE_END = frozenset(
         "FOR",
         "OPTION",
         "QUALIFY",
+        "MINUS",
+        # upsert tails: INSERT ... WHERE ... ON CONFLICT (a) DO UPDATE SET ...
+        "ON",
+        "CONFLICT",
+        "DUPLICATE",
+        "DO",
+        "SET",
     }
 )
 _ON_END = _CLAUSE_END | frozenset(
@@ -165,13 +179,16 @@ def _predicate_regions(tokens, items: list[int]) -> Iterator[tuple[int, int]]:
             continue
         end = len(items)
         for later in range(position + 1, len(items)):
-            if names[later] in ends or (
-                name == "ON" and is_punct(tokens[items[later]], ",")
+            if (
+                names[later] in ends
+                or is_statement_start(tokens, items, later)
+                or (name == "ON" and is_punct(tokens[items[later]], ","))
             ):
                 end = later
                 break
         if position + 1 < end:
-            yield items[position + 1], (items[end] if end < len(items) else len(tokens))
+            stop = items[end] if end < len(items) else items[-1] + 1
+            yield items[position + 1], stop
 
 
 def check_function_on_column(ctx: Context) -> Iterator[Hit]:

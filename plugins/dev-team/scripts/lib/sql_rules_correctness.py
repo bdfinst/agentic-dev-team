@@ -11,11 +11,13 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from sql_clauses import (
+    NOT_A_STATEMENT_AFTER,
+    SET_OPERATORS,
     is_punct,
+    is_statement_start,
     matching_parens,
     render,
     segments,
-    set_operator_blocks,
     word,
 )
 from sql_rules import OWNER_AGENT, OWNER_SCRIPT, Context, Fixture, Hit, Rule
@@ -75,11 +77,19 @@ def _set_clause_indexes(tokens, items: list[int]) -> set[int]:
     """Indexes inside ``SET a = ..., b = ...``, where ``=`` assigns."""
     inside: set[int] = set()
     active = False
+    cases = 0  # CASE ... WHEN ... END inside a value is not the MERGE WHEN
     for index in items:
         name = word(tokens[index])
         if name == "SET":
             active = True
-        elif active and name in _SET_END:
+            cases = 0
+        elif active and name == "CASE":
+            cases += 1
+            inside.add(index)
+        elif active and name == "END" and cases:
+            cases -= 1
+            inside.add(index)
+        elif active and name in _SET_END and not (name == "WHEN" and cases):
             active = False
         elif active:
             inside.add(index)
@@ -115,42 +125,6 @@ def check_null_equality(ctx: Context) -> Iterator[Hit]:
 
 # --- unbounded-write -------------------------------------------------------
 
-_NOT_A_WRITE_AFTER = frozenset(
-    {
-        "ON",
-        "FOR",
-        "DO",
-        "THEN",
-        "OR",
-        "AFTER",
-        "BEFORE",
-        "OF",
-        "KEY",
-        "GRANT",
-        "REVOKE",
-        "DENY",
-        "INSTEAD",
-    }
-)
-_STATEMENT_WORDS = frozenset(
-    {
-        "SELECT",
-        "INSERT",
-        "MERGE",
-        "WITH",
-        "CREATE",
-        "DROP",
-        "ALTER",
-        "EXEC",
-        "EXECUTE",
-        "DECLARE",
-        "TRUNCATE",
-        "BEGIN",
-        "COMMIT",
-        "ROLLBACK",
-    }
-)
-
 
 def _is_write_start(tokens, items: list[int], position: int) -> bool:
     """``DELETE FROM ...`` or ``UPDATE name SET ...`` as a statement."""
@@ -162,7 +136,7 @@ def _is_write_start(tokens, items: list[int], position: int) -> bool:
         previous = tokens[items[position - 1]]
         if previous.kind == PUNCT and previous.text == ",":
             return False
-        if word(previous) in _NOT_A_WRITE_AFTER:
+        if word(previous) in NOT_A_STATEMENT_AFTER:
             return False
     rest = items[position + 1 :]
     if not rest:
@@ -193,7 +167,7 @@ def check_unbounded_write(ctx: Context) -> Iterator[Hit]:
         for position in starts:
             end = len(items)
             for later in range(position + 1, len(items)):
-                if later in starts or word(tokens[items[later]]) in _STATEMENT_WORDS:
+                if later in starts or is_statement_start(tokens, items, later):
                     end = later
                     break
             extent = items[position:end]
@@ -210,21 +184,30 @@ def check_unbounded_write(ctx: Context) -> Iterator[Hit]:
 
 # --- implicit-cross-join ---------------------------------------------------
 
-_FROM_END = frozenset(
-    {
-        "WHERE",
-        "GROUP",
-        "HAVING",
-        "ORDER",
-        "LIMIT",
-        "OFFSET",
-        "FETCH",
-        "WINDOW",
-        "RETURNING",
-        "FOR",
-        "OPTION",
-        "QUALIFY",
-    }
+_FROM_END = (
+    frozenset(
+        {
+            "WHERE",
+            "GROUP",
+            "HAVING",
+            "ORDER",
+            "LIMIT",
+            "OFFSET",
+            "FETCH",
+            "WINDOW",
+            "RETURNING",
+            "FOR",
+            "OPTION",
+            "QUALIFY",
+            # upsert tails: ON CONFLICT ... DO UPDATE SET a = 1, b = 2
+            "CONFLICT",
+            "DUPLICATE",
+            "DO",
+            "SET",
+            "UPDATE",
+        }
+    )
+    | SET_OPERATORS
 )
 _NO_STATEMENT = frozenset({"GRANT", "REVOKE", "DENY"})
 
@@ -257,30 +240,30 @@ def check_implicit_cross_join(ctx: Context) -> Iterator[Hit]:
     for items in segments(tokens):
         if word(tokens[items[0]]) in _NO_STATEMENT:
             continue
-        for block in set_operator_blocks(tokens, items):
-            names = [word(tokens[i]) for i in block]
-            if "SELECT" not in names or "WHERE" in names:
+        names = [word(tokens[i]) for i in items]
+        for start, name in enumerate(names):
+            if name != "FROM":
                 continue
-            start = None
-            for position, index in enumerate(block):
-                if names[position] != "FROM":
-                    continue
-                if position and names[position - 1] == "DISTINCT":
-                    continue  # IS [NOT] DISTINCT FROM
-                start = position
-                break
-            if start is None:
-                continue
-            for position in range(start + 1, len(block)):
-                if names[position] in _FROM_END:
-                    break
-                token = tokens[block[position]]
-                if is_punct(token, ",") and not _is_table_source_fn(
-                    tokens, block, position + 1
+            if start and names[start - 1] in ("DISTINCT", "DELETE"):
+                continue  # IS [NOT] DISTINCT FROM, DELETE FROM
+            if "SELECT" not in names[:start]:
+                continue  # REVOKE ... FROM, EXTRACT(x FROM y)
+            end = len(items)
+            for position in range(start + 1, len(items)):
+                if names[position] in _FROM_END or is_statement_start(
+                    tokens, items, position
                 ):
-                    nxt = block[position + 1 : position + 2]
-                    shown = tokens[block[start] : block[position] + 1]
-                    tail = [tokens[i] for i in nxt]
+                    end = position
+                    break
+            if end < len(items) and names[end] == "WHERE":
+                continue  # the WHERE carries the join condition
+            for position in range(start + 1, end):
+                token = tokens[items[position]]
+                if is_punct(token, ",") and not _is_table_source_fn(
+                    tokens, items, position + 1
+                ):
+                    shown = tokens[items[start] : items[position] + 1]
+                    tail = [tokens[i] for i in items[position + 1 : position + 2]]
                     yield Hit(token.line, render([*shown, *tail]))
                     break
 
@@ -288,9 +271,63 @@ def check_implicit_cross_join(ctx: Context) -> Iterator[Hit]:
 # --- not-in-subquery -------------------------------------------------------
 
 
+def _top_level(pairs: dict[int, int], start: int, stop: int) -> list[int]:
+    """Token indexes in ``[start, stop)`` outside nested groups."""
+    found: list[int] = []
+    i = start
+    while i < stop:
+        found.append(i)
+        if i in pairs and pairs[i] < stop:
+            found.append(pairs[i])
+            i = pairs[i]
+        i += 1
+    return found
+
+
+def _subquery_excludes_nulls(tokens, pairs: dict[int, int], open_index: int) -> bool:
+    """``(SELECT c FROM ... WHERE ... c IS NOT NULL ...)``: the column cannot be NULL.
+
+    Conservative: one selected column, no ``OR`` and no set operator anywhere in
+    the subquery, and the same name in an ``IS NOT NULL`` after its ``WHERE``.
+    """
+    close = pairs.get(open_index)
+    if close is None:
+        return False
+    top = _top_level(pairs, open_index + 1, close)
+    names = [word(tokens[i]) for i in top]
+    if names[:1] != ["SELECT"] or "FROM" not in names or "WHERE" not in names:
+        return False
+    if any(word(tokens[i]) == "OR" for i in range(open_index, close)):
+        return False
+    if any(n in SET_OPERATORS for n in names):
+        return False
+    selected = top[1 : names.index("FROM")]
+    if selected and word(tokens[selected[0]]) in ("DISTINCT", "ALL"):
+        selected = selected[1:]
+    if not selected or any(is_punct(tokens[i], ",") for i in selected):
+        return False
+    for position, index in enumerate(selected):  # a plain, maybe dotted, name
+        expected_name = position % 2 == 0
+        if expected_name != (tokens[index].kind in (WORD, QUOTED)):
+            return False
+        if not expected_name and not is_punct(tokens[index], "."):
+            return False
+    column = tokens[selected[-1]].text.lower()
+    for j in range(top[names.index("WHERE")], close - 3):
+        if (
+            tokens[j].text.lower() == column
+            and word(tokens[j + 1]) == "IS"
+            and word(tokens[j + 2]) == "NOT"
+            and word(tokens[j + 3]) == "NULL"
+        ):
+            return True
+    return False
+
+
 def check_not_in_subquery(ctx: Context) -> Iterator[Hit]:
     """``x NOT IN (SELECT ...)`` returns no rows when the subquery yields a NULL."""
     tokens = ctx.tokens
+    pairs = matching_parens(tokens)
     for i in range(len(tokens) - 3):
         if (
             word(tokens[i]) == "NOT"
@@ -298,6 +335,8 @@ def check_not_in_subquery(ctx: Context) -> Iterator[Hit]:
             and is_punct(tokens[i + 2], "(")
             and word(tokens[i + 3]) in ("SELECT", "WITH")
         ):
+            if _subquery_excludes_nulls(tokens, pairs, i + 2):
+                continue
             start = max(i - 1, 0)
             yield Hit(tokens[i].line, render(tokens[start : i + 6]))
 

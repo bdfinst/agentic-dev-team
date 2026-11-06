@@ -188,6 +188,103 @@ def test_extra_boundary(rule_id, stmt, expected):
     assert count(rule_id, stmt) == expected
 
 
+# --- Review findings on #2292: clause extents and statement boundaries ------
+
+EXTENT_CASES = [
+    # A WHERE at the end of a segment must stop at the segment, not the file.
+    (FUNC, "DELETE FROM a WHERE id = 1;\nINSERT INTO audit (msg) VALUES ('x');", 0),
+    (
+        FUNC,
+        (
+            "SELECT id FROM t WHERE id IN (SELECT t_id FROM u WHERE active = 1) "
+            "ORDER BY LOWER(name)"
+        ),
+        0,
+    ),
+    (
+        FUNC,
+        "SELECT 1 FROM t WHERE LOWER(a) = 'x';\nSELECT 1 FROM u WHERE LOWER(b) = 'y'",
+        2,
+    ),
+    (
+        FUNC,
+        (
+            "INSERT INTO t SELECT x FROM u WHERE y = 1 "
+            "ON CONFLICT (a) DO UPDATE SET a = LOWER(excluded.a)"
+        ),
+        0,
+    ),
+    (FUNC, "SELECT 1 FROM t WHERE a = 1\nUPDATE u SET b = LOWER(c)", 0),
+    (FUNC, "SELECT 1 FROM t WHERE a = 1\nSELECT LOWER(b) FROM u", 0),
+    (FUNC, "SELECT 1 FROM t WHERE a = 1\nDECLARE @x int = ABS(@y)", 0),
+    # CASE ... WHEN inside SET is not the MERGE WHEN that ends SET.
+    (NULL_EQ, "UPDATE t SET a = CASE WHEN b = 1 THEN 2 END, c = NULL WHERE id = 1", 0),
+    (NULL_EQ, "UPDATE t SET a = CASE WHEN b = 1 THEN 2 END WHERE id = NULL", 1),
+    # A T-SQL table hint is not a new statement.
+    (WRITE, "UPDATE t WITH (ROWLOCK) SET x = 1 WHERE id = 1", 0),
+    (WRITE, "DELETE FROM t WITH (ROWLOCK) WHERE id = 1", 0),
+    (WRITE, "DELETE FROM t WITH (ROWLOCK)", 1),
+    (WRITE, "WITH d AS (SELECT 1) DELETE FROM t", 1),
+    # The FROM list ends at an upsert tail or the next statement.
+    (
+        CROSS,
+        "INSERT INTO t SELECT x FROM u ON CONFLICT (a) DO UPDATE SET a = 1, b = 2",
+        0,
+    ),
+    (CROSS, "INSERT INTO t SELECT x FROM u ON DUPLICATE KEY UPDATE a = 1, b = 2", 0),
+    (CROSS, "SELECT x FROM t\nUPDATE u SET a = 1, b = 2", 0),
+    (CROSS, "SELECT x FROM t\nINSERT INTO u VALUES (1), (2)", 0),
+    (CROSS, "SELECT @n = COUNT(*) FROM orders\nDECLARE @a int, @b int", 0),
+    (CROSS, "SELECT a.x FROM a, b\nSELECT y FROM c WHERE id = 1", 1),
+    (CROSS, "SELECT x FROM t WHERE id = 1\nSELECT a.x FROM a, b", 1),
+    (CROSS, "SELECT a.x FROM a, b WITH (NOLOCK)", 1),
+    # NOT IN is safe when the subquery filters its own column to NOT NULL.
+    (
+        NOT_IN,
+        "SELECT id FROM t WHERE id NOT IN (SELECT t_id FROM u WHERE t_id IS NOT NULL)",
+        0,
+    ),
+    (
+        NOT_IN,
+        (
+            "SELECT id FROM t WHERE id NOT IN "
+            "(SELECT u.t_id FROM u WHERE u.x = 1 AND u.t_id IS NOT NULL)"
+        ),
+        0,
+    ),
+    (
+        NOT_IN,
+        "SELECT id FROM t WHERE id NOT IN (SELECT t_id FROM u WHERE x IS NOT NULL)",
+        1,
+    ),
+    (
+        NOT_IN,
+        (
+            "SELECT id FROM t WHERE id NOT IN "
+            "(SELECT t_id FROM u WHERE t_id IS NOT NULL OR x = 1)"
+        ),
+        1,
+    ),
+    (
+        NOT_IN,
+        (
+            "SELECT id FROM t WHERE id NOT IN "
+            "(SELECT t_id FROM u WHERE t_id IS NOT NULL UNION SELECT t_id FROM v)"
+        ),
+        1,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("rule_id", "stmt", "expected"),
+    EXTENT_CASES,
+    ids=[f"{r.split('.')[-1]}-{i}" for i, (r, _, _) in enumerate(EXTENT_CASES)],
+)
+def test_clause_extent_and_statement_boundaries(rule_id, stmt, expected):
+    assert count(rule_id, stmt) == expected
+
+
 # --- Engine behavior for the new rules ------------------------------------
 
 

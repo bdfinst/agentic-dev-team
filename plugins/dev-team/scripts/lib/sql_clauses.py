@@ -78,15 +78,81 @@ def segments(tokens: Sequence[Token]) -> list[list[int]]:
     return out
 
 
-def set_operator_blocks(tokens: Sequence[Token], items: list[int]) -> list[list[int]]:
-    """Split a segment at ``UNION``, ``INTERSECT``, ``EXCEPT``, and ``MINUS``."""
-    blocks: list[list[int]] = [[]]
-    for index in items:
-        if word(tokens[index]) in SET_OPERATORS:
-            blocks.append([])
-        else:
-            blocks[-1].append(index)
-    return [block for block in blocks if block]
+# Words that begin a statement. T-SQL needs no ``;``, so a segment can hold
+# several statements back to back.
+STATEMENT_WORDS = frozenset(
+    {
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "MERGE",
+        "WITH",
+        "EXEC",
+        "EXECUTE",
+        "DECLARE",
+        "TRUNCATE",
+        "CREATE",
+        "DROP",
+        "ALTER",
+        "BEGIN",
+        "COMMIT",
+        "ROLLBACK",
+        "IF",
+        "WHILE",
+        "PRINT",
+        "RETURN",
+    }
+)
+# A write keyword after one of these belongs to a clause, not to a statement:
+# ON DELETE CASCADE, DO UPDATE SET, FOR UPDATE, AFTER INSERT, THEN DELETE.
+NOT_A_STATEMENT_AFTER = frozenset(
+    {
+        "ON",
+        "FOR",
+        "DO",
+        "THEN",
+        "OR",
+        "AFTER",
+        "BEFORE",
+        "OF",
+        "KEY",
+        "GRANT",
+        "REVOKE",
+        "DENY",
+        "INSTEAD",
+    }
+)
+
+
+def is_statement_start(
+    tokens: Sequence[Token], items: list[int], position: int
+) -> bool:
+    """True when ``items[position]`` begins a new statement in the segment."""
+    name = word(tokens[items[position]])
+    if name not in STATEMENT_WORDS:
+        return False
+    following = tokens[items[position + 1]] if position + 1 < len(items) else None
+    if name == "SELECT":
+        return True
+    if name in ("INSERT", "UPDATE", "DELETE", "MERGE"):
+        if position > 0:
+            previous = tokens[items[position - 1]]
+            if is_punct(previous, ",") or word(previous) in NOT_A_STATEMENT_AFTER:
+                return False
+        return following is not None and not is_punct(following, "(")
+    if name == "WITH":
+        # WITH x AS (...) and WITH RECURSIVE start a CTE; WITH (NOLOCK),
+        # WITH CHECK OPTION, and WITH NO DATA are clauses.
+        if following is None or is_punct(following, "("):
+            return False
+        if word(following) == "RECURSIVE":
+            return True
+        after = tokens[items[position + 2]] if position + 2 < len(items) else None
+        return after is not None and (word(after) == "AS" or is_punct(after, "("))
+    if name == "IF":
+        return following is not None and not is_punct(following, "(")
+    return True
 
 
 def render(tokens: Sequence[Token]) -> str:
