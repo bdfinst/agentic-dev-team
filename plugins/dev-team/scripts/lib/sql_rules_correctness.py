@@ -78,9 +78,12 @@ def _set_clause_indexes(tokens, items: list[int]) -> set[int]:
     inside: set[int] = set()
     active = False
     cases = 0  # CASE ... WHEN ... END inside a value is not the MERGE WHEN
+    previous = ""
     for index in items:
         name = word(tokens[index])
-        if name == "SET":
+        after_key = previous == "KEY"  # MySQL: ON DUPLICATE KEY UPDATE a = ...
+        previous = name
+        if name == "SET" or (name == "UPDATE" and after_key):
             active = True
             cases = 0
         elif active and name == "CASE":
@@ -96,31 +99,65 @@ def _set_clause_indexes(tokens, items: list[int]) -> set[int]:
     return inside
 
 
+def _statements(tokens, items: list[int]) -> list[list[int]]:
+    """Split a segment at statement starts: T-SQL needs no ``;``."""
+    parts: list[list[int]] = [[]]
+    for position, index in enumerate(items):
+        if position and is_statement_start(tokens, items, position):
+            parts.append([])
+        parts[-1].append(index)
+    return parts
+
+
+def _in_routine_parameters(tokens, i: int) -> bool:
+    """True inside the ``(...)`` of ``CREATE [OR REPLACE] FUNCTION|PROCEDURE name (...)``."""
+    depth = 0
+    for j in range(i - 1, -1, -1):
+        if is_punct(tokens[j], ")"):
+            depth += 1
+        elif is_punct(tokens[j], "("):
+            if depth == 0:
+                names = [word(t) for t in tokens[max(j - 6, 0) : j]]
+                return any(n in ("FUNCTION", "PROCEDURE", "PROC") for n in names)
+            depth -= 1
+        elif is_punct(tokens[j], ";"):
+            return False
+    return False
+
+
 def check_null_equality(ctx: Context) -> Iterator[Hit]:
     """``= NULL`` and ``<> NULL`` are never true. ``IS [NOT] NULL`` is the test."""
     tokens = ctx.tokens
     pairs = matching_parens(tokens)
     by_close = {close: open_ for open_, close in pairs.items()}
-    for items in segments(tokens):
-        if word(tokens[items[0]]) in _CALL_STARTS:
-            continue
-        assigning = _set_clause_indexes(tokens, items)
-        for i in items:
-            if word(tokens[i]) != "NULL" or i in assigning:
+    for segment in segments(tokens):
+        for items in _statements(tokens, segment):
+            if word(tokens[items[0]]) in _CALL_STARTS:
                 continue
-            op = _comparison_start(tokens, i)
-            if op is None:
-                continue
-            if _is_variable_default(tokens, by_close, op):
-                continue
-            lhs = op - 1
-            if (
-                lhs >= 1
-                and tokens[lhs].text.startswith("@")
-                and word(tokens[lhs - 1]) == "SELECT"
-            ):
-                continue  # T-SQL: SELECT @v = NULL assigns
-            yield Hit(tokens[i].line, render(tokens[max(lhs, 0) : i + 1]))
+            assigning = _set_clause_indexes(tokens, items)
+            selecting = word(tokens[items[0]]) == "SELECT"
+            for i in items:
+                if word(tokens[i]) != "NULL" or i in assigning:
+                    continue
+                op = _comparison_start(tokens, i)
+                if op is None:
+                    continue
+                if _is_variable_default(tokens, by_close, op):
+                    continue
+                if _in_routine_parameters(tokens, i):
+                    continue
+                lhs = op - 1
+                if (
+                    selecting
+                    and lhs >= 1
+                    and tokens[lhs].text.startswith("@")
+                    and (
+                        word(tokens[lhs - 1]) == "SELECT"
+                        or is_punct(tokens[lhs - 1], ",")
+                    )
+                ):
+                    continue  # T-SQL: SELECT @a = 1, @b = NULL assigns
+                yield Hit(tokens[i].line, render(tokens[max(lhs, 0) : i + 1]))
 
 
 # --- unbounded-write -------------------------------------------------------
@@ -145,11 +182,24 @@ def _is_write_start(tokens, items: list[int], position: int) -> bool:
     if verb == "DELETE":
         if word(first) in ("FROM", "TOP"):
             return True
-        return (
-            first.kind in (WORD, QUOTED)
-            and len(rest) > 1
-            and word(tokens[rest[1]]) == "FROM"
-        )
+        if first.kind not in (WORD, QUOTED):
+            return False
+        # T-SQL allows DELETE name [WHERE ...]; FROM is optional.
+        k = 1
+        while (
+            k + 1 < len(rest)
+            and tokens[rest[k]].text == "."
+            and tokens[rest[k + 1]].kind in (WORD, QUOTED)
+        ):
+            k += 2
+        if k >= len(rest):
+            return True
+        return word(tokens[rest[k]]) in (
+            "FROM",
+            "WHERE",
+            "OUTPUT",
+            "OPTION",
+        ) or is_statement_start(tokens, items, position + 1 + k)
     if first.kind not in (WORD, QUOTED) or word(first) == "SET":
         return False
     return any(word(tokens[i]) == "SET" for i in rest)
@@ -210,6 +260,26 @@ _FROM_END = (
     | SET_OPERATORS
 )
 _NO_STATEMENT = frozenset({"GRANT", "REVOKE", "DENY"})
+_TABLE_HINTS = frozenset(
+    {
+        "NOLOCK",
+        "READUNCOMMITTED",
+        "READCOMMITTED",
+        "REPEATABLEREAD",
+        "SERIALIZABLE",
+        "HOLDLOCK",
+        "ROWLOCK",
+        "PAGLOCK",
+        "TABLOCK",
+        "TABLOCKX",
+        "UPDLOCK",
+        "XLOCK",
+        "READPAST",
+        "NOWAIT",
+        "FORCESEEK",
+        "NOEXPAND",
+    }
+)
 
 
 def _is_table_source_fn(tokens, items: list[int], position: int) -> bool:
@@ -227,11 +297,16 @@ def _is_table_source_fn(tokens, items: list[int], position: int) -> bool:
         and tokens[items[j]].kind in (WORD, QUOTED)
     ):
         j += 2
-    return (
+    if not (
         tokens[items[j]].kind in (WORD, QUOTED)
         and j + 1 < len(items)
         and is_punct(tokens[items[j + 1]], "(")
-    )
+    ):
+        return False
+    # ``b (NOLOCK)`` is a legacy table hint, not a table function.
+    after_paren = items[j + 1] + 1
+    hint = tokens[after_paren] if after_paren < len(tokens) else None
+    return hint is None or word(hint) not in _TABLE_HINTS
 
 
 def check_implicit_cross_join(ctx: Context) -> Iterator[Hit]:
