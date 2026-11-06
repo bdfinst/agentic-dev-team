@@ -1,5 +1,27 @@
 # Changelog
 
+## [14.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.0.1...dev-team-v14.1.0) (2026-11-06)
+
+
+### Features
+
+* **build:** source-blind acceptance examiner for /build Step 7.6 ([#2276](https://github.com/bdfinst/agentic-dev-team/issues/2276)) ([07b5a39](https://github.com/bdfinst/agentic-dev-team/commit/07b5a39769383b0d747214c6f83cb67b1f1c0a3c))
+* **build:** speculative dispatch of N candidates for complex steps ([#2279](https://github.com/bdfinst/agentic-dev-team/issues/2279)) ([35f45af](https://github.com/bdfinst/agentic-dev-team/commit/35f45afa76729ad1e02478b9291e42587cb6d898))
+* **feature-record:** validate the spec-to-plan-to-build record ([#2281](https://github.com/bdfinst/agentic-dev-team/issues/2281)) ([29dd35f](https://github.com/bdfinst/agentic-dev-team/commit/29dd35fa772502190ffdcc52775565cb1a8deaf6))
+* **lane:** identity-checked lane open/compose/integrate ([#2280](https://github.com/bdfinst/agentic-dev-team/issues/2280)) ([2ab5a4b](https://github.com/bdfinst/agentic-dev-team/commit/2ab5a4bac0341524926b91a0b2242bc67be8c255))
+* **plan:** require a Still-passes-if falsifier per acceptance scenario ([#2277](https://github.com/bdfinst/agentic-dev-team/issues/2277)) ([e0dd820](https://github.com/bdfinst/agentic-dev-team/commit/e0dd82075a5ec30a648a7a1ca99f6a0eed483f9e))
+* **skills:** add /doctor to diagnose a plugin installation ([#2278](https://github.com/bdfinst/agentic-dev-team/issues/2278)) ([ef96720](https://github.com/bdfinst/agentic-dev-team/commit/ef96720c4284fd0d3145b9dab21123f4840e06bf))
+
+
+### Documentation
+
+* **readme:** fix drift in dev-team README ([#2265](https://github.com/bdfinst/agentic-dev-team/issues/2265)) ([f076637](https://github.com/bdfinst/agentic-dev-team/commit/f076637f41e9ee6cc21c8a0d1e625bea20de218c)), closes [#2264](https://github.com/bdfinst/agentic-dev-team/issues/2264)
+
+
+### Miscellaneous
+
+* **models:** re-evaluate model and effort for Haiku 5.5 with tool-enabled evidence ([#2263](https://github.com/bdfinst/agentic-dev-team/issues/2263)) ([510ca83](https://github.com/bdfinst/agentic-dev-team/commit/510ca838ccc8bd333cbcb81623d36bc8ed329f0d))
+
 ## [14.0.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.0.0...dev-team-v14.0.1) (2026-10-03)
 
 
