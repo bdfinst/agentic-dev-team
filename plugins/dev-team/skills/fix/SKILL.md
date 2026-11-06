@@ -379,7 +379,10 @@ branch, or — only when a plan file happens to be present under `plans/` —
 its plan-completion gate (`progress_guardian.py --pre-pr`) reporting
 incomplete steps, or that same invocation's `check_verify_log`, which Step
 5's verify-log entry above satisfies when it runs — not a surprise stop
-for `/fix`. A dirty working tree does not itself stop `/pr`
+for `/fix`. That gate also refuses without a current `met`
+acceptance examination for the plan, unless the plan declares
+`**Examination**: not-applicable`; the remedy is `/build <plan>` (Step
+7.6 examines the plan). A dirty working tree does not itself stop `/pr`
 here: per `/pr`'s own contract, it asks whether to commit or stash — an
 interactive prompt, not a hard block. Report that pre-flight outcome
 verbatim in Step 7's report. Do not report a PR URL.

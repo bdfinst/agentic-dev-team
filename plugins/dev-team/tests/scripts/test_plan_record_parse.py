@@ -361,7 +361,9 @@ def test_a_plan_with_no_checkboxes_has_no_items(md):
 
 # The oracle's own copy of the guardian's line pattern. It is a literal on
 # purpose: the oracle must not follow the live guardian when that changes.
-_ORACLE_STEP_PATTERN = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
+_ORACLE_STEP_PATTERN = re.compile(
+    r"^-\s+\[(?P<state>[ xX])\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$"
+)
 
 
 def test_the_record_item_pattern_is_the_commit_evidence_pattern():

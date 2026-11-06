@@ -22,7 +22,9 @@ import re
 import subprocess
 
 # Matches: - [x] Step 1.1: Header text  OR  - [ ] Just a header
-STEP_PATTERN = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
+# The checkbox start (group `state`) is the same grammar as
+# `examination_inputs.CHECKBOX_PATTERN_PREFIX`; a test pins that they agree.
+STEP_PATTERN = re.compile(r"^-\s+\[(?P<state>[ xX])\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
 
 # Matches backtick-quoted paths in plan text (declared file references)
 BACKTICK_PATH_RE = re.compile(r"`([^`\s]+\.[a-zA-Z0-9_]+)`")

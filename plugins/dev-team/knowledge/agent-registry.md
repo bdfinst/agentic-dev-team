@@ -55,6 +55,7 @@ Each row below is also classified as a **discovery lens** or **verification gate
 | session-analysis | `agents/session-analysis.md` | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
 | spec-compliance-review | `agents/spec-compliance-review.md` | Spec-to-code matching — general first gate before quality review (final `/code-review` gate; pre-build criteria-verification mode and batched/complex-slice checkpoints in `/build`) |
 | spec-reviewer | `agents/spec-reviewer.md` | Spec-to-diff matching for a single freshly-implemented unit — Stage 1 of the three-stage inline review, narrower and diff-scoped vs. `spec-compliance-review`'s broader file-scoped check. Dispatched by `agents/orchestrator.md` Phase 3, never directly. |
+| acceptance-examiner | `agents/acceptance-examiner.md` | Source-blind acceptance examination — runs only the plan's run commands and reports one verdict per acceptance criterion; a verification gate, not a code-review lens. Dispatched by `/build` Step 7.6, never directly. |
 | structure-review | `agents/structure-review.md` | SRP violations, DRY, coupling, file organization, nesting depth, cognitive load, async-pattern judgment (folds `complexity-review`, retired #2093) |
 | angular-reactivity-review | `agents/angular-reactivity-review.md` | Angular Zone.js change-detection pitfalls, OnPush + immutability violations, RxJS subscription leaks |
 | react-reactivity-review | `agents/react-reactivity-review.md` | React hook rules, stale closures in useEffect, missing dependency arrays, subscription leaks |
@@ -76,7 +77,7 @@ before naming:
 3. Else name ends `-review` or starts `plan-review-` → **green** (reviewer).
 4. Else → **cyan** (all others).
 
-Current fleet: 2 purple, 8 yellow, 32 green, 19 cyan (61 agents total, no
+Current fleet: 2 purple, 8 yellow, 32 green, 20 cyan (62 agents total, no
 ties). `tests/agents/test_agent_fleet_conventions.py` asserts every agent's
 declared `color:` matches the rule; `agent-create`/`agent-add` suggest the
 computed value the same way they already do `model:`/`effort:`.
@@ -93,7 +94,7 @@ same category as ADR 0026/0027):
   exactly `memory: project` (no other value, no omission). Neither tool →
   omit `memory:`.
 
-Current fleet: 12/61 agents carry `skills:`, 9/61 carry `memory: project`.
+Current fleet: 12/62 agents carry `skills:`, 9/62 carry `memory: project`.
 Same test file as color (`tests/agents/test_agent_fleet_conventions.py`)
 asserts both, via pure `classify_skills_declaration()` /
 `classify_memory_declaration()` functions; `agent-create`/`agent-add`

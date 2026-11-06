@@ -22,17 +22,18 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
-
-# Bare sibling import, as `feature_record.py` does: `scripts/lib` is not a
-# package, and the shared git-evidence rule must be one module object.
-_LIB = str(Path(__file__).resolve().parent / "lib")
-if _LIB not in sys.path:
-    sys.path.insert(0, _LIB)
-
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks" / "lib"))
+# The gate is imported by its bare name, as acceptance_examination.py does, so
+# one process holds one copy of it (a `lib.`-qualified spelling would be a second).
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 import commit_evidence
 import feature_record
 from commit_evidence import STEP_PATTERN, run_git  # noqa: F401
+from examination_gate import (  # type: ignore[import-not-found]
+    blocking_issues,
+    load_and_check,
+)
+from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
 # ---------------------------------------------------------------------------
 # Data model
@@ -646,6 +647,7 @@ def main(argv: list[str] | None = None) -> int:
 
     errors: list[dict] = []
     warnings: list[dict] = []
+    notices: list[dict] = []
 
     # 1. Parse plan checkboxes
     steps, parse_errors = parse_plan(plan_path)
@@ -683,6 +685,14 @@ def main(argv: list[str] | None = None) -> int:
             pre_pr_issues = check_pre_pr(steps)
             errors.extend(pre_pr_issues)
 
+            # 5b. Acceptance examination (#2270): a current `met` record.
+            exam_issues = load_and_check(plan_path)
+            blocking = blocking_issues(exam_issues)
+            errors.extend(blocking)
+            # Non-blocking issues (an exempt plan) are shown, not counted:
+            # they never turn a passing result into a warning.
+            notices.extend(i for i in exam_issues if i not in blocking)
+
             # 6. Verify-log gate (issue #727): runtime-surface changes need
             # evidence /verify ran before the PR can be opened.
             verify_changed_files = _collect_branch_changed_files(repo_root)
@@ -697,6 +707,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
     result = build_result(errors, warnings)
+    result["issues"].extend(notices)
     return main_exit(result)
 
 

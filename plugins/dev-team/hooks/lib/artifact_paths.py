@@ -22,13 +22,12 @@ import sys
 from pathlib import Path
 
 
-def project_root(start: Path | str | None = None) -> Path:
-    """Return the project root, resolved via `git rev-parse --show-toplevel`.
-
-    `start` is the directory to resolve from (defaults to the current
-    process's OS cwd). On any failure to resolve a git root — not a repo,
-    `git` not installed, non-zero exit, empty output — falls back to
-    `start` (or cwd) itself. Never raises.
+def git_toplevel(
+    start: Path | str | None = None, timeout: float | None = None
+) -> Path | None:
+    """Return `git rev-parse --show-toplevel` from `start`, or `None` when it
+    cannot be resolved: not a repo, `git` not installed, non-zero exit, empty
+    output, or no answer within `timeout` seconds. Never raises.
 
     `start` is normalized defensively (#1904 item 16) rather than passed
     straight to `Path(...)`: a non-path-like `start` (e.g. an `int`) would
@@ -45,15 +44,27 @@ def project_root(start: Path | str | None = None) -> Path:
             capture_output=True,
             check=False,
             text=True,
+            timeout=timeout,
         )
-    except (FileNotFoundError, OSError, ValueError):
-        return begin
-    if completed.returncode != 0:
-        return begin
+    except (FileNotFoundError, OSError, ValueError, subprocess.TimeoutExpired):
+        return None
     output = completed.stdout.strip()
-    if not output:
-        return begin
+    if completed.returncode != 0 or not output:
+        return None
     return Path(output)
+
+
+def project_root(start: Path | str | None = None) -> Path:
+    """Return the project root, resolved via `git rev-parse --show-toplevel`.
+
+    `start` is the directory to resolve from (defaults to the current
+    process's OS cwd). On any failure to resolve a git root — not a repo,
+    `git` not installed, non-zero exit, empty output — falls back to
+    `start` (or cwd) itself. Never raises; see `git_toplevel` for how a
+    malformed `start` is handled.
+    """
+    begin = Path(start) if isinstance(start, (str, os.PathLike)) else Path.cwd()
+    return git_toplevel(begin) or begin
 
 
 def _validate_segment(value: str, label: str) -> None:
@@ -254,6 +265,7 @@ def dev_team_reports_dir(root: Path | str | None = None) -> Path:
 __all__ = (
     "category_dir",
     "dev_team_reports_dir",
+    "git_toplevel",
     "memory_dir",
     "metrics_dir",
     "migrate_dir",

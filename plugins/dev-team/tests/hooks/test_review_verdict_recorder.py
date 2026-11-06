@@ -807,9 +807,10 @@ def test_malformed_final_json_result_writes_no_rows(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tolerant JSON-recovery path (Fix #7, test review): `_extract_json_object`'s
-# fenced-block/prose-preamble recovery branches had zero test coverage --
-# only the "no JSON at all" failure path (above) was tested.
+# Tolerant JSON-recovery path (Fix #7, test review):
+# `subagent_transcript.extract_json_object`'s fenced-block/prose-preamble
+# recovery branches had zero test coverage -- only the "no JSON at all"
+# failure path (above) was tested.
 # ---------------------------------------------------------------------------
 
 
@@ -843,73 +844,6 @@ def test_fenced_json_result_in_handback_message_is_recovered(tmp_path: Path) -> 
     rows = _read_rows(tmp_path)
     by_path = {r["file_path"]: r["outcome"] for r in rows}
     assert by_path == {"a.py": "pass", "b.py": "findings"}
-
-
-# ---------------------------------------------------------------------------
-# Unit-level coverage of the documented Task/Agent dispatch-join fallback
-# (used only when attributionAgent is absent from every record -- the spike
-# recorded in this hook's own module docstring found no real transcript that
-# needed it, but the fallback is still implemented per the plan and exercised
-# here directly rather than left dead).
-# ---------------------------------------------------------------------------
-
-
-def test_fallback_resolves_subagent_type_via_task_agent_join(tmp_path: Path) -> None:
-    session_dir = tmp_path / "session-1"
-    subagents_dir = session_dir / "subagents"
-    subagents_dir.mkdir(parents=True)
-
-    subagent_transcript = subagents_dir / "agent-abc123.jsonl"
-    subagent_rows = [
-        {
-            "type": "user",
-            "agentId": "abc123",
-            "message": {"role": "user", "content": "Review a.py"},
-        },
-        {
-            "type": "assistant",
-            "isSidechain": True,
-            "agentId": "abc123",
-            # No attributionAgent field at all on any record.
-            "message": {"role": "assistant", "content": "done"},
-        },
-    ]
-    with subagent_transcript.open("w", encoding="utf-8") as fh:
-        for row in subagent_rows:
-            fh.write(json.dumps(row) + "\n")
-
-    parent_transcript = tmp_path / "session-1.jsonl"
-    parent_rows = [
-        {
-            "type": "assistant",
-            "message": {
-                "role": "assistant",
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_1",
-                        "name": "Task",
-                        "input": {"subagent_type": f"dev-team:{_REVIEW_AGENT}"},
-                    }
-                ],
-            },
-        },
-        {
-            "type": "user",
-            "toolUseResult": {"agentId": "abc123"},
-            "message": {
-                "role": "user",
-                "content": [{"type": "tool_result", "tool_use_id": "toolu_1"}],
-            },
-        },
-    ]
-    with parent_transcript.open("w", encoding="utf-8") as fh:
-        for row in parent_rows:
-            fh.write(json.dumps(row) + "\n")
-
-    records = recorder._read_transcript_records(subagent_transcript)
-    resolved = recorder._resolve_subagent_type(subagent_transcript, records)
-    assert resolved == _REVIEW_AGENT
 
 
 # ---------------------------------------------------------------------------

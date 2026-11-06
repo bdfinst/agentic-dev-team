@@ -44,6 +44,7 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 | Agent | Source | Baseline model | Baseline effort | Final model | Final effort | Decision | Fixtures | Evidence or reason | Eval cost saving (USD) |
 |---|---|---|---|---|---|---|---|---|---|
 | a11y-review | plugins/dev-team/agents/a11y-review.md | haiku | medium | haiku | medium | keep | 3 | not selected |  |
+| acceptance-examiner | plugins/dev-team/agents/acceptance-examiner.md | opus | high | opus | high | keep | 0 | no fixture |  |
 | adr-author | plugins/dev-team/agents/adr-author.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
 | ai-provenance-review | plugins/dev-team/agents/ai-provenance-review.md | opus | high | opus | high | keep | 2 | insufficient fixtures |  |
 | angular-reactivity-review | plugins/dev-team/agents/angular-reactivity-review.md | haiku | medium | haiku | medium | keep | 2 | insufficient fixtures |  |

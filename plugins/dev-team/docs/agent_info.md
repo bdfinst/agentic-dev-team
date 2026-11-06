@@ -26,6 +26,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
+| `acceptance-examiner` | [`acceptance-examiner.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/acceptance-examiner.md) | opus | Source-blind acceptance examination — runs the plan's run commands and reports one verdict per criterion; dispatched by `/build` Step 7.6, never directly |
 | `a11y-review` | [`a11y-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/a11y-review.md) | haiku | WCAG 2.1 AA, ARIA, keyboard navigation |
 | `ai-provenance-review` | [`ai-provenance-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/ai-provenance-review.md) | opus | AI-authored test assertion verification debt, regeneration-risk candidates |
 | `angular-reactivity-review` | [`angular-reactivity-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/angular-reactivity-review.md) | haiku | Angular Zone.js pitfalls, OnPush violations, RxJS subscription leaks |

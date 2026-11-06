@@ -20,7 +20,7 @@ You have been invoked with the `/build` command.
 
 ## Orchestrator constraints
 
-**MUST — confirm agent-dispatch capability before any review-agent dispatch (issue #1461).** This skill dispatches review agents at three points: Step 3 (`spec-compliance-review` acceptance-criteria gate), sub-step 4 (per-step review checkpoint for `complex` steps), and sub-step 6 (slice review checkpoint). Before any of those dispatches, you MUST confirm the `Agent` (or `Task`) tool is actually present and available in your current toolset. If it is not: **STOP** at that point — do not self-apply the reviewer's checklist inline as a substitute for independent dispatch, and do not mark the gate/checkpoint passed on that basis. Report to the user/operator plainly: this review checkpoint cannot run in this environment because no agent-dispatch capability (`Agent`/`Task` tool) is available; name exactly what's missing; and state that the build cannot proceed past this gate (nor reach the Step 6 `/code-review` backstop, which independently enforces the same rule) until it is run from a session with that capability. This is a hard requirement, not a preference.
+**MUST — confirm agent-dispatch capability before any review-agent dispatch (issue #1461).** This skill dispatches review agents at four points: Step 3 (`spec-compliance-review` acceptance-criteria gate), sub-step 4 (per-step review checkpoint for `complex` steps), sub-step 6 (slice review checkpoint), and Step 7.6 (`acceptance-examiner` dispatch). Before any of those dispatches, you MUST confirm the `Agent` (or `Task`) tool is actually present and available in your current toolset. If it is not: **STOP** at that point — do not self-apply the reviewer's checklist inline as a substitute for independent dispatch, and do not mark the gate/checkpoint passed on that basis. Report to the user/operator plainly: this review checkpoint cannot run in this environment because no agent-dispatch capability (`Agent`/`Task` tool) is available; name exactly what's missing; and state that the build cannot proceed past this gate (nor reach the Step 6 `/code-review` backstop, which independently enforces the same rule) until it is run from a session with that capability. This is a hard requirement, not a preference.
 
 1. **Follow the plan exactly.** If the plan is wrong, stop and ask the user — do not deviate silently.
 2. **Every step is small per-behavior batches, one agent.** The cadence is **Code-First Small Batches** — each behavior follows IMPLEMENT → TEST → REFACTOR (the statistically separated winner of the workflow experiments; `docs/experiments/RECOMMENDATIONS.md` Rec 3). There is no cadence to resolve and no per-plan opt-in (ADR 0017) — Code-First Small Batches is the only cycle a step follows. One agent writes the code, the test, and the refactor for a unit of work; the refactor runs on **every** green — never deferred to an end-of-build pass, never skipped, never made conditional on task size or complexity (Rec 4); tests are frozen during REFACTOR; and big-batch shapes are prohibited — never all the code then all the tests, never all the tests then all the code.
@@ -369,8 +369,37 @@ Produce a Farley Score for the tests written on this branch — the last quality
    - **Fall back to the plan's recorded plan-start commit** — the same anchor a `Rollback point: plan-start` slice already resolved against (issue #865): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_rollback_point.py get-by-symbolic --path .claude/memory/build-rollback.json --symbolic plan-start --repo <worktree> --ancestor-of HEAD`. `.claude/memory/build-rollback.json` is a flat store never cleared between plans sharing a worktree, so `--repo`/`--ancestor-of` matter: they reject a stale `plan-start` entry left behind by an unrelated earlier build (its SHA won't be an ancestor of this branch's HEAD) rather than trusting the first match blindly. If a qualifying entry is found, use its `sha` as `<base>` for sub-step 2 — this is the "found" case below.
    - **If no qualifying plan-start rollback point was found** (exit 1: no slice in this build declared `Rollback point: plan-start`, or the only recorded entry failed the ancestry check as stale), do not proceed to sub-step 2 as if nothing were wrong. Print an explicit warning — `Branch-base resolution degraded: origin/HEAD, origin/main, main, master, develop all resolved to HEAD or failed, and no plan-start rollback point is recorded — the Farley Score step below cannot distinguish "no tests written" from a resolution failure.` — then continue to sub-step 2 with the degraded (== HEAD) base anyway, so sub-step 3 knows to treat an empty diff as inconclusive rather than clean. This is the "not found" case sub-step 3 branches on below — distinct from the "found" case immediately above, where the plan-start SHA is a trustworthy base and an empty diff against it is genuine evidence of no tests written.
 2. List the branch's changed test files: `git diff --name-only <base>...HEAD`, keeping only test files (indicators in `knowledge/test-file-indicators.md` — `*.test.*` / `*.spec.*` / `__tests__/`, xUnit/JUnit attributes, `.feature` files).
-3. If no test files changed on the branch, print one line — `No tests written on this branch — skipping Farley Score.` — and continue to Step 8. **Exception:** when sub-step 1's degenerate-base check hit the "not found" case (no qualifying plan-start rollback point, base left at HEAD), print that sub-step's degraded-resolution warning instead of this clean line — an empty diff off an unresolved HEAD-equals-base is a resolution failure, not evidence of a clean branch. The "found" case (a validated plan-start SHA used as base) is a real base, so a genuine empty diff against it prints the ordinary clean line above. Either way, continue to Step 8.
+3. If no test files changed on the branch, print one line — `No tests written on this branch — skipping Farley Score.` — and continue to Step 7.6. **Exception:** when sub-step 1's degenerate-base check hit the "not found" case (no qualifying plan-start rollback point, base left at HEAD), print that sub-step's degraded-resolution warning instead of this clean line — an empty diff off an unresolved HEAD-equals-base is a resolution failure, not evidence of a clean branch. The "found" case (a validated plan-start SHA used as base) is a real base, so a genuine empty diff against it prints the ordinary clean line above. Either way, continue to Step 7.6.
 4. Otherwise invoke the `farley-score` skill scoped to those files. Present the suite-level Farley Score, rating, and distribution as the final pre-PR signal. This is **informational** — a low score does not block `/pr`, but surface it so the user can decide whether to revise before opening the PR.
+
+### 7.6. Acceptance examination
+
+This step runs on every /build invocation, including a re-run of a fully checked plan. A source-blind examiner runs the plan's commands and reads only their output. The SubagentStop recorder hook writes the record; you never relay a verdict. The prompt template and status tables are in [`references/acceptance-examination.md`](references/acceptance-examination.md). In this step, `acceptance_examination.py status` means the subcommand, not the plan's **Status** line.
+
+1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/acceptance_examination.py" status --plan <plan>` first.
+   - Exit 0, met record: skip dispatch, run `render`, and continue to Step 7.5. The record certifies committed state only. A later commit makes it stale.
+   - Exit 0, the plan declares `**Examination**: not-applicable`: `status` prints an info line. Skip dispatch, do not run `render` (there is no record), and continue to Step 7.5. The evidence bundle lists the exemption.
+   - Exit 1, message starts `Acceptance examination cannot be verified` or `Acceptance examination cannot run` (branch base unresolvable, or no commits ahead of the base): print the message and stop. Do not dispatch. There is nothing to examine.
+   - Exit 1 for any other reason: dispatch once (steps 2 to 5).
+   - Exit 2 (usage error, or the plan is not in a git repository): print stderr and stop. No dispatch, no `render`.
+2. Check the tree is clean: no tracked changes and no non-ignored untracked files outside the plan file (`git status --porcelain --untracked-files=all -- ':(top,exclude)<plan>'`). The examiner reads the working tree, so an untracked file counts as dirty. Pass `--untracked-files=all` so a `status.showUntrackedFiles=no` setting cannot hide one. `/build` edits the plan itself, so the plan is exempt. If the tree is dirty, stop with a message that lists the dirty paths and tells the user to commit first.
+3. **Dispatch-capability gate (re-confirm here — issue #1461).** Before dispatching `acceptance-examiner` below, re-verify the `Agent`/`Task` tool is present. If it is not, STOP per the Orchestrator constraints above — do not examine the criteria inline; report the missing capability and halt.
+4. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/acceptance_examination.py" inputs --plan <plan>`. If it exits non-zero (for example the plan has no `## Acceptance Criteria` section), print its stderr and stop. Do not dispatch. Otherwise print `Examining N criteria with run commands only; this can take several minutes.` (N is the criteria count). Record `DISPATCHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)`. Dispatch `acceptance-examiner` by `subagent_type` with the template from the reference. Dispatch exactly once when status exits 1, never when status exits 0, at most once per invocation. The step never retries after a dispatch.
+5. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/acceptance_examination.py" status --wait 15 --after $DISPATCHED_AT --plan <plan>`. A record older than the dispatch counts as absent. The rule: render only when status reports a readable record for this plan. If `render` exits non-zero, print its stderr and stop.
+   - Exit 0: `render`, then continue to Step 7.5.
+   - Exit 1 with a readable record: `render`, print the status message, and stop.
+   - Exit 1, record unreadable or for another plan: do not run `render`, print the status message, and stop.
+   - Exit 1, no record (absent): recognised by the message prefix `Acceptance examination missing`. Print this and stop: No examination record was written after the examiner stopped. Likely causes: the SubagentStop recorder is not installed (reinstall the plugin), or the dispatch prompt lacked the marker line (see .claude/metrics/boundary-events.jsonl, rule missing-plan-marker). Fix the cause, then run: /build <plan>.
+   - Exit 2 (usage error, or the plan is not in a git repository): print stderr and stop. No `render`.
+
+**Hard stop.** On every stop above, the plan's **Status** line is not modified and Step 8 is not reached. Each bullet below is a stop. The `acceptance_examination.py status` message names the case.
+
+- `not-met`: a criterion failed its run command; fix the delivered behavior, commit, then run `/build <plan>`; do not proceed to /pr.
+- `indeterminate`: the examiner could not observe a criterion, or its result was incomplete or malformed; the `acceptance_examination.py status` message names which. Unobservable: make the criterion observable in the plan. Incomplete result: run `/build <plan>` again without changing the plan. Do not proceed to /pr.
+- `tainted`: the examiner ran a command it must not (pattern detection, possibly a false positive); name a run command per criterion, then run `/build <plan>`; do not proceed to /pr.
+- `missing` (status absent): no record exists for this plan; fix the cause in the absent-after-dispatch text above (the recorder is not installed, or the marker line is missing), then run `/build <plan>`; do not proceed to /pr.
+
+The `**Examination**: not-applicable` header and any criterion edit belong to the human plan author at the plan gate. `/build` and `/fix` never add, remove, or reword them to clear a stop.
 
 ### 7.5. Assemble the evidence bundle
 
@@ -380,7 +409,13 @@ re-execution**; it renders data this run already produced:
 
 - **Checks run**: the Step 5 full-suite command + result, the Step 6
   `/code-review` status, the Step 7 Farley Score command/output (or its
-  skip line when no tests changed).
+  skip line when no tests changed), and the Step 7.6 acceptance
+  examination: the `acceptance_examination.py status` command with its
+  pass or refusal line, and the record's overall verdict from
+  `acceptance_examination.py show --plan <plan>` (the `overall` field,
+  not `status`). Step 7.6 already ran `status`; render its outcome, do
+  not run it again. A plan that declares `**Examination**: not-applicable`
+  has no record; report the exemption instead.
 - **Scope notes**: review agents dispatched vs. skipped across the build's
   checkpoints (sub-steps 4/6), and any gate reported "not applicable."
 - **Untested regions**: read `baseline-coverage.json` / `coverage-history.json`
@@ -389,8 +424,8 @@ re-execution**; it renders data this run already produced:
 - **Residual risks**: derived-first from this run's `.claude/metrics/review-value.jsonl`
   entries with `outcome: "escalated"`, any non-interactive gate-bypass audit
   lines printed in Steps 2–3, and any `failed-then-fixed` runtime-verification
-  entries in `metrics/verify-log.jsonl`. "None identified" only when all of
-  those are empty.
+  entries in `metrics/verify-log.jsonl`, and a plan that declares
+  `**Examination**: not-applicable` (the plan was not examined). "None identified" only when all of those are empty.
 
 Follow the degradation rule: every one of the four section headers appears in
 the completion report even when a section has nothing to show — it states why.

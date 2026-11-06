@@ -31,7 +31,9 @@ import progress_guardian
 # not follow the live guardian, so it shares no code with it.
 # ---------------------------------------------------------------------------
 
-_OLD_STEP_PATTERN = re.compile(r"^-\s+\[( |x|X)\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$")
+_OLD_STEP_PATTERN = re.compile(
+    r"^-\s+\[(?P<state>[ xX])\]\s+(?:Step\s+[\d.]+:\s+)?(.+)$"
+)
 
 
 def _old_loop_steps(text: str) -> list[tuple[bool, str]]:

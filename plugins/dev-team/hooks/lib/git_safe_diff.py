@@ -74,6 +74,7 @@ def run_safe_git_diff(
     text: bool = False,
     target: str | None = "--cached",
     timeout: float | None = None,
+    pathspec: Sequence[str] = (),
 ) -> subprocess.CompletedProcess:
     """Run `git diff [target]` with the shared safety flags, plus
     caller-specific `extra_flags` inserted between the target and the
@@ -98,6 +99,11 @@ def run_safe_git_diff(
     failure does: this helper builds and runs the safe argv, it does not
     decide what a given caller should do about a slow git.
 
+    `pathspec` (#2270): git pathspecs (e.g. `":(top,exclude)plans/x.md"`)
+    appended as `["--", *pathspec]` after `--ignore-submodules=none`, the
+    last argv elements. Empty (the default) appends nothing, leaving every
+    pre-existing caller's argv byte-identical.
+
     Raises on subprocess launch failure — callers keep their own
     try/except around this call, since `_staged_names()` and
     `review_gate_hash()` intentionally differ in how they handle that
@@ -110,6 +116,8 @@ def run_safe_git_diff(
         argv.append(target)
     argv.extend(extra_flags)
     argv.append(GIT_IGNORE_SUBMODULES_FLAG)
+    if pathspec:
+        argv.extend(["--", *pathspec])
     return subprocess.run(
         argv,
         cwd=str(cwd) if cwd is not None else None,

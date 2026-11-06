@@ -523,13 +523,22 @@ def test_cli_tsx_diff_includes_frontend_but_not_reactivity():
         assert exc not in lenses
 
 
-def test_cli_non_review_agents_never_appear():
-    r = _run("src/util.py")
+@pytest.mark.parametrize(
+    "files",
+    [
+        pytest.param(("src/util.py",), id="python-only"),
+        pytest.param(("docs/cloud-setup.md",), id="docs-only"),
+        pytest.param(("plugins/dev-team/agents/spec-reviewer.md",), id="agents"),
+    ],
+)
+def test_cli_non_review_agents_never_appear(files):
+    r = _run(*files)
     assert r.returncode == 0
     out = json.loads(r.stdout)
-    assert "correctness-review" in out["lenses"]  # guard: roster actually resolved
+    assert "security-review" in out["lenses"]  # guard: roster actually resolved
     both = set(out["lenses"]) | set(out["warnings"])
     for nonlens in (
+        "acceptance-examiner",
         "progress-guardian",
         "quality-reviewer",
         "spec-reviewer",
