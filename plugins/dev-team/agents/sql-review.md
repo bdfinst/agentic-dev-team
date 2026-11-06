@@ -61,10 +61,19 @@ example.
   When the consumer is not visible, keep the hit.
 - **Agent-owned rules.** Find these yourself. They need judgment that a
   tokenizer cannot give. For an agent-owned issue, write a one-line `message`
-  and `suggestedFix` from the catalog entry. `sql.ddl.type-narrowing` is the
-  current one: read the `CREATE TABLE` or earlier migration for the column,
-  and report only a change to a narrower type. Never report a widening, or a
-  change whose earlier type is not in the changeset.
+  and `suggestedFix` from the catalog entry. The current ones:
+  - `sql.ddl.type-narrowing`: read the `CREATE TABLE` or earlier migration
+    for the column, and report only a change to a narrower type. Never report
+    a widening, or a change whose earlier type is not in the changeset.
+  - `sql.correctness.distinct-masks-join`: a `DISTINCT` over a join that
+    repeats rows.
+  - `sql.index.implicit-conversion`: a character column compared to a number.
+    Report it only when the column type is in the changeset.
+- **Triage `sql.correctness.not-in-subquery`.** The detector cannot see
+  nullability. Find the `CREATE TABLE` for the subquery column in the
+  changeset. Keep the hit when the column is nullable (for example
+  `t_id int NULL`) or its definition is not in the changeset. Dismiss it when
+  the column is `NOT NULL`, and name the reason in `summary`.
 - **Dialect.** Each hit's `dialect` is the rule's tag. Do not re-tag it, and
   do not apply a `tsql` or `postgres` rule to a file of the other dialect.
 - **Triage `sql.ddl.index-not-concurrent`.** Dismiss the hit when the file is
