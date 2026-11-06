@@ -1,0 +1,12 @@
+{
+  "fixture": "sql-ddl-type-widening.sql",
+  "description": "Migration widens orders.n from int to bigint; nothing to report",
+  "applicableAgents": ["sql-review"],
+  "agents": {
+    "sql-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "expectedFindings": []
+    }
+  }
+}

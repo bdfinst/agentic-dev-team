@@ -405,10 +405,10 @@ def test_gate_reports_an_unreadable_files_from_as_status_error(tmp_path):
 # --- Dialect plumbing -------------------------------------------------------------
 
 
-def test_dialect_flag_is_reported_on_findings(tmp_path):
+def test_findings_carry_the_rule_dialect_tag_not_the_file_dialect(tmp_path):
     seed(tmp_path, "INSERT INTO t VALUES (1)")
     _, report, _ = scan(tmp_path, "--dialect", "tsql", "db/seed.sql")
-    assert [f["dialect"] for f in report["findings"]] == ["tsql"]
+    assert [f["dialect"] for f in report["findings"]] == ["ansi"]
 
 
 def test_unknown_dialect_is_a_usage_error(tmp_path):

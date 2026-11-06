@@ -55,17 +55,27 @@ example.
   `suggestedFix` from the hit. Do not report a rule the detector did not hit
   unless the catalog marks it `agent`-owned.
 - **Agent-owned rules.** Find these yourself. They need judgment that a
-  tokenizer cannot give. If the catalog lists none, report only confirmed
-  detector hits. Today these are `sql.correctness.distinct-masks-join` (a
-  `DISTINCT` over a join that repeats rows) and `sql.index.implicit-conversion`
-  (a character column compared to a number). Report each only when the
-  statement and, for conversion, the column type are in the changeset.
-- **`sql.correctness.not-in-subquery` hits.** The detector cannot see
+  tokenizer cannot give. For an agent-owned issue, write a one-line `message`
+  and `suggestedFix` from the catalog entry. The current ones:
+  - `sql.ddl.type-narrowing`: read the `CREATE TABLE` or earlier migration
+    for the column, and report only a change to a narrower type. Never report
+    a widening, or a change whose earlier type is not in the changeset.
+  - `sql.correctness.distinct-masks-join`: a `DISTINCT` over a join that
+    repeats rows.
+  - `sql.index.implicit-conversion`: a character column compared to a number.
+    Report it only when the column type is in the changeset.
+- **Triage `sql.correctness.not-in-subquery`.** The detector cannot see
   nullability. Find the `CREATE TABLE` for the subquery column in the
   changeset. Keep the hit when the column is nullable (for example
   `t_id int NULL`) or its definition is not in the changeset. Dismiss it when
-  the column is `NOT NULL`, or the subquery filters with `IS NOT NULL`, and
-  name the reason in `summary`.
+  the column is `NOT NULL`, and name the reason in `summary`.
+- **Dialect.** Each hit's `dialect` is the rule's tag. Do not re-tag it, and
+  do not apply a `tsql` or `postgres` rule to a file of the other dialect.
+- **Triage `sql.ddl.index-not-concurrent`.** Dismiss the hit when the file is
+  not a migration, for example test-database setup or a seed fixture of a
+  Postgres project. Report it in a migration file. Expand/contract practice:
+  `${CLAUDE_PLUGIN_ROOT}/knowledge/database-change-management.md`
+  (Whole-file load: read only when a DDL hit needs the practice).
 - **Unreadable files.** For each entry in `errors`, name the file in `summary`.
   Never add an issue for it: every issue needs a catalog rule id.
 
