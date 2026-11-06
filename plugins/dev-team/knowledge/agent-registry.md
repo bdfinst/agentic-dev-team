@@ -111,7 +111,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Autoship | `skills/autoship/SKILL.md` | ~12,757 | Orchestrator, `/autoship` command |
 | API Design | `skills/api-design/SKILL.md` | 1,437 | Architect, Software Engineer |
 | Apply Test Doubles | `skills/apply-test-doubles/SKILL.md` | ~4,706 | `/apply-test-doubles` command |
-| Branch Workflow | `skills/branch-workflow/SKILL.md` | 1,482 | Orchestrator, Software Engineer |
+| Branch Workflow | `skills/branch-workflow/SKILL.md` | 1,631 | Orchestrator, Software Engineer |
 | Browser Testing | `skills/browser-testing/SKILL.md` | 901 | QA Engineer |
 | CD Test Architecture | `skills/cd-test-architecture/SKILL.md` | ~9,622 | QA Engineer, Architect, Platform Engineer, Software Engineer |
 | CI Debugging | `skills/ci-debugging/SKILL.md` | 1,368 | Platform Engineer, Software Engineer, QA Engineer |
@@ -138,6 +138,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 1,035 | Architect, Software Engineer |
 | Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | 2,900 | Orchestrator, Product Manager |
 | Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~3,243 | `/test-improve` (Phase 4), QA Engineer |
+| Lane | `skills/lane/SKILL.md` | ~2,162 | `/lane` command |
 | Legacy Code | `skills/legacy-code/SKILL.md` | 2,326 | Software Engineer, QA Engineer, Architect |
 | Long Eval | `skills/long-eval/SKILL.md` | ~1,543 | QA Engineer, `/long-eval` command, standalone |
 | Mermaid Diagramming | `skills/mermaid-diagramming/SKILL.md` | ~1,557 | Architect, Software Engineer, Tech Writer |
@@ -152,6 +153,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~3,163 | Orchestrator, Software Engineer, Architect |
 | Source Verification | `skills/source-verification/SKILL.md` | ~2,300 | `/source-verification` command, doc-review |
 | Specs | `skills/specs/SKILL.md` | ~3,811 | Product Manager, Architect, QA Engineer, Orchestrator |
+| Speculative Build | `skills/speculative-build/SKILL.md` | ~5,388 | `/build` command |
 | Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 3,792 | Orchestrator, `/code-review` |
 | Stryker xunit.v2 Shim | `skills/stryker-xunit-v2-shim/SKILL.md` | ~3,945 | `/mutation-testing`, `/test-improve` (mutation on .NET/xunit.v3), QA Engineer, standalone |
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 2,129 | Software Engineer, QA Engineer |

@@ -88,6 +88,10 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/boundary_events_write_guard.py"
+          },
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/feature_record_guard.py"
           }
         ]
       },

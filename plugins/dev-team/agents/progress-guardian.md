@@ -33,6 +33,8 @@ Produces `{"status": "skip", "issues": [], "summary": "No active plan found"}` w
 
 ## What the script detects
 
+The script reads plan progress from the view that `${CLAUDE_PLUGIN_ROOT}/scripts/feature_record.py` derives, not by parsing the Markdown itself.
+
 Plan adherence:
 
 - Steps executed out of order without justification

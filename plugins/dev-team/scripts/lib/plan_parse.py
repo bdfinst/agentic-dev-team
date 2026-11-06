@@ -21,12 +21,12 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import TextIO
 
 _SLICE_RE = re.compile(r"^#+\s+[Ss]lice\s+([^:]+)")
-_SLICE_HEADING_RE = re.compile(r"^#{1,3}\s+[Ss]lice\s+([^:]+):\s*(.*)$")
+_SLICE_HEADING_RE = re.compile(r"^#{1,3}\s+[Ss]lice\s+([^:\s][^:]*):\s*(.*)$")
 _HEADING_RE = re.compile(r"^#{1,3}\s")
 _STEP_RE = re.compile(r"^#{4,}\s")
 # `\**\s*:\s*\**\s*` handles bold markup on *both* sides of the colon —
@@ -356,6 +356,27 @@ def slice_gherkin_blocks(
     if current is not None:
         blocks.append(current.row())
     return blocks
+
+
+def iter_slice_body_lines(text: str) -> Iterator[tuple[str, bool]]:
+    """Yield `(line, in_fence)` for each line of `text`, fence-aware.
+
+    `in_fence` is True for every line of a fenced code block, including its
+    opening and closing fence lines, so a caller that scans prose (headings,
+    `**Covers**:` lines) skips fenced content by testing the flag. Uses the
+    same `_FenceState` as `slice_gherkin_blocks`, so both agree on where a
+    fence starts and ends. Works on any text, not only a single slice.
+    """
+    fence = _FenceState()
+    for line in text.splitlines():
+        if fence.active:
+            fence.consume(line)
+            yield line, True
+        elif line.startswith("```"):
+            fence.enter(line, False)
+            yield line, True
+        else:
+            yield line, False
 
 
 def plan_parse(path: Path) -> str:

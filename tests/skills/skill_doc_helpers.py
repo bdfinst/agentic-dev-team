@@ -11,13 +11,22 @@ tests/lib/hermetic.bash.
 
 from __future__ import annotations
 
+import functools
+import os
 import re
-from collections.abc import Callable
+import subprocess
+import sys
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import NamedTuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
+
+#: A shipped-script call in a skill: the script path under the plugin root,
+#: then the rest of the line (subcommand and flags).
+INVOCATION_RE = re.compile(r'python3 "\$\{CLAUDE_PLUGIN_ROOT\}/([^"]+)"(.*)$')
+HELP_TIMEOUT_SECONDS = 60
 
 
 class Fact(NamedTuple):
@@ -276,6 +285,17 @@ def grep_multiline(pattern: str, text: str, ignore_case: bool = False) -> bool:
     return re.search(_posix_classes(pattern), text, flags) is not None
 
 
+def _lines_outside_code(text: str) -> Iterator[tuple[int, str]]:
+    """Yield `(1-based line number, line)` for every line outside a fenced
+    code block; the fence lines themselves are skipped."""
+    code = False
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("```"):
+            code = not code
+        elif not code:
+            yield lineno, line
+
+
 def first_line_outside_code(text: str, pattern: str) -> int | None:
     """Mirror the repeated awk idiom:
 
@@ -286,14 +306,21 @@ def first_line_outside_code(text: str, pattern: str) -> int | None:
     fenced code block, or None if no such line exists.
     """
     pattern_re = re.compile(_posix_classes(pattern))
-    code = False
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        if line.startswith("```"):
-            code = not code
-            continue
-        if not code and pattern_re.search(line):
+    for lineno, line in _lines_outside_code(text):
+        if pattern_re.search(line):
             return lineno
     return None
+
+
+def headings_outside_code(text: str, level: int) -> list[str]:
+    """Titles of the `level`-deep markdown headings (`## ` for level 2) found
+    outside fenced code blocks, in file order."""
+    prefix = "#" * level + " "
+    return [
+        line[len(prefix) :].strip()
+        for _, line in _lines_outside_code(text)
+        if line.startswith(prefix)
+    ]
 
 
 def section_outside_code(
@@ -353,6 +380,74 @@ def frontmatter(text: str) -> str:
     return "\n".join(out)
 
 
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+
+
+def fenced_blocks(text: str, tag: str) -> list[str]:
+    """Return the body of every fenced code block whose info string starts
+    with `tag`, in document order (added for test_doctor_skill, #2272).
+
+    A fence is three or more backticks or tildes, indented at most three
+    spaces. It closes only on a fence of the same character that is at least
+    as long as the opener, so a four-backtick block can wrap a three-backtick
+    example. The first word of the info string is compared to `tag`
+    (`bash title=x` matches `bash`); untagged blocks never match. An
+    unclosed block yields nothing.
+    """
+    blocks: list[str] = []
+    opener: tuple[str, int] | None = None
+    is_tagged_block = False
+    block_lines: list[str] = []
+    for line in text.splitlines():
+        fence = _FENCE.match(line)
+        if opener is None:
+            if fence:
+                marks, info = fence.groups()
+                opener = (marks[0], len(marks))
+                words = info.split()
+                is_tagged_block = bool(words) and words[0] == tag
+                block_lines = []
+            continue
+        if (
+            fence
+            and fence.group(1)[0] == opener[0]
+            and len(fence.group(1)) >= opener[1]
+            and not fence.group(2).strip()
+        ):
+            if is_tagged_block:
+                blocks.append("\n".join(block_lines))
+            opener = None
+            continue
+        block_lines.append(line)
+    return blocks
+
+
+def frontmatter_fields(text: str) -> dict[str, str]:
+    """Top-level `key: value` pairs of the YAML frontmatter, as strings.
+
+    A small subset parser (added for test_doctor_skill, #2272): plain and
+    quoted scalars, and a folded `>-` value whose indented continuation lines
+    are joined with single spaces. No nesting, lists or other block styles.
+    Text that does not open with a `---` line has no frontmatter: ``{}``.
+    """
+    fields: dict[str, str] = {}
+    key: str | None = None
+    if not text.startswith("---"):
+        return fields
+    for line in frontmatter(text).splitlines()[1:]:
+        if line[:1] in (" ", "\t") and key is not None:
+            fields[key] = f"{fields[key]} {line.strip()}".strip()
+        elif ":" in line:
+            key, _, value = line.partition(":")
+            value = value.strip()
+            if value == ">-":
+                value = ""
+            elif len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            fields[key] = value
+    return fields
+
+
 def section(
     text: str,
     start_pattern: str,
@@ -394,3 +489,36 @@ def section(
         if inphase:
             out.append(line)
     return "\n".join(out)
+
+
+def h2_section(text: str, name: str) -> str:
+    """The `## <name>` section of `text`, up to the next `## ` outside a
+    fenced block. `name` is a regex matched against the whole heading text."""
+    return section_outside_code(text, rf"^## {name}$", boundary_pattern=r"^## ")
+
+
+@functools.cache
+def help_text(script: str, subcommand: str = "") -> str:
+    """The `--help` output of `script` (a path under the plugin root), after
+    `subcommand` when given. Colour is switched off: Python 3.14 argparse
+    colours its help, and plain text is what the checks match."""
+    env = {k: v for k, v in os.environ.items() if k != "FORCE_COLOR"}
+    env["NO_COLOR"] = "1"
+    command = [sys.executable, str(PLUGIN_ROOT / script)]
+    command += [subcommand] if subcommand else []
+    result = subprocess.run(
+        [*command, "--help"],
+        capture_output=True,
+        text=True,
+        timeout=HELP_TIMEOUT_SECONDS,
+        check=False,
+        env=env,
+    )
+    assert result.returncode == 0, f"{script} {subcommand} --help: {result.stderr}"
+    return result.stdout
+
+
+def flag_listed_in_help(flag: str, help_output: str) -> bool:
+    """True when `flag` appears in `help_output` as a whole option name, not as
+    a prefix or suffix of a longer one (`--cost` is not listed by `--cost-usd`)."""
+    return re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", help_output) is not None

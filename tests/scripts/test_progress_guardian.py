@@ -36,7 +36,10 @@ PG = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "progress_guardian.py"
 
 _GIT_SCRUB_ENV_VARS = (
     "GIT_DIR",
+    "GIT_COMMON_DIR",
     "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_NAMESPACE",
     "GIT_WORK_TREE",
     "GIT_PREFIX",
     "GIT_REFLOG_ACTION",
@@ -47,6 +50,7 @@ def _hermetic_env() -> dict:
     env = {k: v for k, v in os.environ.items() if k not in _GIT_SCRUB_ENV_VARS}
     env["GIT_CONFIG_GLOBAL"] = "/dev/null"
     env["GIT_CONFIG_SYSTEM"] = "/dev/null"
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
     return env
 
 
@@ -85,6 +89,7 @@ def run_pg(plan: Path, *args: str, exempt: bool = False) -> subprocess.Completed
         capture_output=True,
         text=True,
         check=False,
+        env=_hermetic_env(),
     )
 
 
@@ -1003,3 +1008,335 @@ def test_pre_pr_refuses_the_same_branch_without_a_record(tmp_path: Path) -> None
 
     assert result.returncode == 1
     assert "Acceptance examination missing" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# #2275 Step 3.1 — pins for the git evidence rule moved to
+# scripts/lib/commit_evidence.py. The guardian keeps its own policy where the
+# feature record reports "unverifiable": whole-history matching with no base,
+# a warning on zero commits.
+# ---------------------------------------------------------------------------
+
+
+def _init_trunk_and_feature(cwd: Path) -> None:
+    """Repo with `main` holding one seed commit and HEAD on `feature`."""
+    _git(cwd, "init", "-q", "--initial-branch=main")
+    _git(cwd, "config", "user.email", "test@test.com")
+    _git(cwd, "config", "user.name", "Test")
+    (cwd / "seed.txt").write_text("seed\n")
+    _git(cwd, "add", "seed.txt")
+    _git(cwd, "commit", "-q", "-m", "chore: seed")
+    _git(cwd, "checkout", "-q", "-b", "feature")
+
+
+def _commit_file(cwd: Path, name: str, message: str) -> None:
+    target = cwd / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("work\n")
+    _git(cwd, "add", name)
+    _git(cwd, "commit", "-q", "-m", message)
+
+
+def test_3_1_pin_orphan_head_matches_against_whole_history(tmp_path: Path) -> None:
+    # No trunk ref: the only commit touching a.py is the root commit, which a
+    # branch-bounded range would never reach. Whole-history matching passes it.
+    _git(tmp_path, "init", "-q", "--initial-branch=dev")
+    _git(tmp_path, "config", "user.email", "test@test.com")
+    _git(tmp_path, "config", "user.name", "Test")
+    _commit_file(tmp_path, "a.py", "chore: root")
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: later")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def test_3_1_pin_orphan_head_subject_fallback_reaches_the_root_commit(
+    tmp_path: Path,
+) -> None:
+    _git(tmp_path, "init", "-q", "--initial-branch=dev")
+    _git(tmp_path, "config", "user.email", "test@test.com")
+    _git(tmp_path, "config", "user.name", "Test")
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "feat: add the parser")
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: later")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] add the parser\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def test_3_1_pin_zero_commits_is_a_warning_not_an_error(tmp_path: Path) -> None:
+    _init_repo(tmp_path)  # no commit at all
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 2, result.stdout
+    issues = json.loads(result.stdout)["issues"]
+    assert [(i["severity"], i["message"]) for i in issues] == [
+        (
+            "warning",
+            "No commits found on this branch — cannot verify commit discipline.",
+        )
+    ]
+
+
+def test_3_1_pin_commit_older_than_the_branch_base_does_not_back_a_step(
+    tmp_path: Path,
+) -> None:
+    _init_trunk_and_feature(tmp_path)
+    _git(tmp_path, "checkout", "-q", "main")
+    _commit_file(tmp_path, "a.py", "feat: on main before the branch point")
+    _git(tmp_path, "checkout", "-q", "-b", "feature2")
+    _commit_file(tmp_path, "other.py", "feat: unrelated branch work")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 1, result.stdout
+    errors = [
+        i for i in json.loads(result.stdout)["issues"] if i["severity"] == "error"
+    ]
+    assert len(errors) == 1
+    assert errors[0]["message"] == (
+        "Done step 'Slice 1: do thing' has no matching commit in git log. "
+        "Expected a commit on this branch that touched one of: a.py"
+    )
+
+
+def test_3_1_pin_heading_anchored_files_back_a_slice_item(tmp_path: Path) -> None:
+    _init_trunk_and_feature(tmp_path)
+    _commit_file(tmp_path, "docs/a.md", "feat: wording that never names the slice")
+    plan = tmp_path / "plan.md"
+    plan.write_text(
+        "### Slice 1: Parse\n\n**Files:** `docs/a.md`\n\n"
+        "## Build Progress\n\n- [x] Slice 1: Parse\n"
+    )
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def test_3_1_pin_heading_anchored_files_name_the_declared_files_when_unbacked(
+    tmp_path: Path,
+) -> None:
+    _init_trunk_and_feature(tmp_path)
+    _commit_file(tmp_path, "docs/a.md", "feat: parse")
+    plan = tmp_path / "plan.md"
+    plan.write_text(
+        "### Slice 1: Parse\n\n**Files:** `docs/b.md`\n\n"
+        "## Build Progress\n\n- [x] Slice 1: Parse\n"
+    )
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 1, result.stdout
+    messages = [i["message"] for i in json.loads(result.stdout)["issues"]]
+    assert any(
+        "Done step 'Slice 1: Parse'" in m and "touched one of: docs/b.md" in m
+        for m in messages
+    ), messages
+
+
+def test_3_1_pin_check_scope_honours_a_declared_glob_and_directory(
+    tmp_path: Path,
+) -> None:
+    _init_trunk_and_feature(tmp_path)
+    _commit_file(tmp_path, "src/auth/login.py", "feat: do thing")
+    _commit_file(tmp_path, "docs/guide/intro.txt", "feat: do thing too")
+    plan = tmp_path / "plan.md"
+    plan.write_text(
+        "- [x] do thing\n- [x] do thing too\n\n"
+        "**Files:** `src/auth/*.py` and `docs/guide/`\n"
+    )
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def test_3_1_pin_check_scope_still_flags_a_file_outside_a_declared_glob(
+    tmp_path: Path,
+) -> None:
+    _init_trunk_and_feature(tmp_path)
+    _commit_file(tmp_path, "src/auth/ok.py", "feat: do thing")
+    _commit_file(tmp_path, "src/other/x.py", "feat: stray edit")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] do thing\n\n**Files:** `src/auth/*.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 2, result.stdout
+    issues = json.loads(result.stdout)["issues"]
+    skipped = [i for i in issues if i.get("rule_id") == "llm-skipped"]
+    assert len(skipped) == 1, issues
+    assert "1 file(s) not declared in plan" in skipped[0]["message"]
+
+
+def test_3_1_pin_a_range_of_only_merge_commits_is_a_warning_not_an_error(
+    tmp_path: Path,
+) -> None:
+    # The base resolves (main moved on), but `--no-merges` leaves the range
+    # with no subject: the zero-commit warning, not a matching error.
+    _init_trunk_and_feature(tmp_path)
+    _git(tmp_path, "checkout", "-q", "main")
+    _commit_file(tmp_path, "a.py", "feat: lands on main")
+    _git(tmp_path, "checkout", "-q", "feature")
+    _git(tmp_path, "merge", "-q", "--no-ff", "-m", "Merge main", "main")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 2, result.stdout
+    issues = json.loads(result.stdout)["issues"]
+    assert [(i["severity"], i["message"]) for i in issues] == [
+        (
+            "warning",
+            "No commits found on this branch — cannot verify commit discipline.",
+        )
+    ]
+
+
+def test_3_1_pin_a_branch_level_with_trunk_matches_against_whole_history(
+    tmp_path: Path,
+) -> None:
+    # Branch and trunk share HEAD, so no base diverges: whole history applies,
+    # and the declared file is in the seed commit.
+    _git(tmp_path, "init", "-q", "--initial-branch=main")
+    _git(tmp_path, "config", "user.email", "test@test.com")
+    _git(tmp_path, "config", "user.name", "Test")
+    _commit_file(tmp_path, "a.py", "chore: seed")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["issues"] == []
+
+
+def _init_orphan(cwd: Path) -> None:
+    _git(cwd, "init", "-q", "--initial-branch=dev")
+    _git(cwd, "config", "user.email", "test@test.com")
+    _git(cwd, "config", "user.name", "Test")
+    _commit_file(cwd, "other.py", "chore: root")
+    _git(cwd, "commit", "-q", "--allow-empty", "-m", "chore: later")
+
+
+def test_3_1_pin_orphan_head_with_a_declared_file_never_committed_fails(
+    tmp_path: Path,
+) -> None:
+    _init_orphan(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] Slice 1: do thing\n\n**Files:** `a.py`\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 1, result.stdout
+    messages = [
+        i["message"]
+        for i in json.loads(result.stdout)["issues"]
+        if i["severity"] == "error"
+    ]
+    assert messages == [
+        (
+            "Done step 'Slice 1: do thing' has no matching commit in git log. "
+            "Expected a commit on this branch that touched one of: a.py"
+        )
+    ]
+
+
+def test_3_1_pin_orphan_head_with_a_subject_that_matches_nothing_fails(
+    tmp_path: Path,
+) -> None:
+    _init_orphan(tmp_path)
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] add the parser\n")
+
+    result = run_pg(plan, "--skip-llm")
+    assert result.returncode == 1, result.stdout
+    messages = [
+        i["message"]
+        for i in json.loads(result.stdout)["issues"]
+        if i["severity"] == "error"
+    ]
+    assert messages == [
+        (
+            "Done step 'add the parser' has no matching commit in git log. "
+            "Expected a commit whose subject contains: 'add the parser'"
+        )
+    ]
+
+
+# ---------------------------------------------------------------------------
+# #2275 — the steps come from the feature record's Build Progress view
+# ---------------------------------------------------------------------------
+
+
+def _clean_repo_with_plan(tmp_path: Path, content: str) -> Path:
+    plan = tmp_path / "plan.md"
+    make_plan(plan, content)
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "initial commit")
+    return plan
+
+
+def _messages(result: subprocess.CompletedProcess) -> list[str]:
+    return [i["message"] for i in json.loads(result.stdout)["issues"]]
+
+
+def test_2275_acceptance_criteria_mirror_is_not_read_as_steps(tmp_path: Path) -> None:
+    plan = _clean_repo_with_plan(
+        tmp_path,
+        "## Build Progress\n\n"
+        "### Acceptance Criteria\n"
+        "- [x] AC1 mirrored criterion\n\n"
+        "### Slices\n"
+        "- [ ] Slice 1: the real work\n",
+    )
+
+    result = run_pg(plan, "--skip-llm", "--pre-pr")
+
+    messages = _messages(result)
+    assert not any("mirrored criterion" in m for m in messages), messages
+    assert any("Slice 1: the real work" in m for m in messages), messages
+
+
+def test_2275_legacy_plan_without_build_progress_heading_is_read_whole(
+    tmp_path: Path,
+) -> None:
+    plan = _clean_repo_with_plan(
+        tmp_path,
+        "## Acceptance Criteria\n"
+        "- [ ] AC1 a criterion\n\n"
+        "- [ ] Step 1.1: first legacy step\n",
+    )
+
+    result = run_pg(plan, "--skip-llm", "--pre-pr")
+
+    messages = _messages(result)
+    assert any("AC1 a criterion" in m for m in messages), messages
+    assert any("first legacy step" in m for m in messages), messages
+
+
+def test_2275_build_progress_with_only_a_mirror_is_the_no_checkbox_error(
+    tmp_path: Path,
+) -> None:
+    plan = _clean_repo_with_plan(
+        tmp_path,
+        "## Build Progress\n\n### Acceptance Criteria\n- [ ] AC1 only the mirror\n",
+    )
+
+    result = run_pg(plan, "--skip-llm")
+
+    assert result.returncode == 1
+    issues = json.loads(result.stdout)["issues"]
+    assert [(i["severity"], i["message"], i["file"]) for i in issues] == [
+        (
+            "error",
+            "No checkbox steps found in plan file: plan.md",
+            str(plan.resolve()),
+        )
+    ]
