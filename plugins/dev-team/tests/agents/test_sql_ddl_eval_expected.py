@@ -135,8 +135,30 @@ def test_the_narrowing_rule_names_its_eval_fixtures():
     assert rule.negative == (load_expected("sql-ddl-type-widening")["fixture"],)
 
 
-def test_narrowing_fixtures_differ_only_in_direction():
-    narrow = (EVALS / "fixtures" / "sql-ddl-type-narrowing.sql").read_text()
-    widen = (EVALS / "fixtures" / "sql-ddl-type-widening.sql").read_text()
-    assert "n bigint" in narrow and "TYPE int" in narrow
-    assert "n int" in widen and "TYPE bigint" in widen
+def test_narrowing_expects_exactly_the_narrowing_error():
+    expected = load_expected("sql-ddl-type-narrowing")["agents"]["sql-review"]
+    assert expected["expectedFindings"] == [
+        {"category": "sql.ddl.type-narrowing", "severity": "error"}
+    ]
+    assert expected["expectedStatus"] == "fail"
+    assert "bigint" in expected["mustMention"]
+
+
+def test_widening_expects_no_findings_and_a_pass():
+    expected = load_expected("sql-ddl-type-widening")["agents"]["sql-review"]
+    assert expected["expectedFindings"] == []
+    assert expected["expectedStatus"] == "pass"
+
+
+def sql_lines(name):
+    text = (EVALS / "fixtures" / name).read_text(encoding="utf-8")
+    return [x for x in text.splitlines() if x.strip() and not x.startswith("--")]
+
+
+def test_widening_fixture_is_the_narrowing_fixture_with_the_types_swapped():
+    swapped = [
+        x.replace("n bigint", "n @@").replace("TYPE int", "TYPE bigint")
+        for x in sql_lines("sql-ddl-type-narrowing.sql")
+    ]
+    swapped = [x.replace("n @@", "n int") for x in swapped]
+    assert swapped == sql_lines("sql-ddl-type-widening.sql")
