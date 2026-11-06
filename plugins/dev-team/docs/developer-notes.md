@@ -7,6 +7,8 @@ development work, you want the [skills reference](skills.md) and the
 [workflows guide](workflows.md) instead. Nothing here changes how the plugin
 behaves in your project.
 
+When an install or a repo's configuration looks broken, run `/doctor` first.
+
 ## Where plugin-development knowledge lives
 
 Plugin-development documentation is spread across a few focused files. This

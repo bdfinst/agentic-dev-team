@@ -13,18 +13,44 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 # Ensure the script's dir is on the path so we can import it as a module.
 _SCRIPT_DIR = Path(__file__).resolve().parents[2] / "plugins" / "dev-team" / "scripts"
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 import plan_gherkin_export  # type: ignore[import-not-found]
+from plan_falsifiers import FALSIFIER_PREFIX  # type: ignore[import-not-found]
+
+_FALSIFIER_COMMENT = f"# {FALSIFIER_PREFIX} the widget is renamed"
 
 _SLICE_ONE_GHERKIN = """\
 Feature: Fancy widget
   Scenario: it works
     Given a widget
     Then it works
+"""
+
+_SLICE_ONE_GHERKIN_WITH_FALSIFIER = f"""\
+Feature: Fancy widget
+  Scenario: it works
+    {_FALSIFIER_COMMENT}
+    Given a widget
+    Then it works
+"""
+
+_SLICE_ONE_OUTLINE_WITH_FALSIFIER = f"""\
+Feature: Fancy widget
+  Scenario Outline: it works for <a>
+    {_FALSIFIER_COMMENT}
+    Given a widget of size <a>
+    Then it works
+
+    Examples:
+      | a |
+      | 1 |
+      | 2 |
 """
 
 _SLICE_TWO_GHERKIN = """\
@@ -35,7 +61,10 @@ Feature: CLI reporting
 """
 
 
-def _plan_text(decision_line: str = "**Gherkin persistence**: features") -> str:
+def _plan_text(
+    decision_line: str = "**Gherkin persistence**: features",
+    slice_one_gherkin: str = _SLICE_ONE_GHERKIN,
+) -> str:
     """A minimal two-slice plan in the plan-template shape."""
     return (
         "# Plan: Sample widget\n"
@@ -58,7 +87,7 @@ def _plan_text(decision_line: str = "**Gherkin persistence**: features") -> str:
         "**Behavior:**\n"
         "\n"
         "```gherkin\n"
-        + _SLICE_ONE_GHERKIN
+        + slice_one_gherkin
         + "```\n"
         "\n"
         "**Steps:**\n"
@@ -419,3 +448,36 @@ def test_cli_missing_plan_file_exits_nonzero_naming_path(tmp_path: Path) -> None
     result = _run_cli("plans/no-such-plan.md", cwd=tmp_path)
     assert result.returncode != 0
     assert "no-such-plan.md" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# Falsifier comment preservation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("block", "title_prefix"),
+    [
+        (_SLICE_ONE_GHERKIN_WITH_FALSIFIER, "Scenario:"),
+        (_SLICE_ONE_OUTLINE_WITH_FALSIFIER, "Scenario Outline:"),
+    ],
+    ids=["scenario", "scenario-outline"],
+)
+def test_falsifier_comment_is_preserved_in_the_feature_file(
+    tmp_path: Path, block: str, title_prefix: str
+) -> None:
+    """The export keeps the `# Still passes if:` comment on the line directly
+    after the scenario title, with the block otherwise verbatim."""
+    plan = _write_plan(tmp_path, slice_one_gherkin=block)
+    plan_gherkin_export.export_plan(plan, tmp_path)
+    exported = (
+        tmp_path
+        / "features"
+        / "plan-sample-widget"
+        / "slice-1-fancy-widget-api.feature"
+    ).read_text(encoding="utf-8")
+    assert exported == block
+    lines = [line.strip() for line in exported.splitlines()]
+    title_idx = next(i for i, line in enumerate(lines) if line.startswith(title_prefix))
+    comment_idx = lines.index(_FALSIFIER_COMMENT)
+    assert comment_idx == title_idx + 1

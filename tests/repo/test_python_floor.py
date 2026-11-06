@@ -75,7 +75,11 @@ See the "deterministic tools over inference" rule in the repo CLAUDE.md.
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -90,6 +94,22 @@ from _ci_local_invocation import (
     without_comments,
 )
 from _repo_root import REPO_ROOT
+
+DOCTOR_SCRIPTS = REPO_ROOT / "plugins" / "dev-team" / "scripts"
+
+
+def _doctor(monkeypatch):
+    """The shipped ``doctor.py`` module, importable by name for one test."""
+    monkeypatch.syspath_prepend(str(DOCTOR_SCRIPTS))
+    import doctor
+
+    return doctor
+
+
+def _doctor_checks(monkeypatch):
+    """The shipped ``/doctor`` checks module: it restates the floor for its own check."""
+    return _doctor(monkeypatch)._checks()
+
 
 #: The bash function name every parser call below is scoped to.
 FLOOR_FN = "chk_python_floor"
@@ -135,6 +155,7 @@ FLOOR_TEST_SLICE = (
     "plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py",
     "plugins/dev-team/tests/scripts/test_coverage_discovery_js.py",
     "plugins/dev-team/tests/scripts/test_autoship_reclaim.py",
+    "tests/scripts/test_doctor.py",
 )
 
 #: Issue #1829: `FLOOR_TEST_SLICE` above is hand-maintained, so a new shipped,
@@ -162,6 +183,11 @@ SLICE_EXCLUSIONS = {
     "autoship_group.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
     "autoship_proposals.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
     "autoship_queue.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
+    "build_candidates.py": "stdlib argparse/collections.abc/json/math/pathlib/re/sys only (plus the build_candidates_git and build_candidates_model modules); no floor-sensitive runtime API",
+    "build_candidates_git.py": "stdlib collections.abc/dataclasses/math/os/pathlib/re/signal/subprocess/sys only (plus build_candidates_model and lib/plan_parse); no floor-sensitive runtime API",
+    "build_candidates_model.py": "stdlib collections.abc/dataclasses/json/math/pathlib/re/typing only; no floor-sensitive runtime API",
+    "plan_summary_record.py": "stdlib argparse/dataclasses/os/pathlib/re/stat/sys/tempfile/typing only (plus build_candidates_model and plan_markdown); no floor-sensitive runtime API",
+    "plan_markdown.py": "stdlib dataclasses/re only; no floor-sensitive runtime API",
     "build_jobs.py": "stdlib os/sys only; no floor-sensitive runtime API",
     "build_rollback_point.py": (
         "stdlib argparse/json/subprocess/pathlib only; its datetime usage is "
@@ -250,11 +276,33 @@ SLICE_EXCLUSIONS = {
         "zipfile/pathlib only; no floor-sensitive runtime API"
     ),
     "issue_deps.py": "stdlib json/os/subprocess/pathlib only; no floor-sensitive runtime API",
+    "lane.py": (
+        "stdlib argparse/collections.abc/dataclasses/importlib.util/os/"
+        "pathlib/re/shlex/sys/typing, lane_core, git_origin_host and the "
+        "hooks/lib gate libraries artifact_paths/git_safe_diff/"
+        "review_gate_hash (pre_pr_review is loaded by path, not imported); "
+        "the floor gate byte-compiles and imports it under "
+        "the oldest interpreter, and its tests run only in the default "
+        "pytest gate; no floor-sensitive runtime API; import whitelist "
+        "pinned by an AST test (tests/scripts/test_lane*.py)"
+    ),
+    "lane_core.py": (
+        "stdlib collections.abc/contextlib/dataclasses/functools/os/pathlib/"
+        "re/shlex/subprocess/sys/unicodedata and review_gate_hash only; the "
+        "floor gate "
+        "byte-compiles and imports it under the oldest interpreter, and its "
+        "tests run only in the default pytest gate; no floor-sensitive "
+        "runtime API; import whitelist pinned by an AST test "
+        "(tests/scripts/test_lane*.py)"
+    ),
     "mutation_stack_sections.py": (
         "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"
     ),
     "plan_gherkin_export.py": (
         "stdlib argparse/re/pathlib/typing only; no floor-sensitive runtime API"
+    ),
+    "plan_falsifiers.py": (
+        "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
     ),
     "plan_waves.py": (
         "stdlib argparse/fnmatch/json/re/pathlib only; no floor-sensitive "
@@ -448,6 +496,36 @@ class TestTheFloorIsDeclaredOnce:
         assert re.search(r"Python\s+" + re.escape(FLOOR_DOTTED), ADR.read_text(encoding="utf-8"))
 
 
+    def test_the_doctor_python_floor_check_states_the_same_floor(self, monkeypatch):
+        """``/doctor``'s ``python-floor`` check holds the floor as a tuple and in
+        its fix text; both are built from ``FLOOR_DOTTED`` here, not restated."""
+        doctor_checks = _doctor_checks(monkeypatch)
+
+        assert ".".join(map(str, doctor_checks.PYTHON_FLOOR)) == FLOOR_DOTTED
+        assert FLOOR_DOTTED in doctor_checks.FLOOR_FIX
+
+
+FAKE_CALLS_LOG = "fake-calls.log"
+
+
+def report_json(check_id: str, status: str, summary: str, exit_code: int = 1) -> str:
+    """A shell snippet printing a one-check ``doctor.py --json`` report."""
+    report = json.dumps(
+        {"checks": [{"id": check_id, "status": status, "summary": summary}]}
+    )
+    return f"echo '{report}'; exit {exit_code}"
+
+
+#: What ``doctor.py --json`` prints under an interpreter below the floor.
+FLOOR_FAIL_REPORT = report_json("python-floor", "fail", "/x is 3.8.1; floor is 3.10")
+
+
+def _below_floor_helpers(ci_local: str) -> str:
+    """The text of ``ci-local.sh`` from the below-floor list to ``chk_python_floor``."""
+    start = ci_local.index("PROBE_BELOW_FLOOR_PYTHONS=")
+    return ci_local[start : ci_local.index(f"\n{FLOOR_FN}() {{")]
+
+
 def _floor_check_body(ci_local: str) -> str:
     """The text of `chk_python_floor`'s function body. Thin wrapper over the
     shared `check_body()` in `_ci_local_invocation`."""
@@ -575,6 +653,259 @@ class TestTheFloorIsProvenByRunningIt:
             "check first that it does not reduce what actually executes "
             "(--collect-only, --ignore, --deselect, -k, -m all do, silently)."
         )
+
+    def test_the_floor_check_runs_doctor_below_the_floor_before_the_slice(
+        self, ci_local
+    ):
+        """``doctor.py`` must answer on an interpreter older than the floor: the
+        ``--probe`` line, and a full report whose python-floor row names the floor
+        instead of a traceback. Parse tests cannot show either runs there, so the
+        gate runs both; this pins that it keeps doing so, on exactly the two
+        versions below the floor."""
+        code = without_comments(_floor_check_body(ci_local))
+        call = '_check_doctor_probe_below_floor "$py310" || return 1'
+
+        assert call in code, f"chk_python_floor no longer runs `{call}`"
+        assert code.index(call) < code.index("-m pytest"), (
+            "the below-floor probe must run before the pytest invocation, which "
+            "has to stay the function's last command"
+        )
+        assigned = re.findall(
+            r'(?m)^PROBE_BELOW_FLOOR_PYTHONS="([^"]*)"$', without_comments(ci_local)
+        )
+        assert assigned == ["3.8 3.9"]
+
+    @staticmethod
+    def _fake_interpreter(tmp_path: Path, probe_body: str, json_body: str) -> Path:
+        """A shell script standing in for a below-floor Python: it logs, tab
+        separated, the plugin root, config dir, working directory,
+        ``DEV_TEAM_PYTHON`` and ``GIT_CEILING_DIRECTORIES`` it was called with
+        and then its arguments, and answers ``--probe`` and ``--json`` as the
+        bodies say."""
+        fake = tmp_path / "fake-python"
+        fake.write_text(
+            "#!/bin/sh\n"
+            "printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \"$CLAUDE_PLUGIN_ROOT\" "
+            f"""\"$CLAUDE_CONFIG_DIR\" \"$PWD\" \"$DEV_TEAM_PYTHON\" """
+            f"""\"$GIT_CEILING_DIRECTORIES\" \"$*\" """
+            f">> '{tmp_path / FAKE_CALLS_LOG}'\n"
+            'case "$*" in\n'
+            f"  *--probe*) {probe_body} ;;\n"
+            f"  *--json*) {json_body} ;;\n"
+            "esac\n"
+        )
+        fake.chmod(0o755)
+        return fake
+
+    @staticmethod
+    def _run_probe_gate(
+        ci_local: str,
+        env_overrides: dict[str, str],
+        resolver_body: str = "return 1",
+        versions: str | None = None,
+        cwd: Path = REPO_ROOT,
+    ):
+        """Run ``_check_doctor_probe_below_floor`` from ``cwd`` (the real gate runs
+        from the repo root) with ``_resolve_below_floor_python`` replaced by
+        ``resolver_body`` (default: no interpreter resolvable) and this
+        interpreter as the JSON judge."""
+        env = {
+            k: v for k, v in os.environ.items() if k not in ("CI", "GITHUB_ACTIONS")
+        }
+        env.update(env_overrides)
+        override = f'\nPROBE_BELOW_FLOOR_PYTHONS="{versions}"' if versions else ""
+        script = (
+            "set -uo pipefail\n"  # the options the gate itself runs under
+            + _below_floor_helpers(ci_local)
+            + override
+            + f"\n_resolve_below_floor_python() {{ {resolver_body}; }}"
+            + f'\n_check_doctor_probe_below_floor "{sys.executable}"\n'
+        )
+        return subprocess.run(
+            ["bash", "-c", script],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=cwd,
+            check=False,
+        )
+
+    def test_an_unresolvable_below_floor_interpreter_notes_and_continues_locally(
+        self, ci_local
+    ):
+        done = self._run_probe_gate(ci_local, {})
+
+        assert done.returncode == 0
+        assert "note: no Python 3.8 available" in done.stderr
+
+    @pytest.mark.parametrize(
+        ("probe_body", "json_body", "expected_returncode"),
+        [
+            ('echo "/x 3.8.1"; exit 3', FLOOR_FAIL_REPORT, 1),
+            ('echo "/x 3.8.1"; echo "/x 3.8.1"', FLOOR_FAIL_REPORT, 1),
+            ('echo "/x 3.12.1"', FLOOR_FAIL_REPORT, 1),
+            ('echo "/x 3.8.1"', FLOOR_FAIL_REPORT, 0),
+            (
+                'echo "/x 3.8.1"',
+                report_json(
+                    "python-floor", "fail", "/x is 3.8.1; floor is 3.10", exit_code=2
+                ),
+                1,
+            ),
+            ('echo "/x 3.8.1"', "echo not json; exit 1", 1),
+            ('echo "/x 3.8.1"', report_json("python-floor", "ok", "fine"), 1),
+            ('echo "/x 3.8.1"', report_json("hook-registration", "fail", "x"), 1),
+            (
+                'echo "/x 3.8.1"',
+                report_json("python-floor", "fail", "internal error: AttributeError"),
+                1,
+            ),
+        ],
+        ids=[
+            "probe-exits-non-zero",
+            "probe-two-lines",
+            "probe-wrong-minor",
+            "probe-and-report-good",
+            "report-crashes",
+            "report-not-json",
+            "floor-row-not-a-fail",
+            "no-floor-row",
+            "internal-error-row",
+        ],
+    )
+    def test_the_below_floor_gate_judges_what_the_interpreter_prints(
+        self, ci_local, tmp_path, probe_body, json_body, expected_returncode
+    ):
+        """A resolved interpreter must exit 0 on ``--probe`` with exactly one
+        ``<path> <requested>.<micro>`` line, and its ``--json`` report must be
+        valid, carry a python-floor fail row and no internal error."""
+        fake = self._fake_interpreter(tmp_path, probe_body, json_body)
+
+        done = self._run_probe_gate(
+            ci_local, {}, resolver_body=f'echo "{fake}"', versions="3.8"
+        )
+
+        assert done.returncode == expected_returncode, done.stderr
+
+    def _run_logged_gate(
+        self,
+        ci_local,
+        tmp_path,
+        json_body=FLOOR_FAIL_REPORT,
+        returncode=0,
+        env=None,
+    ):
+        """Run the gate once, with ``RUNDIR`` set to ``tmp_path / "run"``, against
+        a fake that answers ``--json`` with ``json_body``; return the fake and
+        the two logged calls (each split into its six tab-separated fields,
+        arguments last)."""
+        fake = self._fake_interpreter(tmp_path, 'echo "/x 3.8.1"', json_body)
+        (tmp_path / "run").mkdir()
+
+        done = self._run_probe_gate(
+            ci_local,
+            {**(env or {}), "RUNDIR": str(tmp_path / "run")},
+            resolver_body=f'echo "{fake}"',
+            versions="3.8",
+        )
+
+        assert done.returncode == returncode, done.stderr
+        probe_call, report_call = (
+            line.split("\t")
+            for line in (tmp_path / FAKE_CALLS_LOG).read_text().splitlines()
+        )
+        return fake, probe_call, report_call
+
+    def test_the_gate_runs_the_probe_then_the_report_by_the_repo_root_path(
+        self, ci_local, tmp_path
+    ):
+        _, probe_call, report_call = self._run_logged_gate(ci_local, tmp_path)
+
+        script = "plugins/dev-team/scripts/doctor.py"
+        assert probe_call[-1] == f"{script} --probe"
+        assert report_call[-1].startswith(f"{script} --json --project ")
+        assert (REPO_ROOT / script).is_file()  # the relative path is the repo-root one
+
+    def test_the_gate_pins_the_reports_environment_to_this_checkout(
+        self, ci_local, tmp_path
+    ):
+        decoys = {
+            "CLAUDE_PLUGIN_ROOT": "/decoy/plugin",
+            "CLAUDE_CONFIG_DIR": "/decoy/config",
+            "DEV_TEAM_PYTHON": "/decoy/python",
+            "GIT_CEILING_DIRECTORIES": "/decoy/ceiling",
+        }
+        fake, _, report_call = self._run_logged_gate(
+            ci_local, tmp_path, env=decoys
+        )
+
+        plugin_root, config_dir, cwd, dev_team_python, ceiling, args = report_call
+        project = Path(args.split("--project ", 1)[1])
+        assert Path(plugin_root) == REPO_ROOT / "plugins" / "dev-team"
+        assert Path(config_dir) == project / "config"
+        assert Path(cwd).resolve() == REPO_ROOT.resolve()
+        assert dev_team_python == str(fake)
+        assert Path(ceiling) == project
+
+    @pytest.mark.parametrize(
+        ("json_body", "returncode"),
+        [
+            (FLOOR_FAIL_REPORT, 0),
+            (report_json("python-floor", "fail", "x", exit_code=2), 1),
+        ],
+        ids=["report-judged", "report-crashes"],
+    )
+    def test_the_gate_removes_its_scratch_project(
+        self, ci_local, tmp_path, json_body, returncode
+    ):
+        _, _, report_call = self._run_logged_gate(
+            ci_local, tmp_path, json_body, returncode
+        )
+
+        project = Path(report_call[-1].split("--project ", 1)[1])
+        assert project.parent == tmp_path / "run"  # under the dir the parent removes
+        assert project.name.startswith("doctor-floor-")
+        assert not project.exists()
+
+    def test_the_validator_ids_are_the_ones_doctor_emits(self, ci_local, monkeypatch):
+        """The gate judges the report by two literals it cannot import: the
+        python-floor row id and the ``internal error`` summary prefix. Tie both
+        to the producers."""
+        doctor = _doctor(monkeypatch)
+        snippet = re.search(
+            r"(?s)DOCTOR_FLOOR_REPORT_CHECK='(.*?)'\n", _below_floor_helpers(ci_local)
+        )
+        assert snippet, "the validator snippet moved"
+        [floor_id] = re.findall(r'c\["id"\] == "([^"]+)"', snippet.group(1))
+        [prefix] = re.findall(r'startswith\("([^"]+)"\)', snippet.group(1))
+
+        assert floor_id in [check_id for check_id, _ in doctor._checks().CHECKS]
+        assert doctor._format_internal_error(ValueError("x")).startswith(prefix)
+
+    def test_a_failing_second_interpreter_still_fails_the_gate_after_a_skipped_first(
+        self, ci_local, tmp_path
+    ):
+        fake = self._fake_interpreter(tmp_path, "exit 3", FLOOR_FAIL_REPORT)
+
+        done = self._run_probe_gate(
+            ci_local,
+            {},
+            resolver_body=f'case "$1" in 3.8) return 1;; *) echo "{fake}";; esac',
+            versions="3.8 3.9",
+        )
+
+        assert done.returncode == 1
+        assert "note: no Python 3.8 available" in done.stderr
+        assert "exited non-zero under Python 3.9" in done.stderr
+
+    @pytest.mark.parametrize("variable", ["CI", "GITHUB_ACTIONS"])
+    def test_an_unresolvable_below_floor_interpreter_fails_in_ci(
+        self, ci_local, variable
+    ):
+        done = self._run_probe_gate(ci_local, {variable: "true"})
+
+        assert done.returncode == 1
+        assert "does not skip there" in done.stderr
 
     def test_the_check_does_not_suppress_its_own_verdict(self, ci_local):
         """The pytest invocation's exit status IS this gate's verdict, and this

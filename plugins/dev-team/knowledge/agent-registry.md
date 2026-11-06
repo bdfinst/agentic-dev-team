@@ -12,7 +12,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Codebase Recon | `agents/codebase-recon.md` | ~2,858 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis, and at the start of Phase 1: Research when no fresh artifact exists (see `${CLAUDE_PLUGIN_ROOT}/knowledge/three-phase-workflow.md#codebase-recon-dispatch`). |
 | Gherkin Quality Critic | `agents/gherkin-quality-critic.md` | ~1,176 | Adversarial review of freshly-derived/authored Gherkin — coverage gaps and positive/negative balance. Dispatched by `/gherkin-derive` and `/gherkin-public`, never directly. |
 | Orchestrator | `agents/orchestrator.md` | 5,510 | Task routing, model selection, review coordination |
-| Plan Review Acceptance Critic | `agents/plan-review-acceptance.md` | ~1,386 | Adversarial plan review — acceptance criteria, Gherkin scenario, and TDD step traceability quality. Dispatched by `/plan` step 5b, never directly. |
+| Plan Review Acceptance Critic | `agents/plan-review-acceptance.md` | ~1,838 | Adversarial plan review — acceptance criteria, Gherkin scenario and falsifier (`# Still passes if:`), and step traceability quality. Dispatched by `/plan` step 5b, never directly. |
 | Plan Review Design Critic | `agents/plan-review-design.md` | ~1,227 | Adversarial plan review — coupling, abstraction, structural risk, and pattern-adherence quality. Dispatched by `/plan` step 5b, never directly. |
 | Plan Review Parallelization Critic | `agents/plan-review-parallelization.md` | ~1,182 | Adversarial plan review — same-wave file-collision and behavioral-coupling verification. Dispatched by `/plan` step 5b, never directly. |
 | Plan Review Strategic Critic | `agents/plan-review-strategic.md` | ~1,379 | Adversarial plan review — problem-solution fit, scope, risk, opportunity cost. Dispatched by `/plan` step 5b, never directly. |
@@ -110,7 +110,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Autoship | `skills/autoship/SKILL.md` | ~12,757 | Orchestrator, `/autoship` command |
 | API Design | `skills/api-design/SKILL.md` | 1,437 | Architect, Software Engineer |
 | Apply Test Doubles | `skills/apply-test-doubles/SKILL.md` | ~4,706 | `/apply-test-doubles` command |
-| Branch Workflow | `skills/branch-workflow/SKILL.md` | 1,482 | Orchestrator, Software Engineer |
+| Branch Workflow | `skills/branch-workflow/SKILL.md` | 1,631 | Orchestrator, Software Engineer |
 | Browser Testing | `skills/browser-testing/SKILL.md` | 901 | QA Engineer |
 | CD Test Architecture | `skills/cd-test-architecture/SKILL.md` | ~9,622 | QA Engineer, Architect, Platform Engineer, Software Engineer |
 | CI Debugging | `skills/ci-debugging/SKILL.md` | 1,368 | Platform Engineer, Software Engineer, QA Engineer |
@@ -137,6 +137,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 1,035 | Architect, Software Engineer |
 | Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | 2,900 | Orchestrator, Product Manager |
 | Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~3,243 | `/test-improve` (Phase 4), QA Engineer |
+| Lane | `skills/lane/SKILL.md` | ~2,162 | `/lane` command |
 | Legacy Code | `skills/legacy-code/SKILL.md` | 2,326 | Software Engineer, QA Engineer, Architect |
 | Long Eval | `skills/long-eval/SKILL.md` | ~1,543 | QA Engineer, `/long-eval` command, standalone |
 | Mermaid Diagramming | `skills/mermaid-diagramming/SKILL.md` | ~1,557 | Architect, Software Engineer, Tech Writer |
@@ -151,6 +152,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~3,163 | Orchestrator, Software Engineer, Architect |
 | Source Verification | `skills/source-verification/SKILL.md` | ~2,300 | `/source-verification` command, doc-review |
 | Specs | `skills/specs/SKILL.md` | ~3,811 | Product Manager, Architect, QA Engineer, Orchestrator |
+| Speculative Build | `skills/speculative-build/SKILL.md` | ~5,388 | `/build` command |
 | Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 3,792 | Orchestrator, `/code-review` |
 | Stryker xunit.v2 Shim | `skills/stryker-xunit-v2-shim/SKILL.md` | ~3,945 | `/mutation-testing`, `/test-improve` (mutation on .NET/xunit.v3), QA Engineer, standalone |
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 2,129 | Software Engineer, QA Engineer |
