@@ -574,10 +574,13 @@ def test_pace_warns_only_for_unpriced_models_inside_the_window(tmp_path: Path) -
 @pytest.mark.parametrize(
     "model_id",
     [
+        "claude-opus-5-5",
         "claude-opus-5",
         "claude-opus-4-8",
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "claude-haiku-4-5",
+        "claude-haiku-5-5",
         "claude-fable-5",
         "claude-mythos-5",
     ],
@@ -653,7 +656,21 @@ def test_the_opus_alias_points_at_the_current_default_opus() -> None:
     """The alias is what a bare `opus` in a transcript resolves to; leaving it
     on a superseded snapshot silently prices new spend at the old model."""
     pricing = _pricing()
-    assert pricing["aliases"]["opus"] == "claude-opus-5"
+    assert pricing["aliases"]["opus"] == "claude-opus-5-5"
+
+
+def test_the_sonnet_alias_points_at_the_current_default_sonnet() -> None:
+    """The alias is what a bare `sonnet` in a transcript resolves to; leaving it
+    on a superseded snapshot silently prices new spend at the old model."""
+    pricing = _pricing()
+    assert pricing["aliases"]["sonnet"] == "claude-sonnet-5-5"
+
+
+def test_the_haiku_alias_points_at_the_current_default_haiku() -> None:
+    """The alias is what a bare `haiku` in a transcript resolves to; leaving it
+    on a superseded snapshot silently prices new spend at the old model."""
+    pricing = _pricing()
+    assert pricing["aliases"]["haiku"] == "claude-haiku-5-5"
 
 
 def test_regression_and_pace_tolerate_pre_existing_log_lines_with_no_unpriced_key(

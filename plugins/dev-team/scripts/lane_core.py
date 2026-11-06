@@ -1,0 +1,1296 @@
+#!/usr/bin/env python3
+"""lane_core -- refusal registry, git seam, trunk and lane detection for lane.py.
+
+`lane.py` (open, compose, integrate) builds on this module. It owns the parts
+every command shares:
+
+- `Refusal` and `REFUSALS`: the what/why/how contract. A refusal is data; the
+  renderer prints it as a `refused:`/`why:`/`how:` block on stderr.
+- `_run` and `_git`: the only seam for the process calls this module makes
+  itself. `_run` holds the single `subprocess.run` call; `_git` guards the
+  argv before it reaches `_run`. Two things are delegated and bypass the guard
+  and this module's timeout: `review_gate_hash.default_base_ref` (trunk
+  resolution), and the review-gate computation in `lane.py` (`_review_gate_refusal`:
+  the gate hash, the changed-file list and the PR hook). The gate computation
+  runs under `filtered_process_environment` and passes the timeout to the one
+  call that takes one; a runtime spy in the tests covers both. Known limit,
+  tracked as a follow-up: the delegated calls (`branch_diff_gate_hash`,
+  `project_root`, `default_base_ref`) carry no lane timeout, and `_run` kills
+  only the direct git process on a timeout, not its process group.
+- `resolve_trunk_commit`, `local_branch_of` and `lane_context`: which ref is
+  the trunk, which local branch it maps to (None for a tag or SHA), and
+  whether the working directory is a lane.
+- `worktrees`, `branch_exists`, `branch_commit`, `branch_worktree`,
+  `branch_checked_out` and `primary_checkout`: the one worktree-listing parser and the questions built
+  on it.
+- `dirty_paths`: the one reader of `git status`; `worktree_state`: the one
+  reader of "is this work tree clean" (dirty paths and an unfinished merge);
+  `origin_url`: the one reader of the `origin` remote.
+- `head_commit`, `commit_tree`, `head_tree`, `is_ancestor`,
+  `is_ancestor_strict`, `unmerged_paths`,
+  `has_unmerged_entries` and `merge_in_progress`: one reader per fact about the
+  history and merge state of a work tree.
+- `local_ref`: the full ref of a local branch.
+- `local_files_a_merge_would_overwrite`: the ignored files a merge would clobber.
+- `git_attempt`: a git call whose failure the caller handles itself.
+- `git_message`: the one summary of a failed git call's output.
+- `display_text`: how `render_block` shows an untrusted value (a path, git's
+  stderr) without letting it forge or hide a line of the block.
+
+Import whitelist (pinned by an AST test): the standard library and
+`review_gate_hash`. Stdlib only otherwise. See ADR 0014 and ADR 0031.
+
+This module never pushes, never skips git hooks and never forces anything.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import functools
+import os
+import re
+import shlex
+import subprocess
+import sys
+import unicodedata
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+
+# The one owner of the import-path setup for every lane*.py: `lane.py` imports
+# this module before any hooks/lib library, and this module puts `hooks/lib`
+# (and its own directory, for `git_origin_host`) on `sys.path` first.
+_HERE = Path(__file__).resolve().parent
+for _import_dir in (_HERE.parent / "hooks" / "lib", _HERE):
+    if str(_import_dir) not in sys.path:
+        sys.path.insert(0, str(_import_dir))
+
+from review_gate_hash import default_base_ref
+
+EXIT_OK = 0
+EXIT_REFUSED = 1
+EXIT_USAGE = 2
+
+#: Seconds before a git call is abandoned. Nothing here waits on a person.
+GIT_TIMEOUT_SECONDS = 120
+
+#: The `git command failed` detail for a call that hit `GIT_TIMEOUT_SECONDS`.
+GIT_TIMED_OUT_DETAIL = f"timed out after {GIT_TIMEOUT_SECONDS} s"
+
+#: What a `git status -z` entry looks like: two status letters, a space, the
+#: path. A rename or copy entry (`R`, `C`) is followed by a second entry that
+#: names its origin.
+PORCELAIN_STATUS_WIDTH = 2
+PORCELAIN_PATH_OFFSET = PORCELAIN_STATUS_WIDTH + 1
+PORCELAIN_ORIGIN_FOLLOWS = frozenset("RC")
+
+#: Separates the paths of every `-z` listing.
+NUL = "\0"
+
+#: Exists in the git directory only while a merge is unfinished.
+MERGE_HEAD = "MERGE_HEAD"
+
+NO_GIT_MESSAGE = "git gave no message"
+#: The claim every restored-lane refusal ends with; made only after a verified restore.
+RESTORED_CLAUSE = "the lane was restored to its state before compose"
+
+GIT_DIR_NAME = ".git"
+ORIGIN_REMOTE = "origin"
+HEAD_REFS_PREFIX = "refs/heads/"
+REMOTE_REFS_PREFIX = "refs/remotes/"
+WORKTREE_LINE_PREFIX = "worktree "
+BRANCH_LINE_PREFIX = "branch "
+
+#: A ref the user may pass as `--trunk` and the form a lane name must take.
+#: Validated before git sees it, so a value starting with `-` can never be read
+#: as an option.
+REF_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
+LANE_NAME_PATTERN = REF_PATTERN
+
+#: Subcommands that publish history. This tool never runs them.
+FORBIDDEN_SUBCOMMANDS = frozenset({"push", "send-pack"})
+
+#: This tool never writes git config, so it never runs the `config` subcommand.
+CONFIG_SUBCOMMAND = "config"
+
+#: Long options that skip a hook, a signature or a safety check.
+FORBIDDEN_LONG_OPTIONS = frozenset(
+    {
+        "--no-verify",
+        "--force",
+        "--force-with-lease",
+        "--force-if-includes",
+        "--no-gpg-sign",
+    }
+)
+
+#: Tokens that skip a hook, a signature or a safety check. Matched by exact
+#: equality (or `--name=value`), never by substring. Other spellings of the
+#: same options are caught by the abbreviation and short-cluster rules.
+FORBIDDEN_TOKENS = FORBIDDEN_LONG_OPTIONS | {"-f"}
+
+#: Starts a long option.
+LONG_OPTION_PREFIX = "--"
+
+#: Git accepts any unambiguous prefix of a long option, even `--f` or `--fo`
+#: for `--force` (under `worktree remove`). A prefix of a forbidden option at
+#: least this long (after `--`) is refused too; a bare `--` is not a prefix.
+MIN_ABBREVIATION_LENGTH = 1
+
+#: A short-option cluster such as `-fd` or `-qf`.
+SHORT_CLUSTER_PATTERN = re.compile(r"-[A-Za-z]+")
+FORCE_SHORT_LETTER = "f"
+
+#: `-n` is refused for these subcommands as deliberate defence: it means
+#: `--no-verify` for commit and am, a different option for merge and rebase.
+NO_VERIFY_SHORT_SUBCOMMANDS = frozenset({"commit", "merge", "am", "rebase"})
+NO_VERIFY_SHORT_LETTER = "n"
+
+#: `-D`, `-M`, `-B` and `-C` force a delete, move, reset or copy here.
+FORCE_UPPER_SUBCOMMANDS = frozenset({"branch", "worktree", "checkout", "switch"})
+FORCE_UPPER_LETTERS = frozenset("DMBC")
+
+#: The only global option lane_core's own calls may put before the subcommand.
+CONFIG_OPTION = "-c"
+ALLOWED_CONFIG_OVERRIDE = "diff.relative=false"
+HOOKS_PATH_NAME = "core.hookspath"
+HOOKS_PATH_PREFIX = f"{HOOKS_PATH_NAME}="
+
+#: A refspec starting with this forces the update.
+FORCE_REFSPEC_PREFIX = "+"
+
+#: Environment variables that redirect or reconfigure git. They are not passed
+#: on to the git calls this module makes.
+GIT_ENV_DROPPED = frozenset(
+    {
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
+        "GIT_EXEC_PATH",
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_NAMESPACE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_ATTR_SOURCE",
+        "GIT_REPLACE_REF_BASE",
+        "GIT_NO_REPLACE_OBJECTS",
+    }
+)
+GIT_ENV_DROPPED_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+
+WHAT_GIT_COMMAND_FAILED = "git command failed"
+WHAT_INVALID_LANE_NAME = "invalid lane name"
+WHAT_BRANCH_EXISTS = "branch exists"
+WHAT_PATH_EXISTS = "path exists"
+WHAT_TRUNK_UNRESOLVED = "trunk ref cannot be resolved"
+WHAT_NOT_A_GIT_REPOSITORY = "not a git repository"
+WHAT_NOT_IN_A_LANE = "not in a lane"
+WHAT_LANE_HAS_UNCOMMITTED_CHANGES = "lane has uncommitted changes"
+WHAT_COMPOSE_CONFLICT = "compose conflict"
+WHAT_COMPOSE_MERGE_FAILED = "compose merge failed"
+WHAT_COMPOSE_RESTORE_UNVERIFIED = "compose restore unverified"
+WHAT_TREE_MISMATCH = "tree mismatch"
+WHAT_TRUNK_MOVED = "trunk moved"
+WHAT_TRUNK_CANNOT_FAST_FORWARD = "trunk cannot fast-forward"
+WHAT_REVIEW_GATE = "review gate stale or missing"
+WHAT_PR_REPOSITORY = "PR repository"
+WHAT_INVALID_IDENTITY_ARGUMENT = "invalid identity argument"
+WHAT_INTEGRATE_STEP_FAILED = "integrate step failed"
+
+#: The apply steps of `integrate`, by the name `done:` and the failure block use.
+STEP_FAST_FORWARD = "fast-forward"
+STEP_GATE_FILE_REMOVAL = "gate file removal"
+STEP_WORKTREE_REMOVAL = "worktree removal"
+STEP_BRANCH_DELETION = "branch deletion"
+
+#: Why an apply step cannot be repeated by hand; the key into `NOT_REPEATABLE_HOW`.
+#: The branch deletion's own safety check declined: the lane branch is kept.
+NOT_REPEATABLE_BRANCH_KEPT = "branch kept"
+#: The fast-forward ran but the trunk branch is not at the lane's HEAD.
+NOT_REPEATABLE_TRUNK_NOT_AT_LANE_HEAD = "trunk not at lane head"
+NOT_REPEATABLE_HOW = {
+    NOT_REPEATABLE_BRANCH_KEPT: (
+        "the lane branch is kept because the trunk branch does not contain its "
+        "HEAD; check where the trunk branch is, and delete the lane branch only "
+        "when its commits are safe"
+    ),
+    NOT_REPEATABLE_TRUNK_NOT_AT_LANE_HEAD: (
+        "the lane and its branch are kept; look at the trunk worktree and the "
+        "trunk branch with git before doing anything else"
+    ),
+}
+
+#: `git merge-base --is-ancestor` and `git rev-parse --quiet` answer with these.
+GIT_ANSWER_YES = 0
+GIT_ANSWER_NO = 1
+
+#: Unicode categories `display_text` escapes: control (C0, DEL, C1), format
+#: (bidi controls such as U+202E, zero-width marks), line separator (U+2028)
+#: and paragraph separator (U+2029).
+DISPLAY_ESCAPED_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
+
+#: The largest code point `display_text` shows as `\\xNN`, and as `\\uNNNN`.
+MAX_LATIN1_CODE_POINT = 0xFF
+MAX_BMP_CODE_POINT = 0xFFFF
+
+#: Items (paths, git message lines) named before a list says "and N more".
+MAX_LISTED_ITEMS = 10
+
+
+@dataclass(frozen=True)
+class Refusal:
+    """What was refused, why, and how to fix it. Every field is non-empty."""
+
+    what: str
+    why: str
+    how: str
+
+    def __post_init__(self) -> None:
+        for name in ("what", "why", "how"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"Refusal.{name} must be a non-empty string")
+
+
+class RefusalError(Exception):
+    """Raised below the command layer; `lane.main` renders it as a block."""
+
+    def __init__(self, refusal: Refusal) -> None:
+        super().__init__(refusal.what)
+        self.refusal = refusal
+
+
+#: Stable `what` string -> constructor. Each step registers only the entries it
+#: implements, so no commit carries an unimplemented refusal.
+REFUSALS: dict[str, Callable[..., Refusal]] = {}
+
+
+def _building(
+    what: str,
+) -> Callable[[Callable[..., Refusal]], Callable[..., Refusal]]:
+    """Check that a constructor builds refusals of `what`; do not register it.
+
+    For a second constructor of a `what` whose registered constructor is
+    another one.
+    """
+
+    def decorate(constructor: Callable[..., Refusal]) -> Callable[..., Refusal]:
+        @functools.wraps(constructor)
+        def checked(*args: object, **kwargs: object) -> Refusal:
+            refusal = constructor(*args, **kwargs)
+            if refusal.what != what:
+                raise ValueError(
+                    f"{constructor.__name__} is registered as {what!r} "
+                    f"but built {refusal.what!r}"
+                )
+            return refusal
+
+        return checked
+
+    return decorate
+
+
+def _registered(
+    what: str,
+) -> Callable[[Callable[..., Refusal]], Callable[..., Refusal]]:
+    """Register a constructor under `what`; it must build refusals of that `what`."""
+
+    def decorate(constructor: Callable[..., Refusal]) -> Callable[..., Refusal]:
+        checked = _building(what)(constructor)
+        REFUSALS[what] = checked
+        return checked
+
+    return decorate
+
+
+@_registered(WHAT_GIT_COMMAND_FAILED)
+def git_command_failed_refusal(command: str, detail: str) -> Refusal:
+    """`detail` is `git_message` of the failed call, or the guard's reason."""
+    return Refusal(
+        what=WHAT_GIT_COMMAND_FAILED,
+        why=f"{detail.strip() or NO_GIT_MESSAGE} (command: {command})",
+        how=f"fix the cause named in why, then run the failed command again: {command}",
+    )
+
+
+@_registered(WHAT_INVALID_LANE_NAME)
+def invalid_lane_name_refusal(name: str, reason: str) -> Refusal:
+    return Refusal(
+        what=WHAT_INVALID_LANE_NAME,
+        why=f"lane name {name!r} is not usable: {reason}",
+        how=(
+            "use letters, digits, '.', '_', '-' and '/' only, starting with a "
+            "letter or digit, in a form git accepts as a branch name"
+        ),
+    )
+
+
+@_registered(WHAT_BRANCH_EXISTS)
+def branch_exists_refusal(name: str) -> Refusal:
+    return Refusal(
+        what=WHAT_BRANCH_EXISTS,
+        why=f"branch {name!r} already exists in this repository",
+        how=(
+            f"choose another name, or delete the old branch with "
+            f"git branch -d {name} once it is merged"
+        ),
+    )
+
+
+@_registered(WHAT_PATH_EXISTS)
+def path_exists_refusal(path: Path) -> Refusal:
+    return Refusal(
+        what=WHAT_PATH_EXISTS,
+        why=f"{path} already exists",
+        how="pass --path with a directory that does not exist yet, or remove it first",
+    )
+
+
+@_registered(WHAT_TRUNK_UNRESOLVED)
+def trunk_unresolved_refusal(given: str | None, default: str | None = None) -> Refusal:
+    """`given` is the `--trunk` value; `default` is the default trunk found.
+
+    `given` wins. With neither, no --trunk was given and no default trunk exists.
+    """
+    if given is not None:
+        why = f"trunk ref {given!r} does not resolve to a commit"
+    elif default is not None:
+        why = f"the default trunk {default!r} does not resolve to a commit"
+    else:
+        why = "no --trunk was given and no default trunk could be found"
+    return Refusal(
+        what=WHAT_TRUNK_UNRESOLVED,
+        why=why,
+        how="pass --trunk <ref> or run git remote set-head origin -a",
+    )
+
+
+@_registered(WHAT_NOT_A_GIT_REPOSITORY)
+def not_a_git_repository_refusal(cwd: Path) -> Refusal:
+    return Refusal(
+        what=WHAT_NOT_A_GIT_REPOSITORY,
+        why=f"{cwd} is not inside a git work tree",
+        how="run lane.py from inside a git repository (cd into your repository first)",
+    )
+
+
+@_registered(WHAT_NOT_IN_A_LANE)
+def not_in_a_lane_refusal(cwd: Path, trunk_ref: str) -> Refusal:
+    return Refusal(
+        what=WHAT_NOT_IN_A_LANE,
+        why=(
+            f"{cwd} is not in a lane: a lane is a linked worktree on a branch "
+            f"other than the trunk branch (trunk: {trunk_ref})"
+        ),
+        how="create one with lane.py open <name>, then run this command inside it",
+    )
+
+
+def listed_items(items: Sequence[str], separator: str = ", ") -> str:
+    """The first `MAX_LISTED_ITEMS` items joined by `separator`, then "and N more"."""
+    extra = len(items) - MAX_LISTED_ITEMS
+    more = f" and {extra} more" if extra > 0 else ""
+    return f"{separator.join(items[:MAX_LISTED_ITEMS])}{more}"
+
+
+@_registered(WHAT_LANE_HAS_UNCOMMITTED_CHANGES)
+def lane_has_uncommitted_changes_refusal(paths: Sequence[str]) -> Refusal:
+    return Refusal(
+        what=WHAT_LANE_HAS_UNCOMMITTED_CHANGES,
+        why=f"the lane has uncommitted changes: {listed_items(paths)}",
+        how=(
+            "commit or stash the listed paths; if they are .claude/ files, "
+            "add .claude/ to .gitignore (run /setup)"
+        ),
+    )
+
+
+@_building(WHAT_LANE_HAS_UNCOMMITTED_CHANGES)
+def unfinished_merge_refusal(paths: Sequence[str] = ()) -> Refusal:
+    """A merge begun and not concluded; `paths` are the lane's uncommitted paths."""
+    changes = f"; uncommitted paths: {listed_items(paths)}" if paths else ""
+    return Refusal(
+        what=WHAT_LANE_HAS_UNCOMMITTED_CHANGES,
+        why=f"the lane has a merge in progress ({MERGE_HEAD} exists){changes}",
+        how=(
+            "conclude the merge with git commit in the lane, or abort it with "
+            "git merge --abort, then run this command again"
+        ),
+    )
+
+
+def merge_failure_step(target_label: str) -> str:
+    """The step that failed, for `compose_restore_unverified_refusal`."""
+    return f"merging {target_label} failed"
+
+
+def compose_failure_step_after(merged_labels: Sequence[str]) -> str:
+    """The step that failed when no merge itself did: after the merges in `merged_labels`."""
+    if not merged_labels:
+        return "compose failed"
+    return f"compose failed after merging {' and '.join(merged_labels)}"
+
+
+def compose_conflict_cause(paths: Sequence[str]) -> str:
+    return f"conflicts in {listed_items(paths)}"
+
+
+def compose_merge_failed_cause(command: str, detail: str) -> str:
+    """`detail` is git's own message; `command` is the merge that failed."""
+    return f"{detail.strip() or NO_GIT_MESSAGE} (command: {command})"
+
+
+@_registered(WHAT_COMPOSE_CONFLICT)
+def compose_conflict_refusal(target_label: str, paths: Sequence[str]) -> Refusal:
+    """Raised only after the lane was restored."""
+    return Refusal(
+        what=WHAT_COMPOSE_CONFLICT,
+        why=(
+            f"merging {target_label} into the lane {compose_conflict_cause(paths)}; "
+            f"{RESTORED_CLAUSE}"
+        ),
+        how=(
+            f"merge {target_label} by hand in the lane, resolve the conflicts, "
+            "commit, then run compose again"
+        ),
+    )
+
+
+@_registered(WHAT_COMPOSE_MERGE_FAILED)
+def compose_merge_failed_refusal(
+    target_label: str, command: str, detail: str
+) -> Refusal:
+    """Raised only after the lane was restored."""
+    return Refusal(
+        what=WHAT_COMPOSE_MERGE_FAILED,
+        why=(
+            f"git could not merge {target_label}: "
+            f"{compose_merge_failed_cause(command, detail)}; "
+            f"{RESTORED_CLAUSE}"
+        ),
+        how="resolve the cause named in why, then run compose again",
+    )
+
+
+@_registered(WHAT_COMPOSE_RESTORE_UNVERIFIED)
+def compose_restore_unverified_refusal(
+    failed_step: str, pre_compose_head: str, cause: str
+) -> Refusal:
+    """`failed_step` is `merge_failure_step` or `compose_failure_step_after`.
+
+    `cause` is why it failed, without any claim about the lane's state.
+    """
+    return Refusal(
+        what=WHAT_COMPOSE_RESTORE_UNVERIFIED,
+        why=(
+            f"{failed_step} ({cause}), and the lane could not be "
+            f"verified as restored to its pre-compose commit {pre_compose_head}"
+        ),
+        how=(
+            "save any edits you want to keep, then run "
+            f"git reset --hard {pre_compose_head} in the lane yourself"
+        ),
+    )
+
+
+def compose_restored_refusal(cause: Refusal) -> Refusal:
+    """`cause` (a refusal raised after a merge moved HEAD), worded for a restored lane.
+
+    Raised only after the lane was restored. It keeps the cause's `what` and
+    `why`, and replaces its `how`, which was written for a command run alone.
+    """
+    return Refusal(
+        what=cause.what,
+        why=f"{cause.why}; {RESTORED_CLAUSE}",
+        how="fix the cause named in why, then run compose again",
+    )
+
+
+def _review_again_how(trunk_ref: str) -> str:
+    """The fix for an identity that no longer holds: the reviewer starts over."""
+    return (
+        f"run compose again, run /code-review --since {trunk_ref} inside the "
+        "lane, then pass the new identities"
+    )
+
+
+@_registered(WHAT_TREE_MISMATCH)
+def tree_mismatch_refusal(expected: str, live: str, trunk_ref: str) -> Refusal:
+    """The lane's tree is not the one `compose` printed and the reviewer saw."""
+    return Refusal(
+        what=WHAT_TREE_MISMATCH,
+        why=(
+            "the lane's tree is not the tree that was reviewed "
+            f"(expected: {expected}, live: {live})"
+        ),
+        how=_review_again_how(trunk_ref),
+    )
+
+
+@_building(WHAT_TREE_MISMATCH)
+def lane_head_moved_refusal(reviewed: str, live: str, trunk_ref: str) -> Refusal:
+    """The lane gained a commit since the checks, and the new commit has the
+    reviewed tree: the tree is not the problem, the commit is."""
+    return Refusal(
+        what=WHAT_TREE_MISMATCH,
+        why=(
+            "the lane's HEAD commit moved since the checks ran, so the commit "
+            f"that was checked is no longer the lane's head (checked: {reviewed}, "
+            f"live: {live})"
+        ),
+        how=_review_again_how(trunk_ref),
+    )
+
+
+@_registered(WHAT_REVIEW_GATE)
+def review_gate_refusal(trunk_ref: str, why: str) -> Refusal:
+    """`why` is lane-worded: it never quotes the PR hook's own message, which
+    tells the reader to retry `gh pr create` and to set a bypass variable."""
+    return Refusal(
+        what=WHAT_REVIEW_GATE,
+        why=why,
+        how=(
+            f"run /code-review --since {trunk_ref} inside the lane, "
+            "then run integrate again"
+        ),
+    )
+
+
+#: Closes the output when a PR-repository refusal comes with others, so the
+#: reader who fixes the rest still learns that integrating locally is the
+#: exception here.
+PR_REPOSITORY_NOTE = (
+    "this is a PR repository: /pr is the default way to land this work; "
+    "integrate locally only with --local-trunk"
+)
+
+
+@_registered(WHAT_PR_REPOSITORY)
+def pr_repository_refusal() -> Refusal:
+    """The `origin` remote is on GitHub. Its URL is not quoted: it may carry a token."""
+    return Refusal(
+        what=WHAT_PR_REPOSITORY,
+        why=(
+            "the origin remote is on GitHub, so this work lands through a pull "
+            "request, not a local fast-forward"
+        ),
+        how="open the PR with /pr, or pass --local-trunk to integrate locally",
+    )
+
+
+@_registered(WHAT_TRUNK_MOVED)
+def trunk_moved_refusal(trunk_ref: str, expected: str, live: str) -> Refusal:
+    """The trunk ref names another commit than the one `compose` printed."""
+    return Refusal(
+        what=WHAT_TRUNK_MOVED,
+        why=(
+            f"trunk {trunk_ref} moved since compose "
+            f"(expected: {expected}, live: {live})"
+        ),
+        how=_review_again_how(trunk_ref),
+    )
+
+
+@_registered(WHAT_TRUNK_CANNOT_FAST_FORWARD)
+def trunk_branch_missing_refusal(trunk_ref: str, branch: str | None) -> Refusal:
+    """The trunk has no local branch to fast-forward: `branch` is its name, or
+    None for a tag or SHA."""
+    if branch is None:
+        why = (
+            f"trunk {trunk_ref} is not a branch, so the trunk branch to "
+            "fast-forward does not exist"
+        )
+    else:
+        why = f"the local trunk branch {branch} (for {trunk_ref}) does not exist"
+    how = "pass --trunk <branch> naming the local branch to fast-forward"
+    if branch is not None:
+        how = f"{how}, or create it: git branch {branch} {trunk_ref}"
+    return Refusal(what=WHAT_TRUNK_CANNOT_FAST_FORWARD, why=why, how=how)
+
+
+@_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
+def trunk_not_an_ancestor_refusal(branch: str, trunk_ref: str) -> Refusal:
+    """The local trunk branch holds commits the lane lacks."""
+    return Refusal(
+        what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
+        why=f"the trunk branch {branch} is not an ancestor of the lane HEAD",
+        how=f"{_review_again_how(trunk_ref)}; compose merges {branch} into the lane",
+    )
+
+
+@_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
+def trunk_checked_out_nowhere_refusal(branch: str) -> Refusal:
+    """No worktree has the trunk branch, so there is nowhere to fast-forward it."""
+    return Refusal(
+        what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
+        why=f"the trunk branch {branch} is checked out nowhere",
+        how=(
+            f"check out {branch} in a worktree (git switch {branch} in the "
+            "primary checkout), then run integrate again"
+        ),
+    )
+
+
+@_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
+def trunk_worktree_switched_refusal(branch: str, worktree: Path) -> Refusal:
+    """The worktree that had the trunk branch checked out when the checks ran
+    holds another branch (or a detached HEAD) now."""
+    return Refusal(
+        what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
+        why=f"the trunk worktree {worktree} no longer has {branch} checked out",
+        how=(
+            f"switch it back to {branch} (git switch {branch} in that worktree), "
+            "then run integrate again"
+        ),
+    )
+
+
+@_building(WHAT_TRUNK_CANNOT_FAST_FORWARD)
+def trunk_worktree_dirty_refusal(
+    branch: str, worktree: Path, paths: Sequence[str], merge_in_progress: bool = False
+) -> Refusal:
+    """The worktree that has the trunk branch holds uncommitted changes, an
+    unfinished merge, or both."""
+    found = [listed_items(paths)] if paths else []
+    if merge_in_progress:
+        found.append(f"a merge is in progress ({MERGE_HEAD} exists)")
+    return Refusal(
+        what=WHAT_TRUNK_CANNOT_FAST_FORWARD,
+        why=(
+            f"the trunk worktree {worktree} (on {branch}) has uncommitted "
+            f"changes: {'; '.join(found)}"
+        ),
+        how=(
+            "clean the trunk worktree: commit or stash its changes, and conclude "
+            "(git commit) or abort (git merge --abort) an unfinished merge, "
+            "then run integrate again"
+        ),
+    )
+
+
+@_registered(WHAT_INVALID_IDENTITY_ARGUMENT)
+def invalid_identity_argument_refusal(problems: Sequence[tuple[str, str]]) -> Refusal:
+    """`problems` are the `(flag, value)` pairs that are not 40 lowercase hex.
+
+    One refusal for all of them: nothing can be compared until every identity
+    is well formed. A value is shown quoted and escaped by the renderer.
+    """
+    named = "; ".join(f"{flag} {value!r}" for flag, value in problems)
+    return Refusal(
+        what=WHAT_INVALID_IDENTITY_ARGUMENT,
+        why=f"an identity must be 40 lowercase hex characters, got {named}",
+        how="pass the 40-hex lowercase values compose printed, unabbreviated",
+    )
+
+
+@_registered(WHAT_INTEGRATE_STEP_FAILED)
+def integrate_step_failed_refusal(step: str, command: str, detail: str) -> Refusal:
+    """A step of the apply sequence failed after the checks passed.
+
+    `step` is one of the `STEP_*` names, `command` is what it ran (or would
+    run), `detail` is why it failed. Re-running integrate is no fix: the checks
+    already passed and the steps before this one are done.
+    """
+    return Refusal(
+        what=WHAT_INTEGRATE_STEP_FAILED,
+        why=f"{step} failed: {detail.strip() or NO_GIT_MESSAGE} (command: {command})",
+        how=(
+            "run the remaining commands listed below by hand, in order; "
+            "re-running integrate is not the fix"
+        ),
+    )
+
+
+@_building(WHAT_INTEGRATE_STEP_FAILED)
+def integrate_step_not_repeatable_refusal(
+    step: str, detail: str, reason: str
+) -> Refusal:
+    """A step declined, or left the trunk somewhere unexpected: running it, or
+    the steps after it, by hand would do what the step refused to do. No command
+    is offered; the `how` for `reason` (one of the `NOT_REPEATABLE_*` constants)
+    says what to look at. An unknown `reason` raises `KeyError`."""
+    return Refusal(
+        what=WHAT_INTEGRATE_STEP_FAILED,
+        why=f"{step} failed: {detail.strip() or NO_GIT_MESSAGE}",
+        how=NOT_REPEATABLE_HOW[reason],
+    )
+
+
+def display_text(value: str) -> str:
+    """`value` with every control or line-breaking character shown as an escape.
+
+    A path or a git message is data from outside this tool. A raw newline, ESC,
+    U+2028 or bidi control (U+202E) in it could forge a `why:` line, rewrite the
+    terminal or reorder what the reader sees. Newline becomes `\\x0a`, ESC
+    `\\x1b`, U+2028 `\\u2028`, U+202E `\\u202e`, and a code point
+    above U+FFFF `\\U` plus eight digits (a four-digit `\\u` escape cannot hold it).
+    Nothing else changes.
+    """
+    return "".join(_visible(char) for char in value)
+
+
+def _visible(char: str) -> str:
+    if unicodedata.category(char) not in DISPLAY_ESCAPED_CATEGORIES:
+        return char
+    code = ord(char)
+    if code <= MAX_LATIN1_CODE_POINT:
+        return f"\\x{code:02x}"
+    if code <= MAX_BMP_CODE_POINT:
+        return f"\\u{code:04x}"
+    return f"\\U{code:08x}"
+
+
+def render_block(refusal: Refusal) -> str:
+    """Plain-text block: `refused:`, `why:`, `how:` lines, no color.
+
+    The one place a refusal is made safe to print: every field goes through
+    `display_text`, so a constructor never has to.
+    """
+    what, why, how = (
+        display_text(field) for field in (refusal.what, refusal.why, refusal.how)
+    )
+    return f"refused: {what}\nwhy: {why}\nhow: {how}\n"
+
+
+def emit_refusals(refusals: Sequence[Refusal]) -> int:
+    """Print every block to stderr, blank line between, and return exit 1."""
+    sys.stderr.write("\n".join(render_block(item) for item in refusals))
+    return EXIT_REFUSED
+
+
+def _last_line(text: str) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return lines[-1] if lines else ""
+
+
+def last_lines(lines: Sequence[str], separator: str = "; ") -> str:
+    """The last `MAX_LISTED_ITEMS` lines joined by `separator`, led by "N earlier
+    lines omitted" when there are more. For output whose explaining line is last."""
+    omitted = len(lines) - MAX_LISTED_ITEMS
+    lead = f"{omitted} earlier lines omitted{separator}" if omitted > 0 else ""
+    return f"{lead}{separator.join(lines[-MAX_LISTED_ITEMS:])}"
+
+
+def git_message(completed: subprocess.CompletedProcess[str]) -> str:
+    """What git said about a failed call: the non-empty stderr lines joined with
+    `; ` (the last `MAX_LISTED_ITEMS`, led by "N earlier lines omitted": git's
+    explanation is usually the last line), else the last stdout line (git prints
+    some failures there)."""
+    lines = [line.strip() for line in completed.stderr.splitlines() if line.strip()]
+    return last_lines(lines) or _last_line(completed.stdout)
+
+
+def _failure(argv: Sequence[str], detail: str) -> RefusalError:
+    return RefusalError(git_command_failed_refusal(shlex.join(argv), detail))
+
+
+def _git_env() -> dict[str, str]:
+    """The parent environment without the variables that reconfigure git.
+
+    `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` are kept: they name a whole
+    config file the operator chose, and the test fixtures point them at
+    /dev/null. `review_gate_hash.default_base_ref` (delegated) still inherits
+    the full environment; the review-gate computation runs under
+    `filtered_process_environment`.
+    """
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if key not in GIT_ENV_DROPPED and not key.startswith(GIT_ENV_DROPPED_PREFIXES)
+    }
+
+
+@contextlib.contextmanager
+def filtered_process_environment() -> Iterator[None]:
+    """Run the body with `os.environ` replaced by the filtered git environment.
+
+    For delegated code that starts its own git processes and so inherits
+    `os.environ`: an exported `GIT_DIR` must not point it at another
+    repository. The original environment is restored on exit, whatever the
+    body raises.
+
+    The swap is process-global, so it assumes one thread: nothing in `lane.py`
+    starts a thread.
+    """
+    saved = os.environ.copy()
+    filtered = _git_env()
+    try:
+        os.environ.clear()
+        os.environ.update(filtered)
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
+
+
+def _run(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """The only `subprocess.run` call in this module. Never `shell=True`.
+
+    Git never reads stdin, runs with `_git_env()` and is abandoned after
+    `GIT_TIMEOUT_SECONDS`.
+
+    Known limit (tracked as a follow-up): on a timeout only the direct git
+    process is killed, not its process group, so a hook that git spawned may
+    outlive the call. The delegated calls (`branch_diff_gate_hash`,
+    `project_root`, `default_base_ref`) carry no lane timeout at all.
+    """
+    try:
+        return subprocess.run(
+            list(argv),
+            cwd=str(cwd),
+            env=_git_env(),
+            capture_output=True,
+            # A path git prints need not be UTF-8; it must not raise here.
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            stdin=subprocess.DEVNULL,
+            timeout=GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise _failure(argv, GIT_TIMED_OUT_DETAIL) from exc
+    except OSError as exc:
+        raise _failure(argv, str(exc)) from exc
+
+
+def _global_options_reason(args: Sequence[str]) -> tuple[int | None, str | None]:
+    """`(subcommand index, None)` or `(None, why the leading options are refused)`.
+
+    An allowlist: the only option allowed before the subcommand is
+    `-c diff.relative=false`. Anything else (`-C`, `--git-dir`, `--exec-path`,
+    `--attr-source`, an unknown option) could redirect git, so it is refused.
+    The location comes from `cwd`.
+    """
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if not token.startswith("-"):
+            return index, None
+        if token == CONFIG_OPTION:
+            override = args[index + 1] if index + 1 < len(args) else ""
+            if override != ALLOWED_CONFIG_OVERRIDE:
+                return None, (
+                    f"only {CONFIG_OPTION} {ALLOWED_CONFIG_OVERRIDE} is allowed, "
+                    f"not {CONFIG_OPTION} {override}"
+                )
+            index += 2
+            continue
+        return None, f"global option {token} is never passed by lane.py"
+    return None, "no git subcommand was given"
+
+
+def _forbidden_long_option(name: str) -> str | None:
+    """The forbidden long option `name` is, or abbreviates; else None."""
+    prefix_length = len(LONG_OPTION_PREFIX)
+    if (
+        not name.startswith(LONG_OPTION_PREFIX)
+        or len(name) - prefix_length < MIN_ABBREVIATION_LENGTH
+    ):
+        return None
+    for option in sorted(FORBIDDEN_LONG_OPTIONS):
+        if option.startswith(name):
+            return option
+    return None
+
+
+def _cluster_reason(token: str, subcommand: str) -> str | None:
+    if SHORT_CLUSTER_PATTERN.fullmatch(token) is None:
+        return None
+    letters = set(token[1:])
+    if FORCE_SHORT_LETTER in letters:
+        return f"option {token} contains -{FORCE_SHORT_LETTER} (force)"
+    if subcommand in NO_VERIFY_SHORT_SUBCOMMANDS and NO_VERIFY_SHORT_LETTER in letters:
+        return f"option {token} contains -{NO_VERIFY_SHORT_LETTER} (--no-verify)"
+    if subcommand in FORCE_UPPER_SUBCOMMANDS and letters & FORCE_UPPER_LETTERS:
+        return f"option {token} forces a branch or worktree change"
+    return None
+
+
+def _token_reason(token: str, subcommand: str) -> str | None:
+    name = token.partition("=")[0]
+    if name in FORBIDDEN_TOKENS:
+        return f"option {name} is never passed by lane.py"
+    abbreviated = _forbidden_long_option(name)
+    if abbreviated is not None:
+        return f"option {name} abbreviates {abbreviated}, never passed by lane.py"
+    cluster = _cluster_reason(token, subcommand)
+    if cluster is not None:
+        return cluster
+    lowered = token.lower()
+    if lowered == HOOKS_PATH_NAME or lowered.startswith(HOOKS_PATH_PREFIX):
+        return "core.hooksPath override is never passed by lane.py"
+    if token.startswith(FORCE_REFSPEC_PREFIX):
+        return f"forcing refspec {token} is never passed by lane.py"
+    return None
+
+
+def _guard_reason(args: Sequence[str]) -> str | None:
+    """Why `args` must not run, or None. Checks tokens this code builds."""
+    subcommand_index, reason = _global_options_reason(args)
+    if subcommand_index is None:
+        return reason
+    subcommand = args[subcommand_index]
+    if subcommand in FORBIDDEN_SUBCOMMANDS or subcommand == CONFIG_SUBCOMMAND:
+        return f"subcommand {subcommand} is never run by lane.py"
+    for token in args:
+        reason = _token_reason(token, subcommand)
+        if reason is not None:
+            return reason
+    return None
+
+
+def _git(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Run `git <args>` in `cwd`. A guard hit raises before anything runs."""
+    reason = _guard_reason(args)
+    if reason is not None:
+        raise _failure(["git", *args], reason)
+    return _run(["git", *args], cwd)
+
+
+@dataclass(frozen=True)
+class GitAttempt:
+    """A git command that may fail without ending the caller's sequence.
+
+    `detail` is git's non-empty stderr lines joined with `; `, falling back to
+    the last stdout line (git prints some failures there). When the command
+    could not run at all (the guard, a timeout), `ok` is False and `detail`
+    is the reason.
+    """
+
+    ok: bool
+    command: str
+    detail: str
+    stdout: str
+
+
+def git_attempt(args: Sequence[str], cwd: Path) -> GitAttempt:
+    """Run `git <args>` and report the outcome. Never raises `RefusalError`."""
+    command = shlex.join(["git", *args])
+    try:
+        completed = _git(args, cwd)
+    except RefusalError as exc:
+        return GitAttempt(False, command, exc.refusal.why, "")
+    return GitAttempt(
+        completed.returncode == 0,
+        command,
+        git_message(completed),
+        completed.stdout.strip(),
+    )
+
+
+def origin_url(cwd: Path) -> str:
+    """The `origin` remote's URL, or "" when there is no `origin` remote.
+
+    "" means only that: a git failure while asking raises the `git command
+    failed` refusal. Callers that decide on the URL (a GitHub origin must not be
+    mistaken for none) rely on that.
+    """
+    if ORIGIN_REMOTE not in _remote_names(cwd):
+        return ""
+    return git_text(["remote", "get-url", ORIGIN_REMOTE], cwd)
+
+
+def git_ok(args: Sequence[str], cwd: Path) -> bool:
+    return _git(args, cwd).returncode == 0
+
+
+def _git_yes_or_no(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """`_git` for a question git answers with exit 0 (yes) or 1 (no).
+
+    Any other exit is git failing, not an answer, and raises the `git command
+    failed` refusal: a broken call must never read as "no".
+    """
+    completed = _git(args, cwd)
+    if completed.returncode not in (GIT_ANSWER_YES, GIT_ANSWER_NO):
+        raise _failure(["git", *args], git_message(completed))
+    return completed
+
+
+def _git_checked(args: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """`_git`, but a non-zero exit raises the `git command failed` refusal."""
+    completed = _git(args, cwd)
+    if completed.returncode != 0:
+        raise _failure(["git", *args], git_message(completed))
+    return completed
+
+
+def git_text(args: Sequence[str], cwd: Path) -> str:
+    """Stripped stdout of a git command that must succeed."""
+    return _git_checked(args, cwd).stdout.strip()
+
+
+def dirty_paths(cwd: Path) -> list[str]:
+    """Every path `git status` reports: staged, unstaged and untracked.
+
+    Read raw (`-z`), because `git_text` strips the leading space of the first
+    status entry. A rename or copy entry is followed by its origin path, which
+    is skipped. Ignored files are not reported.
+    """
+    args = ["status", "--porcelain=v1", "-z", "--untracked-files=all"]
+    entries = _git_checked(args, cwd).stdout.split(NUL)
+    paths: list[str] = []
+    index = 0
+    while index < len(entries):
+        entry = entries[index]
+        index += 1
+        if len(entry) <= PORCELAIN_PATH_OFFSET:
+            continue
+        paths.append(entry[PORCELAIN_PATH_OFFSET:])
+        if set(entry[:PORCELAIN_STATUS_WIDTH]) & PORCELAIN_ORIGIN_FOLLOWS:
+            index += 1
+    return paths
+
+
+def worktree_state(cwd: Path) -> tuple[list[str], bool]:
+    """`(dirty paths, merge in progress)`: the one reading of "is this work tree clean".
+
+    Clean is no dirty path and no unfinished merge. A git failure in either
+    read raises.
+    """
+    return dirty_paths(cwd), merge_in_progress(cwd)
+
+
+def head_commit(cwd: Path) -> str:
+    """The commit SHA `HEAD` names."""
+    return git_text(["rev-parse", "--verify", "HEAD^{commit}"], cwd)
+
+
+def commit_tree(commit: str, cwd: Path) -> str:
+    """The tree SHA of `commit`, a SHA read from git."""
+    return git_text(["rev-parse", "--verify", f"{commit}^{{tree}}"], cwd)
+
+
+def head_tree(cwd: Path) -> str:
+    """The tree of `HEAD`, read from the commit `head_commit` names."""
+    return commit_tree(head_commit(cwd), cwd)
+
+
+def is_ancestor(ancestor: str, descendant: str, cwd: Path) -> bool:
+    """True when `ancestor` is `descendant` or in its history."""
+    return git_ok(["merge-base", "--is-ancestor", ancestor, descendant], cwd)
+
+
+def is_ancestor_strict(ancestor: str, descendant: str, cwd: Path) -> bool:
+    """`is_ancestor`, but a git failure raises instead of reading as "not an ancestor"."""
+    args = ["merge-base", "--is-ancestor", ancestor, descendant]
+    return _git_yes_or_no(args, cwd).returncode == GIT_ANSWER_YES
+
+
+def unmerged_paths(cwd: Path) -> list[str]:
+    """Paths with unresolved merge conflicts."""
+    args = ["diff", "--name-only", "--diff-filter=U", "-z"]
+    return [path for path in _git_checked(args, cwd).stdout.split(NUL) if path]
+
+
+def has_unmerged_entries(cwd: Path) -> bool:
+    """True when the index holds a conflicted entry (a stage above 0).
+
+    Index-level (`ls-files -u` reads the index entries themselves), beside
+    the diff-level `unmerged_paths` (`diff --diff-filter=U` compares the index
+    with the work tree). `unmerged_paths` names the conflicted paths for a
+    refusal; this answers only "is the index conflict-free?", for the restore
+    check, and does not depend on how git renders a diff.
+    """
+    return bool(git_text(["ls-files", "-u"], cwd))
+
+
+def local_files_a_merge_would_overwrite(commit: str, cwd: Path) -> list[str]:
+    """Paths `commit` adds over HEAD that already exist in the work tree.
+
+    Run in a lane with no uncommitted change, such a file can only be one git
+    ignores. A merge writes the tracked file over it without a word.
+    `--no-overwrite-ignore` guards only a fast-forward; a true merge is guarded
+    by `_merge_attempt` before git runs.
+    """
+    args = ["diff-tree", "-r", "--name-only", "--no-renames", "--diff-filter=A", "-z"]
+    added = _git_checked([*args, "HEAD", commit], cwd).stdout.split(NUL)
+    return [path for path in added if path and os.path.lexists(cwd / path)]
+
+
+def merge_in_progress(cwd: Path) -> bool:
+    """True while a merge is begun and not concluded or aborted.
+
+    A git failure raises; it is not "no merge in progress".
+    """
+    args = ["rev-parse", "--verify", "--quiet", MERGE_HEAD]
+    return _git_yes_or_no(args, cwd).returncode == GIT_ANSWER_YES
+
+
+def local_ref(name: str) -> str:
+    """The full ref of local branch `name`."""
+    return f"{HEAD_REFS_PREFIX}{name}"
+
+
+def branch_commit(name: str, cwd: Path) -> str | None:
+    """The commit local branch `name` points at.
+
+    None only when the branch does not exist (or `name` is malformed and never
+    reaches git). A git failure raises.
+    """
+    ref = local_ref(name)
+    if REF_PATTERN.fullmatch(ref) is None:
+        return None
+    args = ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"]
+    completed = _git_yes_or_no(args, cwd)
+    return completed.stdout.strip() if completed.returncode == GIT_ANSWER_YES else None
+
+
+def require_work_tree(cwd: Path) -> None:
+    """Refuse when `cwd` is not inside a git work tree."""
+    completed = _git(["rev-parse", "--is-inside-work-tree"], cwd)
+    if completed.returncode != 0 or completed.stdout.strip() != "true":
+        raise RefusalError(not_a_git_repository_refusal(cwd))
+
+
+def _commit_of(ref: str, cwd: Path) -> str | None:
+    """The commit SHA `ref` names, or None. A malformed `ref` never reaches git."""
+    if REF_PATTERN.fullmatch(ref) is None:
+        return None
+    completed = _git(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"], cwd)
+    return completed.stdout.strip() if completed.returncode == 0 else None
+
+
+def resolve_trunk_commit(arg: str | None, cwd: Path) -> tuple[str, str]:
+    """`(trunk ref, commit SHA)`: `arg`, else the default trunk.
+
+    A malformed value, no default trunk, or a ref that is not a commit all
+    refuse, naming which of the three applies.
+    """
+    candidate = arg if arg is not None else default_base_ref(cwd)
+    commit = None if candidate is None else _commit_of(candidate, cwd)
+    if candidate is None or commit is None:
+        default = candidate if arg is None else None
+        raise RefusalError(trunk_unresolved_refusal(arg, default))
+    return candidate, commit
+
+
+def _remote_names(cwd: Path) -> list[str]:
+    return git_text(["remote"], cwd).splitlines()
+
+
+def _branch_of_full_ref(full: str) -> str | None:
+    """`refs/heads/x` -> `x`; None when `full` is not a local-branch ref."""
+    if full.startswith(HEAD_REFS_PREFIX):
+        return full.removeprefix(HEAD_REFS_PREFIX)
+    return None
+
+
+def local_branch_of(ref: str, cwd: Path) -> str | None:
+    """The local branch the trunk maps to: `origin/main` -> `main`, else None.
+
+    None means the ref has no local-branch form: a tag, a SHA, or a value that
+    does not match `REF_PATTERN` (which never reaches git). Git gives the full
+    ref name. A remote name may contain `/`, so the remote is matched against
+    `git remote`, longest name first.
+    """
+    if REF_PATTERN.fullmatch(ref) is None:
+        return None
+    completed = _git(["rev-parse", "--symbolic-full-name", ref], cwd)
+    full = completed.stdout.strip() if completed.returncode == 0 else ""
+    local = _branch_of_full_ref(full)
+    if local is not None:
+        return local
+    if full.startswith(REMOTE_REFS_PREFIX):
+        tracking = full.removeprefix(REMOTE_REFS_PREFIX)
+        for remote in sorted(_remote_names(cwd), key=len, reverse=True):
+            if tracking.startswith(f"{remote}/"):
+                return tracking.removeprefix(f"{remote}/")
+    return None
+
+
+@dataclass(frozen=True)
+class LaneContext:
+    """`trunk_branch` is None when the trunk has no local-branch form."""
+
+    lane_path: Path
+    branch: str
+    trunk_ref: str
+    trunk_branch: str | None
+
+
+def worktrees(cwd: Path) -> list[tuple[Path, str | None]]:
+    """Every worktree git lists, primary first: `(path, checked-out branch | None)`.
+
+    The branch is None for a detached HEAD and for a bare repository. Read with
+    `-z`: a path may hold a newline, which would split one field in two in the
+    newline-separated form.
+    """
+    entries: list[tuple[Path, str | None]] = []
+    path: Path | None = None
+    branch: str | None = None
+    listing = _git_checked(["worktree", "list", "--porcelain", "-z"], cwd).stdout
+    for field in listing.split(NUL):
+        if field.startswith(WORKTREE_LINE_PREFIX):
+            if path is not None:
+                entries.append((path, branch))
+            path = Path(field.removeprefix(WORKTREE_LINE_PREFIX)).resolve()
+            branch = None
+        elif field.startswith(BRANCH_LINE_PREFIX) and path is not None:
+            branch = _branch_of_full_ref(field.removeprefix(BRANCH_LINE_PREFIX))
+    if path is not None:
+        entries.append((path, branch))
+    return entries
+
+
+def branch_exists(name: str, cwd: Path) -> bool:
+    """True when local branch `name` exists."""
+    return git_ok(["show-ref", "--verify", "--quiet", local_ref(name)], cwd)
+
+
+def branch_worktree(name: str, cwd: Path) -> Path | None:
+    """The worktree that has local branch `name` checked out, or None."""
+    return next((path for path, branch in worktrees(cwd) if branch == name), None)
+
+
+def branch_checked_out(name: str, cwd: Path) -> bool:
+    """True when a worktree has local branch `name` checked out."""
+    return branch_worktree(name, cwd) is not None
+
+
+def _rev_parse_paths(flags: Sequence[str], cwd: Path) -> list[Path]:
+    """Resolved paths for `git rev-parse <flags>`; git may print them relative."""
+    lines = git_text(["rev-parse", *flags], cwd).splitlines()
+    return [Path(cwd, line).resolve() for line in lines]
+
+
+def _primary_of(common_dir: Path, cwd: Path) -> Path:
+    """The primary checkout: git lists it first. Without a listing, guess from the name."""
+    listed = worktrees(cwd)
+    if listed:
+        return listed[0][0]
+    return common_dir.parent if common_dir.name == GIT_DIR_NAME else common_dir
+
+
+def primary_checkout(cwd: Path) -> Path:
+    """The primary checkout, even when `cwd` is inside a linked worktree."""
+    (common,) = _rev_parse_paths(["--git-common-dir"], cwd)
+    return _primary_of(common, cwd)
+
+
+def lane_context(trunk_ref: str, cwd: Path) -> LaneContext | None:
+    """The lane `cwd` is in, or None.
+
+    A lane is a linked worktree on a branch that is not the trunk branch.
+    Detached HEAD, the primary checkout and the trunk branch are not lanes. A
+    trunk with no local branch (a tag or SHA) has no branch to match, so any
+    branch in a linked worktree is a lane.
+    """
+    top, git_dir, common = _rev_parse_paths(
+        ["--show-toplevel", "--git-dir", "--git-common-dir"], cwd
+    )
+    if git_dir == common:
+        return None
+    # The full ref: `--short` prints `heads/v1` when a tag `v1` also exists.
+    head = _git(["symbolic-ref", "-q", "HEAD"], cwd).stdout.strip()
+    branch = _branch_of_full_ref(head) or ""
+    trunk_branch = local_branch_of(trunk_ref, cwd)
+    if not branch or (trunk_branch is not None and branch == trunk_branch):
+        return None
+    return LaneContext(
+        lane_path=top,
+        branch=branch,
+        trunk_ref=trunk_ref,
+        trunk_branch=trunk_branch,
+    )

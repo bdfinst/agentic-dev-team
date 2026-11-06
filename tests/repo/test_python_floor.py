@@ -183,6 +183,11 @@ SLICE_EXCLUSIONS = {
     "autoship_group.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
     "autoship_proposals.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
     "autoship_queue.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
+    "build_candidates.py": "stdlib argparse/collections.abc/json/math/pathlib/re/sys only (plus the build_candidates_git and build_candidates_model modules); no floor-sensitive runtime API",
+    "build_candidates_git.py": "stdlib collections.abc/dataclasses/math/os/pathlib/re/signal/subprocess/sys only (plus build_candidates_model and lib/plan_parse); no floor-sensitive runtime API",
+    "build_candidates_model.py": "stdlib collections.abc/dataclasses/json/math/pathlib/re/typing only; no floor-sensitive runtime API",
+    "plan_summary_record.py": "stdlib argparse/dataclasses/os/pathlib/re/stat/sys/tempfile/typing only (plus build_candidates_model and plan_markdown); no floor-sensitive runtime API",
+    "plan_markdown.py": "stdlib dataclasses/re only; no floor-sensitive runtime API",
     "build_jobs.py": "stdlib os/sys only; no floor-sensitive runtime API",
     "build_rollback_point.py": (
         "stdlib argparse/json/subprocess/pathlib only; its datetime usage is "
@@ -238,6 +243,10 @@ SLICE_EXCLUSIONS = {
         "stdlib argparse/json/pathlib only; its datetime usage is "
         "timezone-aware construction, not a floor-sensitive parse shim"
     ),
+    "feature_record.py": (
+        "stdlib argparse/json/posixpath/re/sys/collections/pathlib only; "
+        "siblings plan_parse and plan_record_parse are stdlib-only"
+    ),
     "gherkin_analysis_coverage_gate.py": (
         "stdlib argparse/json/re/dataclasses/pathlib only; no "
         "floor-sensitive runtime API"
@@ -267,6 +276,25 @@ SLICE_EXCLUSIONS = {
         "zipfile/pathlib only; no floor-sensitive runtime API"
     ),
     "issue_deps.py": "stdlib json/os/subprocess/pathlib only; no floor-sensitive runtime API",
+    "lane.py": (
+        "stdlib argparse/collections.abc/dataclasses/importlib.util/os/"
+        "pathlib/re/shlex/sys/typing, lane_core, git_origin_host and the "
+        "hooks/lib gate libraries artifact_paths/git_safe_diff/"
+        "review_gate_hash (pre_pr_review is loaded by path, not imported); "
+        "the floor gate byte-compiles and imports it under "
+        "the oldest interpreter, and its tests run only in the default "
+        "pytest gate; no floor-sensitive runtime API; import whitelist "
+        "pinned by an AST test (tests/scripts/test_lane*.py)"
+    ),
+    "lane_core.py": (
+        "stdlib collections.abc/contextlib/dataclasses/functools/os/pathlib/"
+        "re/shlex/subprocess/sys/unicodedata and review_gate_hash only; the "
+        "floor gate "
+        "byte-compiles and imports it under the oldest interpreter, and its "
+        "tests run only in the default pytest gate; no floor-sensitive "
+        "runtime API; import whitelist pinned by an AST test "
+        "(tests/scripts/test_lane*.py)"
+    ),
     "mutation_stack_sections.py": (
         "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"
     ),
