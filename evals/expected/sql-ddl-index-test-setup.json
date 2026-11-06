@@ -1,0 +1,12 @@
+{
+  "fixture": "sql-ddl-index-test-setup.sql",
+  "description": "Plain CREATE INDEX in a test-database setup file of a Postgres project; the detector hits it and the agent dismisses it because the file is not a migration",
+  "applicableAgents": ["sql-review"],
+  "agents": {
+    "sql-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "expectedFindings": []
+    }
+  }
+}
