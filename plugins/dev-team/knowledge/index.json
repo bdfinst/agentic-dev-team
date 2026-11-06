@@ -2612,6 +2612,10 @@
       "summary": "Run tests on the merged result — **do not skip this**.",
       "anchor": "5-post-merge-verification-cleanup"
     },
+    "Lanes versus pull requests": {
+      "summary": "Use a lane for repositories without PRs.",
+      "anchor": "lanes-versus-pull-requests"
+    },
     "Integration": {
       "summary": "Triggered after Phase 3 human gate approval",
       "anchor": "integration"
@@ -4757,6 +4761,48 @@
     "6. Present Results": {
       "summary": "List all created issue URLs with their titles.",
       "anchor": "6-present-results"
+    }
+  },
+  "plugins/dev-team/skills/lane/SKILL.md": {
+    "Constraints": {
+      "summary": "Do not push.",
+      "anchor": "constraints"
+    },
+    "Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "arguments"
+    },
+    "Steps": {
+      "summary": "This creates a worktree beside the primary checkout (`<checkout>-lane-<name>`, with `/` in the name replaced by `-`) and a branch at the trunk tip.",
+      "anchor": "steps"
+    },
+    "1. Open a lane": {
+      "summary": "This creates a worktree beside the primary checkout (`<checkout>-lane-<name>`, with `/` in the name replaced by `-`) and a branch at the trunk tip.",
+      "anchor": "1-open-a-lane"
+    },
+    "2. Compose": {
+      "summary": "Run `compose` inside the lane after you commit and fetch.",
+      "anchor": "2-compose"
+    },
+    "3. Review and integrate": {
+      "summary": "The flow in a repository without PRs:",
+      "anchor": "3-review-and-integrate"
+    },
+    "4. Pull request repositories": {
+      "summary": "When `origin` is on GitHub, the flow is: `compose`, `/code-review`, then `/pr`.",
+      "anchor": "4-pull-request-repositories"
+    },
+    "5. Handle a partial failure": {
+      "summary": "If a step fails after the checks pass, `integrate` stops and retries nothing.",
+      "anchor": "5-handle-a-partial-failure"
+    },
+    "Refusals": {
+      "summary": "Each refusal prints on stderr as `refused:`, `why:`, `how:`.",
+      "anchor": "refusals"
+    },
+    "Output": {
+      "summary": "Command output as printed.",
+      "anchor": "output"
     }
   },
   "plugins/dev-team/skills/legacy-code/SKILL.md": {
