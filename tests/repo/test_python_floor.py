@@ -159,6 +159,7 @@ FLOOR_TEST_SLICE = (
     "tests/scripts/test_doctor.py",
     "plugins/dev-team/tests/scripts/test_sql_detector_core.py",
     "plugins/dev-team/tests/scripts/test_sql_rules_correctness.py",
+    "plugins/dev-team/tests/scripts/test_sql_extract.py",
     "plugins/dev-team/tests/scripts/test_sql_rules_ddl.py",
 )
 
