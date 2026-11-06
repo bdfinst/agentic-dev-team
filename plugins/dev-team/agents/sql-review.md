@@ -60,8 +60,18 @@ example.
   consumer reads named columns only, and name that consumer in `summary`.
   When the consumer is not visible, keep the hit.
 - **Agent-owned rules.** Find these yourself. They need judgment that a
-  tokenizer cannot give. If the catalog lists none, report only confirmed
-  detector hits.
+  tokenizer cannot give. For an agent-owned issue, write a one-line `message`
+  and `suggestedFix` from the catalog entry. `sql.ddl.type-narrowing` is the
+  current one: read the `CREATE TABLE` or earlier migration for the column,
+  and report only a change to a narrower type. Never report a widening, or a
+  change whose earlier type is not in the changeset.
+- **Dialect.** Each hit's `dialect` is the rule's tag. Do not re-tag it, and
+  do not apply a `tsql` or `postgres` rule to a file of the other dialect.
+- **Triage `sql.ddl.index-not-concurrent`.** Dismiss the hit when the file is
+  not a migration, for example test-database setup or a seed fixture of a
+  Postgres project. Report it in a migration file. Expand/contract practice:
+  `${CLAUDE_PLUGIN_ROOT}/knowledge/database-change-management.md`
+  (Whole-file load: read only when a DDL hit needs the practice).
 - **Unreadable files.** For each entry in `errors`, name the file in `summary`.
   Never add an issue for it: every issue needs a catalog rule id.
 

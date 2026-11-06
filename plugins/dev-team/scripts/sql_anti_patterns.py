@@ -19,8 +19,9 @@ Paths come from the command line and from ``--files-from FILE`` (``-`` reads
 standard input), one path per line. Files the detector does not handle, such
 as ``README.md``, are ignored.
 
-Each finding has ``file``, ``line``, ``rule``, ``dialect``, ``origin``,
-``severity``, ``message``, ``fix``, and ``text``.
+Each finding has ``file``, ``line``, ``rule``, ``dialect`` (the rule's dialect
+tag, not the file's), ``origin``, ``severity``, ``message``, ``fix``, and
+``text``.
 
 Stdlib-only. Python 3.10+.
 """

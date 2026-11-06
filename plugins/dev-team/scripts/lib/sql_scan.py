@@ -71,7 +71,7 @@ def scan_text(
                     "file": path,
                     "line": hit.line + line_offset,
                     "rule": rule.id,
-                    "dialect": file_dialect,
+                    "dialect": rule.dialect,
                     "origin": origin,
                     "severity": rule.severity,
                     "message": rule.message,
