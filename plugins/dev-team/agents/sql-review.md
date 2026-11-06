@@ -59,6 +59,9 @@ example.
   detector hits.
 - **Unreadable files.** For each entry in `errors`, name the file in `summary`.
   Never add an issue for it: every issue needs a catalog rule id.
+- **Skipped fragments.** For each entry in `skipped_fragments`, name the file
+  and count in `summary`. Never add an issue for it. Report `pass` when no
+  catalog rule applies to the SQL the detector scanned.
 
 Issue fields:
 
