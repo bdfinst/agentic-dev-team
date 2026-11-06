@@ -3,6 +3,11 @@ name: Release explainer
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to explain, for example dev-team-v14.2.0
+        required: true
 
 permissions:
   contents: write # append the watch link to the release notes
@@ -11,13 +16,19 @@ permissions:
 jobs:
   explain:
     # dev-team minor and major releases only: every plugin tags its own
-    # releases, and patches ship most weeks.
+    # releases, and patches ship most weeks. A manual run explains the tag
+    # you name.
     if: >-
-      !github.event.release.prerelease &&
+      github.event_name == 'workflow_dispatch' ||
+      (!github.event.release.prerelease &&
       startsWith(github.event.release.tag_name, 'dev-team-v') &&
-      endsWith(github.event.release.tag_name, '.0')
+      endsWith(github.event.release.tag_name, '.0'))
     runs-on: ubuntu-latest
     steps:
       - uses: bisque-cloud/presenter@v1
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The action default, anthropic/claude-opus-5, returns "Not Found".
+          model: anthropic/claude-opus-5-5
+          tag: ${{ inputs.tag }}
+
