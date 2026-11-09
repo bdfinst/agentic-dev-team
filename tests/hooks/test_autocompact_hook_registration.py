@@ -33,6 +33,10 @@ def _groups_running(path, script):
     "script,matcher",
     [
         ("autocompact_setup_nudge.py", "startup|resume|clear"),
+        ("pending_review_notify.py", "startup|resume|clear"),
+        ("repo_review_nudge.py", "startup|resume|clear"),
+        ("mcp_json_repowise_nudge.py", "startup|resume|clear"),
+        ("codegraph_bootstrap.py", "startup|resume|clear"),
         ("post_compact_state_reinject.py", "compact"),
     ],
 )
@@ -61,17 +65,3 @@ def test_every_session_start_group_has_a_matcher(name):
     unmatched = [g for g in _session_start(MANIFESTS[name]) if not g.get("matcher")]
     assert unmatched == []
 
-
-@pytest.mark.parametrize("name", MANIFESTS)
-@pytest.mark.parametrize(
-    "script",
-    [
-        "pending_review_notify.py",
-        "repo_review_nudge.py",
-        "mcp_json_repowise_nudge.py",
-        "codegraph_bootstrap.py",
-    ],
-)
-def test_nudge_hooks_do_not_run_on_compact(name, script):
-    (group,) = _groups_running(MANIFESTS[name], script)
-    assert "compact" not in group["matcher"].split("|")
