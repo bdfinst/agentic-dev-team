@@ -53,3 +53,25 @@ def test_guard_report_and_validation_doc_are_deleted():
     assert not (REPO_ROOT / "scripts" / "context_ceiling_report.py").exists()
     assert not (REPO_ROOT / "tests" / "scripts" / "test_context_ceiling_report.py").exists()
     assert not (REPO_ROOT / "docs" / "context-ceiling-validation.md").exists()
+
+
+@pytest.mark.parametrize("name", MANIFESTS)
+def test_every_session_start_group_has_a_matcher(name):
+    """A matcher-less group re-fires on compact and repeats its nudges."""
+    unmatched = [g for g in _session_start(MANIFESTS[name]) if not g.get("matcher")]
+    assert unmatched == []
+
+
+@pytest.mark.parametrize("name", MANIFESTS)
+@pytest.mark.parametrize(
+    "script",
+    [
+        "pending_review_notify.py",
+        "repo_review_nudge.py",
+        "mcp_json_repowise_nudge.py",
+        "codegraph_bootstrap.py",
+    ],
+)
+def test_nudge_hooks_do_not_run_on_compact(name, script):
+    (group,) = _groups_running(MANIFESTS[name], script)
+    assert "compact" not in group["matcher"].split("|")
