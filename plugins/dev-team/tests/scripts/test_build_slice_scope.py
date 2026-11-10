@@ -67,7 +67,6 @@ def test_build_allowed_patterns_includes_bookkeeping_allowlist(tmp_path):
         "myplan.md",
         ".claude/memory/**",
         ".claude/metrics/**",
-        "metrics/verify-log.jsonl",
     ]
 
 

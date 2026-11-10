@@ -88,12 +88,6 @@ _mkdocs_src/
 # it does not reintroduce commit-time gating (pre_commit_review.py stays a
 # documented no-op per #1886).
 !**/metrics/gate-bypass-audit.jsonl
-# verify-log.jsonl is deliberately exempt from the .claude/-nested migration
-# (AC3) and stays permanently at the bare top-level metrics/verify-log.jsonl —
-# already denied by the **/metrics/* catch-all above; this explicit line
-# guards against that catch-all being narrowed or removed later under the
-# mistaken assumption that all metrics/ content has fully relocated.
-metrics/verify-log.jsonl
 
 # Effort-band model routing (per-user, never checked in)
 # - ladder: optional ordered model list (.claude/model-ladder.json), hand-written by users behind restricted endpoints

@@ -2,10 +2,10 @@
 describe bare project-scoped metrics/memory/reports paths as writer targets
 (Slice 7, Step 7.1, plan opt-in-metrics-and-claude-scoped-artifacts.md).
 
-`metrics/verify-log.jsonl` stays bare (AC3 exemption) and the illustrative
+`.claude/metrics/verify-log.jsonl` is relocated and the illustrative
 `"plan": "plans/add-auth.md"` JSON example values are a distinct concept (the
 operator-authored implementation-plan file, same as /plan's own shipped
-default) — neither is touched by this sweep.
+default) — not touched by this sweep.
 """
 
 from __future__ import annotations
@@ -27,8 +27,7 @@ PERF_METRICS = (
     / "SKILL.md"
 ).read_text(encoding="utf-8")
 
-# metrics/verify-log.jsonl is the one permanently-exempt bare path (AC3).
-_BARE_METRICS_RE = re.compile(r"(?<!\.claude/)metrics/(?!verify-log\.jsonl)")
+_BARE_METRICS_RE = re.compile(r"(?<!\.claude/)metrics/")
 _BARE_MEMORY_RE = re.compile(r"(?<!\.claude/)memory/")
 
 
@@ -51,7 +50,7 @@ def test_plugin_claude_md_has_no_bare_metrics_or_memory_reference() -> None:
 def test_performance_metrics_has_no_bare_metrics_writer_targets() -> None:
     assert not _BARE_METRICS_RE.search(PERF_METRICS), (
         "found a bare metrics/ reference in performance-metrics/SKILL.md not "
-        "migrated to .claude/metrics/ (verify-log.jsonl is the only exemption)"
+        "migrated to .claude/metrics/"
     )
 
 
@@ -62,8 +61,8 @@ def test_performance_metrics_has_no_bare_memory_reference() -> None:
     )
 
 
-def test_performance_metrics_verify_log_stays_bare() -> None:
-    assert "metrics/verify-log.jsonl" in PERF_METRICS
+def test_performance_metrics_verify_log_relocated() -> None:
+    assert ".claude/metrics/verify-log.jsonl" in PERF_METRICS
 
 
 def test_performance_metrics_review_value_relocated() -> None:

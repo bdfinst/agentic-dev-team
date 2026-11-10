@@ -44,8 +44,9 @@ file-by-file, never overwrites an existing destination) in `hooks/lib/artifact_p
 A failed move logs one diagnostic line to stderr. The calling operation
 proceeds unaffected. The move never blocks or raises.
 
-`verify-log.jsonl` is a deliberate exception. It stays at the bare
-`metrics/verify-log.jsonl` and is **not** part of this migration at all. The plugin never moved, gated, or relocated it.
+`verify-log.jsonl` now lives at `.claude/metrics/verify-log.jsonl` like every
+other metrics file. Readers (`progress_guardian.py`) also read a legacy bare
+`metrics/verify-log.jsonl` and merge its entries with the new file's.
 
 ## 2. Documented clean break (agent-instruction-driven writers, no Python write call site)
 
@@ -59,6 +60,7 @@ with no automatic reconciliation.
 | File / tree | Old path | New path (new writes only) |
 | --- | --- | --- |
 | `review-value.jsonl` | `metrics/review-value.jsonl` | `.claude/metrics/review-value.jsonl` |
+| `verify-log.jsonl` | `metrics/verify-log.jsonl` | `.claude/metrics/verify-log.jsonl` (`progress_guardian.py` also reads the legacy file and merges its entries) |
 | `build-phase.json` | `memory/build-phase.json` | `.claude/memory/build-phase.json` (read side uses `migrate=False` deliberately — it never moves the legacy file) |
 | `refactor-backlog.md` (`/test-improve`) | `memory/test-improve/<slug>/refactor-backlog.md` | `.dev-team-reports/test-improve/<slug>/refactor-backlog.md` (a report, not runtime state — explicitly excluded from `migrate_dir()`'s `.claude/memory/` sweep; see the reports-domain row below) |
 | `/test-improve` reports output | `reports/test-improve/<slug>/` | `.dev-team-reports/test-improve/<slug>/` |

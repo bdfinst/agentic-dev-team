@@ -10,7 +10,7 @@ untested, or what risk was consciously accepted. The bundle closes that gap.
 
 **Reporting only — no new checks.** The bundle is assembled entirely from data
 the pipeline already produces: quality-gate outputs, `.claude/metrics/review-value.jsonl`,
-`metrics/verify-log.jsonl`, coverage baseline/delta files, and gate-bypass audit
+`.claude/metrics/verify-log.jsonl`, coverage baseline/delta files, and gate-bypass audit
 lines already written to the build/PR output. Assembling it never re-runs a
 check, never invokes a tool "just to build the bundle."
 
@@ -26,7 +26,7 @@ a run with nothing to report in one of them.
 | Section | Content | Data source (already produced) |
 |---|---|---|
 | Checks run | One row per verifier: exact command executed + result summary | `/pr` Step 2 gate commands/output; `/build` Step 5 suite output, Step 6 review status, Step 7 Farley score, Step 7.6 acceptance examination (the pass or refusal line from `acceptance_examination.py status`, and the record's overall verdict from `acceptance_examination.py show --plan <plan>`, its `overall` field) |
-| Scope notes | What the executed suite does NOT verify for this diff | Review agents dispatched vs. skipped; gate steps reported "not applicable"; `metrics/verify-log.jsonl` `skipped` reasons; absent tools (coverage, mutation) |
+| Scope notes | What the executed suite does NOT verify for this diff | Review agents dispatched vs. skipped; gate steps reported "not applicable"; `.claude/metrics/verify-log.jsonl` `skipped` reasons; absent tools (coverage, mutation) |
 | Untested regions | Coverage-derived statement of what the diff leaves unexercised | `baseline-coverage.json` + `coverage-history.json` line/branch % and delta; diff-scoped uncovered files from a coverage report artifact when one exists; "not measured" when none exists |
 | Residual risks | Consciously accepted risk, derived-first | Deferred/escalated findings (`.claude/metrics/review-value.jsonl`), gate-bypass audit lines, structural-review waivers, negative coverage-delta warnings, plans declaring `**Examination**: not-applicable`; author-judged prose may be appended but never substitutes for the derived rows |
 

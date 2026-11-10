@@ -746,12 +746,16 @@ def test_5_4_non_path_backtick_token_not_mis_captured_as_declared_path(
 
 # ---------------------------------------------------------------------------
 # Step 6 — issue #727: pre-PR gate requires evidence of /verify for
-# runtime-surface changes (metrics/verify-log.jsonl)
+# runtime-surface changes (.claude/metrics/verify-log.jsonl; legacy
+# metrics/verify-log.jsonl is also read)
 # ---------------------------------------------------------------------------
 
 
-def _write_verify_log(repo: Path, branch: str, outcome: str = "ran") -> None:
-    metrics_dir = repo / "metrics"
+def _write_verify_log(
+    repo: Path, branch: str, outcome: str = "ran", use_legacy_path: bool = False
+) -> None:
+    rel_dir = Path("metrics") if use_legacy_path else Path(".claude") / "metrics"
+    metrics_dir = repo / rel_dir
     metrics_dir.mkdir(parents=True, exist_ok=True)
     entry = {
         "timestamp": "2026-07-02T00:00:00Z",
@@ -767,7 +771,7 @@ def _write_verify_log(repo: Path, branch: str, outcome: str = "ran") -> None:
     # Commit it so it doesn't trip the uncommitted-changes check — the
     # scenario under test is "does a committed verify-log entry satisfy
     # the gate", isolated from check_uncommitted (issue #727).
-    _git(repo, "add", "metrics/verify-log.jsonl")
+    _git(repo, "add", "-f", str(rel_dir / "verify-log.jsonl"))
     _git(repo, "commit", "-q", "-m", "chore: record verify-log entry")
 
 
@@ -812,6 +816,46 @@ def test_6b_pre_pr_with_runtime_file_and_matching_verify_log_entry_exits_0(
     assert result.returncode == 0
     data = json.loads(result.stdout)
     assert_pre_pr_clean(data)
+
+
+def _runtime_branch_repo(tmp_path: Path) -> Path:
+    _init_repo(tmp_path)
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "chore: initial")
+    (tmp_path / "a.py").write_text("branch work\n")
+    _git(tmp_path, "add", "a.py")
+    _git(tmp_path, "commit", "-q", "-m", "feat: do thing")
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [x] do thing\n\n**Files:** `a.py`\n")
+    return plan
+
+
+def test_6i_legacy_verify_log_matching_entry_satisfies_gate(tmp_path: Path) -> None:
+    plan = _runtime_branch_repo(tmp_path)
+    _write_verify_log(tmp_path, branch=_current_branch(tmp_path), use_legacy_path=True)
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
+    assert result.returncode == 0
+    assert_pre_pr_clean(json.loads(result.stdout))
+
+
+def test_6j_legacy_verify_log_other_branch_still_fails(tmp_path: Path) -> None:
+    plan = _runtime_branch_repo(tmp_path)
+    _write_verify_log(tmp_path, branch="some-other-branch", use_legacy_path=True)
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
+    assert result.returncode == 1
+    data = json.loads(result.stdout)
+    assert any("verify-log" in i["message"] for i in data["issues"]), data
+
+
+def test_6k_legacy_entries_merge_with_new_path_entries(tmp_path: Path) -> None:
+    plan = _runtime_branch_repo(tmp_path)
+    _write_verify_log(tmp_path, branch="some-other-branch")
+    _write_verify_log(tmp_path, branch=_current_branch(tmp_path), use_legacy_path=True)
+
+    result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
+    assert result.returncode == 0
+    assert_pre_pr_clean(json.loads(result.stdout))
 
 
 def test_6c_pre_pr_with_verify_log_for_a_different_branch_still_fails(

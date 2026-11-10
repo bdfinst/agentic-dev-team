@@ -11,7 +11,7 @@ references (the rollback-point --path value, the build-escalation record
 path, and one approval-entry mention), were still bare. This test pins the
 fix live-discovered during Slice 7's sweep.
 
-metrics/verify-log.jsonl (AC3) and the bare plans/ references belonging to
+The bare plans/ references belonging to
 /plan's own operator-facing implementation-plan-file convention (a distinct
 concept from this epic's .claude/plans/ runtime-state domain) are
 deliberately excluded — see plan/SKILL.md's own precedent.
@@ -51,8 +51,11 @@ def test_review_value_schema_reference_is_claude_scoped() -> None:
     )
 
 
-def test_verify_log_stays_bare_per_ac3_exemption() -> None:
-    assert "metrics/verify-log.jsonl" in BUILD_SKILL
+def test_verify_log_path_relocated() -> None:
+    assert ".claude/metrics/verify-log.jsonl" in BUILD_SKILL
+    assert "metrics/verify-log.jsonl" not in BUILD_SKILL.replace(
+        ".claude/metrics/verify-log.jsonl", ""
+    )
 
 
 def test_no_other_bare_memory_reference_remains_outside_exemptions() -> None:

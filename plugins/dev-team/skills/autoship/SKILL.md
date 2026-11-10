@@ -916,7 +916,7 @@ captured just before invoking `/ship` in Step 3c, then run the classifier:
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/classify_ship_outcome.py" \
   --review-value .claude/metrics/review-value.jsonl \
-  --verify-log   metrics/verify-log.jsonl \
+  --verify-log   .claude/metrics/verify-log.jsonl \
   --since        <start_iso>
 ```
 
