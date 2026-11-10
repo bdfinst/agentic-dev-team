@@ -243,7 +243,8 @@ def check_pre_pr(steps: list[Step]) -> list[dict]:
     return errors
 
 
-VERIFY_LOG_PATH = "metrics/verify-log.jsonl"
+VERIFY_LOG_PATH = ".claude/metrics/verify-log.jsonl"
+LEGACY_VERIFY_LOG_PATH = "metrics/verify-log.jsonl"
 
 # Test-file indicators — kept in sync with knowledge/test-file-indicators.md
 # so this Python check and the /build skill's prose classification agree on
@@ -360,7 +361,7 @@ def _collect_branch_changed_files(repo_root: str) -> list[str]:
 def check_verify_log(repo_root: str, changed_files: list[str]) -> list[dict]:
     """Pre-PR gate (issue #727): if the branch touches any runtime-surface
     file (not exclusively tests/docs/config), require at least one entry
-    in metrics/verify-log.jsonl for the current branch — evidence that
+    in .claude/metrics/verify-log.jsonl for the current branch — evidence that
     `/verify` ran (or was explicitly skipped with a reason) before the
     slice was marked done. Fails closed, the same way an incomplete step
     or a missing commit does.
@@ -370,6 +371,9 @@ def check_verify_log(repo_root: str, changed_files: list[str]) -> list[dict]:
 
     branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_root).strip()
     log_path = Path(repo_root) / VERIFY_LOG_PATH
+    legacy_path = Path(repo_root) / LEGACY_VERIFY_LOG_PATH
+    if not log_path.exists() and legacy_path.exists():
+        log_path = legacy_path
 
     entries: list[dict] = []
     if log_path.exists():
@@ -439,7 +443,9 @@ def check_declared_scope_adherence(
         for f in changed_files
         if f != plan_name
         and not f.endswith(plan_name)
-        and not (f.startswith("metrics/") and f.endswith(".jsonl"))
+        and not (
+            f.startswith(("metrics/", ".claude/metrics/")) and f.endswith(".jsonl")
+        )
         and not f.startswith("memory/")
     ]
     if not changed_files:
@@ -521,7 +527,9 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> list[dict]:
         if f != plan_name
         and f != plan_rel
         and not f.endswith(plan_name)
-        and not (f.startswith("metrics/") and f.endswith(".jsonl"))
+        and not (
+            f.startswith(("metrics/", ".claude/metrics/")) and f.endswith(".jsonl")
+        )
     }
 
     if not changed_files:

@@ -336,7 +336,7 @@ triggers `/pr`'s commit-or-stash prompt (Step 6(i)), which this commit
 avoids.
 
 **Append a verify-log entry.** Once the closure commit above lands, append
-one entry to `metrics/verify-log.jsonl` matching `../build/SKILL.md`
+one entry to `.claude/metrics/verify-log.jsonl` matching `../build/SKILL.md`
 sub-step 4.9's schema —
 `{"timestamp","plan","slice","branch","files","outcome","reason"}`. `/fix`
 has no `plan`/`slice`, so omit those two fields (or leave them `null`); set

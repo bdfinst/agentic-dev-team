@@ -1,7 +1,7 @@
 """
 classify_ship_outcome.py — deterministic /ship outcome classifier.
 
-Reads metrics/review-value.jsonl and metrics/verify-log.jsonl since a
+Reads metrics/review-value.jsonl and .claude/metrics/verify-log.jsonl since a
 start timestamp and returns one of three outcome strings:
 
   "convergence_failure" — any review-value entry since `since_iso` has
@@ -70,7 +70,7 @@ def classify(
     review_value_path:
         Path to metrics/review-value.jsonl (may not exist).
     verify_log_path:
-        Path to metrics/verify-log.jsonl (may not exist).
+        Path to .claude/metrics/verify-log.jsonl (may not exist).
     since_iso:
         ISO-8601 timestamp string.  Only records at or after this time
         are considered.
@@ -104,7 +104,7 @@ def _main() -> None:
         "--verify-log",
         required=True,
         metavar="PATH",
-        help="Path to metrics/verify-log.jsonl",
+        help="Path to .claude/metrics/verify-log.jsonl",
     )
     parser.add_argument(
         "--since",

@@ -39,7 +39,7 @@ CONTINUE_SKILL = (PLUGIN_ROOT / "skills" / "continue" / "SKILL.md").read_text(
 )
 
 _BARE_METRICS_RE = re.compile(
-    r"(?<!\.claude/)metrics/(?!verify-log\.jsonl)(?!eval-ablation\.jsonl)"
+    r"(?<!\.claude/)metrics/(?!eval-ablation\.jsonl)"
 )
 _BARE_MEMORY_RE = re.compile(r"(?<!\.claude/)memory/")
 
@@ -59,8 +59,7 @@ def test_agent_eval_ablation_and_variance_paths_relocated() -> None:
 def test_autoship_review_value_and_autoship_log_paths_relocated() -> None:
     assert ".claude/metrics/review-value.jsonl" in AUTOSHIP
     assert ".claude/metrics/autoship-log.jsonl" in AUTOSHIP
-    # verify-log.jsonl stays bare (AC3)
-    assert "metrics/verify-log.jsonl" in AUTOSHIP
+    assert ".claude/metrics/verify-log.jsonl" in AUTOSHIP
     assert not _BARE_METRICS_RE.search(AUTOSHIP)
 
 

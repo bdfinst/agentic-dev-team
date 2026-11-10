@@ -113,7 +113,6 @@ def test_verify_log_paragraph_has_no_consent_check():
     assert "~/.claude/telemetry.json" not in section_text
 
 
-def test_verify_log_paragraph_stays_at_bare_unrelocated_path():
+def test_verify_log_paragraph_uses_claude_scoped_path():
     section_text = _verify_runtime_behavior_section()
-    assert grep(r"metrics/verify-log\.jsonl", section_text)
-    assert ".claude/metrics/verify-log.jsonl" not in section_text
+    assert ".claude/metrics/verify-log.jsonl" in section_text

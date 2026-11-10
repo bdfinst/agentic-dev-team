@@ -52,7 +52,7 @@ def test_review_value_schema_reference_is_claude_scoped() -> None:
 
 
 def test_verify_log_stays_bare_per_ac3_exemption() -> None:
-    assert "metrics/verify-log.jsonl" in BUILD_SKILL
+    assert ".claude/metrics/verify-log.jsonl" in BUILD_SKILL
 
 
 def test_no_other_bare_memory_reference_remains_outside_exemptions() -> None:

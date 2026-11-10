@@ -44,8 +44,9 @@ file-by-file, never overwrites an existing destination) in `hooks/lib/artifact_p
 A failed move logs one diagnostic line to stderr. The calling operation
 proceeds unaffected. The move never blocks or raises.
 
-`verify-log.jsonl` is a deliberate exception. It stays at the bare
-`metrics/verify-log.jsonl` and is **not** part of this migration at all. The plugin never moved, gated, or relocated it.
+`verify-log.jsonl` now lives at `.claude/metrics/verify-log.jsonl` like every
+other metrics file. Readers (`progress_guardian.py`) fall back to a legacy bare
+`metrics/verify-log.jsonl` when the new path is absent.
 
 ## 2. Documented clean break (agent-instruction-driven writers, no Python write call site)
 

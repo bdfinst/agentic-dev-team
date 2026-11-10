@@ -200,7 +200,7 @@ section).
 ### Verify Log Entry (#727)
 
 `/build` appends one entry per **slice with a runtime surface** to
-`metrics/verify-log.jsonl` (sub-step 4.9) — evidence that the project's own
+`.claude/metrics/verify-log.jsonl` (sub-step 4.9) — evidence that the project's own
 test/verification tooling actually exercised the change end-to-end before the
 slice was marked done, or was explicitly skipped because the diff had no
 runtime surface to drive. This is the sensor that closes the gap the #727
@@ -245,7 +245,7 @@ and that gate is a correctness control, not a metrics-collection nicety.
 | --- | --- |
 | Task completed | Logged automatically by `hooks/task_completion_metrics.py` (no manual step needed) |
 | `/build` inline review checkpoint | Append a Review Value entry to `.claude/metrics/review-value.jsonl` (#348) |
-| `/build` slice with a runtime surface | Append a Verify Log entry to `metrics/verify-log.jsonl` (#727) |
+| `/build` slice with a runtime surface | Append a Verify Log entry to `.claude/metrics/verify-log.jsonl` (#727) |
 | Configuration change | Add `config_change` to `.claude/session-metrics.json`; hook writes `.claude/metrics/config-changelog.jsonl` |
 | Hallucination detected | Set `hallucination_detected: true` in `.claude/session-metrics.json` |
 | Context summarization triggered | Increment counter in current task entry |

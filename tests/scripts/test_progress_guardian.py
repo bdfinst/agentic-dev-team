@@ -751,7 +751,7 @@ def test_5_4_non_path_backtick_token_not_mis_captured_as_declared_path(
 
 
 def _write_verify_log(repo: Path, branch: str, outcome: str = "ran") -> None:
-    metrics_dir = repo / "metrics"
+    metrics_dir = repo / ".claude" / "metrics"
     metrics_dir.mkdir(parents=True, exist_ok=True)
     entry = {
         "timestamp": "2026-07-02T00:00:00Z",
@@ -767,7 +767,7 @@ def _write_verify_log(repo: Path, branch: str, outcome: str = "ran") -> None:
     # Commit it so it doesn't trip the uncommitted-changes check — the
     # scenario under test is "does a committed verify-log entry satisfy
     # the gate", isolated from check_uncommitted (issue #727).
-    _git(repo, "add", "metrics/verify-log.jsonl")
+    _git(repo, "add", "-f", ".claude/metrics/verify-log.jsonl")
     _git(repo, "commit", "-q", "-m", "chore: record verify-log entry")
 
 

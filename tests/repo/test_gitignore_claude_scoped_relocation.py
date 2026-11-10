@@ -87,8 +87,9 @@ def test_claude_metrics_tracked_exceptions_relocated():
     assert not _is_ignored(".claude/metrics/eval-variance.jsonl")
 
 
-def test_bare_verify_log_stays_ignored_unrelocated():
+def test_verify_log_ignored_at_both_locations():
     assert _is_ignored("metrics/verify-log.jsonl")
+    assert _is_ignored(".claude/metrics/verify-log.jsonl")
 
 
 def test_claude_plans_ignored():
