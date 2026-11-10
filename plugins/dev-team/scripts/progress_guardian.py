@@ -245,6 +245,12 @@ def check_pre_pr(steps: list[Step]) -> list[dict]:
 
 VERIFY_LOG_PATH = ".claude/metrics/verify-log.jsonl"
 LEGACY_VERIFY_LOG_PATH = "metrics/verify-log.jsonl"
+_METRICS_DIR_PREFIXES = ("metrics/", ".claude/metrics/")
+
+
+def _is_metrics_artifact(path: str) -> bool:
+    """True for an append-only metrics JSONL file (new or legacy location)."""
+    return path.startswith(_METRICS_DIR_PREFIXES) and path.endswith(".jsonl")
 
 # Test-file indicators — kept in sync with knowledge/test-file-indicators.md
 # so this Python check and the /build skill's prose classification agree on
@@ -313,7 +319,7 @@ def _is_test_file(path: str, repo_root: str) -> bool:
 
 
 def _is_doc_or_config_file(path: str) -> bool:
-    if path.startswith(("metrics/", ".claude/metrics/")) and path.endswith(".jsonl"):
+    if _is_metrics_artifact(path):
         return True
     if Path(path).name in _DOC_CONFIG_BASENAMES:
         return True
@@ -445,9 +451,7 @@ def check_declared_scope_adherence(
         for f in changed_files
         if f != plan_name
         and not f.endswith(plan_name)
-        and not (
-            f.startswith(("metrics/", ".claude/metrics/")) and f.endswith(".jsonl")
-        )
+        and not _is_metrics_artifact(f)
         and not f.startswith("memory/")
     ]
     if not changed_files:
@@ -529,9 +533,7 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> list[dict]:
         if f != plan_name
         and f != plan_rel
         and not f.endswith(plan_name)
-        and not (
-            f.startswith(("metrics/", ".claude/metrics/")) and f.endswith(".jsonl")
-        )
+        and not _is_metrics_artifact(f)
     }
 
     if not changed_files:

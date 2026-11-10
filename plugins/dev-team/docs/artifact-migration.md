@@ -60,6 +60,7 @@ with no automatic reconciliation.
 | File / tree | Old path | New path (new writes only) |
 | --- | --- | --- |
 | `review-value.jsonl` | `metrics/review-value.jsonl` | `.claude/metrics/review-value.jsonl` |
+| `verify-log.jsonl` | `metrics/verify-log.jsonl` | `.claude/metrics/verify-log.jsonl` (`progress_guardian.py` also reads the legacy file and merges its entries) |
 | `build-phase.json` | `memory/build-phase.json` | `.claude/memory/build-phase.json` (read side uses `migrate=False` deliberately — it never moves the legacy file) |
 | `refactor-backlog.md` (`/test-improve`) | `memory/test-improve/<slug>/refactor-backlog.md` | `.dev-team-reports/test-improve/<slug>/refactor-backlog.md` (a report, not runtime state — explicitly excluded from `migrate_dir()`'s `.claude/memory/` sweep; see the reports-domain row below) |
 | `/test-improve` reports output | `reports/test-improve/<slug>/` | `.dev-team-reports/test-improve/<slug>/` |

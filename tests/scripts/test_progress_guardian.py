@@ -746,14 +746,15 @@ def test_5_4_non_path_backtick_token_not_mis_captured_as_declared_path(
 
 # ---------------------------------------------------------------------------
 # Step 6 — issue #727: pre-PR gate requires evidence of /verify for
-# runtime-surface changes (metrics/verify-log.jsonl)
+# runtime-surface changes (.claude/metrics/verify-log.jsonl; legacy
+# metrics/verify-log.jsonl is also read)
 # ---------------------------------------------------------------------------
 
 
 def _write_verify_log(
-    repo: Path, branch: str, outcome: str = "ran", legacy: bool = False
+    repo: Path, branch: str, outcome: str = "ran", use_legacy_path: bool = False
 ) -> None:
-    rel_dir = Path("metrics") if legacy else Path(".claude") / "metrics"
+    rel_dir = Path("metrics") if use_legacy_path else Path(".claude") / "metrics"
     metrics_dir = repo / rel_dir
     metrics_dir.mkdir(parents=True, exist_ok=True)
     entry = {
@@ -828,18 +829,18 @@ def _runtime_branch_repo(tmp_path: Path) -> Path:
     return plan
 
 
-def test_6f_legacy_verify_log_matching_entry_satisfies_gate(tmp_path: Path) -> None:
+def test_6i_legacy_verify_log_matching_entry_satisfies_gate(tmp_path: Path) -> None:
     plan = _runtime_branch_repo(tmp_path)
-    _write_verify_log(tmp_path, branch=_current_branch(tmp_path), legacy=True)
+    _write_verify_log(tmp_path, branch=_current_branch(tmp_path), use_legacy_path=True)
 
     result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 0
     assert_pre_pr_clean(json.loads(result.stdout))
 
 
-def test_6g_legacy_verify_log_other_branch_still_fails(tmp_path: Path) -> None:
+def test_6j_legacy_verify_log_other_branch_still_fails(tmp_path: Path) -> None:
     plan = _runtime_branch_repo(tmp_path)
-    _write_verify_log(tmp_path, branch="some-other-branch", legacy=True)
+    _write_verify_log(tmp_path, branch="some-other-branch", use_legacy_path=True)
 
     result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 1
@@ -847,13 +848,14 @@ def test_6g_legacy_verify_log_other_branch_still_fails(tmp_path: Path) -> None:
     assert any("verify-log" in i["message"] for i in data["issues"]), data
 
 
-def test_6h_legacy_entries_merge_with_new_path_entries(tmp_path: Path) -> None:
+def test_6k_legacy_entries_merge_with_new_path_entries(tmp_path: Path) -> None:
     plan = _runtime_branch_repo(tmp_path)
     _write_verify_log(tmp_path, branch="some-other-branch")
-    _write_verify_log(tmp_path, branch=_current_branch(tmp_path), legacy=True)
+    _write_verify_log(tmp_path, branch=_current_branch(tmp_path), use_legacy_path=True)
 
     result = run_pg(plan, "--pre-pr", "--skip-llm", exempt=True)
     assert result.returncode == 0
+    assert_pre_pr_clean(json.loads(result.stdout))
 
 
 def test_6c_pre_pr_with_verify_log_for_a_different_branch_still_fails(
