@@ -1,6 +1,6 @@
 """Content-guard: review-value.jsonl is gated by telemetry consent and
-relocated under .claude/metrics/; verify-log.jsonl stays unconditional and
-unrelocated (#1405/#1406 combined plan, Slice 3 Step 3.1).
+relocated under .claude/metrics/; verify-log.jsonl stays unconditional but is
+also relocated (#1405/#1406 combined plan, Slice 3 Step 3.1).
 
 `review-value.jsonl` is written entirely via build/SKILL.md's agent
 instructions — there is no Python write call site to gate. Two independent
@@ -11,9 +11,9 @@ existing DEV_TEAM_REVIEW_VALUE=off opt-out, and (b) target the relocated
 path .claude/metrics/review-value.jsonl, never the bare
 metrics/review-value.jsonl path.
 
-verify-log.jsonl is exempt from all of this (AC3) — sub-step 4.9's
-"Verify runtime behavior" paragraph must remain untouched: no consent
-check, still the bare metrics/verify-log.jsonl path.
+verify-log.jsonl is exempt from the consent gate only — sub-step 4.9's
+"Verify runtime behavior" paragraph has no consent check and targets
+.claude/metrics/verify-log.jsonl.
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def test_sub_step_7_keeps_existing_opt_out_env_var():
     assert grep(r"DEV_TEAM_REVIEW_VALUE=off", para)
 
 
-# --- verify-log.jsonl stays exempt (AC3) --------------------------------
+# --- verify-log.jsonl: no consent gate, relocated path --------------------------------
 
 
 def test_verify_log_paragraph_has_no_consent_check():
@@ -116,3 +116,6 @@ def test_verify_log_paragraph_has_no_consent_check():
 def test_verify_log_paragraph_uses_claude_scoped_path():
     section_text = _verify_runtime_behavior_section()
     assert ".claude/metrics/verify-log.jsonl" in section_text
+    assert "metrics/verify-log.jsonl" not in section_text.replace(
+        ".claude/metrics/verify-log.jsonl", ""
+    )

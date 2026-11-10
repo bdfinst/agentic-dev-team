@@ -625,7 +625,7 @@ FACTS = [
         "step5",
         literal_required=[
             "**Append a verify-log entry.**",
-            "metrics/verify-log.jsonl",
+            ".claude/metrics/verify-log.jsonl",
             "../build/SKILL.md",
             "sub-step 4.9",
             '"timestamp"',
@@ -636,7 +636,7 @@ FACTS = [
         note=(
             "Finding 3 (arch-review, warning): /pr's --pre-pr pre-flight gate "
             "(progress_guardian.py's check_verify_log) fails closed when a branch "
-            "touches runtime-surface files with no metrics/verify-log.jsonl entry — "
+            "touches runtime-surface files with no .claude/metrics/verify-log.jsonl entry — "
             "/fix has no equivalent bookkeeping step without this addition, and "
             "Step 6's /pr dispatch would hard-fail its pre-flight otherwise."
         ),

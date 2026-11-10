@@ -313,7 +313,7 @@ def _is_test_file(path: str, repo_root: str) -> bool:
 
 
 def _is_doc_or_config_file(path: str) -> bool:
-    if path.startswith("metrics/") and path.endswith(".jsonl"):
+    if path.startswith(("metrics/", ".claude/metrics/")) and path.endswith(".jsonl"):
         return True
     if Path(path).name in _DOC_CONFIG_BASENAMES:
         return True
@@ -370,13 +370,15 @@ def check_verify_log(repo_root: str, changed_files: list[str]) -> list[dict]:
         return []
 
     branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_root).strip()
-    log_path = Path(repo_root) / VERIFY_LOG_PATH
-    legacy_path = Path(repo_root) / LEGACY_VERIFY_LOG_PATH
-    if not log_path.exists() and legacy_path.exists():
-        log_path = legacy_path
+    log_paths = [
+        Path(repo_root) / VERIFY_LOG_PATH,
+        Path(repo_root) / LEGACY_VERIFY_LOG_PATH,
+    ]
 
     entries: list[dict] = []
-    if log_path.exists():
+    for log_path in log_paths:
+        if not log_path.exists():
+            continue
         for raw_line in log_path.read_text(encoding="utf-8").splitlines():
             raw_line = raw_line.strip()
             if not raw_line:

@@ -45,8 +45,8 @@ A failed move logs one diagnostic line to stderr. The calling operation
 proceeds unaffected. The move never blocks or raises.
 
 `verify-log.jsonl` now lives at `.claude/metrics/verify-log.jsonl` like every
-other metrics file. Readers (`progress_guardian.py`) fall back to a legacy bare
-`metrics/verify-log.jsonl` when the new path is absent.
+other metrics file. Readers (`progress_guardian.py`) also read a legacy bare
+`metrics/verify-log.jsonl` and merge its entries with the new file's.
 
 ## 2. Documented clean break (agent-instruction-driven writers, no Python write call site)
 

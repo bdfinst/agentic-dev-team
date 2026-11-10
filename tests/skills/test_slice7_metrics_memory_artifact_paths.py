@@ -8,9 +8,9 @@ output-format.md (override-audit.jsonl only — the reports-domain content in
 these two files was already handled by Slice 9's sweep and is untouched
 here), context-loading-protocol/SKILL.md, and continue/SKILL.md.
 
-metrics/verify-log.jsonl (AC3) and the bare plans/ references belonging to
-/plan's own operator-facing implementation-plan-file convention are
-deliberately excluded from every assertion below.
+The bare plans/ references belonging to /plan's own operator-facing
+implementation-plan-file convention are deliberately excluded from every
+assertion below.
 """
 
 from __future__ import annotations

@@ -5,7 +5,7 @@ describe bare project-scoped metrics/memory/reports paths as writer targets
 `.claude/metrics/verify-log.jsonl` is relocated and the illustrative
 `"plan": "plans/add-auth.md"` JSON example values are a distinct concept (the
 operator-authored implementation-plan file, same as /plan's own shipped
-default) — neither is touched by this sweep.
+default) — not touched by this sweep.
 """
 
 from __future__ import annotations
