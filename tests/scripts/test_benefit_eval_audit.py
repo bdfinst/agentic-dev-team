@@ -759,17 +759,19 @@ def test_audit_cli_incomplete_prereg_exits_2_naming_metric_and_column(world, tmp
     assert "metric 'skip-rate' column 'retire' is empty" in err
 
 
-def test_the_audit_path_loads_only_the_reader_and_the_pre_registration_parser(world, tmp_path):
+def test_the_audit_path_loads_no_metric_module(world, tmp_path):
     prereg_path = write_prereg(tmp_path, CLI_ENTRIES[:1])
     driver = (
         "import importlib.util, sys\n"
         f"spec = importlib.util.spec_from_file_location('cli', {str(REPO_ROOT / 'scripts' / 'benefit_eval_cli.py')!r})\n"
         "cli = importlib.util.module_from_spec(spec); sys.modules['cli'] = cli; spec.loader.exec_module(cli)\n"
-        f"code = cli.main({cli_argv('audit', world, prereg_path)!r})\n"
+        f"cli.main({cli_argv('audit', world, prereg_path)!r})\n"
         "print(sorted(m for m in sys.modules if m.startswith('benefit_eval.')))\n"
     )
     done = subprocess.run([sys.executable, "-c", driver], capture_output=True, text=True, cwd=tmp_path, check=False)
-    assert done.stdout.strip().splitlines()[-1] == "['benefit_eval.prereg', 'benefit_eval.streams']", done
+    assert (done.stderr, done.returncode) == ("", 0)
+    loaded = done.stdout.strip().splitlines()[-1]
+    assert loaded == "['benefit_eval.formatting', 'benefit_eval.prereg', 'benefit_eval.streams']", done
 
 
 def test_audit_cli_without_a_command_exits_2(capsys):
@@ -785,7 +787,7 @@ def test_audit_cli_leaves_every_input_and_the_listing_unchanged(world, tmp_path,
     before = world.snapshot()
     code = cli.main(cli_argv("audit", world, prereg_path))
     out = capsys.readouterr().out
-    assert code != 2
+    assert code == 1  # the one finding: expand-rate has no instrument
     assert all(metric["id"] in out for metric in CLI_ENTRIES)
     assert world.snapshot() == before
 
@@ -910,6 +912,15 @@ def test_real_prereg_audit_with_data_reports_confirmed_manual_no_instrument_and_
         world.subagent(f"sess{i:04d}-aaaa", "a1", [{"type": "assistant"}])
     (world.home / "artifact-usage.json").write_text('{"source-verification":{"use_count":2}}')
     statuses = streams.audit(real.metrics, world.sources)
-    assert sorted({s.status for s in statuses}) == ["confirmed", "manual", "no instrument", "no session ids"]
+    assert {s.instrument: s.status for s in statuses} == {
+        "ledger-skips": "confirmed",
+        "checkpoint-aborts": "confirmed",
+        "skill-injection": "confirmed",
+        "subagent-stops": "confirmed",
+        "subagent-transcripts": "confirmed",
+        "artifact-usage": "no session ids",
+        "manual-input": "manual",
+        "none": "no instrument",
+    }
     assert streams.audit_exit_code(statuses) == 1
 

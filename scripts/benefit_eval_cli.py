@@ -35,7 +35,8 @@ _LIB_DIR = _SCRIPTS_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from benefit_eval import prereg, streams
+from benefit_eval import formatting, prereg, streams
+from benefit_eval.formatting import ReportContext, ReportLine, ReportNote
 
 DEFAULT_PREREG = _SCRIPTS_DIR.parent / "docs" / "benefit-eval" / "preregistration.md"
 
@@ -82,53 +83,22 @@ def run_audit(args: argparse.Namespace) -> int:
 
 @dataclass(frozen=True)
 class Handler:
-    """How the report computes one stream-backed metric."""
+    """How the report computes one metric: its line, then any notes that ride with it."""
 
-    compute: Callable
-    notes: tuple[Callable, ...] = ()
-    needs_boundary: bool = False
+    compute: Callable[[prereg.Metric, ReportContext], ReportLine]
+    notes: tuple[Callable[[prereg.Metric, ReportContext], ReportNote], ...] = ()
 
 
-def _handlers(transcripts) -> dict[str, Handler]:
-    # Imported here so the audit path loads only the reader and the pre-registration parser.
+def _metric_modules():
+    """The metric modules, imported on first use so the audit path loads only the reader and the pre-registration parser."""
     from benefit_eval import metrics_cost, metrics_hooks, metrics_ledger
 
-    return {
-        "skip-rate": Handler(
-            metrics_ledger.skip_rate, (metrics_ledger.missing_scope_marker_split,)
-        ),
-        "abort-yield": Handler(
-            metrics_ledger.abort_yield, (metrics_ledger.abort_frequency,)
-        ),
-        "injection-overhead": Handler(metrics_hooks.injection_overhead),
-        "injection-uptake": Handler(
-            lambda metric, ctx: metrics_hooks.injection_uptake(metric, ctx, transcripts)
-        ),
-        "guard-divergence": Handler(
-            metrics_hooks.completion_guard_divergence,
-            (
-                lambda metric, ctx: metrics_hooks.completion_guard_sample(
-                    metric, ctx, transcripts
-                ),
-            ),
-        ),
-        "test-review-token-delta": Handler(
-            lambda metric, ctx: metrics_hooks.test_review_token_delta(
-                metric, ctx, transcripts
-            ),
-            needs_boundary=True,
-        ),
-        "contradicted-rate": Handler(
-            metrics_cost.verdict_rate,
-            (lambda metric, ctx: metrics_cost.skill_adoption(ctx),),
-        ),
-    }
+    return metrics_cost, metrics_hooks, metrics_ledger
 
 
-def _handler_for(metric: prereg.Metric, handlers: dict[str, Handler], pre) -> Handler:
+def _handler_for(metric: prereg.Metric, prereg_path: Path) -> Handler:
     """Hand-entered and unmeasurable metrics need no stream; every other metric needs a registered computation."""
-    from benefit_eval import metrics_cost
-
+    metrics_cost, metrics_hooks, metrics_ledger = _metric_modules()
     if (
         metric.instrument == streams.NO_INSTRUMENT
         or metric.id_less_handling == streams.UNMEASURABLE
@@ -136,9 +106,27 @@ def _handler_for(metric: prereg.Metric, handlers: dict[str, Handler], pre) -> Ha
         return Handler(metrics_cost.unmeasurable_line)
     if metric.instrument == streams.MANUAL_INSTRUMENT:
         return Handler(metrics_cost.manual_metric)
+    handlers = {
+        "skip-rate": Handler(
+            metrics_ledger.skip_rate, (metrics_ledger.missing_scope_marker_split,)
+        ),
+        "abort-yield": Handler(
+            metrics_ledger.abort_yield, (metrics_ledger.abort_frequency,)
+        ),
+        "injection-overhead": Handler(metrics_hooks.injection_overhead),
+        "injection-uptake": Handler(metrics_hooks.injection_uptake),
+        "guard-divergence": Handler(
+            metrics_hooks.completion_guard_divergence,
+            (metrics_hooks.completion_guard_sample,),
+        ),
+        "test-review-token-delta": Handler(metrics_hooks.test_review_token_delta),
+        "contradicted-rate": Handler(
+            metrics_cost.verdict_rate, (metrics_cost.skill_adoption,)
+        ),
+    }
     if metric.id not in handlers:
         raise streams.InputError(
-            pre.path,
+            prereg_path,
             0,
             f"the report has no computation for metric '{metric.id}'",
             "remove the entry or add its computation",
@@ -147,29 +135,24 @@ def _handler_for(metric: prereg.Metric, handlers: dict[str, Handler], pre) -> Ha
 
 
 def run_report(args: argparse.Namespace) -> int:
-    from benefit_eval import formatting, metrics_cost, metrics_hooks
-
+    metrics_cost, metrics_hooks, _ = _metric_modules()
     pre = prereg.load_prereg(args.prereg)
     roots = tuple(args.project_root or [Path.cwd()])
     sources = streams.Sources(roots, args.home_metrics, args.projects_root)
     manual_file = args.manual_input or metrics_cost.manual_input_path(roots[0])
-    ctx = formatting.ReportContext(
+    index = streams.SessionIndex(sources.projects_root)
+    ctx = ReportContext(
         sources,
-        streams.SessionIndex(sources.projects_root),
+        index,
+        metrics_hooks.SubagentTranscripts(index),
         start=args.window_start,
         end=args.window_end,
-        boundary=args.boundary,
+        boundary=streams.parse_utc(args.boundary) if args.boundary else None,
         seed=args.seed,
         manual=metrics_cost.load_manual_input(manual_file, {m.id for m in pre.metrics}),
         manual_file=manual_file,
     )
-    handlers = _handlers(metrics_hooks.SubagentTranscripts(ctx.index))
-    chosen = [(m, _handler_for(m, handlers, pre)) for m in pre.metrics]
-    if args.boundary is None and any(h.needs_boundary for _, h in chosen):
-        args.parser.error(
-            "--boundary is required: a before and after metric splits at it "
-            "(ISO 8601 UTC ending in Z, for example 2026-11-12T10:00:00Z)"
-        )
+    chosen = [(m, _handler_for(m, pre.path)) for m in pre.metrics]
     lines, notes = [], []
     for metric, handler in chosen:
         lines.append(formatting.mark_id_less(handler.compute(metric, ctx), metric))
@@ -182,7 +165,7 @@ def run_report(args: argparse.Namespace) -> int:
                 {
                     "run_at": run_at,
                     "prereg_posted": args.prereg_posted,
-                    "boundary": formatting.utc_stamp(args.boundary) if args.boundary else None,
+                    "boundary": args.boundary,
                     "seed": args.seed,
                     "metrics": [line.as_dict() for line in lines],
                     "notes": {note.key: note.data for note in notes},
@@ -199,15 +182,13 @@ def run_report(args: argparse.Namespace) -> int:
 def render_report_text(
     run_at: str,
     args: argparse.Namespace,
-    lines: list,
-    notes: list,
+    lines: list[ReportLine],
+    notes: list[ReportNote],
 ) -> str:
-    from benefit_eval import formatting
-
     out = [
         f"run at (UTC): {run_at}",
         f"prereg posted (UTC): {args.prereg_posted}",
-        f"boundary (UTC): {formatting.utc_stamp(args.boundary) if args.boundary else 'not set'}",
+        f"boundary (UTC): {args.boundary or 'not set'}",
         f"seed: {args.seed}",
     ]
     for line in lines:
@@ -282,7 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     report.add_argument(
         "--boundary",
-        type=_utc_argument,
+        type=_utc_text,
         help="before and after split (ISO 8601 UTC ending in Z): before is ts < boundary, "
         "after is ts >= boundary; required when a before and after metric is pre-registered",
     )
@@ -307,7 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         help="seed for the completion-guard hand-check sample (default 0)",
     )
-    report.set_defaults(handler=run_report, parser=report)
+    report.set_defaults(handler=run_report)
     return parser
 
 

@@ -22,7 +22,6 @@ from _benefit_eval_support import (
     real_entries,
 )
 from benefit_eval import prereg as prereg_module
-from benefit_eval import streams
 
 cli = load_cli("benefit_eval_cli_report")
 
@@ -447,7 +446,7 @@ def test_sample_lines_carry_session_classification_agent_and_transcript_from_dis
         assert classification in ("empty-final-turn", "truncated-final-turn")
         assert agent == f"a{index:02d}"
         assert transcript == f"*/{session}*/subagents/agent-a{index:02d}.jsonl"
-    assert f"{0:08d}-aaaa-bbbb-cccc-dddddddddddd" not in out
+        assert f"{index:08d}-aaaa-bbbb-cccc-dddddddddddd" not in out
 
 
 @pytest.mark.parametrize("json_mode", [False, True])
@@ -772,8 +771,10 @@ READ_ONLY_METRICS = [
 ]  # fmt: skip
 
 
-@pytest.mark.parametrize("real_prereg", [False, True])
-def test_report_leaves_every_input_kind_byte_identical(world, tmp_path, capsys, real_prereg):
+# The real pre-registration holds metrics at their real minimum N, so every verdict line is NULL (exit 3);
+# the small pre-registration's injection-uptake falls under its floor (exit 1).
+@pytest.mark.parametrize(("real_prereg", "expected_code"), [(False, 1), (True, 3)])
+def test_report_leaves_every_input_kind_byte_identical(world, tmp_path, capsys, real_prereg, expected_code):
     inputs = populate_every_input_kind(world)
     prereg_path = REAL_PREREG if real_prereg else write_prereg(tmp_path, READ_ONLY_METRICS)
     before = world.snapshot()
@@ -781,7 +782,7 @@ def test_report_leaves_every_input_kind_byte_identical(world, tmp_path, capsys, 
     code = cli.main(cli_argv("report", world, prereg_path, "--prereg-posted", POSTED, "--boundary", BOUNDARY))
     out = capsys.readouterr().out
     registered = list(real_entries()) if real_prereg else READ_ONLY_METRICS
-    assert code != 2
+    assert code == expected_code
     assert all(f"\n{metric_id}: " in f"\n{out}" for metric_id in registered)
     assert world.snapshot() == before
 
@@ -846,10 +847,10 @@ def dispatches(world: World, before: int, after: int, tokens: tuple[int, int] = 
 
 def test_a_missing_boundary_exits_2_when_a_before_and_after_metric_is_registered(world, tmp_path, capsys):
     dispatch(world, IN_WINDOW, 100)
-    with pytest.raises(SystemExit) as raised:
-        run_report(world, tmp_path, capsys, DELTA)
-    assert raised.value.code == 2
-    assert "--boundary" in capsys.readouterr().err
+    code, out, err = run_report(world, tmp_path, capsys, DELTA)
+    assert (code, out) == (2, "")
+    assert_input_error(err, "--boundary", 0, "test-review-token-delta splits before and after a boundary")
+    assert "--boundary" in err.split("Next:")[1]
 
 
 @pytest.mark.parametrize("bad", ["2026-02-15", "2026-02-15T09:30:00+02:00"])
@@ -857,6 +858,17 @@ def test_a_boundary_that_is_not_utc_with_z_exits_2(world, tmp_path, capsys, bad)
     with pytest.raises(SystemExit) as raised:
         run_report(world, tmp_path, capsys, DELTA, boundary=bad)
     assert raised.value.code == 2
+
+
+@pytest.mark.parametrize("as_json", [False, True])
+def test_the_boundary_is_echoed_as_the_operator_typed_it_fractional_seconds_included(world, tmp_path, capsys, as_json):
+    typed = "2026-03-01T00:00:00.500Z"
+    dispatch(world, IN_WINDOW, 100)
+    _, out, _ = run_report(world, tmp_path, capsys, DELTA, *(["--json"] if as_json else []), boundary=typed)
+    if as_json:
+        assert json.loads(out)["boundary"] == typed
+    else:
+        assert f"boundary (UTC): {typed}\n" in out
 
 
 def test_a_boundary_is_not_required_when_no_before_and_after_metric_is_registered(world, tmp_path, capsys):
@@ -1010,7 +1022,14 @@ def test_dispatches_of_a_session_with_no_real_transcript_are_left_out_and_counte
     world.subagent("ghost", "g1", attributed("dev-team:test-review", {"type": "assistant", "timestamp": IN_WINDOW, "message": {"usage": {"input_tokens": 9999}}}))
     _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     assert "after: N=1 dispatches, mean 500 tokens" in out
-    assert "left out: 1 subagent transcripts of sessions with no real transcript" in out
+    assert "left out: 1 dispatches of sessions with no real transcript" in out
+
+
+def test_a_transcript_of_another_agent_in_a_session_with_no_real_transcript_is_not_counted_as_left_out(world, tmp_path, capsys):
+    dispatches(world, 1, 1)
+    world.subagent("ghost", "g1", attributed("dev-team:other-review", {"type": "assistant", "timestamp": IN_WINDOW, "message": {"usage": {"input_tokens": 9999}}}))
+    _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
+    assert "left out" not in out
 
 
 def test_a_dispatch_with_no_timestamp_is_left_out_and_counted(world, tmp_path, capsys):
@@ -1030,6 +1049,21 @@ def test_a_directional_line_prints_its_status_but_leaves_the_exit_code_alone(wor
     assert code == 0
     payload = json.loads(run_report(world, tmp_path, capsys, ["skip-rate", *DELTA], "--json", boundary=BOUNDARY)[1])
     assert [m["exit_code"] for m in payload["metrics"]] == [0, 3]
+
+
+def test_a_directional_metric_pre_registered_on_an_id_less_instrument_prints_unverified_and_directional_and_feeds_no_verdict(
+    world, tmp_path, capsys
+):
+    dispatches(world, 1, 1, tokens=(1000, 2000))
+    overrides = {"test-review-token-delta": {"instrument": "cost-metering", "identity_class": "id-less", "id_less_handling": "UNVERIFIED"}}
+    code, out, err = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY, **overrides)
+    line = line_of(out, "test-review-token-delta:")
+    assert "UNVERIFIED (no session ids)" in line
+    assert "DIRECTIONAL (confounds:" in line
+    assert "breach" in line
+    assert (code, err) == (0, "")
+    (metric,) = json.loads(run_report(world, tmp_path, capsys, DELTA, "--json", boundary=BOUNDARY, **overrides)[1])["metrics"]
+    assert (metric["status"], metric["exit_code"], metric["verdict_input"]) == ("breach", 1, False)
 
 
 def test_an_id_less_line_prints_its_status_but_leaves_the_exit_code_alone(world, tmp_path, capsys):
@@ -1119,8 +1153,7 @@ def test_the_adoption_block_needs_no_other_metric_in_the_pre_registration(world,
     code, out, err = run_report(world, tmp_path, capsys, VERDICT)
     assert "source-verification: direct invocations 5, consumer dispatches 0 ORPHAN: wire-or-archive" in out
     assert "property-based-testing: direct invocations 0, consumer dispatches 0 ORPHAN: wire-or-archive" in out
-    assert err == ""
-    assert code != 2
+    assert (code, err) == (0, "")
 
 
 def test_a_stream_metric_with_unmeasurable_handling_prints_unmeasurable_and_no_adoption_block(world, tmp_path, capsys):
@@ -1134,17 +1167,27 @@ def test_a_stream_metric_with_unmeasurable_handling_prints_unmeasurable_and_no_a
 
 def test_artifact_usage_is_read_once_per_run_though_two_blocks_use_it(world, tmp_path, capsys, monkeypatch):
     write_usage(world, {"source-verification": {"use_count": 10}})
-    reads = []
-    real_read_text = streams.read_text
-    monkeypatch.setattr(streams, "read_text", lambda path: reads.append(path.name) or real_read_text(path))
-    run_report(world, tmp_path, capsys, VERDICT)
-    assert reads.count("artifact-usage.json") == 1
+    usage_file = world.home / "artifact-usage.json"
+    opened = []
+    real_open = Path.open
 
+    def counting_open(self, *args, **kwargs):
+        opened.append(self)
+        return real_open(self, *args, **kwargs)
 
-def test_a_skill_dispatched_to_by_no_consumer_is_an_orphan_however_often_invoked_directly(world, tmp_path, capsys):
-    write_usage(world, {"source-verification": {"use_count": 5}})
+    monkeypatch.setattr(Path, "open", counting_open)
     _, out, _ = run_report(world, tmp_path, capsys, VERDICT)
-    assert "source-verification: direct invocations 5, consumer dispatches 0 ORPHAN: wire-or-archive" in out
+    assert "skill adoption" in out
+    assert opened.count(usage_file) == 1
+
+
+@pytest.mark.parametrize("use_count", [0, 500])
+def test_a_skill_dispatched_to_by_no_consumer_is_an_orphan_however_often_invoked_directly(
+    world, tmp_path, capsys, use_count
+):
+    write_usage(world, {"source-verification": {"use_count": use_count}})
+    _, out, _ = run_report(world, tmp_path, capsys, VERDICT)
+    assert f"source-verification: direct invocations {use_count}, consumer dispatches 0 ORPHAN: wire-or-archive" in out
 
 
 def test_a_skill_with_a_consumer_dispatch_is_not_an_orphan(world, tmp_path, capsys):
@@ -1306,21 +1349,33 @@ def test_the_real_pre_registration_reports_every_metric_with_no_data(world, tmp_
     assert code == 3
 
 
-def _keep_limit(metric_id: str) -> float:
-    return prereg_module.parse_threshold(real_entries()[metric_id]["keep"]).limit
+def _own(metric_id: str) -> tuple[int, float]:
+    """A real entry's own minimum N and keep limit."""
+    entry = real_entries()[metric_id]
+    return entry["minimum_n"], prereg_module.parse_threshold(entry["keep"]).limit
+
+
+def _whole(limit: float) -> int:
+    """A limit as the integer a row field needs; fails rather than truncates a fractional one."""
+    assert float(limit).is_integer(), limit
+    return int(limit)
 
 
 def test_the_real_pre_registration_with_data_reports_each_metrics_own_status(world, tmp_path, capsys):
-    # Inputs derive from the loaded entries, so editing a threshold cannot silently change the expected status.
-    min_n = real_entries()["injection-overhead"]["minimum_n"]
+    # Inputs derive from each metric's own entry, so editing a threshold or a minimum N cannot silently change the expected status.
+    skip_n, skip_limit = _own("skip-rate")
+    overhead_n, overhead_limit = _own("injection-overhead")
+    pbt_n, pbt_limit = _own("pbt-mutants-killed")
+    verdict_n, _ = _own("contradicted-rate")
     for i in range(3):
         world.session(f"sess-{i}")
-    world.stream("ledger-skips", [consult("sess-0", 100, int(_keep_limit("skip-rate")))])
-    world.stream("skill-injection", [injection("sess-1", int(_keep_limit("injection-overhead")) + 100)] * min_n)
+    # A skip rate exactly on its floor, over enough candidate pairs to clear the minimum N.
+    world.stream("ledger-skips", [consult("sess-0", 100 * skip_n, _whole(skip_limit * skip_n))])
+    world.stream("skill-injection", [injection("sess-1", _whole(overhead_limit) + 100)] * overhead_n)
     world.stream("subagent-stops", [stop("sess-2", "clean")])
     dispatches(world, 1, 1)
-    write_usage(world, {"source-verification": {"use_count": min_n}})
-    write_manual(world, {"pbt-mutants-killed": {"value": _keep_limit("pbt-mutants-killed"), "n": min_n}})
+    write_usage(world, {"source-verification": {"use_count": verdict_n}})
+    write_manual(world, {"pbt-mutants-killed": {"value": pbt_limit, "n": pbt_n}})
     code = cli.main(cli_argv("report", world, REAL_PREREG, "--prereg-posted", POSTED, "--boundary", BOUNDARY, "--json"))
     payload = json.loads(capsys.readouterr().out)
     statuses = {m["metric_id"]: m["status"] for m in payload["metrics"]}

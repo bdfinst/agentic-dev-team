@@ -17,7 +17,6 @@ from session_log import classify as session_classify
 
 from . import formatting, streams
 from .formatting import ReportContext, ReportLine, ReportNote
-from .metrics_hooks import injected_skills
 from .prereg import Metric
 
 MANUAL_FILENAME = "benefit-manual-input.json"
@@ -154,8 +153,11 @@ def _invocations(rows: list[streams.Row], skill: str) -> int:
     return total
 
 
-def skill_adoption(ctx: ReportContext, skills: tuple[str, ...] = ADOPTION_SKILLS) -> ReportNote:
+def skill_adoption(
+    metric: Metric, ctx: ReportContext, skills: tuple[str, ...] = ADOPTION_SKILLS
+) -> ReportNote:
     """Direct invocations beside consumer dispatches; a skill nothing dispatches to is an orphan.
+    The block covers the fixed adoption skills, so ``metric`` is accepted only to match every other note.
 
     Direct counts come from the id-less usage file, so the block is unverified. Consumer dispatches are
     real injection rows that list the skill."""
@@ -166,7 +168,7 @@ def skill_adoption(ctx: ReportContext, skills: tuple[str, ...] = ADOPTION_SKILLS
     for skill in skills:
         direct = _invocations(usage_rows, skill)
         consumer = sum(
-            skill in {session_classify.strip_ns(s) for s in injected_skills(row)}
+            skill in {session_classify.strip_ns(s) for s in streams.injected_skills(row)}
             for row in injections
         )
         orphan = consumer == 0

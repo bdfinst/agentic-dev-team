@@ -367,7 +367,7 @@ The parser requires every field except `id_less_handling`, `ceiling`, and `ratio
 
 **Parity cap.** Any ledger-off actionable signature missing from the ledger-on set is a regression. File it as a bug. It forces the delta-scoping verdict to `tune` at best, whatever the skip rate.
 
-**Id-less instruments.** `artifact-usage.json` carries no session ids. The report prints its numbers on an `UNVERIFIED (no session ids)` line. Such a line prints its status, but it never feeds a verdict and never changes the exit code. A metric with `unmeasurable` handling gets no number and a follow-up issue.
+**Id-less instruments.** `artifact-usage.json` carries no session ids. The report prints its numbers on an `UNVERIFIED (no session ids)` line. Such a line prints its status, but it never feeds a verdict and never changes the exit code. A metric with `unmeasurable` handling gets no number and a follow-up issue. The block declares no handling for `cost-metering.jsonl`, because no metric reads it.
 
 **Directional comparisons.** A before-and-after number prints as `DIRECTIONAL (confounds: <the confounds list>)`. It prints its status, but it never feeds a verdict and never changes the exit code. The boundary is an ISO 8601 UTC timestamp ending in `Z`. Before is `ts < boundary` and after is `ts >= boundary`. An empty side prints `insufficient` and no delta, and so does a before mean of 0, unless the other side is below minimum N: then the line prints `NULL (N=n)` for that side.
 
@@ -378,9 +378,11 @@ The parser requires every field except `id_less_handling`, `ceiling`, and `ratio
 | N is 0 | `no rows in window` | 3 |
 | N is below minimum N | `NULL (N=n)` | 3 |
 | One directional side is empty | `insufficient` | 3 |
-| A metric that needs a hand-entered tally has none | `not entered` | 3 |
+| The tally-based metric has invocations but no entered tally | `not entered` | 3 |
 | Value fails the keep threshold | `breach` | 1 |
 | Otherwise | `within` | 0 |
+
+A hand-entered metric with no entry has N of 0 and prints `no rows in window`.
 
 The exit code of a report comes from the lines that feed a verdict. A line on an id-less instrument and a `DIRECTIONAL` line print their own status and exit code, but do not change the run's code. Malformed input is always 2. An `unmeasurable` line adds exit 0.
 
@@ -405,7 +407,7 @@ Transcript-derived numbers join at the grain of session and agent type, because 
 - **No instrument:** a metric whose `instrument` is `none`. Record it as `unmeasurable` and file a follow-up issue.
 - **Real session:** a session id with a transcript that `session_log` finds and that parses. Subagent transcripts do not count. Rows that fail this test are `unverified`, counted, and contribute zero to any number. An unparseable transcript is a counted skip. An empty transcript is not real and its rows are `unverified`, but it is not counted as a skip.
 - **Insufficient:** one side of a before-and-after comparison has no rows. No delta exists.
-- **Not entered:** the metric needs a hand-entered tally and the manual-input file has none.
+- **Not entered:** the tally-based metric (the `contradicted` verdict rate) has invocations but the manual-input file has no tally for it. A hand-entered metric with no entry prints `no rows in window` instead.
 - **Null:** the metric has rows but fewer than minimum N. The number is not trustworthy and gets no verdict.
 - **Parity:** the check that delta-scoped review finds everything a full review finds.
 - **Window:** the period whose rows count. For a before-and-after metric it bounds the after side.

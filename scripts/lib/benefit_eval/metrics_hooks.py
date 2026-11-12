@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from session_log import classify as session_classify
+from session_log import discovery as session_discovery
 from session_log import records as session_records
 from session_log import signals as session_signals
 
@@ -115,11 +116,6 @@ def _later(current: datetime | None, text) -> datetime | None:
     return moment if current is None or moment > current else current
 
 
-def injected_skills(row: streams.Row) -> list[str]:
-    """The skill names a ``skill-injection`` row lists."""
-    return streams.row_field(row, "skills", list, items=str, noun="a list of skill names")
-
-
 def injection_overhead(metric: Metric, ctx: ReportContext) -> ReportLine:
     part = ctx.partition(metric.instrument)
     added = [streams.row_field(row, "added_chars", int) for row in part.real]
@@ -134,9 +130,7 @@ def injection_overhead(metric: Metric, ctx: ReportContext) -> ReportLine:
     )
 
 
-def injection_uptake(
-    metric: Metric, ctx: ReportContext, transcripts: SubagentTranscripts
-) -> ReportLine:
+def injection_uptake(metric: Metric, ctx: ReportContext) -> ReportLine:
     """Share of injections whose injected skill the same session's subagent of that type loaded."""
     part = ctx.partition(metric.instrument)
     loaded_by_group: dict[tuple[str, str], set[str]] = {}
@@ -144,12 +138,12 @@ def injection_uptake(
     for row in part.real:
         session = row.data["session_id"]
         agent_type = session_classify.strip_ns(streams.row_field(row, "agent_type", str))
-        injected = {session_classify.strip_ns(s) for s in injected_skills(row)}
+        injected = {session_classify.strip_ns(s) for s in streams.injected_skills(row)}
         key = (session, agent_type)
         if key not in loaded_by_group:
             loaded_by_group[key] = {
                 skill
-                for run in transcripts.runs(session)
+                for run in ctx.transcripts.runs(session)
                 if run.agent_type == agent_type
                 for skill in run.skills
             }
@@ -178,7 +172,7 @@ def completion_guard_divergence(metric: Metric, ctx: ReportContext) -> ReportLin
     )
 
 
-def completion_guard_sample(metric: Metric, ctx: ReportContext, transcripts: SubagentTranscripts) -> ReportNote:
+def completion_guard_sample(metric: Metric, ctx: ReportContext) -> ReportNote:
     """A seeded sample of flagged stops for the hand-check, each with the transcript to open.
 
     The stop row names only a session, so each flagged stop is matched to the session's subagent
@@ -189,7 +183,7 @@ def completion_guard_sample(metric: Metric, ctx: ReportContext, transcripts: Sub
         (r for r in part.real if _classification(r) in FLAGGED),
         key=lambda r: (streams.row_time(r, ts_field), r.data["session_id"], str(r.file), r.line),
     )
-    matched = _match_runs(flagged, ts_field, transcripts)
+    matched = _match_runs(flagged, ts_field, ctx.transcripts)
     chosen = random.Random(ctx.seed).sample(flagged, min(SAMPLE_SIZE, len(flagged)))
     lines = [f"{metric.id} hand-check sample (seed {ctx.seed}): {len(chosen)} of {len(flagged)} flagged"]
     data = []
@@ -230,25 +224,32 @@ def _glob_path(projects_root: Path, path: Path, session_id: str) -> str:
     """The transcript as a shell glob: ``*`` for the project directory (its encoded name holds the
     user name and checkout path), the session directory cut to its 8-character prefix and a ``*``,
     then the subagent file. It never prints a full session id."""
-    parts = streams.session_discovery.relative_parts(projects_root, path)
+    parts = session_discovery.relative_parts(projects_root, path)
     return "/".join(("*", f"{streams.truncate_id(session_id)}*", *parts[2:]))
 
 
-def test_review_token_delta(
-    metric: Metric, ctx: ReportContext, transcripts: SubagentTranscripts
-) -> ReportLine:
+def test_review_token_delta(metric: Metric, ctx: ReportContext) -> ReportLine:
     """Percent change in mean tokens per ``test-review`` dispatch, after versus before the boundary.
 
     A dispatch is one subagent transcript of a real session whose agent type is ``test-review``; its
     tokens are the sum of its usage records and it sits at its last record time. The window bounds the
-    after side only. The line is directional: it never feeds a verdict."""
+    after side only. The line is directional: it never feeds a verdict. Raises ``InputError`` when the
+    run has no boundary, because the split needs one."""
+    if ctx.boundary is None:
+        raise streams.InputError(
+            "--boundary",
+            0,
+            f"{metric.id} splits before and after a boundary and none was given",
+            "pass --boundary as ISO 8601 UTC ending in Z, for example 2026-11-12T10:00:00Z",
+        )
     dispatches: list[tuple[str, SubagentRun]] = []
     left_out = 0
     for session in ctx.index.sessions_with_subagents():
-        if ctx.index.classify(session) != streams.SESSION_REAL:
-            left_out += len(ctx.index.subagent_transcripts(session))
-            continue
-        dispatches += [(session, run) for run in transcripts.runs(session) if run.agent_type == TEST_REVIEW]
+        runs = [run for run in ctx.transcripts.runs(session) if run.agent_type == TEST_REVIEW]
+        if ctx.index.classify(session) == streams.SESSION_REAL:
+            dispatches += [(session, run) for run in runs]
+        else:
+            left_out += len(runs)
     timed = [(session, run) for session, run in dispatches if run.last_ts is not None]
     before = [(s, r) for s, r in timed if r.last_ts < ctx.boundary]
     after = [
@@ -277,7 +278,7 @@ def test_review_token_delta(
             )
     notes = []
     if left_out:
-        notes.append(f"left out: {left_out} subagent transcripts of sessions with no real transcript")
+        notes.append(f"left out: {left_out} dispatches of sessions with no real transcript")
     if len(timed) < len(dispatches):
         notes.append(f"left out: {len(dispatches) - len(timed)} dispatches with no timestamp")
     return ReportLine(

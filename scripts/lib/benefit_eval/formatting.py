@@ -14,8 +14,12 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from . import prereg, streams
+
+if TYPE_CHECKING:
+    from .metrics_hooks import SubagentTranscripts
 
 UNVERIFIED_LABEL = "UNVERIFIED (no session ids)"
 #: Tokens that carry no value: the number is absent or untrustworthy. ``NULL (N=n)`` and
@@ -50,11 +54,6 @@ def bound_text(threshold: streams.Threshold) -> str:
     """The keep threshold as a ceiling (value must stay under it) or a floor (value must reach it)."""
     word = "ceiling" if threshold.op in ("<", "<=") else "floor"
     return f"{word} {number_text(threshold.limit)}"
-
-
-def utc_stamp(moment: datetime) -> str:
-    """A UTC datetime as ``YYYY-MM-DDTHH:MM:SSZ``."""
-    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def utc_now() -> str:
@@ -228,6 +227,8 @@ class ReportContext:
 
     sources: streams.Sources
     index: streams.SessionIndex
+    #: The subagent transcripts of each session; the metrics that need an agent id read them here.
+    transcripts: SubagentTranscripts
     start: datetime | None = None
     end: datetime | None = None
     boundary: datetime | None = None

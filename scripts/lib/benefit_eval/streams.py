@@ -403,6 +403,11 @@ def row_field(
     return value
 
 
+def injected_skills(row: Row) -> list[str]:
+    """The skill names a ``skill-injection`` row lists."""
+    return row_field(row, "skills", list, items=str, noun="a list of skill names")
+
+
 def in_window(
     when: datetime, start: datetime | None = None, end: datetime | None = None
 ) -> bool:
