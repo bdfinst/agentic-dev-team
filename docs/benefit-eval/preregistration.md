@@ -112,10 +112,9 @@ This document fixes, before any data is read, how each mechanism shipped by epic
     {
       "id": "test-review-token-delta",
       "metric": "test-review mean dispatch tokens, percent change after versus before the boundary",
-      "instrument": "cost-metering",
-      "identity_class": "id-less",
-      "id_less_handling": "UNVERIFIED",
-      "baseline": "mean test-review dispatch tokens for rows before the boundary timestamp",
+      "instrument": "subagent-transcripts",
+      "identity_class": "id-bearing",
+      "baseline": "mean test-review dispatch tokens for dispatches that end before the boundary timestamp",
       "unit": "percent",
       "keep": "<= -15",
       "tune": "> -15",
@@ -124,15 +123,16 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "inclusivity": "inclusive",
       "minimum_n": 10,
       "n_unit": "dispatches",
-      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict. An UNVERIFIED line never feeds a verdict.",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict. A DIRECTIONAL line never feeds a verdict.",
       "parity_cap": "none",
       "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
       "confounds": [
         "task mix differs before and after",
         "model or pricing change at the boundary",
-        "cost-metering rows carry no session id, so no row is tied to a real session"
+        "a dispatch sits at its transcript's last record time, so a dispatch that straddles the boundary lands on one side",
+        "tokens are the sum of every usage record in the transcript, the way the cost log counts them"
       ],
-      "computation": "metrics_cost.test_review_token_delta over the test-review thread of cost-metering rows, split at the boundary timestamp; a before mean of 0 has no percent change, so the line prints insufficient with no delta",
+      "computation": "metrics_hooks.test_review_token_delta over the subagent transcripts of real sessions whose agent type is test-review (session_log): one dispatch per transcript, tokens summed over its usage records, split at the boundary timestamp; the cost-metering log is not used because its rows are cumulative snapshots per transcript, not dispatches; a before mean of 0 has no percent change, so the line prints insufficient with no delta",
       "rationale": "A 15% cut is the smallest change that stands out from dispatch-to-dispatch noise; an increase means the pre-phase costs more than it saves."
     },
     {
@@ -341,25 +341,25 @@ The parser requires every field except `id_less_handling`, `ceiling`, and `ratio
 | Field | Meaning |
 | --- | --- |
 | `id`, `metric` | Short name and the full metric statement |
-| `instrument` | A stream name, `manual-input` (a number you enter by hand), or `none` (nothing persists it); any other value fails the parser |
+| `instrument` | A stream name, `subagent-transcripts` (the subagent transcripts of real sessions), `manual-input` (a number you enter by hand), or `none` (nothing persists it); any other value fails the parser |
 | `identity_class` | `id-bearing` if rows carry a session id you can check against a transcript; `id-less` if not |
-| `id_less_handling` | For `id-less` only, exactly one of `UNVERIFIED` (print a directional line, never feed a verdict) or `unmeasurable` (no instrument; file a follow-up issue) |
-| `baseline` | What the number is compared with |
+| `id_less_handling` | For `id-less` only, exactly one of `UNVERIFIED` (print the number on an `UNVERIFIED (no session ids)` line that never feeds a verdict or the exit code) or `unmeasurable` (print `unmeasurable` and no number; file a follow-up issue). The report prints `unmeasurable` for any metric with that handling, whatever its stream |
+| `baseline` | A reference for the person reading the report. The tool does not read or print it |
 | `unit` | The unit of the number and of the thresholds |
 | `keep`, `tune`, `retire` | Threshold as a direction (`<`, `<=`, `>`, `>=`) and a number, in the unit named by `unit` |
 | `direction`, `inclusivity` | The within-condition for the keep threshold, so `keep` must use the `direction` operator; `<=` and `>=` are `inclusive`, `<` and `>` are `exclusive` |
 | `minimum_n`, `n_unit` | Smallest N that counts as data, and what N counts |
 | `null_rule` | What happens below minimum N |
-| `parity_cap` | `tune` if a parity regression caps the verdict at tune; `none` otherwise |
+| `parity_cap` | `tune` if a parity regression caps the verdict at tune; `none` otherwise. You apply the cap by hand |
 | `window` | When the data counts |
 | `confounds` | The list printed after `DIRECTIONAL` on a before-and-after comparison |
 | `computation` | Where the number comes from (see the metric-to-computation map) |
-| `ceiling` | Optional theoretical maximum, printed next to the measured value |
+| `ceiling` | Optional theoretical maximum. The report prints it for skip rate only, and flags `counting defect` when the measured rate is above it |
 | `rationale` | One line on why the thresholds sit where they do |
 
 ## Rules
 
-**Verdict order.** Evaluate `retire` first. If it does not apply, evaluate `keep`. Otherwise the verdict is `tune`. Each threshold's own operator decides its boundary: `>=` includes the limit and `<` excludes it.
+**Verdict order.** The report prints `within` or `breach` against `keep` only. You apply `retire`, `keep` and `tune` by hand when you post the verdict: evaluate `retire` first; if it does not apply, evaluate `keep`; otherwise the verdict is `tune`. Each threshold's own operator decides its boundary: `>=` includes the limit and `<` excludes it.
 
 **Within and breach.** The report prints `within` when the value meets the keep threshold using `direction`, and `breach` when it does not. A value exactly on the keep threshold is `within` when `inclusivity` is `inclusive` and `breach` when it is `exclusive`. `breach` is a threshold finding, not a verdict.
 
@@ -367,9 +367,9 @@ The parser requires every field except `id_less_handling`, `ceiling`, and `ratio
 
 **Parity cap.** Any ledger-off actionable signature missing from the ledger-on set is a regression. File it as a bug. It forces the delta-scoping verdict to `tune` at best, whatever the skip rate.
 
-**Id-less instruments.** `cost-metering.jsonl` and `artifact-usage.json` carry no session ids. The report prints their numbers on an `UNVERIFIED (no session ids)` line, and it marks `DIRECTIONAL` only the before-and-after numbers; the `contradicted` rate is not a before-and-after number. Those lines never feed a verdict. A metric with `unmeasurable` handling gets no number and a follow-up issue.
+**Id-less instruments.** `artifact-usage.json` carries no session ids. The report prints its numbers on an `UNVERIFIED (no session ids)` line. Such a line prints its status, but it never feeds a verdict and never changes the exit code. A metric with `unmeasurable` handling gets no number and a follow-up issue.
 
-**Directional comparisons.** A before-and-after number prints as `DIRECTIONAL (confounds: <the confounds list>)`. The boundary is an ISO 8601 UTC timestamp ending in `Z`. Before is `ts < boundary` and after is `ts >= boundary`. An empty side prints `insufficient` and no delta, and so does a before mean of 0.
+**Directional comparisons.** A before-and-after number prints as `DIRECTIONAL (confounds: <the confounds list>)`. It prints its status, but it never feeds a verdict and never changes the exit code. The boundary is an ISO 8601 UTC timestamp ending in `Z`. Before is `ts < boundary` and after is `ts >= boundary`. An empty side prints `insufficient` and no delta, and so does a before mean of 0, unless the other side is below minimum N: then the line prints `NULL (N=n)` for that side.
 
 **Statuses and exit codes.** The report evaluates each metric top to bottom and stops at the first match.
 
@@ -378,8 +378,11 @@ The parser requires every field except `id_less_handling`, `ceiling`, and `ratio
 | N is 0 | `no rows in window` | 3 |
 | N is below minimum N | `NULL (N=n)` | 3 |
 | One directional side is empty | `insufficient` | 3 |
+| A metric that needs a hand-entered tally has none | `not entered` | 3 |
 | Value fails the keep threshold | `breach` | 1 |
 | Otherwise | `within` | 0 |
+
+The exit code of a report comes from the lines that feed a verdict. A line on an id-less instrument and a `DIRECTIONAL` line print their own status and exit code, but do not change the run's code. Malformed input is always 2. An `unmeasurable` line adds exit 0.
 
 The audit exits 1 for a `gap` or a `no instrument` metric, 2 for malformed input or a missing argument, and 0 otherwise. A parity regression is a manual finding in the #2200 comment, not an exit code.
 
@@ -388,19 +391,21 @@ The audit exits 1 for a `gap` or a `no instrument` metric, 2 for malformed input
 The `computation` cell of each entry is the map. It names one of three sources:
 
 - **Stream and function.** A `metrics_*` module function in `scripts/lib/benefit_eval/` that reads the instrument.
-- **Manual-input file.** `.claude/metrics/benefit-manual-input.json` is a JSON object keyed by metric `id`. Each value is `{"value": <number>, "n": <integer>, "sessions": ["<8-character id>"], "note": "<text>"}`. A malformed file exits 2. The `test-review` true-positive change comes from `/agent-eval` output and the completion-guard false-positive rate from the hand-check of the seeded sample. Both go in this file, as do findings parity, the `contradicted` tallies, and the PBT mutant kills. For the `contradicted` tally, `value` is the count of contradicted verdicts and `n` is the verdicts reviewed; the rate divides `value` by invocations.
+- **Manual-input file.** `.claude/metrics/benefit-manual-input.json` is a JSON object keyed by metric `id`. Each value is `{"value": <number>, "n": <integer>, "sessions": ["<session id>"], "note": "<text>"}`. Enter each session id in full; the report checks it against the transcripts, counts one with no real transcript as `unverified`, and prints the first 8 characters of the others. A malformed file exits 2. The `test-review` true-positive change comes from `/agent-eval` output and the completion-guard false-positive rate from the hand-check of the seeded sample. Both go in this file, as do findings parity, the `contradicted` tallies, and the PBT mutant kills. For the `contradicted` tally, `value` is the count of contradicted verdicts and `n` is the verdicts reviewed; the rate divides `value` by invocations.
 - **Unmeasurable.** No instrument persists the number. The audit reports `no instrument`, and you file a follow-up issue instead of adding an emitter.
 
-Transcript-derived numbers join at the grain of session and agent type, because the `skill-injection` stream carries no agent id.
+Transcript-derived numbers join at the grain of session and agent type, because the `skill-injection` stream carries no agent id. The `test-review` token change reads one dispatch per subagent transcript, so it needs no stream.
 
 ## Glossary
 
 - **Instrument:** a persisted stream or file that carries the rows a metric reads.
 - **Metric:** one number computed from an instrument, with thresholds in the block.
 - **Gap:** an instrument with no rows or fewer than 3 real sessions. A short gap waits for more sessions.
+- **Manual:** the audit status of an instrument you enter by hand. It is not a finding.
 - **No instrument:** a metric whose `instrument` is `none`. Record it as `unmeasurable` and file a follow-up issue.
-- **Real session:** a session id with a transcript that `session_log` finds and that parses. Subagent transcripts do not count. Rows that fail this test are `unverified`, counted, and contribute zero to any number. An unparseable transcript is a counted skip.
+- **Real session:** a session id with a transcript that `session_log` finds and that parses. Subagent transcripts do not count. Rows that fail this test are `unverified`, counted, and contribute zero to any number. An unparseable transcript is a counted skip. An empty transcript is not real and its rows are `unverified`, but it is not counted as a skip.
 - **Insufficient:** one side of a before-and-after comparison has no rows. No delta exists.
+- **Not entered:** the metric needs a hand-entered tally and the manual-input file has none.
 - **Null:** the metric has rows but fewer than minimum N. The number is not trustworthy and gets no verdict.
 - **Parity:** the check that delta-scoped review finds everything a full review finds.
 - **Window:** the period whose rows count. For a before-and-after metric it bounds the after side.
@@ -413,6 +418,6 @@ Transcript-derived numbers join at the grain of session and agent type, because 
 4. Post to #2200 as one comment: the block, the audit output, the window end date. Show session ids as their first 8 characters only. Note the comment's UTC creation time.
 5. Wait for the window in each entry to close. An unmet minimum N at the null date stays `NULL`.
 6. Hand-run parity on copies of past diffs, once with the ledger on and once with it moved aside. Use at least the parity minimum N from the block. Compare actionable signatures. Record the diff ids in the #2200 comment.
-7. Run the report with `--prereg-posted <timestamp>`. Use the comment time from step 4, as an ISO 8601 UTC timestamp ending in `Z`. Add `--boundary <timestamp>`, the same format, for the before-and-after metric. Expect exit 2 without either; the report prints the post time beside its own run time. Run `report --help` for the other options. Attest that the comment came first; the tool does not check it.
+7. Run the report with `--prereg-posted <timestamp>`. Use the comment time from step 4, as an ISO 8601 UTC timestamp ending in `Z`. Add `--boundary <timestamp>`, the same format, for the before-and-after metric. Add `--window-start <timestamp>` with the time #2199 merged, and `--window-end <timestamp>` at the close of the window, in the same format; a row counts from the start up to but not including the end, and without them every row counts. Expect exit 2 without the first two; the report prints the post time beside its own run time. Run `report --help` for the other options. Attest that the comment came first; the tool does not check it.
 8. Hand-post one verdict comment on #2164 and one on #2172. For each metric give the value, N, the threshold, the verdict, and the confounds on directional numbers.
 9. Delete or archive the tooling after both verdicts post. If no verdict posts by the null date, delete it anyway.

@@ -7,6 +7,7 @@ creates, rewrites or reorders one.
 
 Stdlib-only. Stream names come from ``hooks/lib/instrument_log``; paths from
 ``hooks/lib/artifact_paths``; transcript discovery from ``scripts/lib/session_log``.
+The package ``__init__`` puts those libraries on ``sys.path``.
 """
 
 from __future__ import annotations
@@ -14,22 +15,15 @@ from __future__ import annotations
 import json
 import operator
 import re
-import sys
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-_PLUGIN_ROOT = Path(__file__).resolve().parents[3] / "plugins" / "dev-team"
-for _dir in (_PLUGIN_ROOT / "hooks" / "lib", _PLUGIN_ROOT / "scripts" / "lib"):
-    if str(_dir) not in sys.path:
-        sys.path.insert(0, str(_dir))
-
 import artifact_paths
 import boundary_events
 import instrument_log
 from session_log import discovery as session_discovery
-from session_log import records as session_records
 
 EXIT_OK = 0
 EXIT_FINDING = 1
@@ -44,9 +38,17 @@ MANUAL_INSTRUMENT = "manual-input"
 #: Prereg instrument value for a metric no stream can measure.
 NO_INSTRUMENT = "none"
 
+#: Prereg instrument value for numbers read from the subagent transcripts of real sessions.
+SUBAGENT_TRANSCRIPTS = "subagent-transcripts"
+
 KIND_STREAM = "stream"
 KIND_MANUAL = "manual"
 KIND_NONE = "none"
+KIND_TRANSCRIPT = "transcript"
+
+#: Stream names the metric modules read directly, so no module writes a stream name itself.
+STREAM_SKILL_INJECTION = "skill-injection"
+STREAM_ARTIFACT_USAGE = "artifact-usage"
 
 #: Real sessions an id-bearing instrument must show before it counts as emitting.
 MIN_REAL_SESSIONS = 3
@@ -68,10 +70,18 @@ SESSION_NO_TRANSCRIPT = "no transcript"
 SESSION_UNPARSEABLE = "unparseable transcript"
 SESSION_EMPTY = "empty transcript"
 
+#: Status tokens a metric line prints; one definition so the printed word and the check agree.
+TOKEN_NO_ROWS = "no rows in window"
+TOKEN_NULL_PREFIX = "NULL"
+TOKEN_INSUFFICIENT = "insufficient"
+TOKEN_NOT_ENTERED = "not entered"
+TOKEN_WITHIN = "within"
+TOKEN_BREACH = "breach"
+UNMEASURABLE = "unmeasurable"
 
 _REPAIR_LINE = "repair or remove that line; the evaluation never edits the file"
 _REPAIR_FILE = "repair the file; the evaluation never edits it"
-_REPAIR_ROW = "repair or remove that row; the evaluation never edits the file"
+REPAIR_ROW = "repair or remove that row; the evaluation never edits the file"
 _CHECK_READ = "check the file permissions and encoding; the evaluation never edits it"
 
 
@@ -116,8 +126,8 @@ STREAM_TABLE: dict[str, StreamSpec] = {
         for name in sorted(instrument_log.STREAMS)
     },
     "cost-metering": _spec("cost-metering", ID_LESS, "project", "timestamp"),
-    "artifact-usage": _spec(
-        "artifact-usage", ID_LESS, "home", "last_used_at", jsonl=False
+    STREAM_ARTIFACT_USAGE: _spec(
+        STREAM_ARTIFACT_USAGE, ID_LESS, "home", "last_used_at", jsonl=False
     ),
 }
 
@@ -243,41 +253,63 @@ def load_rows(spec: StreamSpec, sources: Sources) -> list[Row]:
 
 
 def _transcript_verdict(path: Path) -> str:
-    """Parse the whole transcript: real needs one record and every non-blank line a JSON object."""
-    records = objects = 0
-    for record in session_records.iter_file_records(path):
-        records += 1
-        objects += isinstance(record, dict)
+    """Read the transcript once: real needs one record and every non-blank line a JSON object."""
+    lines = 0
     try:
         with path.open(encoding="utf-8", errors="replace") as handle:
-            lines = sum(1 for line in handle if line.strip())
+            for line in handle:
+                if not line.strip():
+                    continue
+                lines += 1
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    return SESSION_UNPARSEABLE
+                if not isinstance(record, dict):
+                    return SESSION_UNPARSEABLE
     except OSError:
         return SESSION_UNPARSEABLE
-    if lines == 0:
-        return SESSION_EMPTY
-    return SESSION_REAL if records == objects == lines else SESSION_UNPARSEABLE
+    return SESSION_REAL if lines else SESSION_EMPTY
 
 
 class SessionIndex:
-    """Maps a session id to its main-thread transcript and says whether it parses."""
+    """Finds each session's main and subagent transcripts and says whether the main one parses."""
 
     def __init__(self, projects_root: Path):
         self._root = projects_root
-        self._paths: dict[str, Path] | None = None
+        self._discovered = False
+        self._mains: dict[str, Path] = {}
+        self._subagents: dict[str, list[Path]] = {}
         self._verdicts: dict[str, str] = {}
 
-    def _transcripts(self) -> dict[str, Path]:
-        if self._paths is None:
-            self._paths = {}
-            if self._root.is_dir():
-                for path in session_discovery.all_transcripts(self._root):
-                    if not session_discovery.is_subagent_transcript(self._root, path):
-                        self._paths.setdefault(path.stem, path)
-        return self._paths
+    def _discover(self) -> None:
+        if self._discovered:
+            return
+        self._discovered = True
+        if not self._root.is_dir():
+            return
+        for path in session_discovery.all_transcripts(self._root):
+            if session_discovery.is_subagent_transcript(self._root, path):
+                session = session_discovery.relative_parts(self._root, path)[1]
+                self._subagents.setdefault(session, []).append(path)
+            else:
+                self._mains.setdefault(path.stem, path)
+
+    def main_transcript(self, session_id: str) -> Path | None:
+        self._discover()
+        return self._mains.get(session_id)
+
+    def subagent_transcripts(self, session_id: str) -> list[Path]:
+        self._discover()
+        return self._subagents.get(session_id, [])
+
+    def sessions_with_subagents(self) -> list[str]:
+        self._discover()
+        return sorted(self._subagents)
 
     def classify(self, session_id: str) -> str:
         if session_id not in self._verdicts:
-            path = self._transcripts().get(session_id)
+            path = self.main_transcript(session_id)
             self._verdicts[session_id] = (
                 SESSION_NO_TRANSCRIPT if path is None else _transcript_verdict(path)
             )
@@ -315,7 +347,8 @@ def partition_rows(rows: Iterable[Row], index: SessionIndex) -> Partition:
     return part
 
 
-_UTC_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
+#: Python 3.10's ``fromisoformat`` takes a fraction of exactly 3 or 6 digits, so only those match.
+_UTC_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3}|\.\d{6})?Z$")
 
 
 def parse_utc(text: str) -> datetime:
@@ -334,8 +367,47 @@ def row_time(row: Row, ts_field: str) -> datetime:
             row.file,
             row.line,
             f"row has no valid '{ts_field}' timestamp",
-            _REPAIR_ROW,
+            REPAIR_ROW,
         ) from exc
+
+
+def row_field(
+    row: Row,
+    name: str,
+    kind: type,
+    *,
+    minimum: int | None = None,
+    items: type | None = None,
+    noun: str | None = None,
+    label: str | None = None,
+):
+    """``row.data[name]`` when it is a ``kind`` (never a bool), at least ``minimum``, and a list of
+    ``items`` when given; otherwise raise ``InputError`` naming the row."""
+    value = row.data.get(name)
+    valid = isinstance(value, kind) and not isinstance(value, bool)
+    if valid and minimum is not None:
+        valid = value >= minimum
+    if valid and items is not None:
+        valid = all(isinstance(item, items) for item in value)
+    if not valid:
+        if noun is None:
+            article = "an" if kind.__name__[0] in "aeiou" else "a"
+            noun = (
+                "a non-negative integer"
+                if kind is int and minimum == 0
+                else f"{article} {kind.__name__}"
+            )
+        raise InputError(
+            row.file, row.line, f"{label or f'row field {name!r}'} is not {noun}", REPAIR_ROW
+        )
+    return value
+
+
+def in_window(
+    when: datetime, start: datetime | None = None, end: datetime | None = None
+) -> bool:
+    """``start <= when < end``; a missing bound is open."""
+    return (start is None or when >= start) and (end is None or when < end)
 
 
 def rows_in_window(
@@ -345,12 +417,7 @@ def rows_in_window(
     end: datetime | None = None,
 ) -> list[Row]:
     """Rows with ``start <= ts < end``; a missing bound is open."""
-    kept = []
-    for row in rows:
-        when = row_time(row, ts_field)
-        if (start is None or when >= start) and (end is None or when < end):
-            kept.append(row)
-    return kept
+    return [row for row in rows if in_window(row_time(row, ts_field), start, end)]
 
 
 def split_at_boundary(
@@ -404,14 +471,14 @@ def evaluate_status(
     A missing ``value`` with enough rows means a side has nothing to compare, so it
     reads as ``insufficient``."""
     if n == 0:
-        return Outcome("no rows in window", EXIT_INSUFFICIENT)
+        return Outcome(TOKEN_NO_ROWS, EXIT_INSUFFICIENT)
     if n < min_n:
-        return Outcome(f"NULL (N={n})", EXIT_INSUFFICIENT)
+        return Outcome(f"{TOKEN_NULL_PREFIX} (N={n})", EXIT_INSUFFICIENT)
     if side_empty or value is None:
-        return Outcome("insufficient", EXIT_INSUFFICIENT)
+        return Outcome(TOKEN_INSUFFICIENT, EXIT_INSUFFICIENT)
     if threshold.holds(value):
-        return Outcome("within", EXIT_OK)
-    return Outcome("breach", EXIT_FINDING)
+        return Outcome(TOKEN_WITHIN, EXIT_OK)
+    return Outcome(TOKEN_BREACH, EXIT_FINDING)
 
 
 @dataclass(frozen=True)
@@ -452,8 +519,8 @@ class InstrumentStatus:
 def classify_instrument(name: object) -> tuple[str, str]:
     """``(kind, identity_class)`` for a pre-registered instrument name.
 
-    Kind is ``stream`` (a persisted stream), ``manual`` (operator input) or ``none``
-    (nothing measures it). Raises ``TypeError`` for a non-string and ``ValueError``
+    Kind is ``stream`` (a persisted stream), ``transcript`` (the subagent transcripts of
+    real sessions), ``manual`` (operator input) or ``none`` (nothing measures it). Raises ``TypeError`` for a non-string and ``ValueError``
     for an unknown name."""
     if not isinstance(name, str):
         raise TypeError(f"instrument must be a string, got {type(name).__name__}")
@@ -461,9 +528,13 @@ def classify_instrument(name: object) -> tuple[str, str]:
         return KIND_MANUAL, ID_BEARING
     if name == NO_INSTRUMENT:
         return KIND_NONE, ID_LESS
+    if name == SUBAGENT_TRANSCRIPTS:
+        return KIND_TRANSCRIPT, ID_BEARING
     if name in STREAM_TABLE:
         return KIND_STREAM, STREAM_TABLE[name].identity_class
-    known = ", ".join([*STREAM_TABLE, MANUAL_INSTRUMENT, NO_INSTRUMENT])
+    known = ", ".join(
+        [*STREAM_TABLE, SUBAGENT_TRANSCRIPTS, MANUAL_INSTRUMENT, NO_INSTRUMENT]
+    )
     raise ValueError(f"unknown instrument '{name}'; use one of: {known}")
 
 
@@ -495,6 +566,8 @@ def _audit_instrument(
         return InstrumentStatus(name, STATUS_MANUAL, ids)
     if kind == KIND_NONE:
         return InstrumentStatus(name, STATUS_NO_INSTRUMENT, ids)
+    if kind == KIND_TRANSCRIPT:
+        return _audit_transcripts(name, ids, index)
     spec = STREAM_TABLE[name]
     rows = load_rows(spec, sources)
     if not rows:
@@ -512,4 +585,26 @@ def _audit_instrument(
         session_ids=tuple(sorted(truncate_id(s) for s in sessions)),
         unverified_rows=len(part.unverified),
         skipped_transcripts=len(part.skipped_sessions),
+    )
+
+
+def _audit_transcripts(
+    name: str, ids: tuple[str, ...], index: SessionIndex
+) -> InstrumentStatus:
+    """Subagent transcripts grouped by session; only sessions whose main transcript parses count."""
+    sessions = index.sessions_with_subagents()
+    if not sessions:
+        return InstrumentStatus(name, STATUS_GAP, ids)
+    verdicts = {session: index.classify(session) for session in sessions}
+    real = sorted(s for s, verdict in verdicts.items() if verdict == SESSION_REAL)
+    counts = {s: len(index.subagent_transcripts(s)) for s in sessions}
+    return InstrumentStatus(
+        name,
+        STATUS_CONFIRMED if len(real) >= MIN_REAL_SESSIONS else STATUS_GAP,
+        ids,
+        rows=sum(counts.values()),
+        real_sessions=len(real),
+        session_ids=tuple(sorted(truncate_id(s) for s in real)),
+        unverified_rows=sum(counts[s] for s in sessions if s not in real),
+        skipped_transcripts=sum(v == SESSION_UNPARSEABLE for v in verdicts.values()),
     )

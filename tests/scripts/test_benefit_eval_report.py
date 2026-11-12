@@ -7,80 +7,29 @@ file path as the audit tests do.
 
 from __future__ import annotations
 
-import importlib.util
+import itertools
 import json
 import re
-import sys
-import uuid
 from pathlib import Path
 
 import pytest
+from _benefit_eval_support import (
+    LONG_ID,
+    REAL_PREREG,
+    World,
+    cli_argv,
+    load_cli,
+    real_entries,
+)
+from benefit_eval import prereg as prereg_module
+from benefit_eval import streams
 
-from _repo_root import REPO_ROOT
-
-# Both import roots are added here so no import relies on a side effect of another.
-sys.path.insert(0, str(REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
-sys.path.insert(0, str(REPO_ROOT / "scripts" / "lib"))
-
-
-def _load_cli():
-    spec = importlib.util.spec_from_file_location(
-        "benefit_eval_cli_report", REPO_ROOT / "scripts" / "benefit_eval_cli.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-cli = _load_cli()
-
-REAL_PREREG = REPO_ROOT / "docs" / "benefit-eval" / "preregistration.md"
-LONG_ID = str(uuid.UUID("0123abcd-4567-89ab-cdef-0123456789ab"))
+cli = load_cli("benefit_eval_cli_report")
 
 IN_WINDOW = "2026-03-01T12:00:00Z"
 BEFORE_WINDOW = "2026-01-01T12:00:00Z"
 WINDOW_START = "2026-02-01T00:00:00Z"
 POSTED = "2026-02-15T09:30:00Z"
-
-
-def real_entries() -> dict[str, dict]:
-    text = REAL_PREREG.read_text()
-    start = text.index("```json prereg\n") + len("```json prereg\n")
-    return {entry["id"]: entry for entry in json.loads(text[start : text.index("\n```", start)])["metrics"]}
-
-
-class World:
-    """A project root, a home metrics dir and a transcript tree under tmp_path."""
-
-    def __init__(self, tmp_path: Path):
-        self.root = tmp_path
-        self.project = tmp_path / "project"
-        self.home = tmp_path / "home-metrics"
-        self.projects = tmp_path / "projects"
-        for directory in (self.project / ".claude" / "metrics", self.home, self.projects / "proj-a"):
-            directory.mkdir(parents=True)
-
-    def stream(self, name: str, rows: list[dict]) -> Path:
-        path = self.project / ".claude" / "metrics" / f"{name}.jsonl"
-        path.write_text("".join(json.dumps(row) + "\n" for row in rows))
-        return path
-
-    def session(self, session_id: str, content: str = '{"type":"user"}\n') -> None:
-        """A real session: a main transcript that parses."""
-        (self.projects / "proj-a" / f"{session_id}.jsonl").write_text(content)
-
-    def subagent(self, session_id: str, agent_id: str, records: list[dict]) -> Path:
-        directory = self.projects / "proj-a" / session_id / "subagents"
-        directory.mkdir(parents=True, exist_ok=True)
-        path = directory / f"agent-{agent_id}.jsonl"
-        path.write_text("".join(json.dumps(record) + "\n" for record in records))
-        return path
-
-    def snapshot(self) -> dict[str, bytes | None]:
-        return {
-            str(p.relative_to(self.root)): (p.read_bytes() if p.is_file() else None)
-            for p in sorted(self.root.rglob("*"))
-        }
 
 
 @pytest.fixture
@@ -112,16 +61,14 @@ def run_report(
 ):
     prereg_path = write_prereg(tmp_path, ids, minimum_n, **overrides)
     code = cli.main(
-        [
+        cli_argv(
             "report",
-            "--prereg", str(prereg_path),
-            "--project-root", str(world.project),
-            "--home-metrics", str(world.home),
-            "--projects-root", str(world.projects),
+            world,
+            prereg_path,
             *(["--prereg-posted", posted] if posted else []),
             *(["--boundary", boundary] if boundary else []),
             *extra,
-        ]
+        )
     )
     out = capsys.readouterr()
     return code, out.out, out.err
@@ -183,6 +130,35 @@ def test_skip_rate_prints_the_ceiling_and_floor_the_pre_registration_carries(wor
     assert "| floor 12.50 |" in block
     assert "theoretical ceiling 33.33%" in block
     assert "20.69" not in out
+
+
+@pytest.mark.parametrize(("skipped", "flagged"), [(3, True), (2, False)])
+def test_a_skip_rate_above_the_ceiling_is_flagged_as_a_counting_defect(world, tmp_path, capsys, skipped, flagged):
+    world.session("sess-a")
+    world.stream("ledger-skips", [consult("sess-a", 10, skipped)])
+    _, out, _ = run_report(world, tmp_path, capsys, ["skip-rate"], **{"skip-rate": {"ceiling": 25.0}})
+    assert ("counting defect" in block_of(out, "skip-rate:")) is flagged
+
+
+def test_a_skip_rate_with_no_ceiling_is_never_flagged_as_a_counting_defect(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("ledger-skips", [consult("sess-a", 10, 10)])
+    _, out, _ = run_report(world, tmp_path, capsys, ["skip-rate"], **{"skip-rate": {"ceiling": None}})
+    assert "100.00% (10/10)" in line_of(out, "skip-rate:")
+    assert "counting defect" not in out
+    assert "theoretical ceiling" not in out
+
+
+def test_first_and_repeat_runs_order_by_parsed_time_when_timestamps_differ_in_precision(world, tmp_path, capsys):
+    world.session("sess-a")
+    # By text "...:00.500Z" sorts before "...:00Z"; by time it is half a second later.
+    world.stream(
+        "ledger-skips",
+        [consult("sess-a", 10, 0, "2026-03-01T11:00:00.500Z"), consult("sess-a", 10, 5, "2026-03-01T11:00:00Z")],
+    )
+    _, out, _ = run_report(world, tmp_path, capsys, ["skip-rate"])
+    assert "first runs: 50.00% (5/10)" in out
+    assert "repeat runs: 0.00% (0/10)" in out
 
 
 def test_skip_rate_splits_first_runs_from_repeat_runs_by_time_not_file_order(world, tmp_path, capsys):
@@ -309,6 +285,18 @@ def test_abort_frequency_names_a_source_with_no_abort_mode_rows(world, tmp_path,
     block = block_of(out, "abort frequency")
     assert "  checkpoint: no abort-mode rows" in block
     assert "  stop-hook: no abort-mode rows" in block
+
+
+def test_a_lens_result_half_a_second_before_the_abort_is_not_deferred_yield_whatever_the_timestamp_precision(
+    world, tmp_path, capsys
+):
+    world.session("sess-a")
+    # By text "...:00Z" sorts after "...:00.500Z"; by time it is half a second earlier.
+    earlier = {**abort_row("sess-a", True, [], source="stop-hook", ts="2026-03-01T12:00:00Z"), "triggering_agent": "security-review"}
+    aborted = abort_row("sess-a", True, ["security-review"], ts="2026-03-01T12:00:00.500Z")
+    world.stream("checkpoint-aborts", [earlier, aborted])
+    _, out, _ = run_report(world, tmp_path, capsys, ["abort-yield"])
+    assert "0.00% (0/1)" in line_of(out, "abort-yield:")
 
 
 def test_a_lens_result_from_another_session_is_not_deferred_yield(world, tmp_path, capsys):
@@ -458,8 +446,24 @@ def test_sample_lines_carry_session_classification_agent_and_transcript_from_dis
         index = int(session)
         assert classification in ("empty-final-turn", "truncated-final-turn")
         assert agent == f"a{index:02d}"
-        assert transcript == f"proj-a/{session}*/subagents/agent-a{index:02d}.jsonl"
+        assert transcript == f"*/{session}*/subagents/agent-a{index:02d}.jsonl"
     assert f"{0:08d}-aaaa-bbbb-cccc-dddddddddddd" not in out
+
+
+@pytest.mark.parametrize("json_mode", [False, True])
+def test_the_sample_transcript_path_leaves_out_the_encoded_project_directory(world, tmp_path, capsys, json_mode):
+    encoded = "-Users-alice-private-checkout"
+    session_dir = world.projects / encoded
+    session_dir.mkdir()
+    (session_dir / f"{LONG_ID}.jsonl").write_text('{"type":"user"}\n')
+    subagents = session_dir / LONG_ID / "subagents"
+    subagents.mkdir(parents=True)
+    (subagents / "agent-a1.jsonl").write_text(json.dumps({"type": "assistant", "timestamp": IN_WINDOW}) + "\n")
+    world.stream("subagent-stops", [stop(LONG_ID, "empty-final-turn")])
+    _, out, err = run_report(world, tmp_path, capsys, ["guard-divergence"], *(["--json"] if json_mode else []))
+    assert f"*/{LONG_ID[:8]}*/subagents/agent-a1.jsonl" in out
+    assert "alice" not in out + err
+    assert encoded not in out + err
 
 
 def test_a_flagged_stop_with_no_subagent_transcript_prints_unmatched(world, tmp_path, capsys):
@@ -491,6 +495,23 @@ def test_each_flagged_stop_matches_the_transcript_nearest_its_time_whatever_the_
     )
     _, out, _ = run_report(world, tmp_path, capsys, ["guard-divergence"])
     assert sample_agents(out) == {"empty-final-turn": "b", "truncated-final-turn": "a"}
+
+
+def test_stops_are_matched_in_time_order_when_their_timestamps_differ_in_precision(world, tmp_path, capsys):
+    world.session("sess-a")
+    # By text "...:00.500Z" sorts before "...:00Z"; by time the whole-second stop comes first and takes
+    # the transcript both stops are nearest to.
+    world.subagent("sess-a", "near", [{"type": "assistant", "timestamp": "2026-03-01T12:00:00.200Z"}])
+    world.subagent("sess-a", "far", [{"type": "assistant", "timestamp": "2026-03-01T12:00:09Z"}])
+    world.stream(
+        "subagent-stops",
+        [
+            stop("sess-a", "truncated-final-turn", "2026-03-01T12:00:00.500Z"),
+            stop("sess-a", "empty-final-turn", "2026-03-01T12:00:00Z"),
+        ],
+    )
+    _, out, _ = run_report(world, tmp_path, capsys, ["guard-divergence"])
+    assert sample_agents(out) == {"empty-final-turn": "near", "truncated-final-turn": "far"}
 
 
 def test_a_subagent_transcript_matches_one_flagged_stop_only(world, tmp_path, capsys):
@@ -676,7 +697,7 @@ def test_a_row_with_a_bad_timestamp_exits_2_naming_its_line(world, tmp_path, cap
 
 def test_a_missing_pre_registration_exits_2(world, tmp_path, capsys):
     missing = tmp_path / "nope.md"
-    code = cli.main(["report", "--prereg", str(missing), "--project-root", str(world.project), "--prereg-posted", POSTED])
+    code = cli.main(cli_argv("report", world, missing, "--prereg-posted", POSTED))
     assert code == 2
     assert_input_error(capsys.readouterr().err, missing, 0, "pre-registration file not found")
 
@@ -731,11 +752,12 @@ def populate_every_input_kind(world: World) -> list[Path]:
     """One file of each kind the report reads, so a write to any of them shows in a snapshot."""
     guard_world(world, count=3)
     session = "00000001-aaaa-bbbb-cccc-dddddddddddd"
+    dispatch(world, IN_WINDOW, 500, session=session)
     return [
         world.stream("ledger-skips", [consult(session, 4, 1)]),
         world.stream("skill-injection", [injection(session, 300)]),
         world.stream("checkpoint-aborts", [abort_row(session, True, ["security-review"])]),
-        world.stream("cost-metering", [cost_row("2026-02-01T00:00:00Z", 1000), cost_row(IN_WINDOW, 800)]),
+        world.stream("cost-metering", [{"timestamp": IN_WINDOW, "by_agent_type": {}}]),
         write_boundary_events(world, [boundary_event(session)]),
         usage_file(world, {"source-verification": {"use_count": 10}}),
         write_manual(world, {"pbt-mutants-killed": {"value": 2, "n": 10}}),
@@ -756,10 +778,11 @@ def test_report_leaves_every_input_kind_byte_identical(world, tmp_path, capsys, 
     prereg_path = REAL_PREREG if real_prereg else write_prereg(tmp_path, READ_ONLY_METRICS)
     before = world.snapshot()
     assert {str(path.relative_to(world.root)) for path in inputs} <= before.keys()
-    cli.main(
-        ["report", "--prereg", str(prereg_path), "--project-root", str(world.project), "--home-metrics", str(world.home), "--projects-root", str(world.projects), "--prereg-posted", POSTED, "--boundary", BOUNDARY]
-    )
-    capsys.readouterr()
+    code = cli.main(cli_argv("report", world, prereg_path, "--prereg-posted", POSTED, "--boundary", BOUNDARY))
+    out = capsys.readouterr().out
+    registered = list(real_entries()) if real_prereg else READ_ONLY_METRICS
+    assert code != 2
+    assert all(f"\n{metric_id}: " in f"\n{out}" for metric_id in registered)
     assert world.snapshot() == before
 
 
@@ -792,19 +815,37 @@ def test_the_post_time_is_echoed_beside_the_run_time(world, tmp_path, capsys):
 
 # --- before and after at the boundary ----------------------------------------
 
-TOKEN_FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
-
-
-def cost_row(ts: str, tokens: int, agent: str = "dev-team:test-review") -> dict:
-    bucket = {"cost_usd": 0.5, **{field: 0 for field in TOKEN_FIELDS}, "input_tokens": tokens}
-    return {"timestamp": ts, "by_agent_type": {agent: bucket}}
-
-
 DELTA = ["test-review-token-delta"]
+BOUNDARY = "2026-03-01T00:00:00Z"
+BEFORE_BOUNDARY = "2026-02-01T00:00:00Z"
+_agent_ids = itertools.count()
+
+
+def dispatch(
+    world: World,
+    ts: str | None,
+    tokens: int,
+    agent: str = "dev-team:test-review",
+    session: str = "sess-a",
+    usage: dict | None = None,
+) -> None:
+    """One dispatch of ``agent``: a subagent transcript of ``session`` whose last record sits at ``ts``."""
+    world.session(session)
+    record = {"type": "assistant", "message": {"role": "assistant", "usage": usage or {"input_tokens": tokens}}}
+    if ts is not None:
+        record["timestamp"] = ts
+    world.subagent(session, f"d{next(_agent_ids)}", attributed(agent, record))
+
+
+def dispatches(world: World, before: int, after: int, tokens: tuple[int, int] = (1000, 500)) -> None:
+    for _ in range(before):
+        dispatch(world, BEFORE_BOUNDARY, tokens[0])
+    for _ in range(after):
+        dispatch(world, IN_WINDOW, tokens[1])
 
 
 def test_a_missing_boundary_exits_2_when_a_before_and_after_metric_is_registered(world, tmp_path, capsys):
-    world.stream("cost-metering", [cost_row(IN_WINDOW, 100)])
+    dispatch(world, IN_WINDOW, 100)
     with pytest.raises(SystemExit) as raised:
         run_report(world, tmp_path, capsys, DELTA)
     assert raised.value.code == 2
@@ -824,36 +865,26 @@ def test_a_boundary_is_not_required_when_no_before_and_after_metric_is_registere
     assert run_report(world, tmp_path, capsys, ["skip-rate"])[0] == 0
 
 
-BOUNDARY = "2026-03-01T00:00:00Z"
-
-
-def test_a_row_exactly_at_the_boundary_is_on_the_after_side_only(world, tmp_path, capsys):
-    world.stream(
-        "cost-metering",
-        [cost_row("2026-02-28T23:59:59Z", 100), cost_row(BOUNDARY, 100), cost_row("2026-03-01T00:00:01Z", 100)],
-    )
+def test_a_dispatch_ending_exactly_at_the_boundary_is_on_the_after_side_only(world, tmp_path, capsys):
+    for ts in ("2026-02-28T23:59:59Z", BOUNDARY, "2026-03-01T00:00:01Z"):
+        dispatch(world, ts, 100)
     _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     assert "before: N=1" in out
     assert "after: N=2" in out
 
 
 def test_the_directional_line_reads_directional_with_the_pre_registered_confounds(world, tmp_path, capsys):
-    world.stream("cost-metering", [cost_row("2026-02-01T00:00:00Z", 1000), cost_row(IN_WINDOW, 800)])
+    dispatches(world, 1, 1)
     _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     confounds = "; ".join(real_entries()["test-review-token-delta"]["confounds"])
     assert f"DIRECTIONAL (confounds: {confounds})" in line_of(out, "test-review-token-delta:")
 
 
 def test_the_delta_is_the_percent_change_in_mean_test_review_tokens_and_ignores_other_agents(world, tmp_path, capsys):
-    world.stream(
-        "cost-metering",
-        [
-            cost_row("2026-02-01T00:00:00Z", 1000),
-            cost_row("2026-02-02T00:00:00Z", 3000),
-            cost_row(IN_WINDOW, 1600),
-            cost_row(IN_WINDOW, 99999, agent="dev-team:other-review"),
-        ],
-    )
+    dispatch(world, BEFORE_BOUNDARY, 1000)
+    dispatch(world, "2026-02-02T00:00:00Z", 3000)
+    dispatch(world, IN_WINDOW, 1600)
+    dispatch(world, IN_WINDOW, 99999, agent="dev-team:other-review")
     _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     line = line_of(out, "test-review-token-delta:")
     assert "delta -20.00%" in line
@@ -861,24 +892,47 @@ def test_the_delta_is_the_percent_change_in_mean_test_review_tokens_and_ignores_
     assert "after: N=1 dispatches, mean 1600 tokens" in out
 
 
-def test_another_agents_bucket_in_the_same_row_adds_no_tokens(world, tmp_path, capsys):
-    row = cost_row("2026-02-01T00:00:00Z", 100)
-    row["by_agent_type"]["dev-team:other-review"] = {"cost_usd": 1.0, "input_tokens": 5000}
-    world.stream("cost-metering", [row, cost_row(IN_WINDOW, 100)])
+def test_every_token_field_of_a_dispatch_counts_toward_it(world, tmp_path, capsys):
+    every_field = {"input_tokens": 10, "output_tokens": 20, "cache_creation_input_tokens": 30, "cache_read_input_tokens": 40}
+    dispatch(world, BEFORE_BOUNDARY, 0, usage=every_field)
+    dispatch(world, IN_WINDOW, 100)
     _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     assert "before: N=1 dispatches, mean 100 tokens" in out
 
 
-def test_every_token_field_of_the_bucket_counts_toward_a_dispatch(world, tmp_path, capsys):
-    row = cost_row("2026-02-01T00:00:00Z", 10)
-    row["by_agent_type"]["dev-team:test-review"].update(output_tokens=20, cache_creation_input_tokens=30, cache_read_input_tokens=40)
-    world.stream("cost-metering", [row, cost_row(IN_WINDOW, 100)])
+def test_the_records_of_one_transcript_are_one_dispatch_whose_tokens_add_up(world, tmp_path, capsys):
+    world.session("sess-a")
+    records = [
+        {"type": "assistant", "timestamp": ts, "message": {"role": "assistant", "usage": {"input_tokens": 40}}}
+        for ts in ("2026-02-01T00:00:00Z", "2026-02-01T00:00:05Z", "2026-02-01T00:00:09Z")
+    ]
+    world.subagent("sess-a", "one", attributed("dev-team:test-review", *records))
+    dispatch(world, IN_WINDOW, 60)
     _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
-    assert "before: N=1 dispatches, mean 100 tokens" in out
+    assert "before: N=1 dispatches, mean 120 tokens" in out
+    assert "delta -50.00%" in out
+
+
+def test_cumulative_cost_snapshots_are_not_dispatches(world, tmp_path, capsys):
+    snapshots = [
+        {"timestamp": ts, "by_agent_type": {"dev-team:test-review": {"cost_usd": 1.0, "input_tokens": tokens}}}
+        for ts, tokens in ((BEFORE_BOUNDARY, 100), ("2026-02-01T00:05:00Z", 200), (IN_WINDOW, 300), ("2026-03-01T12:05:00Z", 400))
+    ]
+    world.stream("cost-metering", snapshots)
+    _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
+    assert "no rows in window" in line_of(out, "test-review-token-delta:")
+
+
+def test_a_non_numeric_usage_value_in_a_transcript_adds_no_tokens_and_does_not_crash(world, tmp_path, capsys):
+    dispatch(world, BEFORE_BOUNDARY, 0, usage={"input_tokens": "many", "output_tokens": True, "cache_read_input_tokens": 25})
+    dispatch(world, IN_WINDOW, 25)
+    code, out, err = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
+    assert "before: N=1 dispatches, mean 25 tokens" in out
+    assert (code, err) == (0, "")
 
 
 def test_an_empty_after_side_prints_insufficient_and_computes_no_delta(world, tmp_path, capsys):
-    world.stream("cost-metering", [cost_row("2026-02-01T00:00:00Z", 1000)] * 3)
+    dispatches(world, 3, 0)
     code, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     line = line_of(out, "test-review-token-delta:")
     assert "insufficient" in line
@@ -887,70 +941,114 @@ def test_an_empty_after_side_prints_insufficient_and_computes_no_delta(world, tm
     assert "after: N=0 insufficient" in out
     assert "delta: not computed" in out
     assert not re.search(r"delta [+-]\d", out)
-    assert code == 3
+    assert code == 0
 
 
 def test_a_before_mean_of_zero_prints_insufficient_and_computes_no_delta(world, tmp_path, capsys):
-    world.stream("cost-metering", [cost_row("2026-02-01T00:00:00Z", 0)] * 3 + [cost_row(IN_WINDOW, 500)])
-    code, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
+    dispatches(world, 3, 1, tokens=(0, 500))
+    _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     assert "insufficient" in line_of(out, "test-review-token-delta:")
     assert "delta: not computed" in out
     assert not re.search(r"delta [+-]\d", out)
-    assert code == 3
 
 
 def test_a_metric_with_data_on_one_side_only_is_insufficient_not_no_rows(world, tmp_path, capsys):
-    world.stream("cost-metering", [cost_row(IN_WINDOW, 1000)])
+    dispatches(world, 0, 1)
     _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     assert "no rows in window" not in out
     assert "insufficient" in line_of(out, "test-review-token-delta:")
 
 
-def test_no_test_review_rows_on_either_side_print_no_rows_in_window(world, tmp_path, capsys):
-    world.stream("cost-metering", [cost_row(IN_WINDOW, 1000, agent="dev-team:other-review")])
-    code, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
+def test_no_test_review_dispatch_on_either_side_prints_no_rows_in_window(world, tmp_path, capsys):
+    dispatch(world, IN_WINDOW, 1000, agent="dev-team:other-review")
+    _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     assert "no rows in window" in line_of(out, "test-review-token-delta:")
-    assert code == 3
 
 
 def test_a_side_below_the_minimum_n_is_null_and_hides_the_delta(world, tmp_path, capsys):
-    world.stream("cost-metering", [cost_row("2026-02-01T00:00:00Z", 1000)] * 4 + [cost_row(IN_WINDOW, 500)] * 12)
-    code, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY, minimum_n=10)
+    dispatches(world, 4, 12)
+    _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY, minimum_n=10)
     assert "NULL (N=4)" in line_of(out, "test-review-token-delta:")
     assert "mean" not in out
     assert not re.search(r"delta [+-]\d", out)
     (metric,) = json.loads(run_report(world, tmp_path, capsys, DELTA, "--json", boundary=BOUNDARY, minimum_n=10)[1])["metrics"]
     assert metric["value"] is None
-    assert code == 3
+
+
+@pytest.mark.parametrize(("before", "after"), [(0, 4), (4, 0)])
+def test_one_empty_side_with_the_other_below_the_minimum_n_is_null_not_insufficient(world, tmp_path, capsys, before, after):
+    dispatches(world, before, after)
+    _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY, minimum_n=10)
+    line = line_of(out, "test-review-token-delta:")
+    assert "NULL (N=4)" in line
+    assert "insufficient" not in line
 
 
 def test_the_window_bounds_the_after_side_only(world, tmp_path, capsys):
-    world.stream(
-        "cost-metering",
-        [cost_row("2026-01-01T00:00:00Z", 100), cost_row("2026-03-02T00:00:00Z", 100), cost_row("2026-04-02T00:00:00Z", 100)],
-    )
+    for ts in ("2026-01-01T00:00:00Z", "2026-03-02T00:00:00Z", "2026-04-02T00:00:00Z"):
+        dispatch(world, ts, 100)
     window = ("--window-start", "2026-03-02T00:00:00Z", "--window-end", "2026-04-01T00:00:00Z")
     _, out, _ = run_report(world, tmp_path, capsys, DELTA, *window, boundary=BOUNDARY)
     assert "before: N=1" in out
     assert "after: N=1" in out
 
 
-def test_cost_rows_without_session_ids_print_on_an_unverified_line_that_is_no_verdict_input(world, tmp_path, capsys):
-    world.stream("cost-metering", [cost_row("2026-02-01T00:00:00Z", 1000), cost_row(IN_WINDOW, 800)])
+def test_the_directional_line_is_a_real_session_line_that_is_no_verdict_input(world, tmp_path, capsys):
+    dispatches(world, 1, 1)
     _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     line = line_of(out, "test-review-token-delta:")
-    assert "UNVERIFIED (no session ids)" in line
     assert "DIRECTIONAL" in line
     assert "excluded from verdict inputs" in line
+    assert "UNVERIFIED" not in line
     (metric,) = json.loads(run_report(world, tmp_path, capsys, DELTA, "--json", boundary=BOUNDARY)[1])["metrics"]
     assert metric["verdict_input"] is False
+    assert metric["sessions"] == ["sess-a"]
 
 
-def test_a_cost_row_without_a_valid_timestamp_exits_2_naming_its_line(world, tmp_path, capsys):
-    path = world.stream("cost-metering", [{**cost_row(IN_WINDOW, 1), "timestamp": "soon"}])
-    code, _, err = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
-    assert code == 2
-    assert_input_error(err, path, 1, "row has no valid 'timestamp' timestamp")
+def test_dispatches_of_a_session_with_no_real_transcript_are_left_out_and_counted(world, tmp_path, capsys):
+    dispatches(world, 1, 1)
+    world.subagent("ghost", "g1", attributed("dev-team:test-review", {"type": "assistant", "timestamp": IN_WINDOW, "message": {"usage": {"input_tokens": 9999}}}))
+    _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
+    assert "after: N=1 dispatches, mean 500 tokens" in out
+    assert "left out: 1 subagent transcripts of sessions with no real transcript" in out
+
+
+def test_a_dispatch_with_no_timestamp_is_left_out_and_counted(world, tmp_path, capsys):
+    dispatches(world, 1, 1)
+    dispatch(world, None, 700)
+    _, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
+    assert "before: N=1" in out and "after: N=1" in out
+    assert "left out: 1 dispatches with no timestamp" in out
+
+
+def test_a_directional_line_prints_its_status_but_leaves_the_exit_code_alone(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("ledger-skips", [consult("sess-a", 4, 1)])
+    dispatches(world, 3, 0)
+    code, out, _ = run_report(world, tmp_path, capsys, ["skip-rate", *DELTA], boundary=BOUNDARY)
+    assert "insufficient" in line_of(out, "test-review-token-delta:")
+    assert code == 0
+    payload = json.loads(run_report(world, tmp_path, capsys, ["skip-rate", *DELTA], "--json", boundary=BOUNDARY)[1])
+    assert [m["exit_code"] for m in payload["metrics"]] == [0, 3]
+
+
+def test_an_id_less_line_prints_its_status_but_leaves_the_exit_code_alone(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("ledger-skips", [consult("sess-a", 4, 1)])
+    write_usage(world, {"source-verification": {"use_count": 10}})
+    code, out, _ = run_report(world, tmp_path, capsys, ["skip-rate", "contradicted-rate"])
+    assert "not entered" in line_of(out, "contradicted-rate:")
+    assert code == 0
+
+
+def test_a_breach_on_a_verdict_line_still_sets_the_exit_code_beside_a_directional_line(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("skill-injection", [injection("sess-a", 900)])
+    dispatches(world, 1, 1)
+    code, _, _ = run_report(
+        world, tmp_path, capsys, ["injection-overhead", *DELTA], boundary=BOUNDARY, **{"injection-overhead": {"keep": "<= 450"}}
+    )
+    assert code == 1
 
 
 # --- below minimum N ---------------------------------------------------------
@@ -981,7 +1079,7 @@ def write_usage(world: World, usage: dict) -> None:
     (world.home / "artifact-usage.json").write_text(json.dumps(usage))
 
 
-VERDICT = ["contradicted-rate", "injection-overhead"]
+VERDICT = ["contradicted-rate"]
 
 
 def test_the_contradicted_rate_divides_by_invocations_not_by_verdicts(world, tmp_path, capsys):
@@ -996,12 +1094,51 @@ def test_the_contradicted_rate_divides_by_invocations_not_by_verdicts(world, tmp
     assert "DIRECTIONAL" not in line
 
 
-def test_a_contradicted_rate_with_no_tally_entered_is_insufficient(world, tmp_path, capsys):
+def test_a_contradicted_rate_with_no_tally_entered_prints_not_entered_not_insufficient(world, tmp_path, capsys):
     write_usage(world, {"source-verification": {"use_count": 10}})
-    code, out, _ = run_report(world, tmp_path, capsys, VERDICT)
-    assert "insufficient" in line_of(out, "contradicted-rate:")
-    assert "not entered" in out
-    assert code == 3
+    _, out, _ = run_report(world, tmp_path, capsys, VERDICT)
+    line = line_of(out, "contradicted-rate:")
+    assert "not entered" in line
+    assert "insufficient" not in line
+    assert "contradicted tally: not entered in the manual-input file" in out
+    (metric,) = json.loads(run_report(world, tmp_path, capsys, VERDICT, "--json")[1])["metrics"]
+    assert (metric["status"], metric["exit_code"], metric["value"]) == ("not entered", 3, None)
+
+
+def test_a_contradicted_tally_over_zero_invocations_is_no_rows_in_window_not_a_division(world, tmp_path, capsys):
+    write_usage(world, {"source-verification": {"use_count": 0}})
+    write_manual(world, {"contradicted-rate": {"value": 3, "n": 5}})
+    code, out, err = run_report(world, tmp_path, capsys, VERDICT)
+    assert line_of(out, "contradicted-rate:").split("UNVERIFIED (no session ids)")[1].strip().startswith("no rows in window")
+    assert "contradicted verdicts entered: 3 of 5 verdicts" in out
+    assert (code, err) == (0, "")
+
+
+def test_the_adoption_block_needs_no_other_metric_in_the_pre_registration(world, tmp_path, capsys):
+    write_usage(world, {"source-verification": {"use_count": 5}})
+    code, out, err = run_report(world, tmp_path, capsys, VERDICT)
+    assert "source-verification: direct invocations 5, consumer dispatches 0 ORPHAN: wire-or-archive" in out
+    assert "property-based-testing: direct invocations 0, consumer dispatches 0 ORPHAN: wire-or-archive" in out
+    assert err == ""
+    assert code != 2
+
+
+def test_a_stream_metric_with_unmeasurable_handling_prints_unmeasurable_and_no_adoption_block(world, tmp_path, capsys):
+    write_usage(world, {"source-verification": {"use_count": 10}})
+    code, out, _ = run_report(world, tmp_path, capsys, VERDICT, **{"contradicted-rate": {"id_less_handling": "unmeasurable"}})
+    assert line_of(out, "contradicted-rate:").startswith("contradicted-rate: unmeasurable")
+    assert "UNVERIFIED" not in out
+    assert "skill adoption" not in out
+    assert code == 0
+
+
+def test_artifact_usage_is_read_once_per_run_though_two_blocks_use_it(world, tmp_path, capsys, monkeypatch):
+    write_usage(world, {"source-verification": {"use_count": 10}})
+    reads = []
+    real_read_text = streams.read_text
+    monkeypatch.setattr(streams, "read_text", lambda path: reads.append(path.name) or real_read_text(path))
+    run_report(world, tmp_path, capsys, VERDICT)
+    assert reads.count("artifact-usage.json") == 1
 
 
 def test_a_skill_dispatched_to_by_no_consumer_is_an_orphan_however_often_invoked_directly(world, tmp_path, capsys):
@@ -1030,6 +1167,7 @@ def test_an_injection_row_without_a_real_session_is_not_a_consumer_dispatch(worl
 
 
 def test_a_hand_entered_value_is_judged_against_its_threshold(world, tmp_path, capsys):
+    world.session(LONG_ID)
     write_manual(world, {"pbt-mutants-killed": {"value": 2, "n": 10, "sessions": [LONG_ID], "note": "ten targets"}})
     code, out, _ = run_report(world, tmp_path, capsys, ["pbt-mutants-killed"])
     line = line_of(out, "pbt-mutants-killed:")
@@ -1038,6 +1176,27 @@ def test_a_hand_entered_value_is_judged_against_its_threshold(world, tmp_path, c
     assert LONG_ID[:8] in out
     assert LONG_ID not in out
     assert code == 0
+
+
+def test_a_listed_session_with_no_real_transcript_is_counted_as_unverified_and_left_off_the_list(world, tmp_path, capsys):
+    world.session(LONG_ID)
+    write_manual(world, {"pbt-mutants-killed": {"value": 2, "n": 10, "sessions": [LONG_ID, "ghost-session"]}})
+    _, out, _ = run_report(world, tmp_path, capsys, ["pbt-mutants-killed"])
+    block = block_of(out, "pbt-mutants-killed:")
+    assert f"sessions: {LONG_ID[:8]}" in block
+    assert "ghost" not in out
+    assert "unverified: 1" in block
+    (metric,) = json.loads(run_report(world, tmp_path, capsys, ["pbt-mutants-killed"], "--json")[1])["metrics"]
+    assert (metric["sessions"], metric["unverified_rows"]) == ([LONG_ID[:8]], 1)
+
+
+def test_the_manual_input_option_overrides_the_default_file(world, tmp_path, capsys):
+    write_manual(world, {"pbt-mutants-killed": {"value": 2, "n": 10}})
+    elsewhere = tmp_path / "elsewhere.json"
+    elsewhere.write_text(json.dumps({"pbt-mutants-killed": {"value": 7, "n": 10}}))
+    _, out, _ = run_report(world, tmp_path, capsys, ["pbt-mutants-killed"], "--manual-input", str(elsewhere))
+    assert "7 mutants per target" in line_of(out, "pbt-mutants-killed:")
+    assert "2 mutants per target" not in out
 
 
 def test_a_hand_entered_value_below_its_minimum_n_is_null(world, tmp_path, capsys):
@@ -1087,23 +1246,32 @@ def stream_file(name: str):
     return lambda world, rows: world.stream(name, rows)
 
 
-# Each case: metrics to run, writer, the bad rows, and the problem the error names.
-ROW_SCHEMA_CASES = [
-    (["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "candidate_pairs": -1}], "'candidate_pairs' is not a non-negative integer"),
-    (["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "candidate_pairs": True}], "'candidate_pairs' is not a non-negative integer"),
-    (["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "skipped_pairs": "2"}], "'skipped_pairs' is not a non-negative integer"),
-    (["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "skipped_pairs": 1.5}], "'skipped_pairs' is not a non-negative integer"),
-    (["abort-yield"], stream_file("checkpoint-aborts"), [abort_row("sess-a", True, "security-review")], "'deferred_lenses' is not a list of names"),
-    (["abort-yield"], stream_file("checkpoint-aborts"), [abort_row("sess-a", True, [3])], "'deferred_lenses' is not a list of names"),
-    (["injection-overhead"], stream_file("skill-injection"), [{**injection("sess-a", 1), "added_chars": "100"}], "'added_chars' is not a int"),
-    (["injection-overhead"], stream_file("skill-injection"), [{**injection("sess-a", 1), "added_chars": True}], "'added_chars' is not a int"),
-    (["injection-uptake"], stream_file("skill-injection"), [{**injection("sess-a", 1), "agent_type": 5}], "'agent_type' is not a str"),
-    (["injection-uptake"], stream_file("skill-injection"), [{**injection("sess-a", 1), "skills": "api-design"}], "'skills' is not a list"),
-    (DELTA, stream_file("cost-metering"), [{"timestamp": IN_WINDOW, "by_agent_type": {"dev-team:test-review": "many"}}], "bucket 'dev-team:test-review' is not an object"),
-    (VERDICT, lambda world, rows: usage_file(world, rows[0]), [{"source-verification": {"use_count": -1}}], "use_count is not a non-negative integer"),
-    (VERDICT, lambda world, rows: usage_file(world, rows[0]), [{"source-verification": {"use_count": True}}], "use_count is not a non-negative integer"),
-    (VERDICT, lambda world, rows: usage_file(world, rows[0]), [{"source-verification": {"use_count": "3"}}], "use_count is not a non-negative integer"),
+def usage_writer(world, rows):
+    return usage_file(world, rows[0])
+
+
+# Each case: id, metrics to run, writer, the bad rows, and the problem the error names.
+_ROW_SCHEMA = [
+    ("candidate-pairs-negative", ["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "candidate_pairs": -1}], "'candidate_pairs' is not a non-negative integer"),
+    ("candidate-pairs-bool", ["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "candidate_pairs": True}], "'candidate_pairs' is not a non-negative integer"),
+    ("skipped-pairs-text", ["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "skipped_pairs": "2"}], "'skipped_pairs' is not a non-negative integer"),
+    ("skipped-pairs-float", ["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "skipped_pairs": 1.5}], "'skipped_pairs' is not a non-negative integer"),
+    ("lenses-text", ["abort-yield"], stream_file("checkpoint-aborts"), [abort_row("sess-a", True, "security-review")], "'deferred_lenses' is not a list of names"),
+    ("lenses-number-item", ["abort-yield"], stream_file("checkpoint-aborts"), [abort_row("sess-a", True, [3])], "'deferred_lenses' is not a list of names"),
+    ("added-chars-text", ["injection-overhead"], stream_file("skill-injection"), [{**injection("sess-a", 1), "added_chars": "100"}], "'added_chars' is not an int"),
+    ("added-chars-bool", ["injection-overhead"], stream_file("skill-injection"), [{**injection("sess-a", 1), "added_chars": True}], "'added_chars' is not an int"),
+    ("agent-type-number", ["injection-uptake"], stream_file("skill-injection"), [{**injection("sess-a", 1), "agent_type": 5}], "'agent_type' is not a str"),
+    ("uptake-skills-text", ["injection-uptake"], stream_file("skill-injection"), [{**injection("sess-a", 1), "skills": "api-design"}], "'skills' is not a list of skill names"),
+    ("uptake-skills-number-item", ["injection-uptake"], stream_file("skill-injection"), [{**injection("sess-a", 1), "skills": ["api-design", 3]}], "'skills' is not a list of skill names"),
+    ("adoption-skills-number", VERDICT, stream_file("skill-injection"), [{**injection("sess-a", 1), "skills": 5}], "'skills' is not a list of skill names"),
+    ("adoption-skills-number-item", VERDICT, stream_file("skill-injection"), [{**injection("sess-a", 1), "skills": [3]}], "'skills' is not a list of skill names"),
+    ("classification-list", ["guard-divergence"], stream_file("subagent-stops"), [{**stop("sess-a", "clean"), "classification": ["clean"]}], "'classification' is not a str"),
+    ("classification-missing", ["guard-divergence"], stream_file("subagent-stops"), [{"ts": IN_WINDOW, "session_id": "sess-a"}], "'classification' is not a str"),
+    ("use-count-negative", VERDICT, usage_writer, [{"source-verification": {"use_count": -1}}], "use_count is not a non-negative integer"),
+    ("use-count-bool", VERDICT, usage_writer, [{"source-verification": {"use_count": True}}], "use_count is not a non-negative integer"),
+    ("use-count-text", VERDICT, usage_writer, [{"source-verification": {"use_count": "3"}}], "use_count is not a non-negative integer"),
 ]
+ROW_SCHEMA_CASES = [pytest.param(*case[1:], id=case[0]) for case in _ROW_SCHEMA]
 
 
 @pytest.mark.parametrize(("ids", "write", "rows", "problem"), ROW_SCHEMA_CASES)
@@ -1129,17 +1297,7 @@ def test_a_metric_with_no_instrument_prints_unmeasurable_and_does_not_change_the
 
 
 def test_the_real_pre_registration_reports_every_metric_with_no_data(world, tmp_path, capsys):
-    code = cli.main(
-        [
-            "report",
-            "--prereg", str(REAL_PREREG),
-            "--project-root", str(world.project),
-            "--home-metrics", str(world.home),
-            "--projects-root", str(world.projects),
-            "--prereg-posted", POSTED,
-            "--boundary", BOUNDARY,
-        ]
-    )
+    code = cli.main(cli_argv("report", world, REAL_PREREG, "--prereg-posted", POSTED, "--boundary", BOUNDARY))
     out = capsys.readouterr().out
     for metric_id in real_entries():
         assert f"\n{metric_id}: " in out
@@ -1148,27 +1306,22 @@ def test_the_real_pre_registration_reports_every_metric_with_no_data(world, tmp_
     assert code == 3
 
 
+def _keep_limit(metric_id: str) -> float:
+    return prereg_module.parse_threshold(real_entries()[metric_id]["keep"]).limit
+
+
 def test_the_real_pre_registration_with_data_reports_each_metrics_own_status(world, tmp_path, capsys):
+    # Inputs derive from the loaded entries, so editing a threshold cannot silently change the expected status.
+    min_n = real_entries()["injection-overhead"]["minimum_n"]
     for i in range(3):
         world.session(f"sess-{i}")
-    world.stream("ledger-skips", [consult("sess-0", 20, 4)])
-    world.stream("skill-injection", [injection("sess-1", 500)] * 10)
+    world.stream("ledger-skips", [consult("sess-0", 100, int(_keep_limit("skip-rate")))])
+    world.stream("skill-injection", [injection("sess-1", int(_keep_limit("injection-overhead")) + 100)] * min_n)
     world.stream("subagent-stops", [stop("sess-2", "clean")])
-    world.stream("cost-metering", [cost_row("2026-02-01T00:00:00Z", 1000), cost_row(IN_WINDOW, 800)])
-    write_usage(world, {"source-verification": {"use_count": 10}})
-    write_manual(world, {"pbt-mutants-killed": {"value": 2, "n": 10}})
-    code = cli.main(
-        [
-            "report",
-            "--prereg", str(REAL_PREREG),
-            "--project-root", str(world.project),
-            "--home-metrics", str(world.home),
-            "--projects-root", str(world.projects),
-            "--prereg-posted", POSTED,
-            "--boundary", BOUNDARY,
-            "--json",
-        ]
-    )  # fmt: skip
+    dispatches(world, 1, 1)
+    write_usage(world, {"source-verification": {"use_count": min_n}})
+    write_manual(world, {"pbt-mutants-killed": {"value": _keep_limit("pbt-mutants-killed"), "n": min_n}})
+    code = cli.main(cli_argv("report", world, REAL_PREREG, "--prereg-posted", POSTED, "--boundary", BOUNDARY, "--json"))
     payload = json.loads(capsys.readouterr().out)
     statuses = {m["metric_id"]: m["status"] for m in payload["metrics"]}
     assert statuses["skip-rate"] == "within"
@@ -1177,6 +1330,6 @@ def test_the_real_pre_registration_with_data_reports_each_metrics_own_status(wor
     assert statuses["findings-parity"] == "no rows in window"
     assert statuses["guard-divergence"] == "NULL (N=1)"
     assert statuses["test-review-token-delta"] == "NULL (N=1)"
-    assert statuses["contradicted-rate"] == "insufficient"
+    assert statuses["contradicted-rate"] == "not entered"
     assert statuses["expand-rate"] == "unmeasurable"
     assert code == payload["exit_code"] == 1

@@ -1,9 +1,10 @@
-"""Subagent-hook metrics: skill-injection overhead and uptake, and the
-completion-guard divergence rate with its hand-check sample.
+"""Subagent-hook metrics: skill-injection overhead and uptake, the
+completion-guard divergence rate with its hand-check sample, and the
+``test-review`` dispatch token change.
 
-Uptake and the sample's agent ids come from the subagent transcripts that
-``session_log`` discovers, because neither stream carries an agent id; the
-join grain is (session, agent type). Read-only.
+Uptake, the sample's agent ids and the dispatch tokens come from the subagent
+transcripts that ``session_log`` discovers, because the streams carry no agent
+id; the join grain is (session, agent type). Read-only.
 
 Stdlib-only.
 """
@@ -17,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from session_log import classify as session_classify
+from session_log import records as session_records
 from session_log import signals as session_signals
 
 from . import formatting, streams
@@ -26,8 +28,8 @@ from .prereg import Metric
 FLAGGED = ("empty-final-turn", "truncated-final-turn")
 CLEAN = "clean"
 SAMPLE_SIZE = 20
+TEST_REVIEW = "test-review"
 _AGENT_PREFIX = "agent-"
-_REPAIR = "repair or remove that row; the evaluation never edits the file"
 
 
 @dataclass
@@ -39,47 +41,38 @@ class SubagentRun:
     agent_type: str | None = None
     skills: frozenset[str] = frozenset()
     last_ts: datetime | None = None
+    #: Every token field of every usage record in the transcript, summed.
+    tokens: int | float = 0
 
 
 @dataclass
 class SubagentTranscripts:
-    """Subagent transcripts of each session, found through ``session_log`` discovery."""
+    """The subagent transcripts of each session, found through the shared ``SessionIndex``."""
 
-    projects_root: Path
-    _mains: dict[str, Path] = field(default_factory=dict)
-    _runs: dict[str, list[Path]] = field(default_factory=dict)
-    _loaded: bool = False
+    index: streams.SessionIndex
     _read: dict[Path, SubagentRun] = field(default_factory=dict)
 
-    def _discover(self) -> None:
-        if self._loaded:
-            return
-        self._loaded = True
-        if not self.projects_root.is_dir():
-            return
-        for path in streams.session_discovery.all_transcripts(self.projects_root):
-            parts = streams.session_discovery.relative_parts(self.projects_root, path)
-            if streams.session_discovery.is_subagent_transcript(self.projects_root, path):
-                self._runs.setdefault(parts[1], []).append(path)
-            else:
-                self._mains.setdefault(path.stem, path)
-
     def runs(self, session_id: str) -> list[SubagentRun]:
-        self._discover()
-        return [self._read_run(session_id, path) for path in self._runs.get(session_id, [])]
+        return [
+            self._read_run(session_id, path)
+            for path in self.index.subagent_transcripts(session_id)
+        ]
 
     def _read_run(self, session_id: str, path: Path) -> SubagentRun:
         if path not in self._read:
             run = SubagentRun(path.stem.removeprefix(_AGENT_PREFIX), path)
             attribution, skills = None, Counter()
-            for record in streams.session_records.iter_file_records(path):
+            for record in session_records.iter_file_records(path):
                 if not isinstance(record, dict):
                     continue
-                attribution = attribution or streams.session_records.attribution_agent_of(record)
+                attribution = attribution or session_records.attribution_agent_of(record)
                 session_signals.accumulate_skill_agent_signals(
                     None, _content_of(record), skills, Counter(), {}
                 )
                 run.last_ts = _later(run.last_ts, record.get("timestamp"))
+                usage = session_records.usage_of(record)
+                if usage is not None:
+                    run.tokens += _token_total(usage)
             run.skills = frozenset(skills)
             run.agent_type = (
                 session_classify.strip_ns(attribution)
@@ -91,14 +84,14 @@ class SubagentTranscripts:
 
     def _dispatched_type(self, session_id: str, agent_id: str) -> str | None:
         """The agent type the main transcript recorded when it dispatched ``agent_id``."""
-        main = self._mains.get(session_id)
+        main = self.index.main_transcript(session_id)
         if main is None:
             return None
         dispatch_types: dict[str, str] = {}
         agent_types: dict[str, str] = {}
-        for record in streams.session_records.iter_file_records(main):
+        for record in session_records.iter_file_records(main):
             if isinstance(record, dict):
-                streams.session_records.join_dispatch_agent_ids(record, dispatch_types, agent_types)
+                session_records.join_dispatch_agent_ids(record, dispatch_types, agent_types)
         found = agent_types.get(agent_id)
         return session_classify.strip_ns(found) if found else None
 
@@ -106,6 +99,12 @@ class SubagentTranscripts:
 def _content_of(record: dict):
     message = record.get("message")
     return message.get("content") if isinstance(message, dict) else None
+
+
+def _token_total(usage: dict) -> int | float:
+    """Sum of the usage token fields; a non-numeric value in a transcript adds nothing."""
+    values = (session_records.usage_field(usage, f) for f in session_records.USAGE_FIELDS)
+    return sum(v for v in values if isinstance(v, (int, float)) and not isinstance(v, bool))
 
 
 def _later(current: datetime | None, text) -> datetime | None:
@@ -116,18 +115,14 @@ def _later(current: datetime | None, text) -> datetime | None:
     return moment if current is None or moment > current else current
 
 
-def _row_field(row: streams.Row, name: str, kind: type):
-    value = row.data.get(name)
-    if isinstance(value, bool) or not isinstance(value, kind):
-        raise streams.InputError(
-            row.file, row.line, f"row field '{name}' is not a {kind.__name__}", _REPAIR
-        )
-    return value
+def injected_skills(row: streams.Row) -> list[str]:
+    """The skill names a ``skill-injection`` row lists."""
+    return streams.row_field(row, "skills", list, items=str, noun="a list of skill names")
 
 
 def injection_overhead(metric: Metric, ctx: ReportContext) -> ReportLine:
     part = ctx.partition(metric.instrument)
-    added = [_row_field(row, "added_chars", int) for row in part.real]
+    added = [streams.row_field(row, "added_chars", int) for row in part.real]
     value = sum(added) / len(added) if added else None
     return formatting.measured_line(
         metric,
@@ -148,12 +143,8 @@ def injection_uptake(
     hits = 0
     for row in part.real:
         session = row.data["session_id"]
-        agent_type = session_classify.strip_ns(_row_field(row, "agent_type", str))
-        injected = {
-            session_classify.strip_ns(s)
-            for s in _row_field(row, "skills", list)
-            if isinstance(s, str)
-        }
+        agent_type = session_classify.strip_ns(streams.row_field(row, "agent_type", str))
+        injected = {session_classify.strip_ns(s) for s in injected_skills(row)}
         key = (session, agent_type)
         if key not in loaded_by_group:
             loaded_by_group[key] = {
@@ -175,7 +166,7 @@ def injection_uptake(
 
 def completion_guard_divergence(metric: Metric, ctx: ReportContext) -> ReportLine:
     part = ctx.partition(metric.instrument)
-    counts = Counter(row.data.get("classification") for row in part.real)
+    counts = Counter(_classification(row) for row in part.real)
     flagged = sum(counts[c] for c in FLAGGED)
     return formatting.rate_line(
         metric,
@@ -193,11 +184,12 @@ def completion_guard_sample(metric: Metric, ctx: ReportContext, transcripts: Sub
     The stop row names only a session, so each flagged stop is matched to the session's subagent
     transcript whose last record is nearest its time; each transcript matches one stop."""
     part = ctx.partition(metric.instrument)
+    ts_field = streams.STREAM_TABLE[metric.instrument].ts_field
     flagged = sorted(
-        (r for r in part.real if r.data.get("classification") in FLAGGED),
-        key=lambda r: (r.data["ts"], r.data["session_id"], str(r.file), r.line),
+        (r for r in part.real if _classification(r) in FLAGGED),
+        key=lambda r: (streams.row_time(r, ts_field), r.data["session_id"], str(r.file), r.line),
     )
-    matched = _match_runs(flagged, transcripts)
+    matched = _match_runs(flagged, ts_field, transcripts)
     chosen = random.Random(ctx.seed).sample(flagged, min(SAMPLE_SIZE, len(flagged)))
     lines = [f"{metric.id} hand-check sample (seed {ctx.seed}): {len(chosen)} of {len(flagged)} flagged"]
     data = []
@@ -213,11 +205,15 @@ def completion_guard_sample(metric: Metric, ctx: ReportContext, transcripts: Sub
     return ReportNote("completion-guard-sample", tuple(lines), {"seed": ctx.seed, "sample": data})
 
 
-def _match_runs(flagged: list[streams.Row], transcripts: SubagentTranscripts) -> dict:
+def _classification(row: streams.Row) -> str:
+    return streams.row_field(row, "classification", str)
+
+
+def _match_runs(flagged: list[streams.Row], ts_field: str, transcripts: SubagentTranscripts) -> dict:
     matched: dict = {}
     taken: set[Path] = set()
     for row in flagged:
-        when = streams.parse_utc(row.data["ts"])
+        when = streams.row_time(row, ts_field)
         free = [
             run
             for run in transcripts.runs(row.data["session_id"])
@@ -231,8 +227,72 @@ def _match_runs(flagged: list[streams.Row], transcripts: SubagentTranscripts) ->
 
 
 def _glob_path(projects_root: Path, path: Path, session_id: str) -> str:
-    """The transcript path under the projects root with the session directory cut to its 8-character
-    prefix and a ``*``, so it works as a shell glob and never prints a full session id."""
+    """The transcript as a shell glob: ``*`` for the project directory (its encoded name holds the
+    user name and checkout path), the session directory cut to its 8-character prefix and a ``*``,
+    then the subagent file. It never prints a full session id."""
     parts = streams.session_discovery.relative_parts(projects_root, path)
-    short = streams.truncate_id(session_id)
-    return "/".join(f"{short}*" if part == session_id else part for part in parts)
+    return "/".join(("*", f"{streams.truncate_id(session_id)}*", *parts[2:]))
+
+
+def test_review_token_delta(
+    metric: Metric, ctx: ReportContext, transcripts: SubagentTranscripts
+) -> ReportLine:
+    """Percent change in mean tokens per ``test-review`` dispatch, after versus before the boundary.
+
+    A dispatch is one subagent transcript of a real session whose agent type is ``test-review``; its
+    tokens are the sum of its usage records and it sits at its last record time. The window bounds the
+    after side only. The line is directional: it never feeds a verdict."""
+    dispatches: list[tuple[str, SubagentRun]] = []
+    left_out = 0
+    for session in ctx.index.sessions_with_subagents():
+        if ctx.index.classify(session) != streams.SESSION_REAL:
+            left_out += len(ctx.index.subagent_transcripts(session))
+            continue
+        dispatches += [(session, run) for run in transcripts.runs(session) if run.agent_type == TEST_REVIEW]
+    timed = [(session, run) for session, run in dispatches if run.last_ts is not None]
+    before = [(s, r) for s, r in timed if r.last_ts < ctx.boundary]
+    after = [
+        (s, r) for s, r in timed
+        if r.last_ts >= ctx.boundary and streams.in_window(r.last_ts, ctx.start, ctx.end)
+    ]
+    means = [
+        sum(run.tokens for _, run in side) / len(side) if side else None for side in (before, after)
+    ]
+    ns = (len(before), len(after))
+    value = 100.0 * (means[1] - means[0]) / means[0] if None not in means and means[0] else None
+    # One empty side leaves the other side's N to decide between NULL and insufficient.
+    present = [n for n in ns if n]
+    outcome = streams.evaluate_status(
+        min(present, default=0), metric.minimum_n, value, metric.keep, side_empty=0 in ns
+    )
+    show_means = not outcome.token.startswith(streams.TOKEN_NULL_PREFIX)
+    sides = []
+    for label, n, mean in zip(("before", "after"), ns, means):
+        if n == 0:
+            sides.append(f"{label}: N=0 {streams.TOKEN_INSUFFICIENT}")
+        else:
+            sides.append(
+                f"{label}: N={n} {metric.n_unit}"
+                + (f", mean {formatting.number_text(mean)} tokens" if show_means else "")
+            )
+    notes = []
+    if left_out:
+        notes.append(f"left out: {left_out} subagent transcripts of sessions with no real transcript")
+    if len(timed) < len(dispatches):
+        notes.append(f"left out: {len(dispatches) - len(timed)} dispatches with no timestamp")
+    return ReportLine(
+        streams.MetricResult(
+            metric.id,
+            value,
+            min(present, default=0),
+            formatting.short_ids(session for session, _ in (*before, *after)),
+            metric.instrument,
+            True,
+        ),
+        outcome,
+        n_unit=metric.n_unit,
+        headline=f"delta {value:+.2f}%" if value is not None else "",
+        threshold=metric.keep,
+        details=(*sides, *(("delta: not computed",) if value is None else ()), *notes),
+        label=f"DIRECTIONAL (confounds: {'; '.join(metric.confounds)})",
+    )

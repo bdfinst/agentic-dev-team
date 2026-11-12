@@ -21,32 +21,15 @@ STOP_HOOK = "stop-hook"
 ABORT_MODE = "abort"
 MISSING_SCOPE_MARKER = "missing-scope-marker"
 _NO_BACKSTOP_FIELD = "per backstop: not recorded in the rows"
+COUNTING_DEFECT = "counting defect: the measured rate is above the theoretical ceiling"
 
 
 def _count(row: streams.Row, name: str) -> int:
-    value = row.data.get(name)
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise streams.InputError(
-            row.file,
-            row.line,
-            f"row field '{name}' is not a non-negative integer",
-            "repair or remove that row; the evaluation never edits the file",
-        )
-    return value
+    return streams.row_field(row, name, int, minimum=0)
 
 
 def _lens_list(row: streams.Row) -> list[str]:
-    lenses = row.data.get("deferred_lenses")
-    if not isinstance(lenses, list) or not all(
-        isinstance(lens, str) for lens in lenses
-    ):
-        raise streams.InputError(
-            row.file,
-            row.line,
-            "row field 'deferred_lenses' is not a list of names",
-            "repair or remove that row; the evaluation never edits the file",
-        )
-    return lenses
+    return streams.row_field(row, "deferred_lenses", list, items=str, noun="a list of names")
 
 
 def skip_rate(metric: Metric, ctx: ReportContext) -> ReportLine:
@@ -55,10 +38,18 @@ def skip_rate(metric: Metric, ctx: ReportContext) -> ReportLine:
     consults = [row for row in part.real if is_consult(row)]
     candidates = sum(_count(row, "candidate_pairs") for row in consults)
     skipped = sum(_count(row, "skipped_pairs") for row in consults)
-    first_runs, repeat_runs = _split_first_and_repeat(consults)
+    first_runs, repeat_runs = _split_first_and_repeat(
+        consults, streams.STREAM_TABLE[metric.instrument].ts_field
+    )
     ceiling = (
         [f"theoretical ceiling {formatting.number_text(metric.ceiling)}%"]
         if metric.ceiling is not None
+        else []
+    )
+    rate = formatting.percent(skipped, candidates)
+    counting_defect = (
+        [COUNTING_DEFECT]
+        if metric.ceiling is not None and rate is not None and rate > metric.ceiling
         else []
     )
     return formatting.rate_line(
@@ -69,6 +60,7 @@ def skip_rate(metric: Metric, ctx: ReportContext) -> ReportLine:
         sum(map(is_consult, part.unverified)),
         details=ceiling,
         value_details=[
+            *counting_defect,
             _run_split_text("first runs", first_runs),
             _run_split_text("repeat runs", repeat_runs),
             _NO_BACKSTOP_FIELD,
@@ -76,14 +68,14 @@ def skip_rate(metric: Metric, ctx: ReportContext) -> ReportLine:
     )
 
 
-def _split_first_and_repeat(consults: list[streams.Row]) -> tuple[list, list]:
+def _split_first_and_repeat(consults: list[streams.Row], ts_field: str) -> tuple[list, list]:
     """A session's first consult in the window is a first run; each later one is a repeat run.
 
     Only windowed rows are seen, so a session whose first consult predates the window start has its
     first in-window consult counted as a first run."""
     seen: set[str] = set()
     first, repeat = [], []
-    for row in sorted(consults, key=lambda r: (r.data["ts"], str(r.file), r.line)):
+    for row in sorted(consults, key=lambda r: (streams.row_time(r, ts_field), str(r.file), r.line)):
         session = row.data["session_id"]
         (repeat if session in seen else first).append(row)
         seen.add(session)
@@ -106,11 +98,12 @@ def abort_yield(metric: Metric, ctx: ReportContext) -> ReportLine:
     A deferred lens counts as having found something new when a stop-hook row in the same session,
     at or after the abort, names it as the lens whose result alone tripped the rule."""
     part = ctx.partition(metric.instrument)
+    ts_field = streams.STREAM_TABLE[metric.instrument].ts_field
     aborts = [r for r in part.real if _is_aborted_checkpoint(r)]
     tripped = [
         (
             r.data["session_id"],
-            r.data["ts"],
+            streams.row_time(r, ts_field),
             session_classify.strip_ns(r.data["triggering_agent"]),
         )
         for r in part.real
@@ -120,11 +113,12 @@ def abort_yield(metric: Metric, ctx: ReportContext) -> ReportLine:
     ]
     deferred = found = 0
     for row in aborts:
+        aborted_at = streams.row_time(row, ts_field)
         for lens in map(session_classify.strip_ns, _lens_list(row)):
             deferred += 1
             found += any(
                 session == row.data["session_id"]
-                and ts >= row.data["ts"]
+                and ts >= aborted_at
                 and agent == lens
                 for session, ts, agent in tripped
             )
@@ -183,7 +177,7 @@ def missing_scope_marker_split(skip_metric: Metric, ctx: ReportContext) -> Repor
         if row.data.get("source") == CONSULT
     }
     rows = streams.rows_in_window(
-        streams.load_rows(streams.BOUNDARY_EVENTS, ctx.sources),
+        ctx.rows(streams.BOUNDARY_EVENTS),
         streams.BOUNDARY_EVENTS.ts_field,
         ctx.start,
         ctx.end,

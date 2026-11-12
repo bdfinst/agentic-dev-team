@@ -8,76 +8,27 @@ audit CLI in scripts/benefit_eval_cli.py.
 from __future__ import annotations
 
 import ast
-import importlib.util
 import json
+import re
 import shutil
+import subprocess
 import sys
-import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-from _repo_root import REPO_ROOT
-
-# Both import roots are added here so no import relies on a side effect of another.
-sys.path.insert(0, str(REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
-sys.path.insert(0, str(REPO_ROOT / "scripts" / "lib"))
-
-import instrument_log
+from _benefit_eval_support import (
+    LONG_ID,
+    REAL_PREREG,
+    World,
+    cli_argv,
+    load_cli,
+    prereg_block_span,
+    real_prereg_document,
+)
 from benefit_eval import prereg, streams
 
-#: A real 36-character session id (8-4-4-4-12 hex groups).
-LONG_ID = str(uuid.UUID("0123abcd-4567-89ab-cdef-0123456789ab"))
-
-
-class World:
-    """A project root, a home metrics dir and a transcript tree under tmp_path."""
-
-    def __init__(self, tmp_path: Path):
-        self.project = tmp_path / "project"
-        self.home = tmp_path / "home-metrics"
-        self.projects = tmp_path / "projects"
-        for directory in (self.project / ".claude" / "metrics", self.home, self.projects / "proj-a"):
-            directory.mkdir(parents=True)
-        self.sources = streams.Sources((self.project,), self.home, self.projects)
-
-    def add_project(self, name: str) -> Path:
-        """A second project root; its metrics are read alongside the first's."""
-        root = self.project.parent / name
-        (root / ".claude" / "metrics").mkdir(parents=True)
-        self.sources = streams.Sources(
-            (*self.sources.project_roots, root), self.home, self.projects
-        )
-        return root
-
-    def metrics_file(self, name: str) -> Path:
-        return self.project / ".claude" / "metrics" / name
-
-    def transcript(self, session_id: str, content: str = '{"type":"user"}\n') -> None:
-        (self.projects / "proj-a" / f"{session_id}.jsonl").write_text(content)
-
-    def stream(self, name: str, rows: list[dict]) -> Path:
-        path = self.metrics_file(f"{name}.jsonl")
-        path.write_text("".join(json.dumps(row) + "\n" for row in rows))
-        return path
-
-    def real_sessions(self, name: str, count: int, extra_rows: int = 10) -> None:
-        """One row per session, plus extra rows from the first session."""
-        ids = [f"sess{i:04d}-aaaa" for i in range(count)]
-        rows = [{"ts": "2026-01-01T00:00:00Z", "session_id": sid} for sid in ids]
-        if ids:
-            rows += [{"ts": "2026-01-01T00:00:01Z", "session_id": ids[0]}] * extra_rows
-        for sid in ids:
-            self.transcript(sid)
-        self.stream(name, rows)
-
-    def snapshot(self) -> dict[str, bytes | None]:
-        root = self.project.parent
-        return {
-            str(p.relative_to(root)): (p.read_bytes() if p.is_file() else None)
-            for p in sorted(root.rglob("*"))
-        }
+from _repo_root import REPO_ROOT
 
 
 def metric(instrument: str, metric_id: str = "m1"):
@@ -124,7 +75,7 @@ def test_absent_instrument_file_is_a_gap(world):
 def test_sessions_from_two_project_roots_merge_into_one_count(world):
     world.real_sessions("ledger-skips", 2, extra_rows=0)
     other = world.add_project("other-project")
-    world.transcript("sess-other")
+    world.session("sess-other")
     (other / ".claude" / "metrics" / "ledger-skips.jsonl").write_text(
         json.dumps({"ts": "2026-01-01T00:00:00Z", "session_id": "sess-other"}) + "\n"
     )
@@ -178,7 +129,7 @@ def test_unparseable_transcript_is_a_counted_skip_not_a_real_session(world):
     path.write_text(
         path.read_text() + json.dumps({"ts": "2026-01-01T00:00:00Z", "session_id": "bad-transcript"}) + "\n"
     )
-    world.transcript("bad-transcript", "this is not json\n")
+    world.session("bad-transcript", "this is not json\n")
     result = audit_one(world)
     assert (result.skipped_transcripts, result.real_sessions) == (1, 3)
     assert result.status == baseline.status
@@ -196,14 +147,14 @@ def test_unparseable_transcript_is_a_counted_skip_not_a_real_session(world):
 )
 def test_transcript_with_an_undecodable_line_or_non_object_record_is_a_counted_skip(world, content):
     world.stream("ledger-skips", [{"ts": "2026-01-01T00:00:00Z", "session_id": "sess-x"}])
-    world.transcript("sess-x", content)
+    world.session("sess-x", content)
     result = audit_one(world)
     assert (result.real_sessions, result.skipped_transcripts) == (0, 1)
 
 
 def test_empty_transcript_is_not_a_real_session(world):
     world.stream("ledger-skips", [{"ts": "2026-01-01T00:00:00Z", "session_id": "sess-x"}])
-    world.transcript("sess-x", "")
+    world.session("sess-x", "")
     result = audit_one(world)
     assert (result.real_sessions, result.unverified_rows) == (0, 1)
 
@@ -214,6 +165,21 @@ def test_subagent_transcript_does_not_make_a_session_real(world):
     (sub / "agent-abc.jsonl").write_text('{"type":"user"}\n')
     world.stream("ledger-skips", [{"ts": "2026-01-01T00:00:00Z", "session_id": "agent-abc"}])
     assert audit_one(world).real_sessions == 0
+
+
+def test_a_transcript_is_opened_once_to_decide_whether_it_is_real(world, monkeypatch):
+    world.session("sess-x", '{"type":"user"}\n' * 3)
+    transcript = world.projects / "proj-a" / "sess-x.jsonl"
+    opened = []
+    real_open = Path.open
+
+    def counting_open(self, *args, **kwargs):
+        opened.append(self)
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", counting_open)
+    assert streams.SessionIndex(world.projects).classify("sess-x") == streams.SESSION_REAL
+    assert opened.count(transcript) == 1
 
 
 # --- identity classes --------------------------------------------------------
@@ -250,11 +216,34 @@ def test_manual_input_instrument_is_reported_manual_and_is_not_a_finding(world):
     assert streams.audit_exit_code([result]) == 0
 
 
-@pytest.mark.parametrize("name", sorted(instrument_log.STREAMS))
+def test_subagent_transcripts_of_three_real_sessions_confirm_that_instrument(world):
+    for i in range(3):
+        world.session(f"sess-{i}")
+        world.subagent(f"sess-{i}", "a1", [{"type": "assistant"}])
+    result = audit_one(world, streams.SUBAGENT_TRANSCRIPTS)
+    assert (result.status, result.real_sessions, result.rows) == ("confirmed", 3, 3)
+
+
+def test_subagent_transcripts_of_a_session_without_a_real_transcript_are_unverified(world):
+    for i in range(2):
+        world.session(f"sess-{i}")
+        world.subagent(f"sess-{i}", "a1", [{"type": "assistant"}])
+    world.subagent("ghost", "a1", [{"type": "assistant"}])
+    world.session("bad", "not json\n")
+    world.subagent("bad", "a1", [{"type": "assistant"}])
+    result = audit_one(world, streams.SUBAGENT_TRANSCRIPTS)
+    assert (result.status, result.real_sessions, result.unverified_rows, result.skipped_transcripts) == ("gap", 2, 2, 1)
+
+
+def test_no_subagent_transcripts_is_a_gap(world):
+    assert audit_one(world, streams.SUBAGENT_TRANSCRIPTS).status == "gap"
+
+
+@pytest.mark.parametrize("name", sorted(streams.instrument_log.STREAMS))
 def test_rows_that_instrument_log_persists_carry_a_session_id_and_are_id_bearing(tmp_path, name):
     project = tmp_path / "project"
     project.mkdir()
-    assert instrument_log.append_row(name, {"event": "x"}, cwd=project, session_id=LONG_ID)
+    assert streams.instrument_log.append_row(name, {"event": "x"}, cwd=project, session_id=LONG_ID)
     sources = streams.Sources((project,), tmp_path / "home", tmp_path / "projects")
     rows = streams.load_rows(streams.STREAM_TABLE[name], sources)
     assert [row.data.get("session_id") for row in rows] == [LONG_ID]
@@ -331,7 +320,7 @@ def test_json_file_that_is_not_an_object_is_malformed(world):
 
 
 def test_listed_session_ids_are_truncated_to_eight_characters(world):
-    world.transcript(LONG_ID)
+    world.session(LONG_ID)
     world.stream("ledger-skips", [{"ts": "2026-01-01T00:00:00Z", "session_id": LONG_ID}])
     result = audit_one(world)
     assert result.session_ids == (LONG_ID[:8],)
@@ -346,7 +335,14 @@ def test_audit_leaves_every_input_and_the_directory_listing_unchanged(world):
     world.stream("cost-metering", [{"timestamp": "2026-01-01T00:00:00Z"}])
     (world.home / "artifact-usage.json").write_text('{"a":{"use_count":1}}')
     before = world.snapshot()
-    streams.audit([metric("ledger-skips"), metric("cost-metering"), metric("artifact-usage")], world.sources)
+    statuses = streams.audit(
+        [metric("ledger-skips"), metric("cost-metering"), metric("artifact-usage")], world.sources
+    )
+    assert {s.instrument: s.status for s in statuses} == {
+        "ledger-skips": "confirmed",
+        "cost-metering": "no session ids",
+        "artifact-usage": "no session ids",
+    }
     assert world.snapshot() == before
 
 
@@ -373,6 +369,20 @@ def test_window_is_closed_at_start_and_open_at_end():
 
 @pytest.mark.parametrize("text", ["2026-01-01", "2026-01-01T00:00:00", "2026-01-01T00:00:00+00:00", ""])
 def test_timestamp_without_z_suffix_is_rejected(text):
+    with pytest.raises(ValueError):
+        streams.parse_utc(text)
+
+
+@pytest.mark.parametrize("text", ["2026-01-01T00:00:00.500Z", "2026-01-01T00:00:00.500000Z"])
+def test_a_timestamp_with_three_or_six_fraction_digits_parses(text):
+    assert streams.parse_utc(text).microsecond == 500000
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["2026-01-01T00:00:00.5Z", "2026-01-01T00:00:00.50Z", "2026-01-01T00:00:00.5000Z", "2026-01-01T00:00:00.Z"],
+)
+def test_a_timestamp_with_any_other_fraction_length_is_rejected_so_the_python_3_10_floor_holds(text):
     with pytest.raises(ValueError):
         streams.parse_utc(text)
 
@@ -444,15 +454,28 @@ def _string_constants_outside_docstrings(path: Path) -> list[str]:
 def test_no_stream_name_is_hardcoded_outside_streams_py():
     scripts = REPO_ROOT / "scripts"
     modules = [scripts / "benefit_eval_cli.py", *sorted((scripts / "lib" / "benefit_eval").glob("*.py"))]
+    scanned = [path for path in modules if path.name != "streams.py"]
+    assert len(scanned) > 1, scanned
     offenders = [
         f"{path.name}: {text!r}"
-        for path in modules
-        if path.exists() and path.name != "streams.py"
+        for path in scanned
         for text in _string_constants_outside_docstrings(path)
-        for name in (*streams.STREAM_TABLE, streams.BOUNDARY_EVENTS.name)
+        for name in (*streams.STREAM_TABLE, streams.SUBAGENT_TRANSCRIPTS, streams.BOUNDARY_EVENTS.name)
         if name in text
     ]
     assert offenders == []
+
+
+@pytest.mark.parametrize(
+    "module",
+    sorted(path.stem for path in (REPO_ROOT / "scripts" / "lib" / "benefit_eval").glob("*.py") if path.stem != "__init__"),
+)
+def test_each_module_imports_in_a_fresh_interpreter_with_only_scripts_lib_on_the_path(module, tmp_path):
+    env = {"PYTHONPATH": str(REPO_ROOT / "scripts" / "lib"), "PATH": "/usr/bin:/bin"}
+    done = subprocess.run(
+        [sys.executable, "-c", f"import benefit_eval.{module}"], env=env, cwd=tmp_path, capture_output=True, text=True, check=False
+    )
+    assert done.returncode == 0, done.stderr
 
 
 # --- pre-registration parser -------------------------------------------------
@@ -489,10 +512,15 @@ def prereg_text(entries: list[dict], extra_blocks: str = "") -> str:
 
 #: Every column a metric entry must fill, written out so the parser's own list cannot shrink unnoticed.
 EXPECTED_COLUMNS = (
-    "metric", "instrument", "identity_class", "baseline", "keep", "tune", "retire",
+    "id", "metric", "instrument", "identity_class", "baseline", "keep", "tune", "retire",
     "direction", "inclusivity", "minimum_n", "n_unit", "unit", "null_rule",
     "parity_cap", "window", "confounds", "computation",
 )
+
+
+def named(column: str, metric_id: str = "skip-rate") -> str:
+    """How an error names the entry: by id, or by position when the id cell is the empty one."""
+    return "metrics[1]" if column == "id" else metric_id
 
 
 def write_prereg(tmp_path: Path, entries: list[dict], extra_blocks: str = "") -> Path:
@@ -515,14 +543,14 @@ def test_empty_cell_fails_naming_the_metric_and_column(tmp_path, column):
     with pytest.raises(streams.InputError) as caught:
         prereg.load_prereg(path)
     message = caught.value.message()
-    assert f"metric 'skip-rate' column '{column}' is empty" in message
+    assert f"metric '{named(column)}' column '{column}' is empty" in message
     assert "Next:" in message and str(path) in message
 
 
 @pytest.mark.parametrize("column", [c for c in EXPECTED_COLUMNS if c != "confounds"])
 def test_whitespace_only_cell_counts_as_empty(tmp_path, column):
-    path = write_prereg(tmp_path, [entry("skip-rate", **{column: " \t "})])
-    with pytest.raises(streams.InputError, match=f"metric 'skip-rate' column '{column}' is empty"):
+    path = write_prereg(tmp_path, [entry("a"), entry("skip-rate", **{column: " \t "})])
+    with pytest.raises(streams.InputError, match=rf"metric '{re.escape(named(column))}' column '{column}' is empty"):
         prereg.load_prereg(path)
 
 
@@ -590,6 +618,11 @@ def test_id_less_instrument_with_a_declared_handling_parses(tmp_path):
     assert prereg.load_prereg(write_prereg(tmp_path, [cost])).get("cost").id_less_handling == "UNVERIFIED"
 
 
+def test_an_id_less_stream_may_declare_unmeasurable_handling(tmp_path):
+    cost = entry("cost", instrument="cost-metering", identity_class="id-less", id_less_handling="unmeasurable")
+    assert prereg.load_prereg(write_prereg(tmp_path, [cost])).get("cost").id_less_handling == "unmeasurable"
+
+
 def test_metric_with_no_instrument_must_be_unmeasurable(tmp_path):
     bad = entry("nothing", instrument="none", identity_class="id-less", id_less_handling="UNVERIFIED")
     with pytest.raises(streams.InputError, match="column 'id_less_handling'"):
@@ -631,14 +664,7 @@ def test_missing_prereg_file_is_malformed_input(tmp_path):
 # --- audit CLI ---------------------------------------------------------------
 
 
-def _load_cli():
-    spec = importlib.util.spec_from_file_location("benefit_eval_cli", REPO_ROOT / "scripts" / "benefit_eval_cli.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-cli = _load_cli()
+cli = load_cli("benefit_eval_cli")
 
 CLI_ENTRIES = [
     entry("skip-rate"),
@@ -649,16 +675,7 @@ CLI_ENTRIES = [
 
 def run_cli(world: World, tmp_path: Path, capsys, *extra: str, entries=None):
     prereg_path = write_prereg(tmp_path, entries or CLI_ENTRIES)
-    code = cli.main(
-        [
-            "audit",
-            "--prereg", str(prereg_path),
-            "--project-root", str(world.project),
-            "--home-metrics", str(world.home),
-            "--projects-root", str(world.projects),
-            *extra,
-        ]
-    )
+    code = cli.main(cli_argv("audit", world, prereg_path, *extra))
     out = capsys.readouterr()
     return code, out.out, out.err
 
@@ -698,7 +715,7 @@ def test_audit_cli_reports_skipped_transcripts_without_changing_the_exit_code(wo
     clean_code, _, _ = run_cli(world, tmp_path, capsys, entries=CLI_ENTRIES[:1])
     path = world.metrics_file("ledger-skips.jsonl")
     path.write_text(path.read_text() + json.dumps({"ts": "2026-01-01T00:00:00Z", "session_id": "bad"}) + "\n")
-    world.transcript("bad", "not json lines\n")
+    world.session("bad", "not json lines\n")
     code, out, _ = run_cli(world, tmp_path, capsys, entries=CLI_ENTRIES[:1])
     assert "skipped transcripts: 1" in out and "real sessions: 3" in out
     assert code == clean_code
@@ -706,7 +723,7 @@ def test_audit_cli_reports_skipped_transcripts_without_changing_the_exit_code(wo
 
 @pytest.mark.parametrize("json_mode", [False, True])
 def test_audit_cli_never_prints_a_full_session_id(world, tmp_path, capsys, json_mode):
-    world.transcript(LONG_ID)
+    world.session(LONG_ID)
     world.stream("ledger-skips", [{"ts": "2026-01-01T00:00:00Z", "session_id": LONG_ID}])
     _, out, err = run_cli(world, tmp_path, capsys, *(["--json"] if json_mode else []), entries=CLI_ENTRIES[:1])
     assert LONG_ID[:8] in out
@@ -742,6 +759,19 @@ def test_audit_cli_incomplete_prereg_exits_2_naming_metric_and_column(world, tmp
     assert "metric 'skip-rate' column 'retire' is empty" in err
 
 
+def test_the_audit_path_loads_only_the_reader_and_the_pre_registration_parser(world, tmp_path):
+    prereg_path = write_prereg(tmp_path, CLI_ENTRIES[:1])
+    driver = (
+        "import importlib.util, sys\n"
+        f"spec = importlib.util.spec_from_file_location('cli', {str(REPO_ROOT / 'scripts' / 'benefit_eval_cli.py')!r})\n"
+        "cli = importlib.util.module_from_spec(spec); sys.modules['cli'] = cli; spec.loader.exec_module(cli)\n"
+        f"code = cli.main({cli_argv('audit', world, prereg_path)!r})\n"
+        "print(sorted(m for m in sys.modules if m.startswith('benefit_eval.')))\n"
+    )
+    done = subprocess.run([sys.executable, "-c", driver], capture_output=True, text=True, cwd=tmp_path, check=False)
+    assert done.stdout.strip().splitlines()[-1] == "['benefit_eval.prereg', 'benefit_eval.streams']", done
+
+
 def test_audit_cli_without_a_command_exits_2(capsys):
     with pytest.raises(SystemExit) as caught:
         cli.main([])
@@ -753,22 +783,14 @@ def test_audit_cli_leaves_every_input_and_the_listing_unchanged(world, tmp_path,
     world.stream("cost-metering", [{"timestamp": "2026-01-01T00:00:00Z"}])
     prereg_path = write_prereg(tmp_path, CLI_ENTRIES)
     before = world.snapshot()
-    cli.main(
-        [
-            "audit",
-            "--prereg", str(prereg_path),
-            "--project-root", str(world.project),
-            "--home-metrics", str(world.home),
-            "--projects-root", str(world.projects),
-        ]
-    )
-    capsys.readouterr()
+    code = cli.main(cli_argv("audit", world, prereg_path))
+    out = capsys.readouterr().out
+    assert code != 2
+    assert all(metric["id"] in out for metric in CLI_ENTRIES)
     assert world.snapshot() == before
 
 
 # --- the real pre-registration document --------------------------------------
-
-REAL_PREREG = REPO_ROOT / "docs" / "benefit-eval" / "preregistration.md"
 
 EXPECTED_METRIC_IDS = {
     "skip-rate",
@@ -800,14 +822,13 @@ def test_real_prereg_has_one_complete_entry_per_required_metric(real):
 @pytest.mark.parametrize("column", EXPECTED_COLUMNS)
 def test_blanking_any_cell_of_the_real_prereg_fails_naming_metric_and_column(tmp_path, column):
     text = REAL_PREREG.read_text()
-    start = text.index("```json prereg\n") + len("```json prereg\n")
-    end = text.index("\n```", start)
-    document = json.loads(text[start:end])
+    start, end = prereg_block_span(text)
+    document = real_prereg_document()
+    victim = "metrics[3]" if column == "id" else document["metrics"][3]["id"]
     document["metrics"][3][column] = [] if column == "confounds" else ""
     path = tmp_path / "preregistration.md"
     path.write_text(text[:start] + json.dumps(document, indent=2) + text[end:])
-    victim = document["metrics"][3]["id"]
-    with pytest.raises(streams.InputError, match=f"metric '{victim}' column '{column}'"):
+    with pytest.raises(streams.InputError, match=re.escape(f"metric '{victim}' column '{column}'")):
         prereg.load_prereg(path)
 
 
@@ -832,7 +853,7 @@ def test_skip_rate_carries_the_theoretical_ceiling(real):
 
 def test_id_less_instruments_each_pin_one_handling(real):
     handling = {m.instrument: m.id_less_handling for m in real.metrics if m.identity_class == "id-less"}
-    assert handling == {"cost-metering": "UNVERIFIED", "artifact-usage": "UNVERIFIED", "none": "unmeasurable"}
+    assert handling == {"artifact-usage": "UNVERIFIED", "none": "unmeasurable"}
 
 
 def test_metrics_with_no_instrument_are_the_two_tiered_findings_metrics(real):
@@ -851,8 +872,7 @@ def test_computation_cell_matches_the_kind_of_instrument(real):
 
 def test_metric_ids_appear_only_inside_the_block(real):
     text = REAL_PREREG.read_text()
-    start = text.index("```json prereg\n")
-    end = text.index("\n```", start)
+    start, end = prereg_block_span(text)
     outside = text[:start] + text[end:]
     assert [m.id for m in real.metrics if m.id in outside] == []
 
@@ -875,7 +895,7 @@ def test_real_prereg_audit_with_no_data_flags_every_stream_and_the_unmeasurable_
         "checkpoint-aborts": "gap",
         "skill-injection": "gap",
         "subagent-stops": "gap",
-        "cost-metering": "gap",
+        "subagent-transcripts": "gap",
         "artifact-usage": "gap",
         "manual-input": "manual",
         "none": "no instrument",
@@ -886,7 +906,8 @@ def test_real_prereg_audit_with_no_data_flags_every_stream_and_the_unmeasurable_
 def test_real_prereg_audit_with_data_reports_confirmed_manual_no_instrument_and_no_session_ids(world, real):
     for name in ("ledger-skips", "checkpoint-aborts", "skill-injection", "subagent-stops"):
         world.real_sessions(name, 3)
-    world.stream("cost-metering", [{"timestamp": "2026-01-01T00:00:00Z"}])
+    for i in range(3):
+        world.subagent(f"sess{i:04d}-aaaa", "a1", [{"type": "assistant"}])
     (world.home / "artifact-usage.json").write_text('{"source-verification":{"use_count":2}}')
     statuses = streams.audit(real.metrics, world.sources)
     assert sorted({s.status for s in statuses}) == ["confirmed", "manual", "no instrument", "no session ids"]

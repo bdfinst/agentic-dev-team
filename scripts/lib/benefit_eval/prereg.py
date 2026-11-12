@@ -21,7 +21,7 @@ from .streams import INCLUSIVITY, OPERATORS, InputError, Threshold
 
 FENCE_INFO = "json prereg"
 
-HANDLINGS = ("UNVERIFIED", "unmeasurable")
+HANDLINGS = ("UNVERIFIED", streams.UNMEASURABLE)
 PARITY_CAPS = ("tune", "none")
 
 #: Cells that must be non-empty in every metric entry.
@@ -187,46 +187,46 @@ def _parse_entry(path: Path, entry: object, position: int, locate) -> Metric:
             "write each metric as a JSON object",
         )
     metric_id = (
-        entry.get("id")
-        if isinstance(entry.get("id"), str) and entry.get("id")
+        entry["id"]
+        if isinstance(entry.get("id"), str) and entry["id"].strip()
         else f"metrics[{position}]"
     )
     line = locate(metric_id)
 
-    def fail(column: str, problem: str, action: str) -> InputError:
+    def input_error(column: str, problem: str, action: str) -> InputError:
         return InputError(
             path, line, f"metric '{metric_id}' column '{column}' {problem}", action
         )
 
     for column in REQUIRED_COLUMNS:
         if _blank(entry.get(column)):
-            raise fail(
+            raise input_error(
                 column, "is empty", f"fill the '{column}' cell in the fenced block"
             )
     thresholds = {}
     for column in THRESHOLD_COLUMNS:
         parsed = parse_threshold(entry[column])
         if parsed is None:
-            raise fail(
+            raise input_error(
                 column,
                 f"is not a number with a direction ({', '.join(OPERATORS)}): {entry[column]!r}",
                 f"write '{column}' as a direction and a number, for example \"<= 450\"",
             )
         thresholds[column] = parsed
     if entry["direction"] not in OPERATORS:
-        raise fail(
+        raise input_error(
             "direction",
             f"must be one of {', '.join(OPERATORS)}",
             "use the within-condition operator",
         )
     if thresholds["keep"].op != entry["direction"]:
-        raise fail(
+        raise input_error(
             "keep",
             f"must use the direction '{entry['direction']}', not '{thresholds['keep'].op}'",
             "write keep with the within-condition operator",
         )
     if entry["inclusivity"] != INCLUSIVITY[entry["direction"]]:
-        raise fail(
+        raise input_error(
             "inclusivity",
             f"must be '{INCLUSIVITY[entry['direction']]}' for direction '{entry['direction']}'",
             "make inclusivity agree with direction",
@@ -236,13 +236,13 @@ def _parse_entry(path: Path, entry: object, position: int, locate) -> Metric:
         or isinstance(entry["minimum_n"], bool)
         or entry["minimum_n"] < 1
     ):
-        raise fail(
+        raise input_error(
             "minimum_n",
             "must be a positive integer",
             "write the smallest N that counts as data",
         )
     if entry["parity_cap"] not in PARITY_CAPS:
-        raise fail(
+        raise input_error(
             "parity_cap",
             f"must be one of {', '.join(PARITY_CAPS)}",
             "write 'tune' or 'none'",
@@ -250,17 +250,17 @@ def _parse_entry(path: Path, entry: object, position: int, locate) -> Metric:
     if not isinstance(entry["confounds"], list) or not all(
         isinstance(c, str) and c.strip() for c in entry["confounds"]
     ):
-        raise fail(
+        raise input_error(
             "confounds",
             "must be a list of non-empty strings",
             "list each confound as a string",
         )
-    handling = _check_identity(entry, fail)
+    handling = _check_identity(entry, input_error)
     ceiling = entry.get("ceiling")
     if ceiling is not None and (
         isinstance(ceiling, bool) or not isinstance(ceiling, (int, float))
     ):
-        raise fail(
+        raise input_error(
             "ceiling", "must be a number when present", "write the ceiling as a number"
         )
     return Metric(
@@ -287,11 +287,11 @@ def _parse_entry(path: Path, entry: object, position: int, locate) -> Metric:
     )
 
 
-def _check_identity(entry: dict, fail) -> str | None:
+def _check_identity(entry: dict, input_error) -> str | None:
     """Validate identity class against the instrument and return the id-less handling."""
     identity, instrument = entry["identity_class"], entry["instrument"]
     if identity not in (streams.ID_BEARING, streams.ID_LESS):
-        raise fail(
+        raise input_error(
             "identity_class",
             f"must be '{streams.ID_BEARING}' or '{streams.ID_LESS}'",
             "classify the instrument by whether its rows carry a session id",
@@ -299,11 +299,11 @@ def _check_identity(entry: dict, fail) -> str | None:
     try:
         kind, expected = streams.classify_instrument(instrument)
     except (TypeError, ValueError) as exc:
-        raise fail(
+        raise input_error(
             "instrument", f"is invalid: {exc}", "name a persisted stream, 'manual-input' or 'none'"
         ) from exc
     if identity != expected:
-        raise fail(
+        raise input_error(
             "identity_class",
             f"must be '{expected}' for instrument '{instrument}'",
             "match the identity class to the instrument",
@@ -311,22 +311,22 @@ def _check_identity(entry: dict, fail) -> str | None:
     handling = entry.get("id_less_handling")
     if identity == streams.ID_BEARING:
         if handling is not None:
-            raise fail(
+            raise input_error(
                 "id_less_handling",
                 "must be absent for an id-bearing instrument",
                 "remove the cell",
             )
         return None
     if handling not in HANDLINGS:
-        raise fail(
+        raise input_error(
             "id_less_handling",
             f"must be exactly one of {', '.join(HANDLINGS)}",
             "pick one handling for this id-less instrument",
         )
-    if kind == streams.KIND_NONE and handling != "unmeasurable":
-        raise fail(
+    if kind == streams.KIND_NONE and handling != streams.UNMEASURABLE:
+        raise input_error(
             "id_less_handling",
-            "must be 'unmeasurable' when the instrument is 'none'",
+            f"must be '{streams.UNMEASURABLE}' when the instrument is 'none'",
             "a metric with no instrument cannot be printed as UNVERIFIED",
         )
     return handling

@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """benefit_eval_cli.py — instrument audit and benefit report for the benefit evaluation.
 
-``audit`` reads the pre-registration, confirms each instrument it names emits
-for at least three real sessions, and names any metric with no persisted
-instrument. ``report`` computes each metric against its pre-registered
-threshold. Both are read-only: they never write, rewrite or reorder an input.
+``audit`` reads the pre-registration, confirms each id-bearing instrument it
+names emits for at least three real sessions, checks an id-less stream only for
+rows, and names any metric with no persisted instrument. ``report`` computes each
+metric against its pre-registered threshold. Both are read-only: they never write,
+rewrite or reorder an input.
 
     benefit_eval_cli.py audit [--json]
     benefit_eval_cli.py report [--seed N] [--json]
 
 Exit codes: 0 ok; 1 finding (gap, no instrument, or a threshold breach); 2
-malformed input or missing argument; 3 insufficient data. Session ids print as
+malformed input or missing argument; 3 insufficient data. A report's code comes from
+the lines that feed a verdict only: id-less and DIRECTIONAL lines print their status
+but never change it, except that malformed input is always 2. Session ids print as
 their first 8 characters. Output is plain text with literal status tokens, no ANSI.
 
 Monorepo-only evaluation tooling; logic lives in scripts/lib/benefit_eval/.
@@ -32,14 +35,7 @@ _LIB_DIR = _SCRIPTS_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from benefit_eval import (
-    formatting,
-    metrics_cost,
-    metrics_hooks,
-    metrics_ledger,
-    prereg,
-    streams,
-)
+from benefit_eval import prereg, streams
 
 DEFAULT_PREREG = _SCRIPTS_DIR.parent / "docs" / "benefit-eval" / "preregistration.md"
 
@@ -93,7 +89,10 @@ class Handler:
     needs_boundary: bool = False
 
 
-def _handlers(transcripts: metrics_hooks.SubagentTranscripts) -> dict[str, Handler]:
+def _handlers(transcripts) -> dict[str, Handler]:
+    # Imported here so the audit path loads only the reader and the pre-registration parser.
+    from benefit_eval import metrics_cost, metrics_hooks, metrics_ledger
+
     return {
         "skip-rate": Handler(
             metrics_ledger.skip_rate, (metrics_ledger.missing_scope_marker_split,)
@@ -114,7 +113,10 @@ def _handlers(transcripts: metrics_hooks.SubagentTranscripts) -> dict[str, Handl
             ),
         ),
         "test-review-token-delta": Handler(
-            metrics_cost.test_review_token_delta, needs_boundary=True
+            lambda metric, ctx: metrics_hooks.test_review_token_delta(
+                metric, ctx, transcripts
+            ),
+            needs_boundary=True,
         ),
         "contradicted-rate": Handler(
             metrics_cost.verdict_rate,
@@ -125,7 +127,12 @@ def _handlers(transcripts: metrics_hooks.SubagentTranscripts) -> dict[str, Handl
 
 def _handler_for(metric: prereg.Metric, handlers: dict[str, Handler], pre) -> Handler:
     """Hand-entered and unmeasurable metrics need no stream; every other metric needs a registered computation."""
-    if metric.instrument == streams.NO_INSTRUMENT:
+    from benefit_eval import metrics_cost
+
+    if (
+        metric.instrument == streams.NO_INSTRUMENT
+        or metric.id_less_handling == streams.UNMEASURABLE
+    ):
         return Handler(metrics_cost.unmeasurable_line)
     if metric.instrument == streams.MANUAL_INSTRUMENT:
         return Handler(metrics_cost.manual_metric)
@@ -140,12 +147,13 @@ def _handler_for(metric: prereg.Metric, handlers: dict[str, Handler], pre) -> Ha
 
 
 def run_report(args: argparse.Namespace) -> int:
+    from benefit_eval import formatting, metrics_cost, metrics_hooks
+
     pre = prereg.load_prereg(args.prereg)
     roots = tuple(args.project_root or [Path.cwd()])
     sources = streams.Sources(roots, args.home_metrics, args.projects_root)
     manual_file = args.manual_input or metrics_cost.manual_input_path(roots[0])
     ctx = formatting.ReportContext(
-        pre,
         sources,
         streams.SessionIndex(sources.projects_root),
         start=args.window_start,
@@ -155,7 +163,7 @@ def run_report(args: argparse.Namespace) -> int:
         manual=metrics_cost.load_manual_input(manual_file, {m.id for m in pre.metrics}),
         manual_file=manual_file,
     )
-    handlers = _handlers(metrics_hooks.SubagentTranscripts(sources.projects_root))
+    handlers = _handlers(metrics_hooks.SubagentTranscripts(ctx.index))
     chosen = [(m, _handler_for(m, handlers, pre)) for m in pre.metrics]
     if args.boundary is None and any(h.needs_boundary for _, h in chosen):
         args.parser.error(
@@ -164,9 +172,9 @@ def run_report(args: argparse.Namespace) -> int:
         )
     lines, notes = [], []
     for metric, handler in chosen:
-        lines.append(handler.compute(metric, ctx))
+        lines.append(formatting.mark_id_less(handler.compute(metric, ctx), metric))
         notes += [make(metric, ctx) for make in handler.notes]
-    code = formatting.combined_exit_code(line.outcome.exit_code for line in lines)
+    code = formatting.combined_exit_code(lines)
     run_at = formatting.utc_now()
     if args.json:
         print(
@@ -191,9 +199,11 @@ def run_report(args: argparse.Namespace) -> int:
 def render_report_text(
     run_at: str,
     args: argparse.Namespace,
-    lines: list[formatting.ReportLine],
-    notes: list[formatting.ReportNote],
+    lines: list,
+    notes: list,
 ) -> str:
+    from benefit_eval import formatting
+
     out = [
         f"run at (UTC): {run_at}",
         f"prereg posted (UTC): {args.prereg_posted}",
