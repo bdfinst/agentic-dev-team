@@ -12,11 +12,12 @@ Stdlib-only. Stream names come from ``hooks/lib/instrument_log``; paths from
 from __future__ import annotations
 
 import json
+import operator
 import re
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 _PLUGIN_ROOT = Path(__file__).resolve().parents[3] / "plugins" / "dev-team"
@@ -39,6 +40,12 @@ ID_LESS = "id-less"
 
 #: Prereg instrument value for a number the operator enters by hand.
 MANUAL_INSTRUMENT = "manual-input"
+#: Prereg instrument value for a metric no stream can measure.
+NO_INSTRUMENT = "none"
+
+KIND_STREAM = "stream"
+KIND_MANUAL = "manual"
+KIND_NONE = "none"
 
 #: Real sessions an id-bearing instrument must show before it counts as emitting.
 MIN_REAL_SESSIONS = 3
@@ -51,15 +58,20 @@ STATUS_NO_INSTRUMENT = "no instrument"
 STATUS_NO_SESSION_IDS = "no session ids"
 STATUS_MANUAL = "manual"
 #: Statuses that make the audit exit 1.
-FINDING_STATUSES = frozenset({STATUS_GAP, STATUS_NO_INSTRUMENT})
+_FINDING_STATUSES = frozenset({STATUS_GAP, STATUS_NO_INSTRUMENT})
+#: Statuses for which the audit has row and session counts to print.
+_COUNTED_STATUSES = frozenset({STATUS_CONFIRMED, STATUS_GAP, STATUS_NO_SESSION_IDS})
 
 SESSION_REAL = "real"
 SESSION_NO_TRANSCRIPT = "no transcript"
 SESSION_UNPARSEABLE = "unparseable transcript"
+SESSION_EMPTY = "empty transcript"
 
 
 _REPAIR_LINE = "repair or remove that line; the evaluation never edits the file"
 _REPAIR_FILE = "repair the file; the evaluation never edits it"
+_REPAIR_ROW = "repair or remove that row; the evaluation never edits the file"
+_CHECK_READ = "check the file permissions and encoding; the evaluation never edits it"
 
 
 class InputError(Exception):
@@ -132,11 +144,16 @@ def truncate_id(session_id: str) -> str:
 def _stream_files(spec: StreamSpec, sources: Sources) -> list[Path]:
     if spec.scope == "home":
         return [sources.home_metrics / spec.filename]
-    files = {
-        artifact_paths.resolve_file("metrics", spec.filename, root, migrate=False)
-        for root in sources.project_roots
-    }
-    return sorted(files, key=str)
+    return sorted({_project_stream_file(spec, root) for root in sources.project_roots}, key=str)
+
+
+def _project_stream_file(spec: StreamSpec, root: Path) -> Path:
+    """The ``.claude/metrics`` file, or the un-migrated legacy ``metrics`` file when only that exists.
+
+    The audit never moves a file, so a project that has not migrated yet is read in place."""
+    current = artifact_paths.resolve_file("metrics", spec.filename, root, migrate=False)
+    legacy = artifact_paths.project_root(root) / "metrics" / spec.filename
+    return legacy if not current.exists() and legacy.is_file() else current
 
 
 def read_text(path: Path) -> str | None:
@@ -149,7 +166,7 @@ def read_text(path: Path) -> str | None:
             path,
             0,
             f"cannot read file ({type(exc).__name__})",
-            "check the file permissions and encoding; the evaluation never edits it",
+            _CHECK_READ,
         ) from exc
 
 
@@ -212,6 +229,22 @@ def load_rows(spec: StreamSpec, sources: Sources) -> list[Row]:
     return [row for path in _stream_files(spec, sources) for row in read(path)]
 
 
+def _transcript_verdict(path: Path) -> str:
+    """Parse the whole transcript: real needs one record and every non-blank line a JSON object."""
+    records = objects = 0
+    for record in session_records.iter_file_records(path):
+        records += 1
+        objects += isinstance(record, dict)
+    try:
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            lines = sum(1 for line in handle if line.strip())
+    except OSError:
+        return SESSION_UNPARSEABLE
+    if lines == 0:
+        return SESSION_EMPTY
+    return SESSION_REAL if records == objects == lines else SESSION_UNPARSEABLE
+
+
 class SessionIndex:
     """Maps a session id to its main-thread transcript and says whether it parses."""
 
@@ -232,13 +265,9 @@ class SessionIndex:
     def classify(self, session_id: str) -> str:
         if session_id not in self._verdicts:
             path = self._transcripts().get(session_id)
-            if path is None:
-                verdict = SESSION_NO_TRANSCRIPT
-            elif isinstance(next(session_records.iter_file_records(path), None), dict):
-                verdict = SESSION_REAL
-            else:
-                verdict = SESSION_UNPARSEABLE
-            self._verdicts[session_id] = verdict
+            self._verdicts[session_id] = (
+                SESSION_NO_TRANSCRIPT if path is None else _transcript_verdict(path)
+            )
         return self._verdicts[session_id]
 
 
@@ -280,7 +309,8 @@ def parse_utc(text: str) -> datetime:
     """Parse an ISO 8601 UTC timestamp that ends in ``Z``; raise ``ValueError`` otherwise."""
     if not isinstance(text, str) or not _UTC_Z.match(text):
         raise ValueError(f"not an ISO 8601 UTC timestamp ending in Z: {text!r}")
-    return datetime.fromisoformat(text[:-1]).replace(tzinfo=UTC)
+    # timezone.utc, not datetime.UTC: the latter needs Python 3.11 and the floor is 3.10.
+    return datetime.fromisoformat(text[:-1]).replace(tzinfo=timezone.utc)  # noqa: UP017
 
 
 def row_time(row: Row, ts_field: str) -> datetime:
@@ -291,7 +321,7 @@ def row_time(row: Row, ts_field: str) -> datetime:
             row.file,
             row.line,
             f"row has no valid '{ts_field}' timestamp",
-            "repair or remove that row; the evaluation never edits the file",
+            _REPAIR_ROW,
         ) from exc
 
 
@@ -321,16 +351,26 @@ def split_at_boundary(
     return before, after
 
 
-_COMPARE = {
-    "<": lambda value, limit: value < limit,
-    "<=": lambda value, limit: value <= limit,
-    ">": lambda value, limit: value > limit,
-    ">=": lambda value, limit: value >= limit,
+#: The one table of threshold operators; everything else derives from it.
+_OPERATOR_FUNCS = {
+    "<": operator.lt,
+    "<=": operator.le,
+    ">": operator.gt,
+    ">=": operator.ge,
 }
+OPERATORS = tuple(_OPERATOR_FUNCS)
+INCLUSIVITY = {op: "inclusive" if "=" in op else "exclusive" for op in OPERATORS}
+OPERATOR_PATTERN = "|".join(map(re.escape, OPERATORS))
 
 
-def compare(value: float, op: str, limit: float) -> bool:
-    return _COMPARE[op](value, limit)
+@dataclass(frozen=True)
+class Threshold:
+    op: str
+    limit: float
+
+    def holds(self, value: float) -> bool:
+        """Whether ``value`` is on the within side of this threshold."""
+        return _OPERATOR_FUNCS[self.op](value, self.limit)
 
 
 @dataclass(frozen=True)
@@ -343,18 +383,20 @@ def evaluate_status(
     n: int,
     min_n: int,
     value: float | None,
-    op: str,
-    limit: float,
+    threshold: Threshold,
     side_empty: bool = False,
 ) -> Outcome:
-    """Condition-to-token-to-exit mapping, first match wins."""
+    """Condition-to-token-to-exit mapping, first match wins.
+
+    A missing ``value`` with enough rows means a side has nothing to compare, so it
+    reads as ``insufficient``."""
     if n == 0:
         return Outcome("no rows in window", EXIT_INSUFFICIENT)
     if n < min_n:
         return Outcome(f"NULL (N={n})", EXIT_INSUFFICIENT)
-    if side_empty:
+    if side_empty or value is None:
         return Outcome("insufficient", EXIT_INSUFFICIENT)
-    if compare(value, op, limit):
+    if threshold.holds(value):
         return Outcome("within", EXIT_OK)
     return Outcome("breach", EXIT_FINDING)
 
@@ -385,6 +427,32 @@ class InstrumentStatus:
     unverified_rows: int = 0
     skipped_transcripts: int = 0
 
+    @property
+    def is_finding(self) -> bool:
+        return self.status in _FINDING_STATUSES
+
+    @property
+    def has_counts(self) -> bool:
+        return self.status in _COUNTED_STATUSES
+
+
+def classify_instrument(name: object) -> tuple[str, str]:
+    """``(kind, identity_class)`` for a pre-registered instrument name.
+
+    Kind is ``stream`` (a persisted stream), ``manual`` (operator input) or ``none``
+    (nothing measures it). Raises ``TypeError`` for a non-string and ``ValueError``
+    for an unknown name."""
+    if not isinstance(name, str):
+        raise TypeError(f"instrument must be a string, got {type(name).__name__}")
+    if name == MANUAL_INSTRUMENT:
+        return KIND_MANUAL, ID_BEARING
+    if name == NO_INSTRUMENT:
+        return KIND_NONE, ID_LESS
+    if name in STREAM_TABLE:
+        return KIND_STREAM, STREAM_TABLE[name].identity_class
+    known = ", ".join([*STREAM_TABLE, MANUAL_INSTRUMENT, NO_INSTRUMENT])
+    raise ValueError(f"unknown instrument '{name}'; use one of: {known}")
+
 
 def audit(metrics: Iterable, sources: Sources) -> list[InstrumentStatus]:
     """Audit each distinct instrument the pre-registered ``metrics`` name.
@@ -402,18 +470,19 @@ def audit(metrics: Iterable, sources: Sources) -> list[InstrumentStatus]:
 
 def audit_exit_code(statuses: Iterable[InstrumentStatus]) -> int:
     return (
-        EXIT_FINDING if any(s.status in FINDING_STATUSES for s in statuses) else EXIT_OK
+        EXIT_FINDING if any(s.is_finding for s in statuses) else EXIT_OK
     )
 
 
 def _audit_instrument(
     name: str, ids: tuple[str, ...], sources: Sources, index: SessionIndex
 ) -> InstrumentStatus:
-    if name == MANUAL_INSTRUMENT:
+    kind, _ = classify_instrument(name)
+    if kind == KIND_MANUAL:
         return InstrumentStatus(name, STATUS_MANUAL, ids)
-    spec = STREAM_TABLE.get(name)
-    if spec is None:
+    if kind == KIND_NONE:
         return InstrumentStatus(name, STATUS_NO_INSTRUMENT, ids)
+    spec = STREAM_TABLE[name]
     rows = load_rows(spec, sources)
     if not rows:
         return InstrumentStatus(name, STATUS_GAP, ids)

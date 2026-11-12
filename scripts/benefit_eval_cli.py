@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""benefit_eval.py — instrument audit for the benefit evaluation.
+"""benefit_eval_cli.py — instrument audit for the benefit evaluation.
 
 Reads the pre-registration, confirms each instrument it names emits for at
 least three real sessions, and names any metric with no persisted instrument.
 Read-only: it never writes, rewrites or reorders an input.
 
-    benefit_eval.py audit [--json]
+    benefit_eval_cli.py audit [--json]
 
 Exit codes: 0 ok; 1 finding (gap or no instrument); 2 malformed input or
 missing argument; 3 insufficient data. Session ids print as their first 8
@@ -31,17 +31,17 @@ if str(_LIB_DIR) not in sys.path:
 from benefit_eval import prereg, streams
 
 DEFAULT_PREREG = _SCRIPTS_DIR.parent / "docs" / "benefit-eval" / "preregistration.md"
-_COUNTED = frozenset(
-    {streams.STATUS_CONFIRMED, streams.STATUS_GAP, streams.STATUS_NO_SESSION_IDS}
-)
 
 
 def render_audit_text(statuses: list[streams.InstrumentStatus]) -> str:
     lines = []
     for status in statuses:
+        if status.status == streams.STATUS_NO_INSTRUMENT:
+            lines += [f"{metric}: {status.status}" for metric in status.metrics]
+            continue
         lines.append(f"{status.instrument}: {status.status}")
         lines.append(f"  metrics: {', '.join(status.metrics)}")
-        if status.status in _COUNTED:
+        if status.has_counts:
             sessions = (
                 f" ({', '.join(status.session_ids)})" if status.session_ids else ""
             )
@@ -51,8 +51,7 @@ def render_audit_text(statuses: list[streams.InstrumentStatus]) -> str:
                 f"  unverified: {status.unverified_rows}",
                 f"  skipped transcripts: {status.skipped_transcripts}",
             ]
-    findings = sum(s.status in streams.FINDING_STATUSES for s in statuses)
-    lines.append(f"findings: {findings}")
+    lines.append(f"findings: {sum(s.is_finding for s in statuses)}")
     return "\n".join(lines)
 
 
@@ -76,7 +75,7 @@ def run_audit(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="benefit_eval.py", description=__doc__.split("\n\n")[0]
+        prog="benefit_eval_cli.py", description=__doc__.split("\n\n")[0]
     )
     commands = parser.add_subparsers(dest="command", required=True)
     audit = commands.add_parser(

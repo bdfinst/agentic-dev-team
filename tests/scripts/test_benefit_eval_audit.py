@@ -2,7 +2,7 @@
 
 Covers scripts/lib/benefit_eval/streams.py (reader, real-session filter,
 window helpers, audit) and prereg.py (pre-registration parser), plus the
-audit CLI in scripts/benefit_eval.py.
+audit CLI in scripts/benefit_eval_cli.py.
 """
 
 from __future__ import annotations
@@ -10,7 +10,9 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import shutil
 import sys
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,11 +20,15 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
+# Both import roots are added here so no import relies on a side effect of another.
+sys.path.insert(0, str(REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "lib"))
 
+import instrument_log
 from benefit_eval import prereg, streams
 
-LONG_ID = "0123456789abcdef-0123-4567-89ab-cdef01234567"
+#: A real 36-character session id (8-4-4-4-12 hex groups).
+LONG_ID = str(uuid.UUID("0123abcd-4567-89ab-cdef-0123456789ab"))
 
 
 class World:
@@ -35,6 +41,15 @@ class World:
         for directory in (self.project / ".claude" / "metrics", self.home, self.projects / "proj-a"):
             directory.mkdir(parents=True)
         self.sources = streams.Sources((self.project,), self.home, self.projects)
+
+    def add_project(self, name: str) -> Path:
+        """A second project root; its metrics are read alongside the first's."""
+        root = self.project.parent / name
+        (root / ".claude" / "metrics").mkdir(parents=True)
+        self.sources = streams.Sources(
+            (*self.sources.project_roots, root), self.home, self.projects
+        )
+        return root
 
     def metrics_file(self, name: str) -> Path:
         return self.project / ".claude" / "metrics" / name
@@ -103,6 +118,48 @@ def test_absent_instrument_file_is_a_gap(world):
     assert audit_one(world, "checkpoint-aborts").status == "gap"
 
 
+# --- project roots and layout -----------------------------------------------
+
+
+def test_sessions_from_two_project_roots_merge_into_one_count(world):
+    world.real_sessions("ledger-skips", 2, extra_rows=0)
+    other = world.add_project("other-project")
+    world.transcript("sess-other")
+    (other / ".claude" / "metrics" / "ledger-skips.jsonl").write_text(
+        json.dumps({"ts": "2026-01-01T00:00:00Z", "session_id": "sess-other"}) + "\n"
+    )
+    result = audit_one(world)
+    assert (result.status, result.real_sessions, result.rows) == ("confirmed", 3, 3)
+
+
+def test_the_same_project_root_given_twice_is_read_once(world):
+    world.real_sessions("ledger-skips", 2)
+    once = audit_one(world)
+    doubled = streams.Sources((world.project, world.project), world.home, world.projects)
+    (twice,) = streams.audit([metric("ledger-skips")], doubled)
+    assert twice == once
+
+
+def test_legacy_layout_stream_is_read_in_place_and_never_moved(world):
+    world.real_sessions("ledger-skips", 3, extra_rows=0)
+    legacy = world.project / "metrics"
+    legacy.mkdir()
+    shutil.move(world.metrics_file("ledger-skips.jsonl"), legacy / "ledger-skips.jsonl")
+    before = world.snapshot()
+    result = audit_one(world)
+    assert (result.status, result.real_sessions) == ("confirmed", 3)
+    assert world.snapshot() == before
+    assert not world.metrics_file("ledger-skips.jsonl").exists()
+
+
+def test_current_layout_stream_wins_over_a_legacy_copy(world):
+    world.real_sessions("ledger-skips", 3, extra_rows=0)
+    legacy = world.project / "metrics"
+    legacy.mkdir()
+    (legacy / "ledger-skips.jsonl").write_text("not json\n")
+    assert audit_one(world).status == "confirmed"
+
+
 # --- unverified rows ---------------------------------------------------------
 
 
@@ -125,6 +182,30 @@ def test_unparseable_transcript_is_a_counted_skip_not_a_real_session(world):
     result = audit_one(world)
     assert (result.skipped_transcripts, result.real_sessions) == (1, 3)
     assert result.status == baseline.status
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        '{"type":"user"}\nnot json\n',
+        "[1]\n",
+        'not json\n{"type":"user"}\n',
+        '{"type":"user"}\n[1]\n',
+    ],
+    ids=["valid-then-garbage", "non-object-first", "garbage-then-valid", "valid-then-non-object"],
+)
+def test_transcript_with_an_undecodable_line_or_non_object_record_is_a_counted_skip(world, content):
+    world.stream("ledger-skips", [{"ts": "2026-01-01T00:00:00Z", "session_id": "sess-x"}])
+    world.transcript("sess-x", content)
+    result = audit_one(world)
+    assert (result.real_sessions, result.skipped_transcripts) == (0, 1)
+
+
+def test_empty_transcript_is_not_a_real_session(world):
+    world.stream("ledger-skips", [{"ts": "2026-01-01T00:00:00Z", "session_id": "sess-x"}])
+    world.transcript("sess-x", "")
+    result = audit_one(world)
+    assert (result.real_sessions, result.unverified_rows) == (0, 1)
 
 
 def test_subagent_transcript_does_not_make_a_session_real(world):
@@ -169,11 +250,15 @@ def test_manual_input_instrument_is_reported_manual_and_is_not_a_finding(world):
     assert streams.audit_exit_code([result]) == 0
 
 
-def test_every_instrument_log_stream_is_id_bearing_in_the_table():
-    from instrument_log import STREAMS
-
-    for name in STREAMS:
-        assert streams.STREAM_TABLE[name].identity_class == streams.ID_BEARING
+@pytest.mark.parametrize("name", sorted(instrument_log.STREAMS))
+def test_rows_that_instrument_log_persists_carry_a_session_id_and_are_id_bearing(tmp_path, name):
+    project = tmp_path / "project"
+    project.mkdir()
+    assert instrument_log.append_row(name, {"event": "x"}, cwd=project, session_id=LONG_ID)
+    sources = streams.Sources((project,), tmp_path / "home", tmp_path / "projects")
+    rows = streams.load_rows(streams.STREAM_TABLE[name], sources)
+    assert [row.data.get("session_id") for row in rows] == [LONG_ID]
+    assert streams.STREAM_TABLE[name].identity_class == streams.ID_BEARING
 
 
 # --- unreadable instruments --------------------------------------------------
@@ -204,6 +289,36 @@ def test_unreadable_file_reports_line_zero(world):
     with pytest.raises(streams.InputError) as caught:
         audit_one(world)
     assert caught.value.line == 0
+
+
+def test_jsonl_line_that_is_not_an_object_names_file_line_and_next_action(world):
+    path = world.metrics_file("ledger-skips.jsonl")
+    path.write_text('{"ts":"2026-01-01T00:00:00Z"}\n[1]\n')
+    with pytest.raises(streams.InputError) as caught:
+        audit_one(world)
+    assert caught.value.message() == (
+        f"{path}:2: line is not a JSON object. Next: repair or remove that line; "
+        "the evaluation never edits the file"
+    )
+
+
+def test_invalid_utf8_in_an_instrument_file_is_a_file_level_error(world):
+    path = world.metrics_file("ledger-skips.jsonl")
+    path.write_bytes(b'{"ts":"\xff"}\n')
+    with pytest.raises(streams.InputError) as caught:
+        audit_one(world)
+    message = caught.value.message()
+    assert message.startswith(f"{path}:0: cannot read file (UnicodeDecodeError). Next: ")
+
+
+def test_invalid_json_in_artifact_usage_names_file_line_and_next_action(world):
+    path = world.home / "artifact-usage.json"
+    path.write_text('{"a": 1,\n "b": }')
+    with pytest.raises(streams.InputError) as caught:
+        audit_one(world, "artifact-usage")
+    assert caught.value.message() == (
+        f"{path}:2: file is not valid JSON. Next: repair the file; the evaluation never edits it"
+    )
 
 
 def test_json_file_that_is_not_an_object_is_malformed(world):
@@ -271,23 +386,39 @@ def test_row_with_a_bad_timestamp_is_malformed_input_naming_its_line():
 # --- exit-code table ---------------------------------------------------------
 
 
+def status_of(n, min_n, value, op="<=", limit=0.0, side_empty=False):
+    outcome = streams.evaluate_status(n, min_n, value, streams.Threshold(op, limit), side_empty)
+    return outcome.token, outcome.exit_code
+
+
 @pytest.mark.parametrize(
-    ("kwargs", "token", "code"),
+    ("args", "expected"),
     [
-        ({"n": 0, "min_n": 10, "value": None, "side_empty": True}, "no rows in window", 3),
-        ({"n": 4, "min_n": 10, "value": 1.0}, "NULL (N=4)", 3),
-        ({"n": 12, "min_n": 10, "value": 1.0, "side_empty": True}, "insufficient", 3),
-        ({"n": 12, "min_n": 10, "value": 450.0, "op": "<=", "limit": 450.0}, "within", 0),
-        ({"n": 12, "min_n": 10, "value": 450.0, "op": "<", "limit": 450.0}, "breach", 1),
-        ({"n": 12, "min_n": 10, "value": 10.0, "op": ">=", "limit": 10.0}, "within", 0),
-        ({"n": 12, "min_n": 10, "value": 10.0, "op": ">", "limit": 10.0}, "breach", 1),
+        ((0, 10, None, "<=", 5.0, True), ("no rows in window", 3)),
+        ((4, 10, 1.0, "<=", 5.0), ("NULL (N=4)", 3)),
+        ((4, 10, 1.0, "<=", 5.0, True), ("NULL (N=4)", 3)),
+        ((10, 10, 1.0, "<=", 5.0), ("within", 0)),
+        ((12, 10, 1.0, "<=", 5.0, True), ("insufficient", 3)),
+        ((12, 10, None, "<=", 5.0), ("insufficient", 3)),
+    ],
+    ids=["no-rows", "below-min", "below-min-beats-empty-side", "n-equals-min", "empty-side", "no-value"],
+)
+def test_status_token_and_exit_code_follow_the_precedence_table(args, expected):
+    assert status_of(*args) == expected
+
+
+@pytest.mark.parametrize(
+    ("op", "value", "expected"),
+    [
+        ("<", 9.0, "within"), ("<", 10.0, "breach"), ("<", 11.0, "breach"),
+        ("<=", 9.0, "within"), ("<=", 10.0, "within"), ("<=", 11.0, "breach"),
+        (">", 9.0, "breach"), (">", 10.0, "breach"), (">", 11.0, "within"),
+        (">=", 9.0, "breach"), (">=", 10.0, "within"), (">=", 11.0, "within"),
     ],
 )
-def test_status_token_and_exit_code_follow_the_precedence_table(kwargs, token, code):
-    kwargs.setdefault("op", "<=")
-    kwargs.setdefault("limit", 0.0)
-    outcome = streams.evaluate_status(**kwargs)
-    assert (outcome.token, outcome.exit_code) == (token, code)
+def test_each_operator_is_within_or_breach_on_each_side_of_the_limit(op, value, expected):
+    token, code = status_of(12, 10, value, op, 10.0)
+    assert (token, code) == (expected, 0 if expected == "within" else 1)
 
 
 # --- stream names live in streams.py only ------------------------------------
@@ -312,7 +443,7 @@ def _string_constants_outside_docstrings(path: Path) -> list[str]:
 
 def test_no_stream_name_is_hardcoded_outside_streams_py():
     scripts = REPO_ROOT / "scripts"
-    modules = [scripts / "benefit_eval.py", *sorted((scripts / "lib" / "benefit_eval").glob("*.py"))]
+    modules = [scripts / "benefit_eval_cli.py", *sorted((scripts / "lib" / "benefit_eval").glob("*.py"))]
     offenders = [
         f"{path.name}: {text!r}"
         for path in modules
@@ -340,6 +471,8 @@ def entry(metric_id: str = "skip-rate", **overrides) -> dict:
         "direction": ">=",
         "inclusivity": "inclusive",
         "minimum_n": 10,
+        "n_unit": "rows",
+        "unit": "percent",
         "null_rule": "below minimum N the metric is NULL",
         "parity_cap": "tune",
         "window": "14 days after the merge",
@@ -352,6 +485,14 @@ def entry(metric_id: str = "skip-rate", **overrides) -> dict:
 def prereg_text(entries: list[dict], extra_blocks: str = "") -> str:
     block = json.dumps({"metrics": entries}, indent=2)
     return f"# Pre-registration\n\nProse.\n\n```json prereg\n{block}\n```\n{extra_blocks}"
+
+
+#: Every column a metric entry must fill, written out so the parser's own list cannot shrink unnoticed.
+EXPECTED_COLUMNS = (
+    "metric", "instrument", "identity_class", "baseline", "keep", "tune", "retire",
+    "direction", "inclusivity", "minimum_n", "n_unit", "unit", "null_rule",
+    "parity_cap", "window", "confounds", "computation",
+)
 
 
 def write_prereg(tmp_path: Path, entries: list[dict], extra_blocks: str = "") -> Path:
@@ -367,7 +508,7 @@ def test_valid_prereg_parses_thresholds_as_number_with_direction(tmp_path):
     assert skip.confounds == ("workload mix",)
 
 
-@pytest.mark.parametrize("column", [c for c in prereg.REQUIRED_COLUMNS if c != "id"])
+@pytest.mark.parametrize("column", EXPECTED_COLUMNS)
 def test_empty_cell_fails_naming_the_metric_and_column(tmp_path, column):
     empty = [] if column == "confounds" else ""
     path = write_prereg(tmp_path, [entry("a"), entry("skip-rate", **{column: empty})])
@@ -378,6 +519,13 @@ def test_empty_cell_fails_naming_the_metric_and_column(tmp_path, column):
     assert "Next:" in message and str(path) in message
 
 
+@pytest.mark.parametrize("column", [c for c in EXPECTED_COLUMNS if c != "confounds"])
+def test_whitespace_only_cell_counts_as_empty(tmp_path, column):
+    path = write_prereg(tmp_path, [entry("skip-rate", **{column: " \t "})])
+    with pytest.raises(streams.InputError, match=f"metric 'skip-rate' column '{column}' is empty"):
+        prereg.load_prereg(path)
+
+
 def test_empty_cell_error_points_at_the_entry_line(tmp_path):
     path = write_prereg(tmp_path, [entry("a"), entry("b", retire="")])
     with pytest.raises(streams.InputError) as caught:
@@ -385,22 +533,42 @@ def test_empty_cell_error_points_at_the_entry_line(tmp_path):
     assert path.read_text().splitlines()[caught.value.line - 1].strip() == '"id": "b",'
 
 
+@pytest.mark.parametrize("column", ["keep", "tune", "retire"])
 @pytest.mark.parametrize("bad", ["lots", "450", "== 5", "<= ", "<= five", ">>= 3"])
-def test_threshold_that_is_not_a_number_with_a_direction_fails_naming_retire(tmp_path, bad):
-    with pytest.raises(streams.InputError, match="metric 'skip-rate' column 'retire'"):
-        prereg.load_prereg(write_prereg(tmp_path, [entry(retire=bad)]))
+def test_threshold_that_is_not_a_number_with_a_direction_fails_naming_its_column(tmp_path, column, bad):
+    with pytest.raises(streams.InputError, match=f"metric 'skip-rate' column '{column}'"):
+        prereg.load_prereg(write_prereg(tmp_path, [entry(**{column: bad})]))
+
+
+def test_inclusive_operator_is_not_read_as_its_exclusive_prefix():
+    assert prereg.parse_threshold("<= 450") == streams.Threshold("<=", 450.0)
+    assert prereg.parse_threshold(">= 1.5") == streams.Threshold(">=", 1.5)
+
+
+def test_unknown_metric_id_raises_key_error(tmp_path):
+    loaded = prereg.load_prereg(write_prereg(tmp_path, [entry()]))
+    with pytest.raises(KeyError):
+        loaded.get("absent")
 
 
 @pytest.mark.parametrize(
     ("overrides", "column"),
     [
         ({"direction": "=="}, "direction"),
-        ({"direction": "<=", "inclusivity": "exclusive"}, "inclusivity"),
+        ({"direction": "<=", "keep": "<= 10", "inclusivity": "exclusive"}, "inclusivity"),
         ({"minimum_n": 0}, "minimum_n"),
         ({"minimum_n": "10"}, "minimum_n"),
         ({"parity_cap": "retire"}, "parity_cap"),
         ({"confounds": [""]}, "confounds"),
+        ({"confounds": [" "]}, "confounds"),
+        ({"keep": "<= 10"}, "keep"),
         ({"identity_class": "id-less", "id_less_handling": "UNVERIFIED"}, "identity_class"),
+        ({"instrument": "cost-metering", "identity_class": "id-bearing"}, "identity_class"),
+        ({"identity_class": "sometimes"}, "identity_class"),
+        ({"instrument": "ledger-skip"}, "instrument"),
+        ({"instrument": 5}, "instrument"),
+        ({"instrument": ["ledger-skips"]}, "instrument"),
+        ({"instrument": {"a": 1}}, "instrument"),
         ({"id_less_handling": "UNVERIFIED"}, "id_less_handling"),
         ({"ceiling": "high"}, "ceiling"),
     ],
@@ -464,7 +632,7 @@ def test_missing_prereg_file_is_malformed_input(tmp_path):
 
 
 def _load_cli():
-    spec = importlib.util.spec_from_file_location("benefit_eval_cli", REPO_ROOT / "scripts" / "benefit_eval.py")
+    spec = importlib.util.spec_from_file_location("benefit_eval_cli", REPO_ROOT / "scripts" / "benefit_eval_cli.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -495,15 +663,16 @@ def run_cli(world: World, tmp_path: Path, capsys, *extra: str, entries=None):
     return code, out.out, out.err
 
 
-def test_audit_cli_prints_literal_status_tokens_and_exits_1_on_a_gap(world, tmp_path, capsys):
+def test_audit_cli_prints_literal_status_tokens_and_exits_1_for_a_metric_with_no_instrument(
+    world, tmp_path, capsys
+):
     world.real_sessions("ledger-skips", 3)
     world.stream("cost-metering", [{"timestamp": "2026-01-01T00:00:00Z"}])
     code, out, _ = run_cli(world, tmp_path, capsys)
     assert code == 1
     assert "ledger-skips: confirmed" in out
     assert "cost-metering: no session ids" in out
-    assert "none: no instrument" in out
-    assert "metrics: expand-rate" in out
+    assert "expand-rate: no instrument" in out
     assert "\x1b" not in out
 
 
@@ -511,7 +680,8 @@ def test_audit_cli_exits_0_when_every_instrument_is_confirmed_or_declared(world,
     world.real_sessions("ledger-skips", 3)
     world.stream("cost-metering", [{"timestamp": "2026-01-01T00:00:00Z"}])
     code, out, _ = run_cli(world, tmp_path, capsys, entries=CLI_ENTRIES[:2])
-    assert (code, "findings: 0" in out) == (0, True)
+    assert code == 0
+    assert "findings: 0" in out
 
 
 def test_audit_cli_reports_unverified_row_count(world, tmp_path, capsys):
@@ -627,7 +797,7 @@ def test_real_prereg_has_one_complete_entry_per_required_metric(real):
     assert len(real.metrics) == len(EXPECTED_METRIC_IDS)
 
 
-@pytest.mark.parametrize("column", [c for c in prereg.REQUIRED_COLUMNS if c != "id"])
+@pytest.mark.parametrize("column", EXPECTED_COLUMNS)
 def test_blanking_any_cell_of_the_real_prereg_fails_naming_metric_and_column(tmp_path, column):
     text = REAL_PREREG.read_text()
     start = text.index("```json prereg\n") + len("```json prereg\n")
@@ -643,7 +813,7 @@ def test_blanking_any_cell_of_the_real_prereg_fails_naming_metric_and_column(tmp
 
 def test_every_real_threshold_is_a_number_with_a_direction_and_consistent_inclusivity(real):
     for m in real.metrics:
-        assert prereg.INCLUSIVITY[m.direction] == m.inclusivity, m.id
+        assert streams.INCLUSIVITY[m.direction] == m.inclusivity, m.id
         assert m.keep.op == m.direction, m.id
 
 
@@ -689,6 +859,7 @@ def test_metric_ids_appear_only_inside_the_block(real):
 
 def test_prereg_is_not_referenced_from_shipped_plugin_files():
     plugin = REPO_ROOT / "plugins" / "dev-team"
+    assert plugin.is_dir()
     offenders = [
         str(path.relative_to(REPO_ROOT))
         for path in plugin.rglob("*.md")
@@ -712,7 +883,7 @@ def test_real_prereg_audit_with_no_data_flags_every_stream_and_the_unmeasurable_
     assert statuses["none"].metrics == ("expand-rate", "report-size-cut")
 
 
-def test_real_prereg_audit_with_data_uses_exactly_the_four_status_tokens(world, real):
+def test_real_prereg_audit_with_data_reports_confirmed_manual_no_instrument_and_no_session_ids(world, real):
     for name in ("ledger-skips", "checkpoint-aborts", "skill-injection", "subagent-stops"):
         world.real_sessions(name, 3)
     world.stream("cost-metering", [{"timestamp": "2026-01-01T00:00:00Z"}])
@@ -721,6 +892,3 @@ def test_real_prereg_audit_with_data_uses_exactly_the_four_status_tokens(world, 
     assert sorted({s.status for s in statuses}) == ["confirmed", "manual", "no instrument", "no session ids"]
     assert streams.audit_exit_code(statuses) == 1
 
-
-def test_every_real_metric_names_its_unit_and_what_n_counts(real):
-    assert [m.id for m in real.metrics if not m.unit or not m.n_unit] == []

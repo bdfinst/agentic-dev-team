@@ -17,16 +17,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import streams
-from .streams import InputError
+from .streams import INCLUSIVITY, OPERATORS, InputError, Threshold
 
 FENCE_INFO = "json prereg"
 
-OPERATORS = ("<", "<=", ">", ">=")
-INCLUSIVITY = {"<=": "inclusive", ">=": "inclusive", "<": "exclusive", ">": "exclusive"}
 HANDLINGS = ("UNVERIFIED", "unmeasurable")
 PARITY_CAPS = ("tune", "none")
-#: Instrument value for a metric no stream can measure.
-NO_INSTRUMENT = "none"
 
 #: Cells that must be non-empty in every metric entry.
 REQUIRED_COLUMNS = (
@@ -41,6 +37,8 @@ REQUIRED_COLUMNS = (
     "direction",
     "inclusivity",
     "minimum_n",
+    "n_unit",
+    "unit",
     "null_rule",
     "parity_cap",
     "window",
@@ -49,14 +47,8 @@ REQUIRED_COLUMNS = (
 )
 THRESHOLD_COLUMNS = ("keep", "tune", "retire")
 
-_THRESHOLD = re.compile(r"^\s*(<=|>=|<|>)\s*(-?\d+(?:\.\d+)?)\s*$")
+_THRESHOLD = re.compile(rf"^\s*({streams.OPERATOR_PATTERN})\s*(-?\d+(?:\.\d+)?)\s*$")
 _FENCE = re.compile(r"^(`{3,})\s*(.*?)\s*$")
-
-
-@dataclass(frozen=True)
-class Threshold:
-    op: str
-    limit: float
 
 
 @dataclass(frozen=True)
@@ -89,7 +81,10 @@ class Prereg:
     metrics: tuple[Metric, ...]
 
     def get(self, metric_id: str) -> Metric:
-        return next(m for m in self.metrics if m.id == metric_id)
+        for metric in self.metrics:
+            if metric.id == metric_id:
+                return metric
+        raise KeyError(metric_id)
 
 
 def parse_threshold(text: str) -> Threshold | None:
@@ -115,7 +110,9 @@ def _fenced_blocks(lines: list[str]) -> list[tuple[str, int, list[str]]]:
 
 
 def _blank(value: object) -> bool:
-    return value is None or (isinstance(value, (str, list, tuple, dict)) and not value)
+    if isinstance(value, str):
+        return not value.strip()
+    return value is None or (isinstance(value, (list, tuple, dict)) and not value)
 
 
 def load_prereg(path: Path | str) -> Prereg:
@@ -222,6 +219,12 @@ def _parse_entry(path: Path, entry: object, position: int, locate) -> Metric:
             f"must be one of {', '.join(OPERATORS)}",
             "use the within-condition operator",
         )
+    if thresholds["keep"].op != entry["direction"]:
+        raise fail(
+            "keep",
+            f"must use the direction '{entry['direction']}', not '{thresholds['keep'].op}'",
+            "write keep with the within-condition operator",
+        )
     if entry["inclusivity"] != INCLUSIVITY[entry["direction"]]:
         raise fail(
             "inclusivity",
@@ -245,7 +248,7 @@ def _parse_entry(path: Path, entry: object, position: int, locate) -> Metric:
             "write 'tune' or 'none'",
         )
     if not isinstance(entry["confounds"], list) or not all(
-        isinstance(c, str) and c for c in entry["confounds"]
+        isinstance(c, str) and c.strip() for c in entry["confounds"]
     ):
         raise fail(
             "confounds",
@@ -273,8 +276,8 @@ def _parse_entry(path: Path, entry: object, position: int, locate) -> Metric:
         direction=entry["direction"],
         inclusivity=entry["inclusivity"],
         minimum_n=entry["minimum_n"],
-        n_unit=entry.get("n_unit") or "rows",
-        unit=entry.get("unit") or "",
+        n_unit=entry["n_unit"],
+        unit=entry["unit"],
         null_rule=entry["null_rule"],
         parity_cap=entry["parity_cap"],
         window=entry["window"],
@@ -293,16 +296,12 @@ def _check_identity(entry: dict, fail) -> str | None:
             f"must be '{streams.ID_BEARING}' or '{streams.ID_LESS}'",
             "classify the instrument by whether its rows carry a session id",
         )
-    spec = streams.STREAM_TABLE.get(instrument)
-    expected = (
-        spec.identity_class
-        if spec
-        else (
-            streams.ID_BEARING
-            if instrument == streams.MANUAL_INSTRUMENT
-            else streams.ID_LESS
-        )
-    )
+    try:
+        kind, expected = streams.classify_instrument(instrument)
+    except (TypeError, ValueError) as exc:
+        raise fail(
+            "instrument", f"is invalid: {exc}", "name a persisted stream, 'manual-input' or 'none'"
+        ) from exc
     if identity != expected:
         raise fail(
             "identity_class",
@@ -324,7 +323,7 @@ def _check_identity(entry: dict, fail) -> str | None:
             f"must be exactly one of {', '.join(HANDLINGS)}",
             "pick one handling for this id-less instrument",
         )
-    if instrument == NO_INSTRUMENT and handling != "unmeasurable":
+    if kind == streams.KIND_NONE and handling != "unmeasurable":
         raise fail(
             "id_less_handling",
             "must be 'unmeasurable' when the instrument is 'none'",

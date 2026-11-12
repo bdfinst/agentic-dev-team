@@ -1,6 +1,6 @@
 # Benefit pre-registration
 
-This document fixes, before any data is read, how each mechanism shipped by epics #2164 and #2172 is judged keep, tune, or retire. `scripts/benefit_eval.py` reads the fenced block below and nothing else for thresholds. The prose around the block holds no second copy of its values.
+This document fixes, before any data is read, how each mechanism shipped by epics #2164 and #2172 is judged keep, tune, or retire. `scripts/benefit_eval_cli.py` reads the fenced block below and nothing else for thresholds. The prose around the block holds no second copy of its values.
 
 **Status: proposal.** The maintainer confirms or edits every threshold, commits the result, and posts the document to #2200 before the first report run. A threshold changed after the post voids the post. Each entry carries a one-line `rationale` for its thresholds.
 
@@ -34,7 +34,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       ],
       "computation": "metrics_ledger.skip_rate over ledger-skips rows with source=consult, per backstop and per repeat run",
       "ceiling": 20.69,
-      "rationale": "Half the ceiling is the smallest saving that pays for the ledger; under 3% the mechanism is not skipping in practice."
+      "rationale": "About half the ceiling is the smallest saving that pays for the ledger; under 3% the mechanism is not skipping in practice."
     },
     {
       "id": "findings-parity",
@@ -336,18 +336,18 @@ This document fixes, before any data is read, how each mechanism shipped by epic
 
 ## Fields
 
-The parser requires every field except `id_less_handling`, `ceiling`, `unit`, `n_unit`, and `rationale`. An empty required cell fails the parser (exit 2) and names the metric and the column.
+The parser requires every field except `id_less_handling`, `ceiling`, and `rationale`. An empty required cell fails the parser (exit 2) and names the metric and the column.
 
 | Field | Meaning |
 | --- | --- |
 | `id`, `metric` | Short name and the full metric statement |
-| `instrument` | A stream name, `manual-input` (a number you enter by hand), or `none` (nothing persists it) |
+| `instrument` | A stream name, `manual-input` (a number you enter by hand), or `none` (nothing persists it); any other value fails the parser |
 | `identity_class` | `id-bearing` if rows carry a session id you can check against a transcript; `id-less` if not |
 | `id_less_handling` | For `id-less` only, exactly one of `UNVERIFIED` (print a directional line, never feed a verdict) or `unmeasurable` (no instrument; file a follow-up issue) |
 | `baseline` | What the number is compared with |
 | `unit` | The unit of the number and of the thresholds |
 | `keep`, `tune`, `retire` | Threshold as a direction (`<`, `<=`, `>`, `>=`) and a number, in the unit named by `unit` |
-| `direction`, `inclusivity` | The within-condition for the keep threshold; `<=` and `>=` are `inclusive`, `<` and `>` are `exclusive` |
+| `direction`, `inclusivity` | The within-condition for the keep threshold, so `keep` must use the `direction` operator; `<=` and `>=` are `inclusive`, `<` and `>` are `exclusive` |
 | `minimum_n`, `n_unit` | Smallest N that counts as data, and what N counts |
 | `null_rule` | What happens below minimum N |
 | `parity_cap` | `tune` if a parity regression caps the verdict at tune; `none` otherwise |
@@ -359,11 +359,11 @@ The parser requires every field except `id_less_handling`, `ceiling`, `unit`, `n
 
 ## Rules
 
-**Verdict order.** Evaluate `retire` first. If it does not apply, evaluate `keep`. Otherwise the verdict is `tune`. Each threshold's own operator decides its boundary: `>= 10` includes 10 and `< 3` excludes 3.
+**Verdict order.** Evaluate `retire` first. If it does not apply, evaluate `keep`. Otherwise the verdict is `tune`. Each threshold's own operator decides its boundary: `>=` includes the limit and `<` excludes it.
 
 **Within and breach.** The report prints `within` when the value meets the keep threshold using `direction`, and `breach` when it does not. A value exactly on the keep threshold is `within` when `inclusivity` is `inclusive` and `breach` when it is `exclusive`. `breach` is a threshold finding, not a verdict.
 
-**Minimum N.** One rule for every metric: below `minimum_n`, the metric prints `NULL (N=n)` and no value. Findings parity counts diffs and uses 3, because you hand-run it. Every other metric uses 10.
+**Minimum N.** One rule for every metric: below `minimum_n`, the metric prints `NULL (N=n)` and no value. Findings parity counts diffs, so its `minimum_n` is lower than the rest, because you hand-run it. Every other metric uses the shared value in the block.
 
 **Parity cap.** Any ledger-off actionable signature missing from the ledger-on set is a regression. File it as a bug. It forces the delta-scoping verdict to `tune` at best, whatever the skip rate.
 
@@ -388,7 +388,7 @@ The audit exits 1 for a `gap` or a `no instrument` metric, 2 for malformed input
 The `computation` cell of each entry is the map. It names one of three sources:
 
 - **Stream and function.** A `metrics_*` module function in `scripts/lib/benefit_eval/` that reads the instrument.
-- **Manual-input file.** A JSON object keyed by metric `id`. Each value is `{"value": <number>, "n": <integer>, "sessions": ["<8-character id>"], "note": "<text>"}`. A malformed file exits 2. The `test-review` true-positive change comes from `/agent-eval` output and the completion-guard false-positive rate from the hand-check of the seeded sample. Both go in this file, as do findings parity, the `contradicted` tallies, and the PBT mutant kills.
+- **Manual-input file.** `.claude/metrics/benefit-manual-input.json` is a JSON object keyed by metric `id`. Each value is `{"value": <number>, "n": <integer>, "sessions": ["<8-character id>"], "note": "<text>"}`. A malformed file exits 2. The `test-review` true-positive change comes from `/agent-eval` output and the completion-guard false-positive rate from the hand-check of the seeded sample. Both go in this file, as do findings parity, the `contradicted` tallies, and the PBT mutant kills.
 - **Unmeasurable.** No instrument persists the number. The audit reports `no instrument`, and you file a follow-up issue instead of adding an emitter.
 
 Transcript-derived numbers join at the grain of session and agent type, because the `skill-injection` stream carries no agent id.
@@ -397,8 +397,9 @@ Transcript-derived numbers join at the grain of session and agent type, because 
 
 - **Instrument:** a persisted stream or file that carries the rows a metric reads.
 - **Metric:** one number computed from an instrument, with thresholds in the block.
-- **Gap:** an instrument that is absent, empty, or shows fewer than 3 real sessions, or a metric with no instrument. A gap gets an `unmeasurable` note and a follow-up issue.
-- **Real session:** a session id with a transcript that `session_log` finds and that parses. Rows that fail this test are `unverified`, counted, and contribute zero to any number. An unparseable transcript is a counted skip.
+- **Gap:** an instrument with no rows or fewer than 3 real sessions. A short gap waits for more sessions.
+- **No instrument:** a metric whose `instrument` is `none`. Record it as `unmeasurable` and file a follow-up issue.
+- **Real session:** a session id with a transcript that `session_log` finds and that parses. Subagent transcripts do not count. Rows that fail this test are `unverified`, counted, and contribute zero to any number. An unparseable transcript is a counted skip.
 - **Insufficient:** one side of a before-and-after comparison has no rows. No delta exists.
 - **Null:** the metric has rows but fewer than minimum N. The number is not trustworthy and gets no verdict.
 - **Parity:** the check that delta-scoped review finds everything a full review finds.
@@ -407,11 +408,11 @@ Transcript-derived numbers join at the grain of session and agent type, because 
 ## Operator runbook
 
 1. Review each threshold in the block. Edit it if you disagree, then commit.
-2. Run the audit: `python3 scripts/benefit_eval.py audit`. Add `--json` for records. Exit 1 means a gap.
-3. For each gap, record the metric as `unmeasurable` with a follow-up issue. If the audit finds no gap, say so.
-4. Post to #2200 as one comment: the block, the audit output, the window end date. The post shows session ids as their first 8 characters only. Note the comment's UTC creation time.
-5. Wait for the window to close: at least 10 real sessions or 14 days after #2199 merges, whichever is later. At 28 days, an unmet minimum N is `NULL`.
-6. Hand-run parity on 3 or more copies of past diffs, once with the ledger on and once with it moved aside. Compare actionable signatures. Record the diff ids in the #2200 comment.
-7. Run the report with `--prereg-posted <timestamp>`, using the comment time from step 4 as an ISO 8601 UTC timestamp ending in `Z`. The report prints that timestamp with its own run time and exits 2 without it. Run `report --help` for the other options. That the comment came first is your attestation; the tool does not check it.
+2. Run the audit: `python3 scripts/benefit_eval_cli.py audit`. Add `--json` for records. Exit 1 means a gap or a metric with no instrument; the two unmeasurable metrics make it exit 1 on every run, so read the status tokens.
+3. Record each `no instrument` metric as `unmeasurable` with a follow-up issue. Wait for more sessions on a short gap. Record a gap still open when the window closes as `unmeasurable` too. If the audit finds neither, say so.
+4. Post to #2200 as one comment: the block, the audit output, the window end date. Show session ids as their first 8 characters only. Note the comment's UTC creation time.
+5. Wait for the window in each entry to close. An unmet minimum N at the null date stays `NULL`.
+6. Hand-run parity on copies of past diffs, once with the ledger on and once with it moved aside. Use at least the parity minimum N from the block. Compare actionable signatures. Record the diff ids in the #2200 comment.
+7. Run the report with `--prereg-posted <timestamp>`. Use the comment time from step 4, as an ISO 8601 UTC timestamp ending in `Z`. Expect exit 2 without it; the report prints it beside its own run time. Run `report --help` for the other options. Attest that the comment came first; the tool does not check it.
 8. Hand-post one verdict comment on #2164 and one on #2172. For each metric give the value, N, the threshold, the verdict, and the confounds on directional numbers.
-9. Delete or archive the tooling after both verdicts post. If no verdict posts by the 28-day null date, delete it anyway.
+9. Delete or archive the tooling after both verdicts post. If no verdict posts by the null date, delete it anyway.
