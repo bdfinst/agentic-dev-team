@@ -594,3 +594,133 @@ def test_audit_cli_leaves_every_input_and_the_listing_unchanged(world, tmp_path,
     )
     capsys.readouterr()
     assert world.snapshot() == before
+
+
+# --- the real pre-registration document --------------------------------------
+
+REAL_PREREG = REPO_ROOT / "docs" / "benefit-eval" / "preregistration.md"
+
+EXPECTED_METRIC_IDS = {
+    "skip-rate",
+    "findings-parity",
+    "abort-yield",
+    "test-review-tp-change",
+    "test-review-token-delta",
+    "expand-rate",
+    "report-size-cut",
+    "injection-overhead",
+    "injection-uptake",
+    "guard-divergence",
+    "guard-false-positive",
+    "contradicted-rate",
+    "pbt-mutants-killed",
+}
+
+
+@pytest.fixture(scope="module")
+def real():
+    return prereg.load_prereg(REAL_PREREG)
+
+
+def test_real_prereg_has_one_complete_entry_per_required_metric(real):
+    assert {m.id for m in real.metrics} == EXPECTED_METRIC_IDS
+    assert len(real.metrics) == len(EXPECTED_METRIC_IDS)
+
+
+@pytest.mark.parametrize("column", [c for c in prereg.REQUIRED_COLUMNS if c != "id"])
+def test_blanking_any_cell_of_the_real_prereg_fails_naming_metric_and_column(tmp_path, column):
+    text = REAL_PREREG.read_text()
+    start = text.index("```json prereg\n") + len("```json prereg\n")
+    end = text.index("\n```", start)
+    document = json.loads(text[start:end])
+    document["metrics"][3][column] = [] if column == "confounds" else ""
+    path = tmp_path / "preregistration.md"
+    path.write_text(text[:start] + json.dumps(document, indent=2) + text[end:])
+    victim = document["metrics"][3]["id"]
+    with pytest.raises(streams.InputError, match=f"metric '{victim}' column '{column}'"):
+        prereg.load_prereg(path)
+
+
+def test_every_real_threshold_is_a_number_with_a_direction_and_consistent_inclusivity(real):
+    for m in real.metrics:
+        assert prereg.INCLUSIVITY[m.direction] == m.inclusivity, m.id
+        assert m.keep.op == m.direction, m.id
+
+
+def test_minimum_n_is_10_except_parity_which_counts_hand_run_diffs(real):
+    assert {m.id: m.minimum_n for m in real.metrics if m.minimum_n != 10} == {"findings-parity": 3}
+
+
+def test_parity_caps_the_verdict_at_tune_for_the_delta_scoping_metrics(real):
+    capped = {m.id for m in real.metrics if m.parity_cap == "tune"}
+    assert capped == {"skip-rate", "findings-parity"}
+
+
+def test_skip_rate_carries_the_theoretical_ceiling(real):
+    assert real.get("skip-rate").ceiling == 20.69
+
+
+def test_id_less_instruments_each_pin_one_handling(real):
+    handling = {m.instrument: m.id_less_handling for m in real.metrics if m.identity_class == "id-less"}
+    assert handling == {"cost-metering": "UNVERIFIED", "artifact-usage": "UNVERIFIED", "none": "unmeasurable"}
+
+
+def test_metrics_with_no_instrument_are_the_two_tiered_findings_metrics(real):
+    assert {m.id for m in real.metrics if m.instrument == "none"} == {"expand-rate", "report-size-cut"}
+
+
+def test_computation_cell_matches_the_kind_of_instrument(real):
+    for m in real.metrics:
+        if m.instrument == "none":
+            assert m.computation.startswith("unmeasurable:"), m.id
+        elif m.instrument == "manual-input":
+            assert m.computation.startswith("manual-input:"), m.id
+        else:
+            assert m.computation.startswith("metrics_"), m.id
+
+
+def test_metric_ids_appear_only_inside_the_block(real):
+    text = REAL_PREREG.read_text()
+    start = text.index("```json prereg\n")
+    end = text.index("\n```", start)
+    outside = text[:start] + text[end:]
+    assert [m.id for m in real.metrics if m.id in outside] == []
+
+
+def test_prereg_is_not_referenced_from_shipped_plugin_files():
+    plugin = REPO_ROOT / "plugins" / "dev-team"
+    offenders = [
+        str(path.relative_to(REPO_ROOT))
+        for path in plugin.rglob("*.md")
+        if "benefit-eval/preregistration" in path.read_text(errors="replace")
+    ]
+    assert offenders == []
+
+
+def test_real_prereg_audit_with_no_data_flags_every_stream_and_the_unmeasurable_metrics(world, real):
+    statuses = {s.instrument: s for s in streams.audit(real.metrics, world.sources)}
+    assert {name: s.status for name, s in statuses.items()} == {
+        "ledger-skips": "gap",
+        "checkpoint-aborts": "gap",
+        "skill-injection": "gap",
+        "subagent-stops": "gap",
+        "cost-metering": "gap",
+        "artifact-usage": "gap",
+        "manual-input": "manual",
+        "none": "no instrument",
+    }
+    assert statuses["none"].metrics == ("expand-rate", "report-size-cut")
+
+
+def test_real_prereg_audit_with_data_uses_exactly_the_four_status_tokens(world, real):
+    for name in ("ledger-skips", "checkpoint-aborts", "skill-injection", "subagent-stops"):
+        world.real_sessions(name, 3)
+    world.stream("cost-metering", [{"timestamp": "2026-01-01T00:00:00Z"}])
+    (world.home / "artifact-usage.json").write_text('{"source-verification":{"use_count":2}}')
+    statuses = streams.audit(real.metrics, world.sources)
+    assert sorted({s.status for s in statuses}) == ["confirmed", "manual", "no instrument", "no session ids"]
+    assert streams.audit_exit_code(statuses) == 1
+
+
+def test_every_real_metric_names_its_unit_and_what_n_counts(real):
+    assert [m.id for m in real.metrics if not m.unit or not m.n_unit] == []

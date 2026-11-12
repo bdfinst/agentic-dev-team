@@ -1,0 +1,417 @@
+# Benefit pre-registration
+
+This document fixes, before any data is read, how each mechanism shipped by epics #2164 and #2172 is judged keep, tune, or retire. `scripts/benefit_eval.py` reads the fenced block below and nothing else for thresholds. The prose around the block holds no second copy of its values.
+
+**Status: proposal.** The maintainer confirms or edits every threshold, commits the result, and posts the document to #2200 before the first report run. A threshold changed after the post voids the post. Each entry carries a one-line `rationale` for its thresholds.
+
+## Pre-registration block
+
+```json prereg
+{
+  "version": 1,
+  "metrics": [
+    {
+      "id": "skip-rate",
+      "metric": "Delta-scoping skip rate: skipped (lens, file) pairs over candidate pairs",
+      "instrument": "ledger-skips",
+      "identity_class": "id-bearing",
+      "baseline": "20.69% theoretical ceiling from the #2165 estimate; a measured rate above it signals a counting defect",
+      "unit": "percent",
+      "keep": ">= 10",
+      "tune": "< 10",
+      "retire": "< 3",
+      "direction": ">=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "candidate pairs",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "tune",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "share of repeat runs versus first runs",
+        "files that changed between runs, which the ledger must re-review",
+        "dispatch-hook rows are excluded: they count only pairs the consult left to dispatch"
+      ],
+      "computation": "metrics_ledger.skip_rate over ledger-skips rows with source=consult, per backstop and per repeat run",
+      "ceiling": 20.69,
+      "rationale": "Half the ceiling is the smallest saving that pays for the ledger; under 3% the mechanism is not skipping in practice."
+    },
+    {
+      "id": "findings-parity",
+      "metric": "Findings parity: ledger-off actionable signatures missing from the ledger-on set",
+      "instrument": "manual-input",
+      "identity_class": "id-bearing",
+      "baseline": "0 misses: the ledger-off run is the reference set",
+      "unit": "missing signatures",
+      "keep": "<= 0",
+      "tune": "<= 2",
+      "retire": ">= 3",
+      "direction": "<=",
+      "inclusivity": "inclusive",
+      "minimum_n": 3,
+      "n_unit": "diffs",
+      "null_rule": "Fewer than 3 hand-run diffs prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "tune",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "only 3 diffs: a rare finding can be missed by chance in either run",
+        "model nondeterminism between the ledger-on and ledger-off runs"
+      ],
+      "computation": "manual-input: hand-run on 3 or more copies of past diffs; count ledger-off actionable signatures (finding_signature.is_actionable) absent from the ledger-on set; list the diff ids",
+      "rationale": "Any miss is a regression and caps the delta-scoping verdict at tune; three misses across the diffs mean the ledger drops findings routinely."
+    },
+    {
+      "id": "abort-yield",
+      "metric": "Abort deferred-lens yield: share of lenses deferred by an abort that found something new",
+      "instrument": "checkpoint-aborts",
+      "identity_class": "id-bearing",
+      "baseline": "none: first measurement; the question is whether deferred lenses mostly return clean",
+      "unit": "percent",
+      "keep": "<= 25",
+      "tune": "> 25",
+      "retire": "> 60",
+      "direction": "<=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "deferred lenses",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "few aborts in the window",
+        "the fix loop changes the code the deferred lenses review"
+      ],
+      "computation": "metrics_ledger.abort_yield over checkpoint-aborts rows from aborted checkpoints; lenses deferred after a completed checkpoint are excluded",
+      "rationale": "At most a quarter finding something new means the abort mostly saves work; above 60% it only reorders the work."
+    },
+    {
+      "id": "test-review-tp-change",
+      "metric": "test-review true-positive change on the agent-eval fixtures, after minus before",
+      "instrument": "manual-input",
+      "identity_class": "id-bearing",
+      "baseline": "true-positive rate of test-review before the pre-phase change, on the same fixtures",
+      "unit": "percentage points",
+      "keep": ">= 0",
+      "tune": "< 0",
+      "retire": "< -10",
+      "direction": ">=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "fixtures",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "small, fixed fixture set",
+        "model version change between before and after",
+        "eval run-to-run variance"
+      ],
+      "computation": "manual-input: /agent-eval true-positive rate before and after the pre-phase change; enter the difference and the run ids",
+      "rationale": "A drop in true positives fails the mechanism whatever the token savings; a drop past 10 points is beyond tuning."
+    },
+    {
+      "id": "test-review-token-delta",
+      "metric": "test-review mean dispatch tokens, percent change after versus before the boundary",
+      "instrument": "cost-metering",
+      "identity_class": "id-less",
+      "id_less_handling": "UNVERIFIED",
+      "baseline": "mean test-review dispatch tokens for rows before the boundary timestamp",
+      "unit": "percent",
+      "keep": "<= -15",
+      "tune": "> -15",
+      "retire": "> 0",
+      "direction": "<=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "dispatches",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict. An UNVERIFIED line never feeds a verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "task mix differs before and after",
+        "model or pricing change at the boundary",
+        "cost-metering rows carry no session id, so no row is tied to a real session"
+      ],
+      "computation": "metrics_cost.test_review_token_delta over the test-review thread of cost-metering rows, split at the boundary timestamp",
+      "rationale": "A 15% cut is the smallest change that stands out from dispatch-to-dispatch noise; an increase means the pre-phase costs more than it saves."
+    },
+    {
+      "id": "expand-rate",
+      "metric": "Tiered findings expand rate: share of rendered reports where --expand was used",
+      "instrument": "none",
+      "identity_class": "id-less",
+      "id_less_handling": "unmeasurable",
+      "baseline": "none: nothing is counted today",
+      "unit": "percent",
+      "keep": "<= 20",
+      "tune": "> 20",
+      "retire": "> 50",
+      "direction": "<=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "rendered reports",
+      "null_rule": "No instrument: record unmeasurable with its follow-up issue. No verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "no instrument: render_tiered_findings.py persists no row"
+      ],
+      "computation": "unmeasurable: no persisted instrument; follow-up issue to file (one row per render with the expand flag)",
+      "rationale": "Expanding in over a fifth of reports means the Tier-1 lines are too thin; above half the tiering saves no reading."
+    },
+    {
+      "id": "report-size-cut",
+      "metric": "Tiered findings report-size cut: percent smaller than the untiered report",
+      "instrument": "none",
+      "identity_class": "id-less",
+      "id_less_handling": "unmeasurable",
+      "baseline": "59.0% on the one round measured so far",
+      "unit": "percent",
+      "keep": ">= 40",
+      "tune": "< 40",
+      "retire": "< 15",
+      "direction": ">=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "rounds",
+      "null_rule": "No instrument: record unmeasurable with its follow-up issue. No verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "no instrument: render sizes are printed, not stored",
+        "one measured round so far"
+      ],
+      "computation": "unmeasurable: no persisted instrument; follow-up issue to file (store tiered and untiered sizes per render)",
+      "rationale": "Keeping two thirds of the one-round cut over many rounds shows the saving holds beyond one example."
+    },
+    {
+      "id": "injection-overhead",
+      "metric": "Skill-context injection overhead: mean characters added per injection",
+      "instrument": "skill-injection",
+      "identity_class": "id-bearing",
+      "baseline": "0 characters: a dispatch without injection",
+      "unit": "characters",
+      "keep": "<= 400",
+      "tune": "> 400",
+      "retire": "> 1200",
+      "direction": "<=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "injections",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "skills per injection vary with the agent-type mix"
+      ],
+      "computation": "metrics_hooks.injection_overhead: mean added_chars over skill-injection rows",
+      "rationale": "About 100 tokens is near zero against a subagent prompt; above about 300 tokens a skill hint costs more than it should."
+    },
+    {
+      "id": "injection-uptake",
+      "metric": "Skill-context injection uptake: share of injections whose injected skill the subagent loaded",
+      "instrument": "skill-injection",
+      "identity_class": "id-bearing",
+      "baseline": "Skill-call rate of the same agent types in transcripts before the boundary timestamp",
+      "unit": "percent",
+      "keep": ">= 50",
+      "tune": "< 50",
+      "retire": "< 10",
+      "direction": ">=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "injections",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "agents can load a skill unprompted, so uptake can overstate the injection's effect",
+        "agent-type mix shifts across the boundary",
+        "the stream carries no agent id, so the join is by session and agent type"
+      ],
+      "computation": "metrics_hooks.injection_uptake: per skill-injection row, a Skill call for an injected skill in that session's subagent transcript (session_log)",
+      "rationale": "A skill loaded in half the dispatches earns its characters; under 10% the skills are not used and the hook is a retire candidate."
+    },
+    {
+      "id": "guard-divergence",
+      "metric": "Completion-guard divergence rate: share of subagent stops classified empty-final-turn or truncated-final-turn",
+      "instrument": "subagent-stops",
+      "identity_class": "id-bearing",
+      "baseline": "none: first measurement; the earlier study was never run",
+      "unit": "percent",
+      "keep": ">= 2",
+      "tune": "< 2",
+      "retire": "< 0.5",
+      "direction": ">=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "subagent stops",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "agent-type mix",
+        "unreadable stops are left out of the numerator and the denominator"
+      ],
+      "computation": "metrics_hooks.completion_guard_divergence: flagged rows over clean plus flagged rows in subagent-stops",
+      "rationale": "Two percent flagged means the guard sees real divergence; under 0.5% it rarely fires, and a no-divergence result is a success that recommends keep-observational or retire."
+    },
+    {
+      "id": "guard-false-positive",
+      "metric": "Completion-guard false-positive rate in the hand-checked sample; gates blocking behavior",
+      "instrument": "manual-input",
+      "identity_class": "id-bearing",
+      "baseline": "0%: a flagged dispatch whose final turn is complete is a false positive",
+      "unit": "percent",
+      "keep": "<= 5",
+      "tune": "> 5",
+      "retire": "> 30",
+      "direction": "<=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "flagged dispatches hand-checked",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "the hand-check is one person's judgment",
+        "the sample is seeded, not spread across the window"
+      ],
+      "computation": "manual-input: false positives over the sample from metrics_hooks.completion_guard_sample (20 flagged dispatches, or all if fewer); list the session ids",
+      "rationale": "One false positive in a 20-dispatch sample (5%) is the loosest rate that still allows blocking; above 30% the classifier is not worth keeping."
+    },
+    {
+      "id": "contradicted-rate",
+      "metric": "source-verification contradicted verdicts per invocation",
+      "instrument": "artifact-usage",
+      "identity_class": "id-less",
+      "id_less_handling": "UNVERIFIED",
+      "baseline": "none: new skill",
+      "unit": "contradicted verdicts per invocation",
+      "keep": ">= 0.2",
+      "tune": "< 0.2",
+      "retire": "< 0.05",
+      "direction": ">=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "invocations",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict. An UNVERIFIED line never feeds a verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "verdict tallies are entered by hand",
+        "the wired consumers decide what gets invoked",
+        "artifact-usage keeps cumulative counts with no session ids and no direct-versus-consumer split"
+      ],
+      "computation": "metrics_cost.verdict_rate: invocations from artifact-usage; contradicted verdict tallies from the manual-input file",
+      "rationale": "At 10 invocations, 0.2 means two caught wrong claims; one catch over the whole window is not enough to keep the skill."
+    },
+    {
+      "id": "pbt-mutants-killed",
+      "metric": "property-based-testing mutants killed beyond the target's existing tests, mean per target",
+      "instrument": "manual-input",
+      "identity_class": "id-bearing",
+      "baseline": "mutants killed by the same target's existing tests",
+      "unit": "mutants per target",
+      "keep": ">= 1",
+      "tune": "< 1",
+      "retire": "<= 0",
+      "direction": ">=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "targets",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "the operator chooses the targets",
+        "mutation tool version"
+      ],
+      "computation": "manual-input: /mutation-testing kills by the generated properties minus kills by the existing tests, per target; list the session ids",
+      "rationale": "One extra kill per target is a concrete gain over existing tests; none across 10 targets means the skill adds nothing."
+    }
+  ]
+}
+```
+
+## Fields
+
+The parser requires every field except `id_less_handling`, `ceiling`, `unit`, `n_unit`, and `rationale`. An empty required cell fails the parser (exit 2) and names the metric and the column.
+
+| Field | Meaning |
+| --- | --- |
+| `id`, `metric` | Short name and the full metric statement |
+| `instrument` | A stream name, `manual-input` (a number you enter by hand), or `none` (nothing persists it) |
+| `identity_class` | `id-bearing` if rows carry a session id you can check against a transcript; `id-less` if not |
+| `id_less_handling` | For `id-less` only, exactly one of `UNVERIFIED` (print a directional line, never feed a verdict) or `unmeasurable` (no instrument; file a follow-up issue) |
+| `baseline` | What the number is compared with |
+| `unit` | The unit of the number and of the thresholds |
+| `keep`, `tune`, `retire` | Threshold as a direction (`<`, `<=`, `>`, `>=`) and a number, in the unit named by `unit` |
+| `direction`, `inclusivity` | The within-condition for the keep threshold; `<=` and `>=` are `inclusive`, `<` and `>` are `exclusive` |
+| `minimum_n`, `n_unit` | Smallest N that counts as data, and what N counts |
+| `null_rule` | What happens below minimum N |
+| `parity_cap` | `tune` if a parity regression caps the verdict at tune; `none` otherwise |
+| `window` | When the data counts |
+| `confounds` | The list printed after `DIRECTIONAL` on a before-and-after comparison |
+| `computation` | Where the number comes from (see the metric-to-computation map) |
+| `ceiling` | Optional theoretical maximum, printed next to the measured value |
+| `rationale` | One line on why the thresholds sit where they do |
+
+## Rules
+
+**Verdict order.** Evaluate `retire` first. If it does not apply, evaluate `keep`. Otherwise the verdict is `tune`. Each threshold's own operator decides its boundary: `>= 10` includes 10 and `< 3` excludes 3.
+
+**Within and breach.** The report prints `within` when the value meets the keep threshold using `direction`, and `breach` when it does not. A value exactly on the keep threshold is `within` when `inclusivity` is `inclusive` and `breach` when it is `exclusive`. `breach` is a threshold finding, not a verdict.
+
+**Minimum N.** One rule for every metric: below `minimum_n`, the metric prints `NULL (N=n)` and no value. Findings parity counts diffs and uses 3, because you hand-run it. Every other metric uses 10.
+
+**Parity cap.** Any ledger-off actionable signature missing from the ledger-on set is a regression. File it as a bug. It forces the delta-scoping verdict to `tune` at best, whatever the skip rate.
+
+**Id-less instruments.** `cost-metering.jsonl` and `artifact-usage.json` carry no session ids. The report prints their numbers on an `UNVERIFIED (no session ids)` line marked `DIRECTIONAL`. Those lines never feed a verdict. A metric with `unmeasurable` handling gets no number and a follow-up issue.
+
+**Directional comparisons.** A before-and-after number prints as `DIRECTIONAL (confounds: <the confounds list>)`. The boundary is an ISO 8601 UTC timestamp ending in `Z`. Before is `ts < boundary` and after is `ts >= boundary`. An empty side prints `insufficient` and no delta.
+
+**Statuses and exit codes.** The report evaluates each metric top to bottom and stops at the first match.
+
+| Condition | Token | Exit |
+| --- | --- | --- |
+| N is 0 | `no rows in window` | 3 |
+| N is below minimum N | `NULL (N=n)` | 3 |
+| One directional side is empty | `insufficient` | 3 |
+| Value fails the keep threshold | `breach` | 1 |
+| Otherwise | `within` | 0 |
+
+The audit exits 1 for a `gap` or a `no instrument` metric, 2 for malformed input or a missing argument, and 0 otherwise. A parity regression is a manual finding in the #2200 comment, not an exit code.
+
+## Metric-to-computation map
+
+The `computation` cell of each entry is the map. It names one of three sources:
+
+- **Stream and function.** A `metrics_*` module function in `scripts/lib/benefit_eval/` that reads the instrument.
+- **Manual-input file.** A JSON object keyed by metric `id`. Each value is `{"value": <number>, "n": <integer>, "sessions": ["<8-character id>"], "note": "<text>"}`. A malformed file exits 2. The `test-review` true-positive change comes from `/agent-eval` output and the completion-guard false-positive rate from the hand-check of the seeded sample. Both go in this file, as do findings parity, the `contradicted` tallies, and the PBT mutant kills.
+- **Unmeasurable.** No instrument persists the number. The audit reports `no instrument`, and you file a follow-up issue instead of adding an emitter.
+
+Transcript-derived numbers join at the grain of session and agent type, because the `skill-injection` stream carries no agent id.
+
+## Glossary
+
+- **Instrument:** a persisted stream or file that carries the rows a metric reads.
+- **Metric:** one number computed from an instrument, with thresholds in the block.
+- **Gap:** an instrument that is absent, empty, or shows fewer than 3 real sessions, or a metric with no instrument. A gap gets an `unmeasurable` note and a follow-up issue.
+- **Real session:** a session id with a transcript that `session_log` finds and that parses. Rows that fail this test are `unverified`, counted, and contribute zero to any number. An unparseable transcript is a counted skip.
+- **Insufficient:** one side of a before-and-after comparison has no rows. No delta exists.
+- **Null:** the metric has rows but fewer than minimum N. The number is not trustworthy and gets no verdict.
+- **Parity:** the check that delta-scoped review finds everything a full review finds.
+- **Window:** the period whose rows count. For a before-and-after metric it bounds the after side.
+
+## Operator runbook
+
+1. Review each threshold in the block. Edit it if you disagree, then commit.
+2. Run the audit: `python3 scripts/benefit_eval.py audit`. Add `--json` for records. Exit 1 means a gap.
+3. For each gap, record the metric as `unmeasurable` with a follow-up issue. If the audit finds no gap, say so.
+4. Post to #2200 as one comment: the block, the audit output, the window end date. The post shows session ids as their first 8 characters only. Note the comment's UTC creation time.
+5. Wait for the window to close: at least 10 real sessions or 14 days after #2199 merges, whichever is later. At 28 days, an unmet minimum N is `NULL`.
+6. Hand-run parity on 3 or more copies of past diffs, once with the ledger on and once with it moved aside. Compare actionable signatures. Record the diff ids in the #2200 comment.
+7. Run the report with `--prereg-posted <timestamp>`, using the comment time from step 4 as an ISO 8601 UTC timestamp ending in `Z`. The report prints that timestamp with its own run time and exits 2 without it. Run `report --help` for the other options. That the comment came first is your attestation; the tool does not check it.
+8. Hand-post one verdict comment on #2164 and one on #2172. For each metric give the value, N, the threshold, the verdict, and the confounds on directional numbers.
+9. Delete or archive the tooling after both verdicts post. If no verdict posts by the 28-day null date, delete it anyway.

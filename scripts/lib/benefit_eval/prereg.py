@@ -74,6 +74,7 @@ class Metric:
     inclusivity: str
     minimum_n: int
     n_unit: str
+    unit: str
     null_rule: str
     parity_cap: str
     window: str
@@ -273,6 +274,7 @@ def _parse_entry(path: Path, entry: object, position: int, locate) -> Metric:
         inclusivity=entry["inclusivity"],
         minimum_n=entry["minimum_n"],
         n_unit=entry.get("n_unit") or "rows",
+        unit=entry.get("unit") or "",
         null_rule=entry["null_rule"],
         parity_cap=entry["parity_cap"],
         window=entry["window"],
