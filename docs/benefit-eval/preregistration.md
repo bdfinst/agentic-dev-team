@@ -81,7 +81,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
         "few aborts in the window",
         "the fix loop changes the code the deferred lenses review"
       ],
-      "computation": "metrics_ledger.abort_yield over checkpoint-aborts rows from aborted checkpoints; lenses deferred after a completed checkpoint are excluded",
+      "computation": "metrics_ledger.abort_yield over checkpoint-aborts rows from aborted checkpoints; lenses deferred after a completed checkpoint are excluded; a deferred lens found something new when a later stop-hook row in the same session names it as the lens that tripped the abort rule",
       "rationale": "At most a quarter finding something new means the abort mostly saves work; above 60% it only reorders the work."
     },
     {
@@ -388,7 +388,7 @@ The audit exits 1 for a `gap` or a `no instrument` metric, 2 for malformed input
 The `computation` cell of each entry is the map. It names one of three sources:
 
 - **Stream and function.** A `metrics_*` module function in `scripts/lib/benefit_eval/` that reads the instrument.
-- **Manual-input file.** `.claude/metrics/benefit-manual-input.json` is a JSON object keyed by metric `id`. Each value is `{"value": <number>, "n": <integer>, "sessions": ["<8-character id>"], "note": "<text>"}`. A malformed file exits 2. The `test-review` true-positive change comes from `/agent-eval` output and the completion-guard false-positive rate from the hand-check of the seeded sample. Both go in this file, as do findings parity, the `contradicted` tallies, and the PBT mutant kills.
+- **Manual-input file.** `.claude/metrics/benefit-manual-input.json` is a JSON object keyed by metric `id`. Each value is `{"value": <number>, "n": <integer>, "sessions": ["<8-character id>"], "note": "<text>"}`. A malformed file exits 2. The `test-review` true-positive change comes from `/agent-eval` output and the completion-guard false-positive rate from the hand-check of the seeded sample. Both go in this file, as do findings parity, the `contradicted` tallies, and the PBT mutant kills. For the `contradicted` tally, `value` is the count of contradicted verdicts and `n` is the verdicts reviewed; the rate divides `value` by invocations.
 - **Unmeasurable.** No instrument persists the number. The audit reports `no instrument`, and you file a follow-up issue instead of adding an emitter.
 
 Transcript-derived numbers join at the grain of session and agent type, because the `skill-injection` stream carries no agent id.
@@ -413,6 +413,6 @@ Transcript-derived numbers join at the grain of session and agent type, because 
 4. Post to #2200 as one comment: the block, the audit output, the window end date. Show session ids as their first 8 characters only. Note the comment's UTC creation time.
 5. Wait for the window in each entry to close. An unmet minimum N at the null date stays `NULL`.
 6. Hand-run parity on copies of past diffs, once with the ledger on and once with it moved aside. Use at least the parity minimum N from the block. Compare actionable signatures. Record the diff ids in the #2200 comment.
-7. Run the report with `--prereg-posted <timestamp>`. Use the comment time from step 4, as an ISO 8601 UTC timestamp ending in `Z`. Expect exit 2 without it; the report prints it beside its own run time. Run `report --help` for the other options. Attest that the comment came first; the tool does not check it.
+7. Run the report with `--prereg-posted <timestamp>`. Use the comment time from step 4, as an ISO 8601 UTC timestamp ending in `Z`. Add `--boundary <timestamp>`, the same format, for the before-and-after metric. Expect exit 2 without either; the report prints the post time beside its own run time. Run `report --help` for the other options. Attest that the comment came first; the tool does not check it.
 8. Hand-post one verdict comment on #2164 and one on #2172. For each metric give the value, N, the threshold, the verdict, and the confounds on directional numbers.
 9. Delete or archive the tooling after both verdicts post. If no verdict posts by the null date, delete it anyway.

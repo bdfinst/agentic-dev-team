@@ -48,6 +48,11 @@ def bound_text(threshold: streams.Threshold) -> str:
     return f"{word} {number_text(threshold.limit)}"
 
 
+def utc_stamp(moment: datetime) -> str:
+    """A UTC datetime as ``YYYY-MM-DDTHH:MM:SSZ``."""
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def utc_now() -> str:
     """The current UTC time as ``YYYY-MM-DDTHH:MM:SSZ``."""
     # timezone.utc, not datetime.UTC: the latter needs Python 3.11 and the floor is 3.10.
@@ -69,6 +74,8 @@ class ReportLine:
     headline: str = ""
     threshold: streams.Threshold | None = None
     details: tuple[str, ...] = ()
+    #: Detail lines that would reveal the value, printed only when the outcome carries one.
+    value_details: tuple[str, ...] = ()
     unverified_rows: int | None = None
     #: Lines on an id-less stream never feed a keep, tune or retire verdict.
     verdict_input: bool = True
@@ -100,7 +107,8 @@ class ReportLine:
         if not self.verdict_input:
             parts.append("(excluded from verdict inputs)")
         lines = [" ".join(p for p in parts if p)]
-        lines += [f"  {detail}" for detail in self.details]
+        shown = self.details + (self.value_details if self.carries_value else ())
+        lines += [f"  {detail}" for detail in shown]
         if self.result.sessions:
             lines.append(f"  sessions: {', '.join(self.result.sessions)}")
         if self.unverified_rows is not None:
@@ -110,7 +118,7 @@ class ReportLine:
     def as_dict(self) -> dict:
         record = {
             "metric_id": self.result.metric_id,
-            "value": self.result.value,
+            "value": self.result.value if self.carries_value else None,
             "n": self.result.n,
             "sessions": list(self.result.sessions),
             "instrument": self.result.instrument,
@@ -120,7 +128,7 @@ class ReportLine:
             "exit_code": self.outcome.exit_code,
             "verdict_input": self.verdict_input,
             "unverified_rows": self.unverified_rows,
-            "details": list(self.details),
+            "details": list(self.details + (self.value_details if self.carries_value else ())),
         }
         if self.label:
             record["label"] = self.label
@@ -144,6 +152,7 @@ def measured_line(
     unverified: int,
     headline: str,
     details: Iterable[str] = (),
+    value_details: Iterable[str] = (),
 ) -> ReportLine:
     """A metric measured over id-bearing rows, judged against its keep threshold at its own N."""
     return ReportLine(
@@ -155,6 +164,7 @@ def measured_line(
         headline=headline if n else "",
         threshold=metric.keep,
         details=tuple(details),
+        value_details=tuple(value_details),
         unverified_rows=unverified,
     )
 
@@ -167,6 +177,7 @@ def rate_line(
     unverified: int,
     details: Iterable[str] = (),
     prefix: str = "",
+    value_details: Iterable[str] = (),
 ) -> ReportLine:
     """A percent metric whose N is its denominator."""
     headline = (
@@ -180,6 +191,7 @@ def rate_line(
         unverified,
         headline,
         details,
+        value_details,
     )
 
 

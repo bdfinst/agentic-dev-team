@@ -65,22 +65,23 @@ def skip_rate(metric: Metric, ctx: ReportContext) -> ReportLine:
     candidates = sum(_count(row, "candidate_pairs") for row in consults)
     skipped = sum(_count(row, "skipped_pairs") for row in consults)
     first_runs, repeat_runs = _split_first_and_repeat(consults)
-    details = [
-        _run_split_text("first runs", first_runs),
-        _run_split_text("repeat runs", repeat_runs),
-        _NO_BACKSTOP_FIELD,
-    ]
-    if metric.ceiling is not None:
-        details.insert(
-            0, f"theoretical ceiling {formatting.number_text(metric.ceiling)}%"
-        )
+    ceiling = (
+        [f"theoretical ceiling {formatting.number_text(metric.ceiling)}%"]
+        if metric.ceiling is not None
+        else []
+    )
     return formatting.rate_line(
         metric,
         skipped,
         candidates,
         {row.data["session_id"] for row in consults},
         sum(map(is_consult, part.unverified)),
-        details,
+        details=ceiling,
+        value_details=[
+            _run_split_text("first runs", first_runs),
+            _run_split_text("repeat runs", repeat_runs),
+            _NO_BACKSTOP_FIELD,
+        ],
     )
 
 

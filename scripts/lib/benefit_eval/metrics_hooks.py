@@ -183,7 +183,7 @@ def completion_guard_divergence(metric: Metric, ctx: ReportContext) -> ReportLin
         flagged + counts[CLEAN],
         (r.data["session_id"] for r in part.real),
         len(part.unverified),
-        details=[f"classified clean: {counts[CLEAN]}, flagged: {flagged}"],
+        value_details=[f"classified clean: {counts[CLEAN]}, flagged: {flagged}"],
     )
 
 

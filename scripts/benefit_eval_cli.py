@@ -22,7 +22,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -31,7 +32,14 @@ _LIB_DIR = _SCRIPTS_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from benefit_eval import formatting, metrics_hooks, metrics_ledger, prereg, streams
+from benefit_eval import (
+    formatting,
+    metrics_cost,
+    metrics_hooks,
+    metrics_ledger,
+    prereg,
+    streams,
+)
 
 DEFAULT_PREREG = _SCRIPTS_DIR.parent / "docs" / "benefit-eval" / "preregistration.md"
 
@@ -76,52 +84,86 @@ def run_audit(args: argparse.Namespace) -> int:
     return code
 
 
+@dataclass(frozen=True)
+class Handler:
+    """How the report computes one stream-backed metric."""
+
+    compute: Callable
+    notes: tuple[Callable, ...] = ()
+    needs_boundary: bool = False
+
+
+def _handlers(transcripts: metrics_hooks.SubagentTranscripts) -> dict[str, Handler]:
+    return {
+        "skip-rate": Handler(
+            metrics_ledger.skip_rate, (metrics_ledger.missing_scope_marker_split,)
+        ),
+        "abort-yield": Handler(metrics_ledger.abort_yield),
+        "injection-overhead": Handler(metrics_hooks.injection_overhead),
+        "injection-uptake": Handler(
+            lambda metric, ctx: metrics_hooks.injection_uptake(metric, ctx, transcripts)
+        ),
+        "guard-divergence": Handler(
+            metrics_hooks.completion_guard_divergence,
+            (
+                lambda metric, ctx: metrics_hooks.completion_guard_sample(
+                    metric, ctx, transcripts
+                ),
+            ),
+        ),
+        "test-review-token-delta": Handler(
+            metrics_cost.test_review_token_delta, needs_boundary=True
+        ),
+        "contradicted-rate": Handler(
+            metrics_cost.verdict_rate,
+            (lambda metric, ctx: metrics_cost.skill_adoption(ctx),),
+        ),
+    }
+
+
+def _handler_for(metric: prereg.Metric, handlers: dict[str, Handler], pre) -> Handler:
+    """Hand-entered and unmeasurable metrics need no stream; every other metric needs a registered computation."""
+    if metric.instrument == streams.NO_INSTRUMENT:
+        return Handler(metrics_cost.unmeasurable_line)
+    if metric.instrument == streams.MANUAL_INSTRUMENT:
+        return Handler(metrics_cost.manual_metric)
+    if metric.id not in handlers:
+        raise streams.InputError(
+            pre.path,
+            0,
+            f"the report has no computation for metric '{metric.id}'",
+            "remove the entry or add its computation",
+        )
+    return handlers[metric.id]
+
+
 def run_report(args: argparse.Namespace) -> int:
     pre = prereg.load_prereg(args.prereg)
-    sources = streams.Sources(
-        tuple(args.project_root or [Path.cwd()]), args.home_metrics, args.projects_root
-    )
+    roots = tuple(args.project_root or [Path.cwd()])
+    sources = streams.Sources(roots, args.home_metrics, args.projects_root)
+    manual_file = args.manual_input or metrics_cost.manual_input_path(roots[0])
     ctx = formatting.ReportContext(
         pre,
         sources,
         streams.SessionIndex(sources.projects_root),
         start=args.window_start,
         end=args.window_end,
+        boundary=args.boundary,
         seed=args.seed,
+        manual=metrics_cost.load_manual_input(manual_file, {m.id for m in pre.metrics}),
+        manual_file=manual_file,
     )
-    transcripts = metrics_hooks.SubagentTranscripts(sources.projects_root)
-    handlers = {
-        "skip-rate": (
-            metrics_ledger.skip_rate,
-            [metrics_ledger.missing_scope_marker_split],
-        ),
-        "abort-yield": (metrics_ledger.abort_yield, []),
-        "injection-overhead": (metrics_hooks.injection_overhead, []),
-        "injection-uptake": (
-            lambda metric, c: metrics_hooks.injection_uptake(metric, c, transcripts),
-            [],
-        ),
-        "guard-divergence": (
-            metrics_hooks.completion_guard_divergence,
-            [
-                lambda metric, c: metrics_hooks.completion_guard_sample(
-                    metric, c, transcripts
-                )
-            ],
-        ),
-    }
+    handlers = _handlers(metrics_hooks.SubagentTranscripts(sources.projects_root))
+    chosen = [(m, _handler_for(m, handlers, pre)) for m in pre.metrics]
+    if args.boundary is None and any(h.needs_boundary for _, h in chosen):
+        args.parser.error(
+            "--boundary is required: a before and after metric splits at it "
+            "(ISO 8601 UTC ending in Z, for example 2026-11-12T10:00:00Z)"
+        )
     lines, notes = [], []
-    for metric in pre.metrics:
-        if metric.id not in handlers:
-            raise streams.InputError(
-                pre.path,
-                0,
-                f"the report has no computation for metric '{metric.id}'",
-                "remove the entry or add its computation",
-            )
-        compute, note_makers = handlers[metric.id]
-        lines.append(compute(metric, ctx))
-        notes += [make(metric, ctx) for make in note_makers]
+    for metric, handler in chosen:
+        lines.append(handler.compute(metric, ctx))
+        notes += [make(metric, ctx) for make in handler.notes]
     code = formatting.combined_exit_code(line.outcome.exit_code for line in lines)
     run_at = formatting.utc_now()
     if args.json:
@@ -129,6 +171,8 @@ def run_report(args: argparse.Namespace) -> int:
             json.dumps(
                 {
                     "run_at": run_at,
+                    "prereg_posted": args.prereg_posted,
+                    "boundary": formatting.utc_stamp(args.boundary) if args.boundary else None,
                     "seed": args.seed,
                     "metrics": [line.as_dict() for line in lines],
                     "notes": {note.key: note.data for note in notes},
@@ -138,17 +182,22 @@ def run_report(args: argparse.Namespace) -> int:
             )
         )
     else:
-        print(render_report_text(run_at, args.seed, lines, notes))
+        print(render_report_text(run_at, args, lines, notes))
     return code
 
 
 def render_report_text(
     run_at: str,
-    seed: int,
+    args: argparse.Namespace,
     lines: list[formatting.ReportLine],
     notes: list[formatting.ReportNote],
 ) -> str:
-    out = [f"run at (UTC): {run_at}", f"seed: {seed}"]
+    out = [
+        f"run at (UTC): {run_at}",
+        f"prereg posted (UTC): {args.prereg_posted}",
+        f"boundary (UTC): {formatting.utc_stamp(args.boundary) if args.boundary else 'not set'}",
+        f"seed: {args.seed}",
+    ]
     for line in lines:
         out += line.text()
     for note in notes:
@@ -163,6 +212,12 @@ def _utc_argument(text: str) -> datetime:
         raise argparse.ArgumentTypeError(
             f"{text!r} is not an ISO 8601 UTC timestamp ending in Z, for example 2026-11-12T10:00:00Z"
         ) from exc
+
+
+def _utc_text(text: str) -> str:
+    """A validated ISO 8601 UTC timestamp, kept as typed so the report echoes what the operator attested."""
+    _utc_argument(text)
+    return text
 
 
 def _add_source_arguments(command: argparse.ArgumentParser) -> None:
@@ -207,6 +262,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_source_arguments(report)
     report.add_argument(
+        "--prereg-posted",
+        type=_utc_text,
+        required=True,
+        help="UTC time (ISO 8601, ending in Z) the pre-registration comment was posted; "
+        "that it came before this run is your attestation, not checked",
+    )
+    report.add_argument(
+        "--boundary",
+        type=_utc_argument,
+        help="before and after split (ISO 8601 UTC ending in Z): before is ts < boundary, "
+        "after is ts >= boundary; required when a before and after metric is pre-registered",
+    )
+    report.add_argument(
+        "--manual-input",
+        type=Path,
+        help="hand-entered numbers; default: <first project root>/.claude/metrics/benefit-manual-input.json",
+    )
+    report.add_argument(
         "--window-start",
         type=_utc_argument,
         help="count rows at or after this ISO 8601 UTC timestamp (Z); default: no start",
@@ -222,7 +295,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         help="seed for the completion-guard hand-check sample (default 0)",
     )
-    report.set_defaults(handler=run_report)
+    report.set_defaults(handler=run_report, parser=report)
     return parser
 
 
