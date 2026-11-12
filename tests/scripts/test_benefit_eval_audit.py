@@ -8,6 +8,7 @@ audit CLI in scripts/benefit_eval.py.
 from __future__ import annotations
 
 import ast
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -458,3 +459,138 @@ def test_missing_prereg_file_is_malformed_input(tmp_path):
     with pytest.raises(streams.InputError, match="not found"):
         prereg.load_prereg(tmp_path / "absent.md")
 
+
+# --- audit CLI ---------------------------------------------------------------
+
+
+def _load_cli():
+    spec = importlib.util.spec_from_file_location("benefit_eval_cli", REPO_ROOT / "scripts" / "benefit_eval.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+cli = _load_cli()
+
+CLI_ENTRIES = [
+    entry("skip-rate"),
+    entry("token-delta", instrument="cost-metering", identity_class="id-less", id_less_handling="UNVERIFIED"),
+    entry("expand-rate", instrument="none", identity_class="id-less", id_less_handling="unmeasurable"),
+]
+
+
+def run_cli(world: World, tmp_path: Path, capsys, *extra: str, entries=None):
+    prereg_path = write_prereg(tmp_path, entries or CLI_ENTRIES)
+    code = cli.main(
+        [
+            "audit",
+            "--prereg", str(prereg_path),
+            "--project-root", str(world.project),
+            "--home-metrics", str(world.home),
+            "--projects-root", str(world.projects),
+            *extra,
+        ]
+    )
+    out = capsys.readouterr()
+    return code, out.out, out.err
+
+
+def test_audit_cli_prints_literal_status_tokens_and_exits_1_on_a_gap(world, tmp_path, capsys):
+    world.real_sessions("ledger-skips", 3)
+    world.stream("cost-metering", [{"timestamp": "2026-01-01T00:00:00Z"}])
+    code, out, _ = run_cli(world, tmp_path, capsys)
+    assert code == 1
+    assert "ledger-skips: confirmed" in out
+    assert "cost-metering: no session ids" in out
+    assert "none: no instrument" in out
+    assert "metrics: expand-rate" in out
+    assert "\x1b" not in out
+
+
+def test_audit_cli_exits_0_when_every_instrument_is_confirmed_or_declared(world, tmp_path, capsys):
+    world.real_sessions("ledger-skips", 3)
+    world.stream("cost-metering", [{"timestamp": "2026-01-01T00:00:00Z"}])
+    code, out, _ = run_cli(world, tmp_path, capsys, entries=CLI_ENTRIES[:2])
+    assert (code, "findings: 0" in out) == (0, True)
+
+
+def test_audit_cli_reports_unverified_row_count(world, tmp_path, capsys):
+    rows = [{"ts": "2026-01-01T00:00:00Z"}] * 4
+    rows += [{"ts": "2026-01-01T00:00:00Z", "session_id": "no-transcript"}] * 2
+    world.stream("ledger-skips", rows)
+    _, out, _ = run_cli(world, tmp_path, capsys, entries=CLI_ENTRIES[:1])
+    assert "unverified: 6" in out
+    assert "real sessions: 0" in out
+
+
+def test_audit_cli_reports_skipped_transcripts_without_changing_the_exit_code(world, tmp_path, capsys):
+    world.real_sessions("ledger-skips", 3, extra_rows=0)
+    clean_code, _, _ = run_cli(world, tmp_path, capsys, entries=CLI_ENTRIES[:1])
+    path = world.metrics_file("ledger-skips.jsonl")
+    path.write_text(path.read_text() + json.dumps({"ts": "2026-01-01T00:00:00Z", "session_id": "bad"}) + "\n")
+    world.transcript("bad", "not json lines\n")
+    code, out, _ = run_cli(world, tmp_path, capsys, entries=CLI_ENTRIES[:1])
+    assert "skipped transcripts: 1" in out and "real sessions: 3" in out
+    assert code == clean_code
+
+
+@pytest.mark.parametrize("json_mode", [False, True])
+def test_audit_cli_never_prints_a_full_session_id(world, tmp_path, capsys, json_mode):
+    world.transcript(LONG_ID)
+    world.stream("ledger-skips", [{"ts": "2026-01-01T00:00:00Z", "session_id": LONG_ID}])
+    _, out, err = run_cli(world, tmp_path, capsys, *(["--json"] if json_mode else []), entries=CLI_ENTRIES[:1])
+    assert LONG_ID[:8] in out
+    assert LONG_ID not in out + err
+    assert LONG_ID[:9] not in out
+
+
+def test_audit_cli_json_emits_instrument_status_records(world, tmp_path, capsys):
+    world.real_sessions("ledger-skips", 3)
+    code, out, _ = run_cli(world, tmp_path, capsys, "--json", entries=CLI_ENTRIES[:1])
+    payload = json.loads(out)
+    (status,) = payload["statuses"]
+    assert payload["exit_code"] == code == 0
+    assert (status["instrument"], status["status"], status["real_sessions"]) == ("ledger-skips", "confirmed", 3)
+    assert status["metrics"] == ["skip-rate"]
+
+
+@pytest.mark.parametrize("content", ["not json\n", '{"ts":"2026-01-01T00:00:00Z"}\n{oops\n'])
+def test_audit_cli_unreadable_instrument_exits_2_with_file_line_problem_and_next(
+    world, tmp_path, capsys, content
+):
+    path = world.metrics_file("ledger-skips.jsonl")
+    path.write_text(content)
+    code, out, err = run_cli(world, tmp_path, capsys, entries=CLI_ENTRIES[:1])
+    assert code == 2
+    assert out == ""
+    assert err.startswith(f"{path}:") and ". Next: " in err
+
+
+def test_audit_cli_incomplete_prereg_exits_2_naming_metric_and_column(world, tmp_path, capsys):
+    code, _, err = run_cli(world, tmp_path, capsys, entries=[entry("skip-rate", retire="")])
+    assert code == 2
+    assert "metric 'skip-rate' column 'retire' is empty" in err
+
+
+def test_audit_cli_without_a_command_exits_2(capsys):
+    with pytest.raises(SystemExit) as caught:
+        cli.main([])
+    assert caught.value.code == 2
+
+
+def test_audit_cli_leaves_every_input_and_the_listing_unchanged(world, tmp_path, capsys):
+    world.real_sessions("ledger-skips", 3)
+    world.stream("cost-metering", [{"timestamp": "2026-01-01T00:00:00Z"}])
+    prereg_path = write_prereg(tmp_path, CLI_ENTRIES)
+    before = world.snapshot()
+    cli.main(
+        [
+            "audit",
+            "--prereg", str(prereg_path),
+            "--project-root", str(world.project),
+            "--home-metrics", str(world.home),
+            "--projects-root", str(world.projects),
+        ]
+    )
+    capsys.readouterr()
+    assert world.snapshot() == before
