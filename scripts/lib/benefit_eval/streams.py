@@ -26,6 +26,7 @@ for _dir in (_PLUGIN_ROOT / "hooks" / "lib", _PLUGIN_ROOT / "scripts" / "lib"):
         sys.path.insert(0, str(_dir))
 
 import artifact_paths
+import boundary_events
 import instrument_log
 from session_log import discovery as session_discovery
 from session_log import records as session_records
@@ -119,6 +120,18 @@ STREAM_TABLE: dict[str, StreamSpec] = {
         "artifact-usage", ID_LESS, "home", "last_used_at", jsonl=False
     ),
 }
+
+
+#: The boundary-event ledger. Not a benefit instrument, so it stays out of ``STREAM_TABLE`` and the
+#: audit; the metric modules read it through this spec rather than naming the file themselves.
+BOUNDARY_EVENTS = StreamSpec(
+    boundary_events.LOG_NAME.removesuffix(".jsonl"),
+    boundary_events.LOG_NAME,
+    ID_BEARING,
+    "project",
+    "ts",
+    True,
+)
 
 
 @dataclass(frozen=True)

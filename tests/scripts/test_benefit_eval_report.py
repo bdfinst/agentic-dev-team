@@ -142,6 +142,22 @@ def line_of(out: str, prefix: str) -> str:
     return next(line for line in out.splitlines() if line.startswith(prefix))
 
 
+def block_of(out: str, prefix: str) -> str:
+    """The metric line and the indented detail lines that follow it."""
+    lines = out.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith(prefix))
+    end = start + 1
+    while end < len(lines) and lines[end].startswith("  "):
+        end += 1
+    return "\n".join(lines[start:end])
+
+
+def assert_input_error(err: str, file: Path | str, line: int, problem: str) -> None:
+    """The whole ``<file>:<line>: <problem>. Next: <action>`` shape, on one stderr line."""
+    pattern = rf"{re.escape(str(file))}:{line}: .*{re.escape(problem)}.*\. Next: \S.*"
+    assert re.fullmatch(pattern, err.strip()), err
+
+
 # --- delta-scoping skip rate -------------------------------------------------
 
 
@@ -155,19 +171,42 @@ def test_skip_rate_counts_consult_rows_only(world, tmp_path, capsys):
     line = line_of(out, "skip-rate:")
     assert "25.00% (3/12)" in line
     assert "N=12 candidate pairs" in line
-    assert "20.69" in out
     assert code == 0
 
 
-def test_skip_rate_splits_first_runs_from_repeat_runs(world, tmp_path, capsys):
+def test_skip_rate_prints_the_ceiling_and_floor_the_pre_registration_carries(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("ledger-skips", [consult("sess-a", 12, 3)])
+    cells = {"ceiling": 33.33, "keep": ">= 12.5"}
+    _, out, _ = run_report(world, tmp_path, capsys, ["skip-rate"], **{"skip-rate": cells})
+    block = block_of(out, "skip-rate:")
+    assert "| floor 12.50 |" in block
+    assert "theoretical ceiling 33.33%" in block
+    assert "20.69" not in out
+
+
+def test_skip_rate_splits_first_runs_from_repeat_runs_by_time_not_file_order(world, tmp_path, capsys):
     world.session("sess-a")
     world.stream(
         "ledger-skips",
-        [consult("sess-a", 10, 0, "2026-03-01T10:00:00Z"), consult("sess-a", 10, 5, "2026-03-01T11:00:00Z")],
+        [consult("sess-a", 10, 5, "2026-03-01T11:00:00Z"), consult("sess-a", 10, 0, "2026-03-01T10:00:00Z")],
     )
     _, out, _ = run_report(world, tmp_path, capsys, ["skip-rate"])
     assert "first runs: 0.00% (0/10)" in out
     assert "repeat runs: 50.00% (5/10)" in out
+
+
+def test_a_session_whose_first_consult_predates_the_window_counts_its_first_in_window_consult_as_a_first_run(
+    world, tmp_path, capsys
+):
+    world.session("sess-a")
+    world.stream(
+        "ledger-skips",
+        [consult("sess-a", 10, 0, BEFORE_WINDOW), consult("sess-a", 10, 5, IN_WINDOW)],
+    )
+    _, out, _ = run_report(world, tmp_path, capsys, ["skip-rate"], "--window-start", WINDOW_START)
+    assert "first runs: 50.00% (5/10)" in out
+    assert "repeat runs: no candidate pairs" in out
 
 
 def test_zero_candidate_pairs_print_no_rows_in_window_and_exit_3(world, tmp_path, capsys):
@@ -223,6 +262,53 @@ def test_a_lens_result_before_the_abort_is_not_deferred_yield(world, tmp_path, c
     world.stream("checkpoint-aborts", [earlier, abort_row("sess-a", True, ["security-review"])])
     _, out, _ = run_report(world, tmp_path, capsys, ["abort-yield"])
     assert "0.00% (0/1)" in line_of(out, "abort-yield:")
+
+
+def outcome_row(session_id: str) -> dict:
+    return {"ts": IN_WINDOW, "session_id": session_id, "source": "checkpoint", "mode": "outcome", "aborted": True}
+
+
+def test_abort_frequency_is_aborted_over_abort_mode_rows_for_each_source_on_its_own(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream(
+        "checkpoint-aborts",
+        [
+            abort_row("sess-a", True, ["lens-one"]),
+            abort_row("sess-a", False, []),
+            abort_row("sess-a", False, []),
+            abort_row("sess-a", True, [], source="stop-hook"),
+            abort_row("sess-a", True, [], source="stop-hook"),
+            outcome_row("sess-a"),
+        ],
+    )
+    _, out, _ = run_report(world, tmp_path, capsys, ["abort-yield"])
+    block = block_of(out, "abort frequency")
+    assert "  checkpoint: 33.33% (1/3)" in block
+    assert "  stop-hook: 100.00% (2/2)" in block
+    note = json.loads(run_report(world, tmp_path, capsys, ["abort-yield"], "--json")[1])["notes"]["abort-frequency"]
+    assert note["checkpoint"] == {"aborted": 1, "total": 3}
+    assert note["stop-hook"] == {"aborted": 2, "total": 2}
+
+
+def test_abort_frequency_counts_unverified_rows_and_leaves_them_out_of_the_rate(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream(
+        "checkpoint-aborts",
+        [abort_row("sess-a", False, []), abort_row("no-transcript", True, ["lens-one"])],
+    )
+    _, out, _ = run_report(world, tmp_path, capsys, ["abort-yield"])
+    block = block_of(out, "abort frequency")
+    assert "  checkpoint: 0.00% (0/1)" in block
+    assert "  unverified: 1" in block
+
+
+def test_abort_frequency_names_a_source_with_no_abort_mode_rows(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("checkpoint-aborts", [outcome_row("sess-a")])
+    _, out, _ = run_report(world, tmp_path, capsys, ["abort-yield"])
+    block = block_of(out, "abort frequency")
+    assert "  checkpoint: no abort-mode rows" in block
+    assert "  stop-hook: no abort-mode rows" in block
 
 
 def test_a_lens_result_from_another_session_is_not_deferred_yield(world, tmp_path, capsys):
@@ -330,15 +416,20 @@ def test_divergence_rate_is_flagged_over_clean_plus_flagged_and_leaves_unreadabl
     assert "25.00% (1/4)" in line_of(out, "guard-divergence:")
 
 
-def guard_world(world: World, count: int = 30) -> None:
-    """``count`` flagged stops, each in its own session with its own subagent transcript."""
+def guard_world(world: World, count: int = 30, decoys: bool = False) -> None:
+    """``count`` flagged stops, each in its own session with its own subagent transcript.
+
+    With ``decoys`` each stop row also carries an agent id and a transcript path that name nothing real."""
     rows = []
     for i in range(count):
         session_id = f"{i:08d}-aaaa-bbbb-cccc-dddddddddddd"
         world.session(session_id)
         ts = f"2026-03-01T12:{i:02d}:00Z"
         world.subagent(session_id, f"a{i:02d}", [{"type": "assistant", "timestamp": ts, "message": {"content": []}}])
-        rows.append(stop(session_id, "empty-final-turn" if i % 2 else "truncated-final-turn", ts))
+        row = stop(session_id, "empty-final-turn" if i % 2 else "truncated-final-turn", ts)
+        if decoys:
+            row.update(agent_id="decoy-agent", transcript_path="/decoy/transcript.jsonl")
+        rows.append(row)
     world.stream("subagent-stops", rows)
 
 
@@ -351,14 +442,15 @@ def test_the_same_seed_gives_the_same_twenty_line_sample_and_another_seed_a_diff
     first = sample_lines(run_report(world, tmp_path, capsys, ["guard-divergence"], "--seed", "1")[1])
     again = sample_lines(run_report(world, tmp_path, capsys, ["guard-divergence"], "--seed", "1")[1])
     other = sample_lines(run_report(world, tmp_path, capsys, ["guard-divergence"], "--seed", "2")[1])
-    assert len(first) == 20
+    assert len(set(first)) == 20
     assert first == again
-    assert first != other
+    assert set(first) != set(other)
 
 
 def test_sample_lines_carry_session_classification_agent_and_transcript_from_discovery(world, tmp_path, capsys):
-    guard_world(world, count=3)
+    guard_world(world, count=3, decoys=True)
     _, out, _ = run_report(world, tmp_path, capsys, ["guard-divergence"])
+    assert "decoy" not in out
     lines = sample_lines(out)
     assert len(lines) == 3
     for line in lines:
@@ -377,6 +469,54 @@ def test_a_flagged_stop_with_no_subagent_transcript_prints_unmatched(world, tmp_
     assert "agent=unmatched transcript=none" in out
 
 
+def sample_agents(out: str) -> dict[str, str]:
+    """Sample lines keyed by classification, valued by the agent they matched."""
+    pairs = (dict(part.split("=", 1) for part in line.split()) for line in sample_lines(out))
+    return {pair["classification"]: pair["agent"] for pair in pairs}
+
+
+def test_each_flagged_stop_matches_the_transcript_nearest_its_time_whatever_the_discovery_order(
+    world, tmp_path, capsys
+):
+    world.session("sess-a")
+    # Discovery lists agent-a before agent-b, but the first stop is nearest agent-b.
+    world.subagent("sess-a", "a", [{"type": "assistant", "timestamp": "2026-03-01T12:09:50Z"}])
+    world.subagent("sess-a", "b", [{"type": "assistant", "timestamp": "2026-03-01T12:00:10Z"}])
+    world.stream(
+        "subagent-stops",
+        [
+            stop("sess-a", "empty-final-turn", "2026-03-01T12:00:00Z"),
+            stop("sess-a", "truncated-final-turn", "2026-03-01T12:10:00Z"),
+        ],
+    )
+    _, out, _ = run_report(world, tmp_path, capsys, ["guard-divergence"])
+    assert sample_agents(out) == {"empty-final-turn": "b", "truncated-final-turn": "a"}
+
+
+def test_a_subagent_transcript_matches_one_flagged_stop_only(world, tmp_path, capsys):
+    world.session("sess-a")
+    # Both stops are nearest agent-a; the second must take agent-b.
+    world.subagent("sess-a", "a", [{"type": "assistant", "timestamp": "2026-03-01T12:00:02Z"}])
+    world.subagent("sess-a", "b", [{"type": "assistant", "timestamp": "2026-03-01T12:30:00Z"}])
+    world.stream(
+        "subagent-stops",
+        [
+            stop("sess-a", "empty-final-turn", "2026-03-01T12:00:00Z"),
+            stop("sess-a", "truncated-final-turn", "2026-03-01T12:00:05Z"),
+        ],
+    )
+    _, out, _ = run_report(world, tmp_path, capsys, ["guard-divergence"])
+    assert sample_agents(out) == {"empty-final-turn": "a", "truncated-final-turn": "b"}
+
+
+def test_a_flagged_stop_whose_only_transcript_has_no_parseable_timestamp_prints_unmatched(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.subagent("sess-a", "a", [{"type": "assistant", "timestamp": "not a time"}])
+    world.stream("subagent-stops", [stop("sess-a", "empty-final-turn")])
+    _, out, _ = run_report(world, tmp_path, capsys, ["guard-divergence"])
+    assert "agent=unmatched transcript=none" in out
+
+
 def test_a_sample_smaller_than_twenty_lists_every_flagged_stop(world, tmp_path, capsys):
     guard_world(world, count=5)
     _, out, _ = run_report(world, tmp_path, capsys, ["guard-divergence"])
@@ -386,19 +526,36 @@ def test_a_sample_smaller_than_twenty_lists_every_flagged_stop(world, tmp_path, 
 # --- missing scope marker ----------------------------------------------------
 
 
+def boundary_event(session_id: str, rule: str = "missing-scope-marker") -> dict:
+    return {"ts": IN_WINDOW, "session_id": session_id, "hook": "review_verdict_recorder", "decision": "record", "matched_rule": rule}
+
+
+def write_boundary_events(world: World, events: list[dict]) -> Path:
+    path = world.project / ".claude" / "metrics" / "boundary-events.jsonl"
+    path.write_text("".join(json.dumps(e) + "\n" for e in events))
+    return path
+
+
 def test_missing_scope_marker_count_is_split_by_whether_the_session_ran_a_consult(world, tmp_path, capsys):
     sessions = [f"sess-{i}" for i in range(5)]
     for session in sessions:
         world.session(session)
     world.stream("ledger-skips", [consult(s, 4, 1) for s in sessions[3:]])
-    events = [
-        {"ts": IN_WINDOW, "session_id": s, "hook": "review_verdict_recorder", "decision": "record", "matched_rule": "missing-scope-marker"}
-        for s in sessions
-    ]
-    events.append({**events[0], "matched_rule": "unparseable-result"})
-    (world.project / ".claude" / "metrics" / "boundary-events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
+    events = [boundary_event(s) for s in sessions] + [boundary_event(sessions[0], "unparseable-result")]
+    write_boundary_events(world, events)
     _, out, _ = run_report(world, tmp_path, capsys, ["skip-rate"])
     assert "missing-scope-marker: direct=3 consult=2" in out
+
+
+def test_known_limitation_every_missing_scope_marker_of_a_session_that_ran_a_consult_counts_as_consult(
+    world, tmp_path, capsys
+):
+    world.session("sess-a")
+    world.stream("ledger-skips", [consult("sess-a", 4, 1)])
+    # One event may come from a direct dispatch, but the event carries no source to say so.
+    write_boundary_events(world, [boundary_event("sess-a"), boundary_event("sess-a")])
+    _, out, _ = run_report(world, tmp_path, capsys, ["skip-rate"])
+    assert "missing-scope-marker: direct=0 consult=2" in out
 
 
 # --- unverified rows and the window ------------------------------------------
@@ -422,9 +579,28 @@ def test_rows_before_the_window_start_add_nothing(world, tmp_path, capsys):
     assert "N=5 candidate pairs" in line_of(out, "skip-rate:")
 
 
-def test_a_window_bound_that_is_not_utc_with_z_exits_2(world, tmp_path, capsys):
+def test_the_window_start_is_inclusive_and_the_window_end_exclusive(world, tmp_path, capsys):
+    world.session("sess-a")
+    window_end = "2026-04-01T00:00:00Z"
+    world.stream(
+        "ledger-skips",
+        [
+            consult("sess-a", 1, 0, "2026-01-31T23:59:59Z"),
+            consult("sess-a", 2, 0, WINDOW_START),
+            consult("sess-a", 4, 0, "2026-03-31T23:59:59Z"),
+            consult("sess-a", 8, 0, window_end),
+        ],
+    )
+    _, out, _ = run_report(
+        world, tmp_path, capsys, ["skip-rate"], "--window-start", WINDOW_START, "--window-end", window_end
+    )
+    assert "N=6 candidate pairs" in line_of(out, "skip-rate:")
+
+
+@pytest.mark.parametrize("flag", ["--window-start", "--window-end"])
+def test_a_window_bound_that_is_not_utc_with_z_exits_2(world, tmp_path, capsys, flag):
     with pytest.raises(SystemExit) as raised:
-        run_report(world, tmp_path, capsys, ["skip-rate"], "--window-start", "2026-02-01T00:00:00+00:00")
+        run_report(world, tmp_path, capsys, ["skip-rate"], flag, "2026-02-01T00:00:00+00:00")
     assert raised.value.code == 2
 
 
@@ -442,6 +618,29 @@ def test_a_value_on_the_limit_follows_the_pre_registered_inclusivity(world, tmp_
     assert got_code == code
 
 
+@pytest.mark.parametrize(
+    ("direction", "candidates", "skipped", "status", "code"),
+    [
+        (">=", 8, 2, "within", 0),  # exactly 25.00
+        (">", 8, 2, "breach", 1),
+        (">=", 9, 2, "breach", 1),  # 22.22, just under
+        (">", 9, 2, "breach", 1),
+        (">=", 11, 3, "within", 0),  # 27.27, just over
+        (">", 11, 3, "within", 0),
+    ],
+)
+def test_a_floor_follows_the_pre_registered_inclusivity_on_and_either_side_of_the_limit(
+    world, tmp_path, capsys, direction, candidates, skipped, status, code
+):
+    world.session("sess-a")
+    world.stream("ledger-skips", [consult("sess-a", candidates, skipped)])
+    inclusivity = "inclusive" if direction == ">=" else "exclusive"
+    cells = {"keep": f"{direction} 25", "direction": direction, "inclusivity": inclusivity}
+    got_code, out, _ = run_report(world, tmp_path, capsys, ["skip-rate"], **{"skip-rate": cells})
+    assert line_of(out, "skip-rate:").endswith(f"| {status}")
+    assert got_code == code
+
+
 # --- unreadable input --------------------------------------------------------
 
 
@@ -450,26 +649,42 @@ def test_a_malformed_instrument_line_exits_2_with_file_line_problem_and_next(wor
     path.write_text(path.read_text() + "not json\n")
     code, _, err = run_report(world, tmp_path, capsys, ["skip-rate"])
     assert code == 2
-    assert re.match(r".+ledger-skips\.jsonl:2: line is not valid JSON\. Next: .+", err)
+    assert_input_error(err, path, 2, "line is not valid JSON")
+
+
+def test_an_absent_instrument_stream_is_no_rows_and_exits_3(world, tmp_path, capsys):
+    assert not (world.project / ".claude" / "metrics" / "ledger-skips.jsonl").exists()
+    code, out, err = run_report(world, tmp_path, capsys, ["skip-rate"])
+    assert line_of(out, "skip-rate:") == "skip-rate: no rows in window"
+    assert (code, err) == (3, "")
+
+
+def test_an_instrument_stream_that_is_not_utf8_exits_2_naming_the_file(world, tmp_path, capsys):
+    path = world.stream("ledger-skips", [])
+    path.write_bytes(b"\xff\xfe not utf-8\n")
+    code, _, err = run_report(world, tmp_path, capsys, ["skip-rate"])
+    assert code == 2
+    assert_input_error(err, path, 0, "cannot read file")
 
 
 def test_a_row_with_a_bad_timestamp_exits_2_naming_its_line(world, tmp_path, capsys):
-    world.stream("ledger-skips", [{**consult("sess-a", 1, 0), "ts": "yesterday"}])
+    path = world.stream("ledger-skips", [{**consult("sess-a", 1, 0), "ts": "yesterday"}])
     code, _, err = run_report(world, tmp_path, capsys, ["skip-rate"])
     assert code == 2
-    assert "ledger-skips.jsonl:1:" in err
+    assert_input_error(err, path, 1, "row has no valid 'ts' timestamp")
 
 
 def test_a_missing_pre_registration_exits_2(world, tmp_path, capsys):
-    code = cli.main(["report", "--prereg", str(tmp_path / "nope.md"), "--project-root", str(world.project), "--prereg-posted", POSTED])
+    missing = tmp_path / "nope.md"
+    code = cli.main(["report", "--prereg", str(missing), "--project-root", str(world.project), "--prereg-posted", POSTED])
     assert code == 2
-    assert "pre-registration file not found" in capsys.readouterr().err
+    assert_input_error(capsys.readouterr().err, missing, 0, "pre-registration file not found")
 
 
 def test_a_metric_the_report_cannot_compute_exits_2_naming_it(world, tmp_path, capsys):
     code, _, err = run_report(world, tmp_path, capsys, ["skip-rate"], **{"skip-rate": {"id": "mystery-metric"}})
     assert code == 2
-    assert "mystery-metric" in err
+    assert_input_error(err, tmp_path / "preregistration.md", 0, "no computation for metric 'mystery-metric'")
 
 
 # --- output ------------------------------------------------------------------
@@ -512,16 +727,39 @@ def test_a_breach_outranks_insufficient_data_in_the_exit_code(world, tmp_path, c
     assert code == 1
 
 
-def test_report_leaves_every_input_and_the_listing_unchanged(world, tmp_path, capsys):
+def populate_every_input_kind(world: World) -> list[Path]:
+    """One file of each kind the report reads, so a write to any of them shows in a snapshot."""
     guard_world(world, count=3)
-    world.stream("ledger-skips", [consult("00000001-aaaa-bbbb-cccc-dddddddddddd", 4, 1)])
-    prereg_path = write_prereg(tmp_path, ["skip-rate", "guard-divergence"])
+    session = "00000001-aaaa-bbbb-cccc-dddddddddddd"
+    return [
+        world.stream("ledger-skips", [consult(session, 4, 1)]),
+        world.stream("skill-injection", [injection(session, 300)]),
+        world.stream("checkpoint-aborts", [abort_row(session, True, ["security-review"])]),
+        world.stream("cost-metering", [cost_row("2026-02-01T00:00:00Z", 1000), cost_row(IN_WINDOW, 800)]),
+        write_boundary_events(world, [boundary_event(session)]),
+        usage_file(world, {"source-verification": {"use_count": 10}}),
+        write_manual(world, {"pbt-mutants-killed": {"value": 2, "n": 10}}),
+        world.projects / "proj-a" / f"{session}.jsonl",
+        next((world.projects / "proj-a").glob("*/subagents/agent-*.jsonl")),
+    ]
+
+
+READ_ONLY_METRICS = [
+    "skip-rate", "abort-yield", "injection-overhead", "injection-uptake", "guard-divergence",
+    "test-review-token-delta", "contradicted-rate", "pbt-mutants-killed",
+]  # fmt: skip
+
+
+@pytest.mark.parametrize("real_prereg", [False, True])
+def test_report_leaves_every_input_kind_byte_identical(world, tmp_path, capsys, real_prereg):
+    inputs = populate_every_input_kind(world)
+    prereg_path = REAL_PREREG if real_prereg else write_prereg(tmp_path, READ_ONLY_METRICS)
     before = world.snapshot()
-    code = cli.main(
-        ["report", "--prereg", str(prereg_path), "--project-root", str(world.project), "--home-metrics", str(world.home), "--projects-root", str(world.projects), "--prereg-posted", POSTED]
+    assert {str(path.relative_to(world.root)) for path in inputs} <= before.keys()
+    cli.main(
+        ["report", "--prereg", str(prereg_path), "--project-root", str(world.project), "--home-metrics", str(world.home), "--projects-root", str(world.projects), "--prereg-posted", POSTED, "--boundary", BOUNDARY]
     )
     capsys.readouterr()
-    assert code in (0, 1, 3)
     assert world.snapshot() == before
 
 
@@ -648,7 +886,16 @@ def test_an_empty_after_side_prints_insufficient_and_computes_no_delta(world, tm
     assert "before: N=3 dispatches, mean 1000 tokens" in out
     assert "after: N=0 insufficient" in out
     assert "delta: not computed" in out
-    assert "delta -" not in out
+    assert not re.search(r"delta [+-]\d", out)
+    assert code == 3
+
+
+def test_a_before_mean_of_zero_prints_insufficient_and_computes_no_delta(world, tmp_path, capsys):
+    world.stream("cost-metering", [cost_row("2026-02-01T00:00:00Z", 0)] * 3 + [cost_row(IN_WINDOW, 500)])
+    code, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
+    assert "insufficient" in line_of(out, "test-review-token-delta:")
+    assert "delta: not computed" in out
+    assert not re.search(r"delta [+-]\d", out)
     assert code == 3
 
 
@@ -671,7 +918,9 @@ def test_a_side_below_the_minimum_n_is_null_and_hides_the_delta(world, tmp_path,
     code, out, _ = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY, minimum_n=10)
     assert "NULL (N=4)" in line_of(out, "test-review-token-delta:")
     assert "mean" not in out
-    assert "delta" not in line_of(out, "test-review-token-delta:").replace("test-review-token-delta:", "")
+    assert not re.search(r"delta [+-]\d", out)
+    (metric,) = json.loads(run_report(world, tmp_path, capsys, DELTA, "--json", boundary=BOUNDARY, minimum_n=10)[1])["metrics"]
+    assert metric["value"] is None
     assert code == 3
 
 
@@ -698,10 +947,10 @@ def test_cost_rows_without_session_ids_print_on_an_unverified_line_that_is_no_ve
 
 
 def test_a_cost_row_without_a_valid_timestamp_exits_2_naming_its_line(world, tmp_path, capsys):
-    world.stream("cost-metering", [{**cost_row(IN_WINDOW, 1), "timestamp": "soon"}])
+    path = world.stream("cost-metering", [{**cost_row(IN_WINDOW, 1), "timestamp": "soon"}])
     code, _, err = run_report(world, tmp_path, capsys, DELTA, boundary=BOUNDARY)
     assert code == 2
-    assert "cost-metering.jsonl:1:" in err
+    assert_input_error(err, path, 1, "row has no valid 'timestamp' timestamp")
 
 
 # --- below minimum N ---------------------------------------------------------
@@ -744,6 +993,7 @@ def test_the_contradicted_rate_divides_by_invocations_not_by_verdicts(world, tmp
     assert "UNVERIFIED (no session ids)" in line
     assert "excluded from verdict inputs" in line
     assert "N=10 invocations" in line
+    assert "DIRECTIONAL" not in line
 
 
 def test_a_contradicted_rate_with_no_tally_entered_is_insufficient(world, tmp_path, capsys):
@@ -825,6 +1075,46 @@ def test_a_malformed_manual_input_file_exits_2_with_file_line_problem_and_next(w
     assert ". Next: " in err
 
 
+# --- row fields of the wrong type --------------------------------------------
+
+
+def usage_file(world: World, usage: dict) -> Path:
+    write_usage(world, usage)
+    return world.home / "artifact-usage.json"
+
+
+def stream_file(name: str):
+    return lambda world, rows: world.stream(name, rows)
+
+
+# Each case: metrics to run, writer, the bad rows, and the problem the error names.
+ROW_SCHEMA_CASES = [
+    (["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "candidate_pairs": -1}], "'candidate_pairs' is not a non-negative integer"),
+    (["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "candidate_pairs": True}], "'candidate_pairs' is not a non-negative integer"),
+    (["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "skipped_pairs": "2"}], "'skipped_pairs' is not a non-negative integer"),
+    (["skip-rate"], stream_file("ledger-skips"), [{**consult("sess-a", 1, 0), "skipped_pairs": 1.5}], "'skipped_pairs' is not a non-negative integer"),
+    (["abort-yield"], stream_file("checkpoint-aborts"), [abort_row("sess-a", True, "security-review")], "'deferred_lenses' is not a list of names"),
+    (["abort-yield"], stream_file("checkpoint-aborts"), [abort_row("sess-a", True, [3])], "'deferred_lenses' is not a list of names"),
+    (["injection-overhead"], stream_file("skill-injection"), [{**injection("sess-a", 1), "added_chars": "100"}], "'added_chars' is not a int"),
+    (["injection-overhead"], stream_file("skill-injection"), [{**injection("sess-a", 1), "added_chars": True}], "'added_chars' is not a int"),
+    (["injection-uptake"], stream_file("skill-injection"), [{**injection("sess-a", 1), "agent_type": 5}], "'agent_type' is not a str"),
+    (["injection-uptake"], stream_file("skill-injection"), [{**injection("sess-a", 1), "skills": "api-design"}], "'skills' is not a list"),
+    (DELTA, stream_file("cost-metering"), [{"timestamp": IN_WINDOW, "by_agent_type": {"dev-team:test-review": "many"}}], "bucket 'dev-team:test-review' is not an object"),
+    (VERDICT, lambda world, rows: usage_file(world, rows[0]), [{"source-verification": {"use_count": -1}}], "use_count is not a non-negative integer"),
+    (VERDICT, lambda world, rows: usage_file(world, rows[0]), [{"source-verification": {"use_count": True}}], "use_count is not a non-negative integer"),
+    (VERDICT, lambda world, rows: usage_file(world, rows[0]), [{"source-verification": {"use_count": "3"}}], "use_count is not a non-negative integer"),
+]
+
+
+@pytest.mark.parametrize(("ids", "write", "rows", "problem"), ROW_SCHEMA_CASES)
+def test_a_row_field_of_the_wrong_type_exits_2_with_file_line_problem_and_next(world, tmp_path, capsys, ids, write, rows, problem):
+    world.session("sess-a")
+    path = write(world, rows)
+    code, _, err = run_report(world, tmp_path, capsys, ids, boundary=BOUNDARY)
+    assert code == 2
+    assert_input_error(err, path, 1, problem)
+
+
 # --- unmeasurable ------------------------------------------------------------
 
 
@@ -858,16 +1148,15 @@ def test_the_real_pre_registration_reports_every_metric_with_no_data(world, tmp_
     assert code == 3
 
 
-def test_the_real_pre_registration_with_data_reports_values_and_stays_read_only(world, tmp_path, capsys):
+def test_the_real_pre_registration_with_data_reports_each_metrics_own_status(world, tmp_path, capsys):
     for i in range(3):
         world.session(f"sess-{i}")
-    world.stream("ledger-skips", [consult("sess-0", 4, 1)])
-    world.stream("skill-injection", [injection("sess-1", 300)])
+    world.stream("ledger-skips", [consult("sess-0", 20, 4)])
+    world.stream("skill-injection", [injection("sess-1", 500)] * 10)
     world.stream("subagent-stops", [stop("sess-2", "clean")])
     world.stream("cost-metering", [cost_row("2026-02-01T00:00:00Z", 1000), cost_row(IN_WINDOW, 800)])
     write_usage(world, {"source-verification": {"use_count": 10}})
     write_manual(world, {"pbt-mutants-killed": {"value": 2, "n": 10}})
-    before = world.snapshot()
     code = cli.main(
         [
             "report",
@@ -879,10 +1168,15 @@ def test_the_real_pre_registration_with_data_reports_values_and_stays_read_only(
             "--boundary", BOUNDARY,
             "--json",
         ]
-    )
+    )  # fmt: skip
     payload = json.loads(capsys.readouterr().out)
-    assert world.snapshot() == before
-    assert code == payload["exit_code"]
     statuses = {m["metric_id"]: m["status"] for m in payload["metrics"]}
+    assert statuses["skip-rate"] == "within"
+    assert statuses["injection-overhead"] == "breach"
     assert statuses["pbt-mutants-killed"] == "within"
-    assert statuses["skip-rate"].startswith("NULL")
+    assert statuses["findings-parity"] == "no rows in window"
+    assert statuses["guard-divergence"] == "NULL (N=1)"
+    assert statuses["test-review-token-delta"] == "NULL (N=1)"
+    assert statuses["contradicted-rate"] == "insufficient"
+    assert statuses["expand-rate"] == "unmeasurable"
+    assert code == payload["exit_code"] == 1

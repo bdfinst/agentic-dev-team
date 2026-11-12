@@ -449,7 +449,7 @@ def test_no_stream_name_is_hardcoded_outside_streams_py():
         for path in modules
         if path.exists() and path.name != "streams.py"
         for text in _string_constants_outside_docstrings(path)
-        for name in streams.STREAM_TABLE
+        for name in (*streams.STREAM_TABLE, streams.BOUNDARY_EVENTS.name)
         if name in text
     ]
     assert offenders == []

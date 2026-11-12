@@ -98,7 +98,9 @@ def _handlers(transcripts: metrics_hooks.SubagentTranscripts) -> dict[str, Handl
         "skip-rate": Handler(
             metrics_ledger.skip_rate, (metrics_ledger.missing_scope_marker_split,)
         ),
-        "abort-yield": Handler(metrics_ledger.abort_yield),
+        "abort-yield": Handler(
+            metrics_ledger.abort_yield, (metrics_ledger.abort_frequency,)
+        ),
         "injection-overhead": Handler(metrics_hooks.injection_overhead),
         "injection-uptake": Handler(
             lambda metric, ctx: metrics_hooks.injection_uptake(metric, ctx, transcripts)

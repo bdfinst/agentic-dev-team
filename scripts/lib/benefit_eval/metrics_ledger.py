@@ -20,15 +20,6 @@ CHECKPOINT = "checkpoint"
 STOP_HOOK = "stop-hook"
 ABORT_MODE = "abort"
 MISSING_SCOPE_MARKER = "missing-scope-marker"
-#: Boundary events are not a benefit instrument, so they are not in the stream table.
-BOUNDARY_EVENTS = streams.StreamSpec(
-    "boundary-events",
-    "boundary-events.jsonl",
-    streams.ID_BEARING,
-    "project",
-    "ts",
-    True,
-)
 _NO_BACKSTOP_FIELD = "per backstop: not recorded in the rows"
 
 
@@ -86,7 +77,10 @@ def skip_rate(metric: Metric, ctx: ReportContext) -> ReportLine:
 
 
 def _split_first_and_repeat(consults: list[streams.Row]) -> tuple[list, list]:
-    """A session's first consult is a first run; each later one is a repeat run."""
+    """A session's first consult in the window is a first run; each later one is a repeat run.
+
+    Only windowed rows are seen, so a session whose first consult predates the window start has its
+    first in-window consult counted as a first run."""
     seen: set[str] = set()
     first, repeat = [], []
     for row in sorted(consults, key=lambda r: (r.data["ts"], str(r.file), r.line)):
@@ -143,6 +137,32 @@ def abort_yield(metric: Metric, ctx: ReportContext) -> ReportLine:
     )
 
 
+def abort_frequency(metric: Metric, ctx: ReportContext) -> ReportNote:
+    """Share of abort-mode rows that aborted, per source; the sources are never summed.
+
+    ``checkpoint`` rows are the model-run rounds. ``stop-hook`` rows are one per lens result and say
+    whether that result alone trips the abort rule."""
+    part = ctx.partition(metric.instrument)
+    sources = (CHECKPOINT, STOP_HOOK)
+    is_abort_mode = lambda row: (
+        row.data.get("mode") == ABORT_MODE and row.data.get("source") in sources
+    )
+    rows = [row for row in part.real if is_abort_mode(row)]
+    unverified = sum(map(is_abort_mode, part.unverified))
+    lines = ["abort frequency (aborted over abort-mode rows, per source):"]
+    data: dict = {"unverified": unverified}
+    for source in sources:
+        of_source = [row for row in rows if row.data["source"] == source]
+        aborted = sum(row.data.get("aborted") is True for row in of_source)
+        lines.append(
+            f"  {source}: "
+            + (formatting.rate_text(aborted, len(of_source)) if of_source else "no abort-mode rows")
+        )
+        data[source] = {"aborted": aborted, "total": len(of_source)}
+    lines.append(f"  unverified: {unverified}")
+    return ReportNote("abort-frequency", tuple(lines), data)
+
+
 def _is_aborted_checkpoint(row: streams.Row) -> bool:
     return (
         row.data.get("source") == CHECKPOINT
@@ -154,16 +174,17 @@ def _is_aborted_checkpoint(row: streams.Row) -> bool:
 def missing_scope_marker_split(skip_metric: Metric, ctx: ReportContext) -> ReportNote:
     """Missing-scope-marker events split by whether the session ran a consult.
 
-    The event carries no dispatch source, so a session with a real consult row is ``consult`` and one
-    without is ``direct``."""
+    The event carries no dispatch source, so this is a heuristic: a session with a real consult row is
+    ``consult`` and one without is ``direct``. A session that ran a consult and also made a direct
+    dispatch counts every one of its events as ``consult``."""
     consult_sessions = {
         row.data["session_id"]
         for row in ctx.partition(skip_metric.instrument).real
         if row.data.get("source") == CONSULT
     }
     rows = streams.rows_in_window(
-        streams.load_rows(BOUNDARY_EVENTS, ctx.sources),
-        BOUNDARY_EVENTS.ts_field,
+        streams.load_rows(streams.BOUNDARY_EVENTS, ctx.sources),
+        streams.BOUNDARY_EVENTS.ts_field,
         ctx.start,
         ctx.end,
     )

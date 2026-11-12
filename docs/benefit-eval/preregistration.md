@@ -32,7 +32,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
         "files that changed between runs, which the ledger must re-review",
         "dispatch-hook rows are excluded: they count only pairs the consult left to dispatch"
       ],
-      "computation": "metrics_ledger.skip_rate over ledger-skips rows with source=consult, per backstop and per repeat run",
+      "computation": "metrics_ledger.skip_rate over ledger-skips rows with source=consult; prints the first-run and repeat-run rates, where a first run is a session's earliest consult inside the window (the rows do not record the backstop, so no per-backstop split is computed); the missing-scope-marker count is split by whether the session has a real consult row in the window, a heuristic because the event carries no dispatch source",
       "ceiling": 20.69,
       "rationale": "About half the ceiling is the smallest saving that pays for the ledger; under 3% the mechanism is not skipping in practice."
     },
@@ -81,7 +81,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
         "few aborts in the window",
         "the fix loop changes the code the deferred lenses review"
       ],
-      "computation": "metrics_ledger.abort_yield over checkpoint-aborts rows from aborted checkpoints; lenses deferred after a completed checkpoint are excluded; a deferred lens found something new when a later stop-hook row in the same session names it as the lens that tripped the abort rule",
+      "computation": "metrics_ledger.abort_yield over checkpoint-aborts rows from aborted checkpoints; lenses deferred after a completed checkpoint are excluded; a deferred lens found something new when a later stop-hook row in the same session names it as the lens that tripped the abort rule; prints abort frequency beside it, aborted rows over abort-mode rows for each source on its own",
       "rationale": "At most a quarter finding something new means the abort mostly saves work; above 60% it only reorders the work."
     },
     {
@@ -132,7 +132,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
         "model or pricing change at the boundary",
         "cost-metering rows carry no session id, so no row is tied to a real session"
       ],
-      "computation": "metrics_cost.test_review_token_delta over the test-review thread of cost-metering rows, split at the boundary timestamp",
+      "computation": "metrics_cost.test_review_token_delta over the test-review thread of cost-metering rows, split at the boundary timestamp; a before mean of 0 has no percent change, so the line prints insufficient with no delta",
       "rationale": "A 15% cut is the smallest change that stands out from dispatch-to-dispatch noise; an increase means the pre-phase costs more than it saves."
     },
     {
@@ -367,9 +367,9 @@ The parser requires every field except `id_less_handling`, `ceiling`, and `ratio
 
 **Parity cap.** Any ledger-off actionable signature missing from the ledger-on set is a regression. File it as a bug. It forces the delta-scoping verdict to `tune` at best, whatever the skip rate.
 
-**Id-less instruments.** `cost-metering.jsonl` and `artifact-usage.json` carry no session ids. The report prints their numbers on an `UNVERIFIED (no session ids)` line marked `DIRECTIONAL`. Those lines never feed a verdict. A metric with `unmeasurable` handling gets no number and a follow-up issue.
+**Id-less instruments.** `cost-metering.jsonl` and `artifact-usage.json` carry no session ids. The report prints their numbers on an `UNVERIFIED (no session ids)` line, and it marks `DIRECTIONAL` only the before-and-after numbers; the `contradicted` rate is not a before-and-after number. Those lines never feed a verdict. A metric with `unmeasurable` handling gets no number and a follow-up issue.
 
-**Directional comparisons.** A before-and-after number prints as `DIRECTIONAL (confounds: <the confounds list>)`. The boundary is an ISO 8601 UTC timestamp ending in `Z`. Before is `ts < boundary` and after is `ts >= boundary`. An empty side prints `insufficient` and no delta.
+**Directional comparisons.** A before-and-after number prints as `DIRECTIONAL (confounds: <the confounds list>)`. The boundary is an ISO 8601 UTC timestamp ending in `Z`. Before is `ts < boundary` and after is `ts >= boundary`. An empty side prints `insufficient` and no delta, and so does a before mean of 0.
 
 **Statuses and exit codes.** The report evaluates each metric top to bottom and stops at the first match.
 
