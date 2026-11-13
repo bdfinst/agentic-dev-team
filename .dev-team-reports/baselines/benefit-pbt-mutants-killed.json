@@ -36,6 +36,7 @@
   ],
   "unit": "mutants killed per target by the existing tests, mean over n targets",
   "tool": "mutmut 2.5.1 on Python 3.12",
+  "killed_includes_timeouts": true,
   "mutants_total": 1252,
   "killed_total": 795,
   "per_target": [

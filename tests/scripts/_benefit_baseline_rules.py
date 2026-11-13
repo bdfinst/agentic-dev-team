@@ -104,7 +104,7 @@ SHA = re.compile(r"[0-9a-f]{40}")
 #: Absolute locations and transcript directories that must not appear in a committed file. The root forms
 #: match only where a path starts, so a repo-relative `docs/users/` stays valid.
 PRIVATE_PATH = re.compile(
-    r"(?<![\w./\\-])(?:/Users/|/home/|/root/|/tmp/|/var/folders/|/private/var/|[A-Za-z]:\\{1,2}Users\\)"
+    r"(?<![\w.\\-])(?:/Users/|/home/|/root/|/tmp/|/var/folders/|/private/var/|/private/tmp/|[A-Za-z]:\\{1,2}Users\\)"
     r"|\.claude/projects/",
     re.IGNORECASE,
 )

@@ -366,7 +366,7 @@ The first word of each `baseline` cell states where its reference comes from. Th
 | `by-definition` | The reference is true by construction, for example 0 characters of injection |
 | `measured` | A committed record under `.dev-team-reports/baselines/` holds a replayed reference value |
 | `forward-captured` | Taken from the first real sessions after the instrument emits, split at the boundary |
-| `no-reference` | First measurement, so no reference exists. A metric that a replayed record can back, and that cannot be `measured` yet, also uses this status, with a reason (`not-yet-run`, `tool-unavailable`, `fixture-missing`, `cost-declined` or `commit-unreproducible`) written as `no-reference: <reason>; <text>`. Other `no-reference` cells need no reason |
+| `no-reference` | First measurement, so no reference exists. A metric whose replayed record could back it, but which has no record yet, uses `no-reference` with a reason from the list (`not-yet-run`, `tool-unavailable`, `fixture-missing`, `cost-declined`, `commit-unreproducible`), written as `no-reference: <reason>; <text>`. Other `no-reference` cells need no reason |
 | `unmeasurable` | No instrument exists. Holds exactly when the entry's `id_less_handling` is `unmeasurable`; the cell names its follow-up issue |
 
 The cell of each metric holds its own status. A `measured` cell cites its record path. The report does not print the status, so a verdict on a `no-reference` or `unmeasurable` metric is not guarded by the tool; the rule under Verdict order covers it by hand.

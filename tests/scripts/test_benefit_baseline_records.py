@@ -412,6 +412,9 @@ def test_introduced_by_sha_whose_parent_is_not_the_commit_is_rejected(repo):
         "C:\\Users\\someone\\file",
         "/USERS/someone/file",
         ".claude/projects/abc",
+        "file:///Users/someone/x",
+        "file:///tmp/x",
+        "/private/tmp/x",
     ],
     ids=[
         "users",
@@ -423,6 +426,9 @@ def test_introduced_by_sha_whose_parent_is_not_the_commit_is_rejected(repo):
         "windows-users",
         "upper-case",
         "transcript",
+        "file-url-users",
+        "file-url-tmp",
+        "private-tmp",
     ],
 )
 def test_a_baseline_cell_with_an_absolute_or_transcript_path_is_rejected_naming_metric_and_field(
