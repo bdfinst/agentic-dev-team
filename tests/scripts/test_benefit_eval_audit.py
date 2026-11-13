@@ -876,6 +876,9 @@ def test_metric_ids_appear_only_inside_the_block(real):
     text = REAL_PREREG.read_text()
     start, end = prereg_block_span(text)
     outside = text[:start] + text[end:]
+    # The verdict-order paragraph names the metrics that take no verdict; that list is derived from the
+    # baseline cells and checked by test_benefit_baseline_status.py, so it is the one allowed prose mention.
+    outside = "\n".join(line for line in outside.splitlines() if not line.startswith("**Verdict order.**"))
     assert [m.id for m in real.metrics if m.id in outside] == []
 
 

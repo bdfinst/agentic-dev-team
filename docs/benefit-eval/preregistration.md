@@ -15,7 +15,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "Delta-scoping skip rate: skipped (lens, file) pairs over candidate pairs",
       "instrument": "ledger-skips",
       "identity_class": "id-bearing",
-      "baseline": "20.69% theoretical ceiling from the #2165 estimate; a measured rate above it signals a counting defect",
+      "baseline": "by-definition: 20.69% theoretical ceiling from the #2165 estimate; a measured rate above it signals a counting defect; real-session data waits on #2306 (session id on consult and checkpoint rows)",
       "unit": "percent",
       "keep": ">= 10",
       "tune": "< 10",
@@ -41,7 +41,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "Findings parity: ledger-off actionable signatures missing from the ledger-on set",
       "instrument": "manual-input",
       "identity_class": "id-bearing",
-      "baseline": "0 misses: the ledger-off run is the reference set",
+      "baseline": "by-definition: 0 misses: the ledger-off run is the reference set",
       "unit": "missing signatures",
       "keep": "<= 0",
       "tune": "<= 2",
@@ -65,7 +65,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "Abort deferred-lens yield: share of lenses deferred by an abort that found something new",
       "instrument": "checkpoint-aborts",
       "identity_class": "id-bearing",
-      "baseline": "none: first measurement; the question is whether deferred lenses mostly return clean",
+      "baseline": "no-reference: first measurement; the question is whether deferred lenses mostly return clean; real-session data waits on #2306 (session id on consult and checkpoint rows)",
       "unit": "percent",
       "keep": "<= 25",
       "tune": "> 25",
@@ -89,7 +89,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "test-review true-positive change on the agent-eval fixtures, after minus before",
       "instrument": "manual-input",
       "identity_class": "id-bearing",
-      "baseline": "true-positive rate of test-review before the pre-phase change, on the same fixtures",
+      "baseline": "no-reference: not-yet-run; true-positive rate of test-review before the pre-phase change, on the same fixtures",
       "unit": "percentage points",
       "keep": ">= 0",
       "tune": "< 0",
@@ -114,7 +114,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "test-review mean dispatch tokens, percent change after versus before the boundary",
       "instrument": "subagent-transcripts",
       "identity_class": "id-bearing",
-      "baseline": "mean test-review dispatch tokens for dispatches that end before the boundary timestamp",
+      "baseline": "forward-captured: mean test-review dispatch tokens for dispatches that end before the boundary timestamp",
       "unit": "percent",
       "keep": "<= -15",
       "tune": "> -15",
@@ -141,7 +141,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "instrument": "none",
       "identity_class": "id-less",
       "id_less_handling": "unmeasurable",
-      "baseline": "none: nothing is counted today",
+      "baseline": "unmeasurable: nothing is counted today; the instrument is tracked in #2307",
       "unit": "percent",
       "keep": "<= 20",
       "tune": "> 20",
@@ -165,7 +165,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "instrument": "none",
       "identity_class": "id-less",
       "id_less_handling": "unmeasurable",
-      "baseline": "59.0% on the one round measured so far",
+      "baseline": "unmeasurable: no size store exists, so the 59.0% on the one round measured so far stays a single-round (n=1) figure; the store is tracked in #2308",
       "unit": "percent",
       "keep": ">= 40",
       "tune": "< 40",
@@ -189,7 +189,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "Skill-context injection overhead: mean characters added per injection",
       "instrument": "skill-injection",
       "identity_class": "id-bearing",
-      "baseline": "0 characters: a dispatch without injection",
+      "baseline": "by-definition: 0 characters: a dispatch without injection",
       "unit": "characters",
       "keep": "<= 400",
       "tune": "> 400",
@@ -212,7 +212,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "Skill-context injection uptake: share of injections whose injected skill the subagent loaded",
       "instrument": "skill-injection",
       "identity_class": "id-bearing",
-      "baseline": "Skill-call rate of the same agent types in transcripts before the boundary timestamp",
+      "baseline": "forward-captured: Skill-call rate of the same agent types in transcripts before the boundary timestamp",
       "unit": "percent",
       "keep": ">= 50",
       "tune": "< 50",
@@ -237,7 +237,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "Completion-guard divergence rate: share of subagent stops classified empty-final-turn or truncated-final-turn",
       "instrument": "subagent-stops",
       "identity_class": "id-bearing",
-      "baseline": "none: first measurement; the earlier study was never run",
+      "baseline": "no-reference: first measurement; the earlier study was never run",
       "unit": "percent",
       "keep": ">= 2",
       "tune": "< 2",
@@ -261,7 +261,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "Completion-guard false-positive rate in the hand-checked sample; gates blocking behavior",
       "instrument": "manual-input",
       "identity_class": "id-bearing",
-      "baseline": "0%: a flagged dispatch whose final turn is complete is a false positive",
+      "baseline": "by-definition: 0%: a flagged dispatch whose final turn is complete is a false positive",
       "unit": "percent",
       "keep": "<= 5",
       "tune": "> 5",
@@ -286,7 +286,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "instrument": "artifact-usage",
       "identity_class": "id-less",
       "id_less_handling": "UNVERIFIED",
-      "baseline": "none: new skill",
+      "baseline": "no-reference: new skill; first measurement",
       "unit": "contradicted verdicts per invocation",
       "keep": ">= 0.2",
       "tune": "< 0.2",
@@ -311,7 +311,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "property-based-testing mutants killed beyond the target's existing tests, mean per target",
       "instrument": "manual-input",
       "identity_class": "id-bearing",
-      "baseline": "mutants killed by the same target's existing tests",
+      "baseline": "no-reference: not-yet-run; mutants killed by the same target's existing tests",
       "unit": "mutants per target",
       "keep": ">= 1",
       "tune": "< 1",
@@ -344,7 +344,7 @@ The parser requires every field except `id_less_handling`, `ceiling`, and `ratio
 | `instrument` | A stream name, `subagent-transcripts` (the subagent transcripts of real sessions), `manual-input` (a number you enter by hand), or `none` (nothing persists it); any other value fails the parser |
 | `identity_class` | `id-bearing` if rows carry a session id you can check against a transcript; `id-less` if not |
 | `id_less_handling` | For `id-less` only, exactly one of `UNVERIFIED` (print the number on an `UNVERIFIED (no session ids)` line that never feeds a verdict or the exit code) or `unmeasurable` (print `unmeasurable` and no number; file a follow-up issue). The report prints `unmeasurable` for any metric with that handling, whatever its stream |
-| `baseline` | A reference for the person reading the report. The tool does not read or print it |
+| `baseline` | The reference for the person reading the report, in the form `<token>: <text>`. The token is one status from the table under [Baseline status](#baseline-status), lowercase and followed by a colon and a space; the text is non-empty and gives the reason or a pointer. `tests/scripts/test_benefit_baseline_status.py` enforces the form, not the CLI, which does not read or print the cell |
 | `unit` | The unit of the number and of the thresholds |
 | `keep`, `tune`, `retire` | Threshold as a direction (`<`, `<=`, `>`, `>=`) and a number, in the unit named by `unit` |
 | `direction`, `inclusivity` | The within-condition for the keep threshold, so `keep` must use the `direction` operator; `<=` and `>=` are `inclusive`, `<` and `>` are `exclusive` |
@@ -357,9 +357,23 @@ The parser requires every field except `id_less_handling`, `ceiling`, and `ratio
 | `ceiling` | Optional theoretical maximum. The report prints it for skip rate only, and flags `counting defect` when the measured rate is above it |
 | `rationale` | One line on why the thresholds sit where they do |
 
+## Baseline status
+
+The first word of each `baseline` cell states where its reference comes from. The status describes provenance only. It does not change whether a number counts: the `NULL (N=n)` rule and the `DIRECTIONAL` rule still decide that.
+
+| Status | Meaning |
+| --- | --- |
+| `by-definition` | The reference is true by construction, for example 0 characters of injection |
+| `measured` | A committed record under `.dev-team-reports/baselines/` holds a replayed reference value |
+| `forward-captured` | Taken from the first real sessions after the instrument emits, split at the boundary |
+| `no-reference` | First measurement, so no reference exists. A metric that cannot be `measured` yet also uses this status, with a reason (`not-yet-run`, `tool-unavailable`, `fixture-missing`, `cost-declined` or `commit-unreproducible`) written as `no-reference: <reason>; <text>` |
+| `unmeasurable` | No instrument exists. Holds exactly when the entry's `id_less_handling` is `unmeasurable`; the cell names its follow-up issue |
+
+The cell of each metric holds its own status. A `measured` cell cites its record path. The report does not print the status, so a verdict on a `no-reference` or `unmeasurable` metric is not guarded by the tool; the rule under Verdict order covers it by hand.
+
 ## Rules
 
-**Verdict order.** The report prints `within` or `breach` against `keep` only. You apply `retire`, `keep` and `tune` by hand when you post the verdict: evaluate `retire` first; if it does not apply, evaluate `keep`; otherwise the verdict is `tune`. Each threshold's own operator decides its boundary: `>=` includes the limit and `<` excludes it.
+**Verdict order.** The report prints `within` or `breach` against `keep` only. You apply `retire`, `keep` and `tune` by hand when you post the verdict: evaluate `retire` first; if it does not apply, evaluate `keep`; otherwise the verdict is `tune`. Each threshold's own operator decides its boundary: `>=` includes the limit and `<` excludes it. No keep, tune, or retire verdict is posted for a metric whose baseline status is `no-reference` or `unmeasurable`. These metrics are: `abort-yield`, `contradicted-rate`, `expand-rate`, `guard-divergence`, `pbt-mutants-killed`, `report-size-cut`, `test-review-tp-change`.
 
 **Within and breach.** The report prints `within` when the value meets the keep threshold using `direction`, and `breach` when it does not. A value exactly on the keep threshold is `within` when `inclusivity` is `inclusive` and `breach` when it is `exclusive`. `breach` is a threshold finding, not a verdict.
 
