@@ -1,0 +1,128 @@
+{
+  "command": "uv run --python 3.12 --no-project --with \"mutmut<3\" --with pytest mutmut run --paths-to-mutate=<target> --runner \"python -m pytest -x -q -p no:cacheprovider <existing_tests>\"; run once per target from a clean export of commit, then read mutmut junitxml (a testcase without a failure is killed; a timeout counts as killed)",
+  "command_example": "uv run --python 3.12 --no-project --with \"mutmut<3\" --with pytest mutmut run --paths-to-mutate=plugins/dev-team/scripts/issue_deps.py --runner \"python -m pytest -x -q -p no:cacheprovider tests/scripts/test_issue_deps.py\"",
+  "inputs": [
+    "plugins/dev-team/scripts/issue_deps.py",
+    "plugins/dev-team/scripts/plan_waves.py",
+    "plugins/dev-team/scripts/pr_close_keyword_lint.py",
+    "plugins/dev-team/scripts/build_jobs.py",
+    "plugins/dev-team/scripts/gherkin_stub_gate.py",
+    "plugins/dev-team/scripts/gherkin_failure_path_gate.py",
+    "plugins/dev-team/scripts/ship_resume_guard.py",
+    "plugins/dev-team/scripts/detect_bdd_convention.py",
+    "plugins/dev-team/scripts/mutation_yield_steering.py",
+    "plugins/dev-team/scripts/plan_falsifiers.py",
+    "plugins/dev-team/scripts/build_slice_scope.py",
+    "plugins/dev-team/scripts/autoship_group.py"
+  ],
+  "commit": "ea4f202f26f423a24c8b3e0e6709e2af8e6ebc74",
+  "date": "2026-11-13",
+  "value": 66.25,
+  "n": 12,
+  "generated_properties": false,
+  "target_ids": [
+    "plugins/dev-team/scripts/issue_deps.py",
+    "plugins/dev-team/scripts/plan_waves.py",
+    "plugins/dev-team/scripts/pr_close_keyword_lint.py",
+    "plugins/dev-team/scripts/build_jobs.py",
+    "plugins/dev-team/scripts/gherkin_stub_gate.py",
+    "plugins/dev-team/scripts/gherkin_failure_path_gate.py",
+    "plugins/dev-team/scripts/ship_resume_guard.py",
+    "plugins/dev-team/scripts/detect_bdd_convention.py",
+    "plugins/dev-team/scripts/mutation_yield_steering.py",
+    "plugins/dev-team/scripts/plan_falsifiers.py",
+    "plugins/dev-team/scripts/build_slice_scope.py",
+    "plugins/dev-team/scripts/autoship_group.py"
+  ],
+  "unit": "mutants killed per target by the existing tests, mean over n targets",
+  "tool": "mutmut 2.5.1 on Python 3.12",
+  "killed_includes_timeouts": true,
+  "mutants_total": 1252,
+  "killed_total": 795,
+  "per_target": [
+    {
+      "target": "plugins/dev-team/scripts/issue_deps.py",
+      "existing_tests": "tests/scripts/test_issue_deps.py",
+      "mutants": 32,
+      "killed": 26,
+      "timeouts": 0
+    },
+    {
+      "target": "plugins/dev-team/scripts/plan_waves.py",
+      "existing_tests": "plugins/dev-team/tests/scripts/test_plan_waves.py",
+      "mutants": 132,
+      "killed": 92,
+      "timeouts": 0
+    },
+    {
+      "target": "plugins/dev-team/scripts/pr_close_keyword_lint.py",
+      "existing_tests": "plugins/dev-team/tests/scripts/test_pr_close_keyword_lint.py",
+      "mutants": 44,
+      "killed": 21,
+      "timeouts": 0
+    },
+    {
+      "target": "plugins/dev-team/scripts/build_jobs.py",
+      "existing_tests": "tests/scripts/test_build_jobs.py",
+      "mutants": 59,
+      "killed": 42,
+      "timeouts": 3
+    },
+    {
+      "target": "plugins/dev-team/scripts/gherkin_stub_gate.py",
+      "existing_tests": "plugins/dev-team/tests/scripts/test_gherkin_stub_gate.py",
+      "mutants": 65,
+      "killed": 40,
+      "timeouts": 0
+    },
+    {
+      "target": "plugins/dev-team/scripts/gherkin_failure_path_gate.py",
+      "existing_tests": "plugins/dev-team/tests/scripts/test_gherkin_failure_path_gate.py",
+      "mutants": 116,
+      "killed": 76,
+      "timeouts": 0
+    },
+    {
+      "target": "plugins/dev-team/scripts/ship_resume_guard.py",
+      "existing_tests": "plugins/dev-team/tests/test_ship_resume_guard.py",
+      "mutants": 162,
+      "killed": 74,
+      "timeouts": 0
+    },
+    {
+      "target": "plugins/dev-team/scripts/detect_bdd_convention.py",
+      "existing_tests": "tests/scripts/test_detect_bdd_convention.py",
+      "mutants": 130,
+      "killed": 110,
+      "timeouts": 0
+    },
+    {
+      "target": "plugins/dev-team/scripts/mutation_yield_steering.py",
+      "existing_tests": "plugins/dev-team/tests/scripts/test_mutation_yield_steering.py",
+      "mutants": 208,
+      "killed": 107,
+      "timeouts": 0
+    },
+    {
+      "target": "plugins/dev-team/scripts/plan_falsifiers.py",
+      "existing_tests": "tests/scripts/test_plan_falsifiers.py",
+      "mutants": 80,
+      "killed": 65,
+      "timeouts": 0
+    },
+    {
+      "target": "plugins/dev-team/scripts/build_slice_scope.py",
+      "existing_tests": "plugins/dev-team/tests/scripts/test_build_slice_scope.py",
+      "mutants": 86,
+      "killed": 29,
+      "timeouts": 0
+    },
+    {
+      "target": "plugins/dev-team/scripts/autoship_group.py",
+      "existing_tests": "plugins/dev-team/tests/scripts/test_autoship_group.py",
+      "mutants": 138,
+      "killed": 113,
+      "timeouts": 1
+    }
+  ]
+}
