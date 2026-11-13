@@ -81,6 +81,10 @@ _QUERY_INTRO = frozenset(
 )  # fmt: skip
 #: Words that cannot be the target table of an INSERT (trigger headers, ``ON``).
 _NOT_A_TARGET = frozenset(["AS", "ON", "OR"])
+#: Words that join two query branches. ``ALL`` and ``DISTINCT`` may follow one.
+_SET_JOIN = frozenset(["UNION", "INTERSECT", "EXCEPT", "MINUS"])
+#: Punctuation that a name or placeholder joins with no space, as in ``dbo.{5}_ws``.
+_GLUE_PUNCT = frozenset(["{", "}", "."])
 
 
 def _is(token, word: str) -> bool:
@@ -96,19 +100,19 @@ def _render(tokens) -> str:
     """Matched tokens as one line of text, with dotted and templated names rejoined."""
     parts: list[str] = []
     for k, token in enumerate(tokens):
-        glued = (
+        is_glued = (
             k > 0
             and _adjacent(tokens[k - 1], token)
-            and (tokens[k - 1].text in "{}." or token.text in "{}.")
+            and (tokens[k - 1].text in _GLUE_PUNCT or token.text in _GLUE_PUNCT)
         )
-        if k > 0 and not glued:
+        if k > 0 and not is_glued:
             parts.append(" ")
         parts.append(token.text)
     return "".join(parts).replace(" . ", ".")
 
 
 def _placeholder_end(tokens, i: int) -> int:
-    """Index after a ``{n}`` String.Format placeholder at ``i``, or ``i``."""
+    """Index after a numbered ``{n}`` placeholder at ``i``, or ``i``."""
     if i + 2 < len(tokens) and _punct(tokens[i], "{"):
         number, close = tokens[i + 1], tokens[i + 2]
         if (
@@ -137,10 +141,10 @@ def _part_end(tokens, i: int) -> int:
     """
     end = _piece_end(tokens, i)
     while end > i and end < len(tokens) and _adjacent(tokens[end - 1], tokens[end]):
-        nxt = _piece_end(tokens, end)
-        if nxt == end:
+        next_end = _piece_end(tokens, end)
+        if next_end == end:
             break
-        end = nxt
+        end = next_end
     return end
 
 
@@ -194,6 +198,24 @@ def _is_column_list(tokens, j: int) -> bool:
     )
 
 
+def _output_end(tokens, j: int) -> int | None:
+    """Index after a T-SQL ``OUTPUT ...`` clause at ``j``, or ``j`` if none.
+
+    ``None`` when the statement ends inside the clause.
+    """
+    n = len(tokens)
+    if not (j < n and _is(tokens[j], "OUTPUT")):
+        return j
+    while j < n and not any(
+        _is(tokens[j], w)
+        for w in ("SELECT", "VALUES", "VALUE", "EXEC", "DEFAULT", "WITH")
+    ):
+        if _punct(tokens[j], ";"):
+            return None
+        j += 1
+    return j
+
+
 def check_positional_insert(ctx: Context) -> Iterator[Hit]:
     """An INSERT with no column list, fed by ``VALUES`` or a named ``SELECT``.
 
@@ -207,15 +229,16 @@ def check_positional_insert(ctx: Context) -> Iterator[Hit]:
         if not _is(token, "INSERT"):
             continue
         j = _target_end(tokens, i)
-        if j is None:
+        if j is None or _is_column_list(tokens, j):
             continue
-        if j < n and (_is(tokens[j], "VALUES") or _is(tokens[j], "VALUE")):
-            yield Hit(token.line, _render(tokens[i : j + 1]))
-        elif (
-            i in sources
-            and not _is_column_list(tokens, j)
-            and not any(_star_item(tokens, s) for s in sources[i])
+        body = _output_end(tokens, j)
+        if (
+            body is not None
+            and body < n
+            and (_is(tokens[body], "VALUES") or _is(tokens[body], "VALUE"))
         ):
+            yield Hit(token.line, _render([*tokens[i:j], tokens[body]]))
+        elif i in sources and _source_star(tokens, sources[i]) is None:
             yield Hit(token.line, _render([*tokens[i:j], tokens[sources[i][0]]]))
 
 
@@ -397,38 +420,78 @@ def _cte_end(tokens, j: int) -> int:
     return j
 
 
-def _insert_source_start(tokens, i: int) -> tuple[int, int] | None:
-    """``(select_index, paren_level)`` of the query the INSERT at ``i`` reads."""
+def _insert_source_start(tokens, i: int) -> int | None:
+    """Index where the query the INSERT at ``i`` reads begins: ``SELECT`` or ``(``."""
     n = len(tokens)
     j = _target_end(tokens, i)
     if j is None:
         return None
     if _is_column_list(tokens, j):
         j = _skip_group(tokens, j)
-    if j < n and _is(tokens[j], "OUTPUT"):
-        while j < n and not any(
-            _is(tokens[j], w) for w in ("SELECT", "VALUES", "EXEC", "DEFAULT", "WITH")
-        ):
-            if _punct(tokens[j], ";"):
-                return None
-            j += 1
+    j = _output_end(tokens, j)
+    if j is None:
+        return None
     if j < n and _is(tokens[j], "WITH"):
         j = _cte_end(tokens, j)
-    lead = 0
-    while j + lead < n and _punct(tokens[j + lead], "("):
+    lead = j
+    while lead < n and _punct(tokens[lead], "("):
         lead += 1
-    if j + lead < n and _is(tokens[j + lead], "SELECT"):
-        return j + lead, lead
+    if lead < n and _is(tokens[lead], "SELECT"):
+        return j
     return None
+
+
+def _select_end(tokens, s: int) -> int:
+    """Index after the SELECT at ``s``: its statement end, closing paren, or ``UNION``."""
+    end = s + 1
+    for k, depth in _walk(tokens, s + 1):
+        token = tokens[k]
+        if depth == 0 and token.kind == WORD and token.text.upper() in _SET_JOIN:
+            return k
+        end = k + 1
+    return end
+
+
+def _query_branches(tokens, j: int, branches: list[int]) -> int:
+    """Collect the SELECT branches of the query expression at ``j``.
+
+    A branch is ``SELECT ...`` or a parenthesized query expression. Branches are
+    joined by ``UNION``, ``INTERSECT``, ``EXCEPT``, or ``MINUS``, each with an
+    optional ``ALL`` or ``DISTINCT``. Returns the index after the expression.
+    """
+    n = len(tokens)
+    while j < n:
+        if _is(tokens[j], "SELECT"):
+            branches.append(j)
+            j = _select_end(tokens, j)
+        elif (
+            _punct(tokens[j], "(")
+            and j + 1 < n
+            and (_is(tokens[j + 1], "SELECT") or _punct(tokens[j + 1], "("))
+        ):
+            j = _query_branches(tokens, j + 1, branches)
+            if not (j < n and _punct(tokens[j], ")")):
+                return j
+            j += 1
+        else:
+            return j
+        if not (
+            j < n and tokens[j].kind == WORD and tokens[j].text.upper() in _SET_JOIN
+        ):
+            return j
+        j += 1
+        if j < n and (_is(tokens[j], "ALL") or _is(tokens[j], "DISTINCT")):
+            j += 1
+    return j
 
 
 def _insert_sources(tokens) -> dict[int, list[int]]:
     """Map each ``INSERT`` index to the SELECTs that supply its rows.
 
-    The sources are the first SELECT after the target, column list, and CTE
-    definitions, plus the ``UNION`` branches at its level. A subquery in a
-    ``FROM`` clause does not count, and neither does anything after the
-    statement ends.
+    The sources are the SELECT branches of the query after the target, column
+    list, and CTE definitions: plain, parenthesized, or joined by ``UNION`` and
+    the like. A subquery in a ``FROM`` or ``WHERE`` clause does not count, and
+    neither does anything after the statement ends.
     """
     found: dict[int, list[int]] = {}
     for i, token in enumerate(tokens):
@@ -437,41 +500,31 @@ def _insert_sources(tokens) -> dict[int, list[int]]:
         start = _insert_source_start(tokens, i)
         if start is None:
             continue
-        first, level = start
-        found[i] = [first]
-        for k, depth in _walk(tokens, first + 1, level):
-            if depth < level:
-                break  # the source's own closing paren
-            if _is(tokens[k], "SELECT") and _is_set_branch(tokens, k, depth - level):
-                found[i].append(k)
+        branches: list[int] = []
+        _query_branches(tokens, start, branches)
+        if branches:
+            found[i] = branches
     return found
 
 
-def _is_set_branch(tokens, k: int, extra: int) -> bool:
-    """True when the SELECT at ``k`` is a set-operation branch of the source.
+def _source_star(tokens, sources: list[int]):
+    """The first ``*`` or ``t.*`` item across an INSERT's sources, or ``None``.
 
-    ``extra`` is how many parens deeper than the source it sits. Each of
-    those parens must open right before it, after a ``UNION`` and the like,
-    as in ``UNION (SELECT ...)``.
+    The one test that decides whether a statement is ``insert-select-star``
+    or ``positional-insert``.
     """
-    if extra == 0:
-        return True
-    opener = k - extra
-    if opener < 1 or not all(_punct(t, "(") for t in tokens[opener:k]):
-        return False
-    prev = tokens[opener - 1]
-    return prev.kind == WORD and prev.text.upper() in _SET_OPERATOR
+    return next(
+        (star for s in sources if (star := _star_item(tokens, s)) is not None), None
+    )
 
 
 def check_insert_select_star(ctx: Context) -> Iterator[Hit]:
     """``INSERT ... SELECT *`` copies whatever columns the source has."""
     tokens = ctx.tokens
     for i, sources in _insert_sources(tokens).items():
-        for s in sources:
-            star = _star_item(tokens, s)
-            if star:
-                yield Hit(tokens[i].line, _render([*tokens[i : sources[0] + 1], *star]))
-                break
+        star = _source_star(tokens, sources)
+        if star is not None:
+            yield Hit(tokens[i].line, _render([*tokens[i : sources[0] + 1], *star]))
 
 
 def check_select_star(ctx: Context) -> Iterator[Hit]:

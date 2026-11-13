@@ -33,6 +33,10 @@ def count(stmt, rule):
     return sum(1 for f in detect(stmt) if f["rule"] == rule)
 
 
+def rules_by_line(stmt):
+    return [(f["line"], f["rule"]) for f in detect(stmt)]
+
+
 # --- Scenario: INSERT ... SELECT * reports one finding, not two -------------
 
 
@@ -115,7 +119,7 @@ def test_placeholder_target_with_column_list_is_clean():
 
 
 @pytest.mark.parametrize(
-    ("stmt", "text"),
+    ("stmt", "expected_text"),
     [
         pytest.param(
             "INSERT INTO dbo.{5}_ws SELECT id FROM t",
@@ -129,8 +133,8 @@ def test_placeholder_target_with_column_list_is_clean():
         ),
     ],
 )
-def test_placeholder_target_is_shown_as_written(stmt, text):
-    assert [f["text"] for f in detect(stmt)] == [text]
+def test_placeholder_target_is_shown_as_written(stmt, expected_text):
+    assert [f["text"] for f in detect(stmt)] == [expected_text]
 
 
 @pytest.mark.parametrize(
@@ -138,16 +142,30 @@ def test_placeholder_target_is_shown_as_written(stmt, text):
     [
         pytest.param("INSERT INTO t {0} VALUES (1)", id="values"),
         pytest.param("INSERT INTO t {0} SELECT id FROM s", id="select"),
-        pytest.param("INSERT INTO t_{abc} VALUES (1)", id="not-a-number"),
-        pytest.param("INSERT INTO t_{0:N2} VALUES (1)", id="format-spec"),
-        pytest.param("INSERT INTO t_{ 0} VALUES (1)", id="space-inside"),
-        pytest.param("INSERT INTO t_{0 VALUES (1)", id="unclosed"),
         pytest.param(
             "INSERT INTO FDTEMP_{0}(id) SELECT id FROM t", id="column-list-no-space"
         ),
     ],
 )
-def test_text_that_is_not_a_placeholder_name_part_is_clean(stmt):
+def test_placeholder_after_whitespace_is_not_part_of_the_name(stmt):
+    assert detect(stmt) == []
+
+
+# Known limitation: only a bare numbered ``{n}`` written with no spaces is a
+# name part. Other brace text ends the name, so these inserts are not reported.
+@pytest.mark.parametrize(
+    "stmt",
+    [
+        pytest.param("INSERT INTO t_{abc} VALUES (1)", id="not-a-number"),
+        pytest.param("INSERT INTO t_{1.5} VALUES (1)", id="not-an-integer"),
+        pytest.param("INSERT INTO t_{0:N2} VALUES (1)", id="format-spec"),
+        pytest.param("INSERT INTO t_{ 0} VALUES (1)", id="space-after-open"),
+        pytest.param("INSERT INTO t_{0 } VALUES (1)", id="space-before-close"),
+        pytest.param("INSERT INTO t_{\n0} VALUES (1)", id="line-break"),
+        pytest.param("INSERT INTO t_{0 VALUES (1)", id="unclosed"),
+    ],
+)
+def test_unsupported_placeholder_forms_are_not_name_parts(stmt):
     assert detect(stmt) == []
 
 
@@ -176,15 +194,33 @@ def test_placeholder_anywhere_in_the_name(stmt, rule):
     [
         pytest.param("INSERT INTO archive SELECT id, name FROM orders", id="plain"),
         pytest.param("INSERT INTO archive (SELECT id FROM orders)", id="parenthesized"),
+        pytest.param("INSERT INTO a ((SELECT id FROM b))", id="double-paren"),
         pytest.param(
             "INSERT INTO t WITH x AS (SELECT id FROM s) SELECT id FROM x", id="cte"
         ),
         pytest.param(
+            "INSERT INTO t WITH x AS (SELECT id FROM s), y AS (SELECT id FROM x)"
+            " SELECT id FROM y",
+            id="two-ctes",
+        ),
+        pytest.param(
+            "INSERT INTO t WITH x (a) AS (SELECT 1) SELECT a FROM x",
+            id="cte-column-list",
+        ),
+        pytest.param(
             "INSERT INTO a SELECT x FROM b UNION ALL SELECT y FROM c", id="union"
         ),
+        pytest.param(
+            "INSERT INTO t SELECT a FROM s INTERSECT SELECT b FROM u", id="intersect"
+        ),
+        pytest.param("INSERT INTO t OUTPUT inserted.id SELECT id FROM s", id="output"),
+        pytest.param("INSERT INTO t OUTPUT inserted.id VALUES (1)", id="output-values"),
+        pytest.param("INSERT INTO archive AS a SELECT id FROM orders", id="alias"),
+        pytest.param("INSERT INTO t WITH (TABLOCK) SELECT a FROM s", id="table-hint"),
+        pytest.param("INSERT INTO t WITH (TABLOCK) VALUES (1)", id="table-hint-values"),
     ],
 )
-def test_insert_named_select_without_column_list_is_positional(stmt):
+def test_insert_without_column_list_is_positional(stmt):
     assert [f["rule"] for f in detect(stmt)] == [POSITIONAL]
 
 
@@ -197,94 +233,66 @@ def test_insert_named_select_without_column_list_is_positional(stmt):
         pytest.param(
             "INSERT INTO archive (id) (SELECT id FROM orders)", id="parenthesized"
         ),
+        pytest.param("INSERT INTO a (id) ((SELECT id FROM b))", id="double-paren"),
         pytest.param(
             "INSERT INTO t (id) WITH x AS (SELECT id FROM s) SELECT id FROM x", id="cte"
         ),
         pytest.param(
             "INSERT INTO a (x) SELECT x FROM b UNION ALL SELECT y FROM c", id="union"
         ),
+        pytest.param(
+            "INSERT INTO t (id) OUTPUT inserted.id SELECT id FROM s", id="output"
+        ),
+        pytest.param(
+            "INSERT INTO t (id) OUTPUT inserted.id VALUES (1)", id="output-values"
+        ),
+        pytest.param("INSERT INTO a AS x (id) SELECT id FROM b", id="alias"),
+        pytest.param(
+            "INSERT INTO t WITH (TABLOCK) (a) SELECT a FROM s", id="table-hint"
+        ),
     ],
 )
-def test_insert_named_select_with_column_list_is_clean(stmt):
+def test_insert_with_column_list_is_clean(stmt):
     assert detect(stmt) == []
-
-
-@pytest.mark.parametrize(
-    ("stmt", "rule"),
-    [
-        pytest.param(
-            "INSERT INTO t WITH x AS (SELECT id FROM s), y AS (SELECT id FROM x) SELECT id FROM y",
-            POSITIONAL,
-            id="two-ctes",
-        ),
-        pytest.param(
-            "INSERT INTO t WITH x (a) AS (SELECT 1) SELECT a FROM x",
-            POSITIONAL,
-            id="cte-column-list",
-        ),
-        pytest.param(
-            "INSERT INTO t WITH RECURSIVE x AS (SELECT 1) SELECT * FROM x",
-            INSERT_SELECT_STAR,
-            id="recursive-cte-star",
-        ),
-        pytest.param(
-            "INSERT INTO t OUTPUT inserted.id SELECT id FROM s", POSITIONAL, id="output"
-        ),
-        pytest.param(
-            "INSERT INTO t OUTPUT inserted.id SELECT * FROM s",
-            INSERT_SELECT_STAR,
-            id="output-star",
-        ),
-        pytest.param(
-            "INSERT INTO archive AS a SELECT id FROM orders", POSITIONAL, id="alias"
-        ),
-        pytest.param(
-            "INSERT INTO a ((SELECT id FROM b))", POSITIONAL, id="double-paren"
-        ),
-        pytest.param(
-            "INSERT INTO t WITH (TABLOCK) SELECT a FROM s", POSITIONAL, id="table-hint"
-        ),
-        pytest.param(
-            "INSERT INTO t WITH (TABLOCK) SELECT * FROM s",
-            INSERT_SELECT_STAR,
-            id="table-hint-star",
-        ),
-        pytest.param(
-            "INSERT INTO t WITH (TABLOCK) VALUES (1)",
-            POSITIONAL,
-            id="table-hint-values",
-        ),
-        pytest.param(
-            "INSERT INTO t (SELECT a FROM s UNION (SELECT * FROM u))",
-            INSERT_SELECT_STAR,
-            id="parenthesized-union-branch-star",
-        ),
-        pytest.param(
-            "INSERT INTO t SELECT a FROM s UNION ((SELECT * FROM u))",
-            INSERT_SELECT_STAR,
-            id="double-parenthesized-union-branch-star",
-        ),
-    ],
-)
-def test_other_column_less_select_forms(stmt, rule):
-    assert [f["rule"] for f in detect(stmt)] == [rule]
 
 
 @pytest.mark.parametrize(
     "stmt",
     [
         pytest.param(
-            "INSERT INTO t (id) OUTPUT inserted.id SELECT id FROM s", id="output"
+            "INSERT INTO t WITH RECURSIVE x AS (SELECT 1) SELECT * FROM x",
+            id="recursive-cte",
         ),
-        pytest.param("INSERT INTO a AS x (id) SELECT id FROM b", id="alias"),
-        pytest.param("INSERT INTO a (id) ((SELECT id FROM b))", id="double-paren"),
+        pytest.param("INSERT INTO t OUTPUT inserted.id SELECT * FROM s", id="output"),
+        pytest.param("INSERT INTO t WITH (TABLOCK) SELECT * FROM s", id="table-hint"),
         pytest.param(
-            "INSERT INTO t WITH (TABLOCK) (a) SELECT a FROM s", id="table-hint"
+            "INSERT INTO t SELECT a FROM s UNION ALL (SELECT * FROM u)",
+            id="parenthesized-union-branch",
+        ),
+        pytest.param(
+            "INSERT INTO t SELECT a FROM s UNION ((SELECT * FROM u))",
+            id="double-parenthesized-union-branch",
+        ),
+        pytest.param(
+            "INSERT INTO t (SELECT a FROM s UNION (SELECT * FROM u))",
+            id="union-inside-parenthesized-source",
+        ),
+        pytest.param(
+            "INSERT INTO t (SELECT a FROM s) UNION (SELECT * FROM u)",
+            id="union-after-parenthesized-branch",
+        ),
+        pytest.param(
+            "INSERT INTO t ((SELECT a FROM s) UNION (SELECT * FROM u))",
+            id="union-of-parenthesized-branches",
+        ),
+        pytest.param(
+            "INSERT INTO t (a) (SELECT a FROM s) UNION (SELECT * FROM u)",
+            id="union-after-column-list",
         ),
     ],
 )
-def test_other_select_forms_with_column_list_are_clean(stmt):
-    assert detect(stmt) == []
+def test_star_in_any_source_branch_is_one_insert_select_star_finding(stmt):
+    assert [f["rule"] for f in detect(stmt)] == [INSERT_SELECT_STAR]
 
 
 def test_parenthesized_source_ends_at_its_closing_paren():
@@ -292,9 +300,38 @@ def test_parenthesized_source_ends_at_its_closing_paren():
     assert [f["rule"] for f in detect(stmt)] == [POSITIONAL]
 
 
-def test_subquery_in_a_source_where_clause_is_not_a_source():
-    stmt = "INSERT INTO t (a) SELECT a FROM s WHERE a IN (SELECT * FROM u)"
-    assert [f["rule"] for f in detect(stmt)] == [SELECT_STAR]
+@pytest.mark.parametrize(
+    ("stmt", "expected"),
+    [
+        pytest.param(
+            "INSERT INTO t (a) SELECT a FROM s WHERE a IN (SELECT * FROM u)",
+            [SELECT_STAR],
+            id="in",
+        ),
+        pytest.param(
+            "INSERT INTO t (a) SELECT a FROM s WHERE a > ALL (SELECT * FROM u)",
+            [SELECT_STAR],
+            id="all-quantifier",
+        ),
+        pytest.param(
+            "INSERT INTO t SELECT a FROM s WHERE a > ALL (SELECT * FROM u)",
+            [POSITIONAL, SELECT_STAR],
+            id="all-quantifier-column-less",
+        ),
+        pytest.param(
+            "INSERT INTO t SELECT x FROM (SELECT * FROM b) s",
+            [POSITIONAL, SELECT_STAR],
+            id="derived-table-column-less",
+        ),
+        pytest.param(
+            "INSERT INTO t WITH x AS (SELECT * FROM s) SELECT id FROM x",
+            [POSITIONAL, SELECT_STAR],
+            id="cte-body-column-less",
+        ),
+    ],
+)
+def test_star_in_a_subquery_of_the_source_is_select_star(stmt, expected):
+    assert [f["rule"] for f in detect(stmt)] == expected
 
 
 def test_positional_cte_hit_is_on_the_insert_line():
@@ -380,10 +417,6 @@ def test_group_by_and_order_by_ordinals_are_two_findings():
 
 
 # --- Statement boundaries without a semicolon (T-SQL) ------------------------
-
-
-def rules_by_line(stmt):
-    return [(f["line"], f["rule"]) for f in detect(stmt)]
 
 
 @pytest.mark.parametrize(

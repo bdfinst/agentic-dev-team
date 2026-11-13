@@ -25,8 +25,10 @@ Rationale: an `INSERT` with no column list maps values to columns by position,
 whether the rows come from `VALUES` or from a `SELECT`. When a migration adds,
 drops, or reorders a column, the statement fails with a column-count error or
 loads a value into the wrong column. The `SELECT` source can be plain,
-parenthesized, after a `WITH` clause, or a `UNION` of selects. The target name
-can hold String.Format placeholders, as in `INSERT INTO FDTEMP_{0} VALUES (...)`.
+parenthesized, after a `WITH` clause or an `OUTPUT` clause, or a `UNION` of
+selects. The target name
+can hold numbered placeholders such as `{0}`, as in
+`INSERT INTO FDTEMP_{0} VALUES (...)`.
 `INSERT ... DEFAULT VALUES` and an `INSERT` with a column list are not
 reported. An `INSERT ... SELECT *` is reported only as
 [`sql.schema.insert-select-star`](#sqlschemainsert-select-star).
