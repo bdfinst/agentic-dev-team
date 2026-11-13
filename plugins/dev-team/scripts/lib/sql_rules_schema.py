@@ -69,63 +69,254 @@ _STATEMENT_START = frozenset(
         "TRUNCATE",
     ]
 )
-#: Words that join one query to the next, so a ``SELECT`` after one continues it.
-_SET_OPERATOR = frozenset(["UNION", "INTERSECT", "EXCEPT", "MINUS", "ALL", "DISTINCT"])
+#: Words that join two query branches.
+_SET_OPERATOR = frozenset(["UNION", "INTERSECT", "EXCEPT", "MINUS"])
+#: Words that end a set operator, so a ``SELECT`` after one continues the query.
+_SET_OPERATOR_OR_QUANTIFIER = _SET_OPERATOR | frozenset(["ALL", "DISTINCT"])
 #: A word before ``(`` that opens a query, as opposed to a function call.
-_QUERY_INTRO = frozenset(
+_QUERY_INTRO = _SET_OPERATOR_OR_QUANTIFIER | frozenset(
     [
-        "UNION", "INTERSECT", "EXCEPT", "MINUS", "ALL", "DISTINCT", "IN", "EXISTS",
-        "ANY", "SOME", "AS", "FROM", "JOIN", "APPLY", "LATERAL", "ON", "WHERE",
-        "AND", "OR", "NOT", "THEN", "ELSE", "WHEN", "MATERIALIZED", "INTO",
+        "IN", "EXISTS", "ANY", "SOME", "AS", "FROM", "JOIN", "APPLY", "LATERAL",
+        "ON", "WHERE", "AND", "OR", "NOT", "THEN", "ELSE", "WHEN", "MATERIALIZED",
+        "INTO",
     ]
 )  # fmt: skip
+#: Words that end a T-SQL ``OUTPUT`` clause.
+_OUTPUT_TERMINATORS = frozenset(
+    ["SELECT", "VALUES", "VALUE", "EXEC", "DEFAULT", "WITH"]
+)
+#: Most tokens between the braces of a ``{...}`` template placeholder.
+_MAX_PLACEHOLDER_TOKENS = 16
+#: Deepest paren nesting of a query expression that the source parser follows.
+_MAX_QUERY_NESTING = 64
 #: Words that cannot be the target table of an INSERT (trigger headers, ``ON``).
 _NOT_A_TARGET = frozenset(["AS", "ON", "OR"])
+#: Punctuation that a name or placeholder joins with no space, as in ``dbo.{5}_ws``.
+_GLUE_PUNCT = frozenset(["{", "}", "."])
 
 
 def _is(token, word: str) -> bool:
     return token.kind == WORD and token.text.upper() == word
 
 
+def _adjacent(a, b) -> bool:
+    """True when ``b`` starts right where ``a`` ends, with no whitespace."""
+    return a.line == b.line and a.col + len(a.text) == b.col
+
+
 def _render(tokens) -> str:
-    """Matched tokens as one line of text, with dotted names rejoined."""
-    return " ".join(t.text for t in tokens).replace(" . ", ".")
+    """Matched tokens as one line of text, with dotted and templated names rejoined.
+
+    Tokens written with no space between them stay joined when either is a
+    ``{``, ``}``, or ``.``, or when they sit inside a ``{...}`` placeholder.
+    """
+    parts: list[str] = []
+    brace_depth = 0
+    for k, token in enumerate(tokens):
+        is_glued = (
+            k > 0
+            and _adjacent(tokens[k - 1], token)
+            and (
+                brace_depth > 0
+                or tokens[k - 1].text in _GLUE_PUNCT
+                or token.text in _GLUE_PUNCT
+            )
+        )
+        if k > 0 and not is_glued:
+            parts.append(" ")
+        parts.append(token.text)
+        if _punct(token, "{"):
+            brace_depth += 1
+        elif _punct(token, "}") and brace_depth:
+            brace_depth -= 1
+    return "".join(parts).replace(" . ", ".")
+
+
+def _placeholder_end(tokens, i: int) -> int:
+    """Index after a ``{...}`` template placeholder at ``i``, or ``i``.
+
+    A placeholder is a non-empty brace group on one line with no nested ``{``
+    or ``;``, as in ``{0}``, ``{0:N2}``, ``{tableName}``, or ``{GetSuffix()}``.
+    """
+    n = len(tokens)
+    if not (i < n and _punct(tokens[i], "{")):
+        return i
+    limit = min(n, i + 2 + _MAX_PLACEHOLDER_TOKENS)
+    for k in range(i + 1, limit):
+        token = tokens[k]
+        if token.line != tokens[i].line or _punct(token, "{") or _punct(token, ";"):
+            return i
+        if _punct(token, "}"):
+            return k + 1 if k > i + 1 else i
+    return i
+
+
+def _piece_end(tokens, i: int) -> int:
+    """Index after one word, quoted identifier, or placeholder at ``i``, or ``i``."""
+    if i < len(tokens) and tokens[i].kind in (WORD, QUOTED):
+        return i + 1
+    return _placeholder_end(tokens, i)
+
+
+def _part_end(tokens, i: int) -> int:
+    """Index after one name part: pieces written with no whitespace between them.
+
+    ``FDTEMP_{0}`` and ``{5}_WORKINGSET_{0}`` are one part each; in ``t {0}``
+    the placeholder is not part of the name.
+    """
+    end = _piece_end(tokens, i)
+    while end > i and end < len(tokens) and _adjacent(tokens[end - 1], tokens[end]):
+        next_end = _piece_end(tokens, end)
+        if next_end == end:
+            break
+        end = next_end
+    return end
 
 
 def _name_end(tokens, i: int) -> int:
     """Index after a possibly dotted table name starting at ``i``, or ``i``."""
     n = len(tokens)
-    if i >= n or tokens[i].kind not in (WORD, QUOTED):
+    end = _part_end(tokens, i)
+    if end == i:
         return i
-    i += 1
-    while i + 1 < n and tokens[i].kind == PUNCT and tokens[i].text == ".":
+    i = end
+    while i + 1 < n and _punct(tokens[i], "."):
         j = i + 1
-        while j < n and tokens[j].kind == PUNCT and tokens[j].text == ".":
+        while j < n and _punct(tokens[j], "."):
             j += 1  # T-SQL omitted schema part, as in db..t
-        if j >= n or tokens[j].kind not in (WORD, QUOTED):
+        end = _part_end(tokens, j)
+        if end == j:
             break
-        i = j + 1
+        i = end
     return i
 
 
+def _target_end(tokens, i: int) -> int | None:
+    """Index after ``INSERT [INTO] <table> [AS alias] [WITH (hints)]`` at ``i``.
+
+    ``None`` when no target table follows.
+    """
+    n = len(tokens)
+    j = i + 1
+    if j < n and _is(tokens[j], "INTO"):
+        j += 1
+    end = _name_end(tokens, j)
+    if end == j or tokens[j].text.upper() in _NOT_A_TARGET:
+        return None  # ``AFTER INSERT, UPDATE AS`` in a trigger header, not an INSERT
+    j = end
+    if j + 1 < n and _is(tokens[j], "AS") and tokens[j + 1].kind in (WORD, QUOTED):
+        j += 2
+    if j + 1 < n and _is(tokens[j], "WITH") and _punct(tokens[j + 1], "("):
+        j = _skip_group(tokens, j + 1)  # T-SQL table hint, as in WITH (TABLOCK)
+    return j
+
+
+def _is_column_list(tokens, j: int) -> bool:
+    """True when the ``(`` at ``j`` opens a target column list, not a query."""
+    n = len(tokens)
+    return (
+        j < n
+        and _punct(tokens[j], "(")
+        and not (
+            j + 1 < n and (_is(tokens[j + 1], "SELECT") or _punct(tokens[j + 1], "("))
+        )
+    )
+
+
+def _output_end(tokens, j: int) -> int | None:
+    """Index after a T-SQL ``OUTPUT ...`` clause at ``j``, or ``j`` if none.
+
+    The clause ends at the first ``SELECT``, ``VALUES``, ``EXEC``, ``DEFAULT``,
+    or ``WITH`` outside parentheses that is not a column or alias name, as in
+    ``inserted.value``, ``AS value``, or ``INTO @audit (id, value)``.
+    ``None`` when a ``;`` ends the statement inside the clause.
+    """
+    n = len(tokens)
+    if not (j < n and _is(tokens[j], "OUTPUT")):
+        return j
+    depth = 0
+    while j < n:
+        token = tokens[j]
+        if _punct(token, ";"):
+            return None
+        if _punct(token, "("):
+            depth += 1
+        elif _punct(token, ")"):
+            depth = max(depth - 1, 0)
+        elif (
+            depth == 0
+            and token.kind == WORD
+            and token.text.upper() in _OUTPUT_TERMINATORS
+            and not _punct(tokens[j - 1], ".")
+            and not _is(tokens[j - 1], "AS")
+        ):
+            return j
+        j += 1
+    return j
+
+
+def _is_merge_insert(tokens, i: int) -> bool:
+    """True for ``THEN INSERT`` with no target, the ``INSERT`` branch of a ``MERGE``.
+
+    A procedural ``IF ... THEN INSERT INTO t ...`` names its target, so it is an
+    ordinary INSERT.
+    """
+    if i < 1 or i + 1 >= len(tokens) or not _is(tokens[i - 1], "THEN"):
+        return False
+    nxt = tokens[i + 1]
+    return _punct(nxt, "(") or any(
+        _is(nxt, w) for w in ("VALUES", "VALUE", "DEFAULT", "OVERRIDING")
+    )
+
+
+def _merge_values_index(tokens, i: int) -> int | None:
+    """Index of ``VALUES`` in a MERGE ``INSERT`` at ``i`` with no column list.
+
+    Skips a Postgres ``OVERRIDING {SYSTEM|USER} VALUE`` clause. ``None`` when
+    the branch has a column list or no ``VALUES``.
+    """
+    j = i + 1
+    if (
+        j + 2 < len(tokens)
+        and _is(tokens[j], "OVERRIDING")
+        and _is(tokens[j + 2], "VALUE")
+    ):
+        j += 3
+    if j < len(tokens) and (_is(tokens[j], "VALUES") or _is(tokens[j], "VALUE")):
+        return j
+    return None
+
+
 def check_positional_insert(ctx: Context) -> Iterator[Hit]:
-    """``INSERT [INTO] <table> [AS alias] VALUES`` has no column list."""
+    """An INSERT with no column list, fed by ``VALUES`` or a named ``SELECT``.
+
+    An INSERT whose SELECT source has a star item is left to
+    ``sql.schema.insert-select-star``, so the statement gets one finding. A
+    ``MERGE ... THEN INSERT VALUES`` branch has no target name of its own.
+    """
     tokens = ctx.tokens
     n = len(tokens)
+    sources = _insert_sources(tokens)
     for i, token in enumerate(tokens):
         if not _is(token, "INSERT"):
             continue
-        j = i + 1
-        if j < n and _is(tokens[j], "INTO"):
-            j += 1
-        end = _name_end(tokens, j)
-        if end == j:
+        if _is_merge_insert(tokens, i):
+            values = _merge_values_index(tokens, i)
+            if values is not None:
+                yield Hit(token.line, _render([token, tokens[values]]))
             continue
-        j = end
-        if j + 1 < n and _is(tokens[j], "AS") and tokens[j + 1].kind in (WORD, QUOTED):
-            j += 2
-        if j < n and (_is(tokens[j], "VALUES") or _is(tokens[j], "VALUE")):
-            yield Hit(token.line, _render(tokens[i : j + 1]))
+        j = _target_end(tokens, i)
+        if j is None or _is_column_list(tokens, j):
+            continue
+        body = _output_end(tokens, j)
+        if (
+            body is not None
+            and body < n
+            and (_is(tokens[body], "VALUES") or _is(tokens[body], "VALUE"))
+        ):
+            yield Hit(token.line, _render([*tokens[i:j], tokens[body]]))
+        elif i in sources and _source_star(tokens, sources[i]) is None:
+            yield Hit(token.line, _render([*tokens[i:j], tokens[sources[i][0]]]))
 
 
 def _punct(token, char: str) -> bool:
@@ -177,7 +368,7 @@ def _continues_query(tokens, k: int) -> bool:
         return False
     prev = tokens[k - 1]
     return _punct(prev, "(") or (
-        prev.kind == WORD and prev.text.upper() in _SET_OPERATOR
+        prev.kind == WORD and prev.text.upper() in _SET_OPERATOR_OR_QUANTIFIER
     )
 
 
@@ -306,76 +497,117 @@ def _cte_end(tokens, j: int) -> int:
     return j
 
 
-def _insert_source_start(tokens, i: int) -> tuple[int, int] | None:
-    """``(select_index, paren_level)`` of the query the INSERT at ``i`` reads."""
+def _insert_source_start(tokens, i: int) -> int | None:
+    """Index where the query the INSERT at ``i`` reads begins: ``SELECT`` or ``(``."""
     n = len(tokens)
-    j = i + 1
-    if j < n and _is(tokens[j], "INTO"):
-        j += 1
-    end = _name_end(tokens, j)
-    if end == j or tokens[j].text.upper() in _NOT_A_TARGET:
-        return None  # ``AFTER INSERT, UPDATE AS`` in a trigger header, not an INSERT
-    j = end
-    if j + 1 < n and _is(tokens[j], "AS") and tokens[j + 1].kind in (WORD, QUOTED):
-        j += 2
-    if (
-        j < n
-        and _punct(tokens[j], "(")
-        and not (
-            j + 1 < n and (_is(tokens[j + 1], "SELECT") or _punct(tokens[j + 1], "("))
-        )
-    ):
-        j = _skip_group(tokens, j)  # the column list
-    if j < n and _is(tokens[j], "OUTPUT"):
-        while j < n and not any(
-            _is(tokens[j], w) for w in ("SELECT", "VALUES", "EXEC", "DEFAULT", "WITH")
-        ):
-            if _punct(tokens[j], ";"):
-                return None
-            j += 1
+    j = _target_end(tokens, i)
+    if j is None:
+        return None
+    if _is_column_list(tokens, j):
+        j = _skip_group(tokens, j)
+    j = _output_end(tokens, j)
+    if j is None:
+        return None
     if j < n and _is(tokens[j], "WITH"):
         j = _cte_end(tokens, j)
-    lead = 0
-    while j + lead < n and _punct(tokens[j + lead], "("):
-        lead += 1
-    if j + lead < n and _is(tokens[j + lead], "SELECT"):
-        return j + lead, lead
+    select_pos = j
+    while select_pos < n and _punct(tokens[select_pos], "("):
+        select_pos += 1
+    if select_pos < n and _is(tokens[select_pos], "SELECT"):
+        return j
     return None
+
+
+def _select_end(tokens, s: int) -> int:
+    """Index after the SELECT at ``s``: its statement end, closing paren, or ``UNION``."""
+    end = s + 1
+    for k, depth in _walk(tokens, s + 1):
+        token = tokens[k]
+        if depth == 0 and token.kind == WORD and token.text.upper() in _SET_OPERATOR:
+            return k
+        end = k + 1
+    return end
+
+
+def _collect_query_branches(
+    tokens, j: int, branches: list[int], nesting: int = 0
+) -> int:
+    """Append the SELECT branches of the query expression at ``j`` to ``branches``.
+
+    A branch is ``SELECT ...`` or a parenthesized query expression. Branches are
+    joined by ``UNION``, ``INTERSECT``, ``EXCEPT``, or ``MINUS``, each with an
+    optional ``ALL`` or ``DISTINCT``. Returns the index after the expression.
+    Past ``_MAX_QUERY_NESTING`` parens it stops, so crafted input cannot exhaust
+    the stack.
+    """
+    n = len(tokens)
+    if nesting > _MAX_QUERY_NESTING:
+        return j
+    while j < n:
+        if _is(tokens[j], "SELECT"):
+            branches.append(j)
+            j = _select_end(tokens, j)
+        elif (
+            _punct(tokens[j], "(")
+            and j + 1 < n
+            and (_is(tokens[j + 1], "SELECT") or _punct(tokens[j + 1], "("))
+        ):
+            j = _collect_query_branches(tokens, j + 1, branches, nesting + 1)
+            if not (j < n and _punct(tokens[j], ")")):
+                return j
+            j += 1
+        else:
+            return j
+        if not (
+            j < n and tokens[j].kind == WORD and tokens[j].text.upper() in _SET_OPERATOR
+        ):
+            return j
+        j += 1
+        if j < n and (_is(tokens[j], "ALL") or _is(tokens[j], "DISTINCT")):
+            j += 1
+    return j
 
 
 def _insert_sources(tokens) -> dict[int, list[int]]:
     """Map each ``INSERT`` index to the SELECTs that supply its rows.
 
-    The sources are the first SELECT after the target, column list, and CTE
-    definitions, plus the ``UNION`` branches at its level. A subquery in a
-    ``FROM`` clause does not count, and neither does anything after the
-    statement ends.
+    The sources are the SELECT branches of the query after the target, column
+    list, and CTE definitions: plain, parenthesized, or joined by ``UNION`` and
+    the like. A subquery in a ``FROM`` or ``WHERE`` clause does not count, and
+    neither does anything after the statement ends.
     """
     found: dict[int, list[int]] = {}
     for i, token in enumerate(tokens):
         if not _is(token, "INSERT"):
             continue
-        start = _insert_source_start(tokens, i)
-        if start is None:
+        source_start = _insert_source_start(tokens, i)
+        if source_start is None:
             continue
-        first, level = start
-        found[i] = [first] + [
-            k
-            for k, depth in _walk(tokens, first + 1, level)
-            if depth == level and _is(tokens[k], "SELECT")
-        ]
+        branches: list[int] = []
+        _collect_query_branches(tokens, source_start, branches)
+        if branches:
+            found[i] = branches
     return found
+
+
+def _source_star(tokens, sources: list[int]):
+    """The first ``*`` or ``t.*`` item across an INSERT's sources, or ``None``.
+
+    The one test that decides whether a statement is ``insert-select-star``
+    or ``positional-insert``.
+    """
+    return next(
+        (star for s in sources if (star := _star_item(tokens, s)) is not None), None
+    )
 
 
 def check_insert_select_star(ctx: Context) -> Iterator[Hit]:
     """``INSERT ... SELECT *`` copies whatever columns the source has."""
     tokens = ctx.tokens
     for i, sources in _insert_sources(tokens).items():
-        for s in sources:
-            star = _star_item(tokens, s)
-            if star:
-                yield Hit(tokens[i].line, _render([*tokens[i : sources[0] + 1], *star]))
-                break
+        star = _source_star(tokens, sources)
+        if star is not None:
+            yield Hit(tokens[i].line, _render([*tokens[i : sources[0] + 1], *star]))
 
 
 def check_select_star(ctx: Context) -> Iterator[Hit]:
@@ -474,16 +706,58 @@ RULES = (
         owner=OWNER_SCRIPT,
         severity="warning",
         message="INSERT without a column list depends on column order and breaks when the table gains a column.",
-        fix="Name the target columns: INSERT INTO t (col1, col2) VALUES (...).",
+        fix="Name the target columns: INSERT INTO t (col1, col2) VALUES (...), or INSERT INTO t (col1, col2) SELECT a, b FROM s.",
         positive=(
             Fixture("single-row", "INSERT INTO orders VALUES (1, 'a');", (1,)),
             Fixture("multi-row-lowercase", "insert into t values (1), (2);", (1,)),
             Fixture("second-statement", "SELECT 1;\nINSERT INTO s.t VALUES (1);", (2,)),
+            Fixture(
+                "named-select", "INSERT INTO archive SELECT id, name FROM orders;", (1,)
+            ),
+            Fixture(
+                "union-select",
+                "INSERT INTO a\nSELECT x FROM b UNION ALL SELECT y FROM c;",
+                (1,),
+            ),
+            Fixture("parenthesized-select", "INSERT INTO a (SELECT x FROM b);", (1,)),
+            Fixture(
+                "cte-select",
+                "INSERT INTO a WITH c AS (SELECT x FROM b) SELECT x FROM c;",
+                (1,),
+            ),
+            Fixture("placeholder-target", "INSERT INTO t_{0} VALUES (1);", (1,)),
+            Fixture("interpolated-target", "INSERT INTO {table} VALUES (1);", (1,)),
+            Fixture(
+                "merge-insert",
+                "MERGE INTO t USING s ON t.id = s.id\n"
+                "WHEN NOT MATCHED THEN INSERT VALUES (s.id);",
+                (2,),
+            ),
+            Fixture(
+                "placeholder-after-dot",
+                "INSERT INTO dbo.{5}_ws_{0} SELECT id FROM t;",
+                (1,),
+            ),
         ),
         negative=(
             Fixture("column-list", "INSERT INTO orders (id, name) VALUES (1, 'a');"),
             Fixture("column-list-no-space", "insert into orders(id) values (1);"),
             Fixture("default-values", "INSERT INTO orders DEFAULT VALUES;"),
+            Fixture("select-with-column-list", "INSERT INTO a (x) SELECT x FROM b;"),
+            Fixture("select-star", "INSERT INTO archive SELECT * FROM orders;"),
+            Fixture("placeholder-after-space", "INSERT INTO t {0} VALUES (1);"),
+            Fixture(
+                "placeholder-after-space-select", "INSERT INTO t {0} SELECT x FROM b;"
+            ),
+            Fixture(
+                "merge-insert-column-list",
+                "MERGE INTO t USING s ON t.id = s.id\n"
+                "WHEN NOT MATCHED THEN INSERT (id) VALUES (s.id);",
+            ),
+            Fixture(
+                "output-into-column-list",
+                "INSERT INTO t (a) OUTPUT inserted.a INTO @log (a, value) VALUES (1);",
+            ),
             Fixture("in-comment", "-- INSERT INTO t VALUES (1)"),
         ),
         check=check_positional_insert,
@@ -504,6 +778,9 @@ RULES = (
                 (1,),
             ),
             Fixture("qualified-star", "insert into a select o.* from orders o;", (1,)),
+            Fixture(
+                "placeholder-target", "INSERT INTO {5}_ws_{0} SELECT * FROM b;", (1,)
+            ),
             Fixture(
                 "second-statement",
                 "SELECT 1;\nINSERT INTO a\nSELECT * FROM b;",
