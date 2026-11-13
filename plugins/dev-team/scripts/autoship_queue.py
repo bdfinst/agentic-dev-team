@@ -243,6 +243,10 @@ def _load_grouping_output(input_file: str | None) -> dict[str, Any]:
     with no need to interpose between the two stages — `/dev-team:autoship`
     itself always uses `--input-file`, see the module Usage note above).
 
+    Exits 2 (via `read_stdin_or_exit`, no `QueueError`) when stdin is a
+    terminal or a socket that never reaches EOF and no `--input-file` is
+    given.
+
     Raises `QueueError` on an unreadable file/stdin, invalid JSON, a
     non-object payload, or a malformed `batches`/`ungrouped` structure —
     never an uncaught exception.

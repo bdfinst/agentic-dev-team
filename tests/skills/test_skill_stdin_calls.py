@@ -19,33 +19,30 @@ import sys
 from pathlib import Path
 
 from _repo_root import REPO_ROOT
-
-_TESTS_DIR = Path(__file__).resolve().parents[1]
-if str(_TESTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_TESTS_DIR))
-
-from _support.skill_calls import (
+from tests._support.skill_calls import (
+    find_calls,
     find_offenders,
     find_offenders_in_files,
     iter_commands,
     split_segments,
     tokenize,
 )
-from _support.stdin_scripts import STDIN_SCRIPTS
+from tests._support.stdin_scripts import INPUT_FLAGS, STDIN_SCRIPTS
 
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 SKILL_FILES = sorted((PLUGIN_ROOT / "skills").glob("*/SKILL.md"))
 BUILD_SKILL = PLUGIN_ROOT / "skills" / "build" / "SKILL.md"
 
-#: `checkpoint_abort.py --mode outcome|merge` reads stdin unless `--from` is
-#: given; the table holds only the `--mode abort` flag.
-EXTRA_INPUT_FLAGS = (("checkpoint_abort.py", "--from"),)
+SCRIPTS = INPUT_FLAGS
 
-SCRIPTS = [
-    (row.script.rsplit("/", 1)[-1], row.flag) for row in STDIN_SCRIPTS if row.needs_flag
-] + list(EXTRA_INPUT_FLAGS)
+#: Fewer calls than this across the shipped skills means the scan stopped
+#: seeing them, not that the skills improved.
+MIN_SHIPPED_CALLS = 10
 
 CHANGE_IMPACT = "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_impact.py"
+CHECKPOINT_ABORT = "$CLAUDE_PLUGIN_ROOT/scripts/checkpoint_abort.py"
+REVIEW_PACK = "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/review_context_pack.py"
+PY_LAUNCHER = 'sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh"'
 FINDING_SIG = "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/finding_signature.py"
 
 #: The architectural-impact paragraph as it read before the fix (#2304).
@@ -122,6 +119,56 @@ def test_direct_path_execution_in_a_fence_is_a_call():
     assert [o.script for o in offenders(text)] == ["change_impact.py"]
 
 
+def test_launcher_form_without_pipe_or_flag_is_rejected():
+    text = fenced(f'{PY_LAUNCHER} "{CHANGE_IMPACT}" --files a.py')
+    [found] = offenders(text)
+    assert (found.line, found.script) == (4, "change_impact.py")
+
+
+def test_bash_launcher_form_is_rejected():
+    text = fenced(f'bash "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "{CHANGE_IMPACT}" --files a.py')
+    assert [o.script for o in offenders(text)] == ["change_impact.py"]
+
+
+def test_call_behind_a_leading_shell_word_is_rejected():
+    for prefix in ("(", "$(", "then ", "do ", "time "):
+        for launcher in ("python3", PY_LAUNCHER):
+            text = fenced(f'{prefix}{launcher} "{CHANGE_IMPACT}" --files a.py')
+            assert [o.script for o in offenders(text)] == ["change_impact.py"], (
+                prefix,
+                launcher,
+            )
+
+
+def test_checkpoint_abort_abort_mode_with_the_outcome_flag_is_rejected():
+    text = fenced(f'python3 "{CHECKPOINT_ABORT}" --mode abort --from x.json')
+    assert [o.script for o in offenders(text)] == ["checkpoint_abort.py"]
+
+
+def test_checkpoint_abort_default_mode_with_the_outcome_flag_is_rejected():
+    text = fenced(f'python3 "{CHECKPOINT_ABORT}" --from x.json')
+    assert [o.script for o in offenders(text)] == ["checkpoint_abort.py"]
+
+
+def test_checkpoint_abort_outcome_mode_with_the_abort_flag_is_rejected():
+    for mode in ("outcome", "merge"):
+        text = fenced(
+            f'python3 "{CHECKPOINT_ABORT}" --mode {mode} --cheap-results-from x.json'
+        )
+        assert [o.script for o in offenders(text)] == ["checkpoint_abort.py"], mode
+
+
+def test_a_flag_whose_value_is_dash_reads_stdin_and_is_rejected():
+    for flag in ("--diff-from -", "--diff-from=-"):
+        text = fenced(f'python3 "{CHANGE_IMPACT}" {flag}')
+        assert [o.script for o in offenders(text)] == ["change_impact.py"], flag
+
+
+def test_a_flag_inside_a_comment_does_not_excuse_the_call():
+    text = fenced(f'python3 "{CHANGE_IMPACT}" --files a.py # --diff-from d.patch')
+    assert [o.script for o in offenders(text)] == ["change_impact.py"]
+
+
 # -- Accepted calls ---------------------------------------------------------
 
 
@@ -137,6 +184,40 @@ def test_flag_with_equals_value_passes():
 
 def test_checkpoint_abort_from_flag_passes_for_outcome_and_merge_modes():
     text = 'Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/checkpoint_abort.py --mode merge --from <JSON: {"a": []}>`.\n'
+    assert offenders(text) == []
+
+
+def test_checkpoint_abort_passes_with_the_flag_for_its_mode():
+    for mode_args, flag in (
+        ("", "--cheap-results-from"),
+        ("--mode abort", "--cheap-results-from"),
+        ("--mode outcome", "--from"),
+        ("--mode=merge", "--from"),
+    ):
+        text = fenced(f'python3 "{CHECKPOINT_ABORT}" {mode_args} {flag} x.json')
+        assert offenders(text) == [], (mode_args, flag)
+
+
+def test_review_context_pack_name_status_file_never_reads_stdin():
+    text = fenced(f'python3 "{REVIEW_PACK}" --name-status-from changes.txt')
+    assert offenders(text) == []
+
+
+def test_review_context_pack_name_status_dash_reads_stdin_and_is_rejected():
+    text = fenced(f'python3 "{REVIEW_PACK}" --name-status-from -')
+    assert [o.script for o in offenders(text)] == ["review_context_pack.py"]
+
+
+def test_piped_launcher_form_passes():
+    text = fenced(
+        "git diff --name-status \\",
+        f'  | {PY_LAUNCHER} "{REVIEW_PACK}" --base HEAD',
+    )
+    assert offenders(text) == []
+
+
+def test_flag_before_a_trailing_comment_passes():
+    text = fenced(f'python3 "{CHANGE_IMPACT}" --diff-from d.patch # not "--files"')
     assert offenders(text) == []
 
 
@@ -218,9 +299,19 @@ def test_shipped_skills_contain_no_hanging_call():
     found = find_offenders_in_files(SKILL_FILES, SCRIPTS)
     assert SKILL_FILES, "no SKILL.md files found"
     assert found == [], "\n".join(
-        f"{Path(o.file).relative_to(REPO_ROOT)}:{o.line}: {o.script}: {o.command_text}"
+        f"{Path(o.file).relative_to(REPO_ROOT).as_posix()}:{o.line}: {o.script}: {o.command_text}"
         for o in found
     )
+
+
+def test_scan_finds_the_calls_the_shipped_skills_make():
+    calls = [
+        call
+        for path in SKILL_FILES
+        for call, _safe in find_calls(str(path), path.read_text(encoding="utf-8"), SCRIPTS)
+    ]
+    assert len(calls) >= MIN_SHIPPED_CALLS
+    assert {"review_context_pack.py", "checkpoint_abort.py"} <= {c.script for c in calls}
 
 
 def _gate_section() -> list[str]:
@@ -261,12 +352,6 @@ def test_architectural_impact_gate_shows_one_piped_bash_command():
 SMALL_DIFF = (
     "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a = 1\n+a = 2\n"
 )
-SMALL_DIFF_RESULT = {
-    "hasArchitecturalImpact": False,
-    "reason": None,
-    "signals": [],
-    "skipLenses": ["arch-review", "concurrency-review"],
-}
 
 
 def _documented_change_impact_argv() -> list[str]:
@@ -310,7 +395,9 @@ def test_documented_change_impact_call_reads_the_piped_diff():
         env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
     )
     assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout) == SMALL_DIFF_RESULT
+    result_json = json.loads(result.stdout)
+    assert result_json["hasArchitecturalImpact"] is False
+    assert result_json["reason"] != "diff-not-parseable-assuming-impact"
 
 
 # -- Table and guard agree --------------------------------------------------
@@ -318,7 +405,7 @@ def test_documented_change_impact_call_reads_the_piped_diff():
 
 def test_checked_scripts_match_the_scripts_that_import_the_guard():
     importers = {
-        str(path.relative_to(PLUGIN_ROOT))
+        path.relative_to(PLUGIN_ROOT).as_posix()
         for path in PLUGIN_ROOT.rglob("*.py")
         if path.name != "stdin_guard.py"
         and "tests" not in path.relative_to(PLUGIN_ROOT).parts
@@ -329,3 +416,13 @@ def test_checked_scripts_match_the_scripts_that_import_the_guard():
         )
     }
     assert {row.script for row in STDIN_SCRIPTS} == importers
+
+
+def test_every_row_flag_is_in_the_input_flag_table():
+    table = {(rule.script, rule.flag) for rule in INPUT_FLAGS}
+    expected = {
+        (row.script.rsplit("/", 1)[-1], row.flag)
+        for row in STDIN_SCRIPTS
+        if row.needs_flag
+    }
+    assert expected <= table

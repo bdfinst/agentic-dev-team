@@ -5,12 +5,17 @@ invokes it with its input flag absent, that input flag, a fixed piped fixture,
 and the exit status, stdout and stderr fragment the *unmodified* script gave for
 that fixture and for ``/dev/null`` (captured before the stdin guard was wired
 in, twice, to prove the values are stable). ``orchestrator.py`` has no input
-flag and falls back to a default request, so its ``flag`` is ``None`` and
-``needs_flag`` is False.
+flag and falls back to a default request, so its ``flag`` is ``None``,
+``needs_flag`` is False and it has no subprocess goldens (``piped`` and
+``devnull`` are ``None``); its stdin handling is covered in-process.
 
 A ``stderr_fragment`` is a literal substring of the expected stderr; ``None``
 means the script printed nothing worth pinning, and the row only asserts the
-guard's refusal marker is absent.
+guard's refusal marker is absent. ``json_keys`` limits a stdout golden to the
+named keys of its JSON object, for output that embeds unstable values.
+
+``INPUT_FLAGS`` is the single table of every flag that lets a script skip
+stdin, including flags that apply only to some ``--mode`` values.
 """
 
 from __future__ import annotations
@@ -18,10 +23,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-#: Stands in for the working directory in a stdout golden. The test replaces
-#: the real (resolved) directory with this token before comparing, so a golden
-#: never embeds a machine-specific path.
-CWD_PLACEHOLDER = "<CWD>"
+from tests._support.skill_calls import InputFlag
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,49 @@ class Golden:
     exit_status: int
     stdout: str
     stderr_fragment: str | None = None
+    json_keys: tuple[str, ...] | None = None
+
+
+@dataclass(frozen=True)
+class StdinFlag(InputFlag):
+    """An ``InputFlag`` plus the argv that makes the script read stdin through
+    it. Empty for a row's primary flag, whose argv is the row's own."""
+
+    stdin_argvs: tuple[tuple[str, ...], ...] = ()
+
+
+#: Every flag that lets a script skip stdin. ``--from`` is the input of
+#: ``checkpoint_abort.py --mode outcome|merge``; ``--cheap-results-from`` is
+#: the input of ``--mode abort`` (the default). ``--name-status-from`` with a
+#: file argument means ``--files-from`` is never read.
+INPUT_FLAGS: tuple[StdinFlag, ...] = (
+    StdinFlag("change_impact.py", "--diff-from"),
+    StdinFlag("finding_signature.py", "--findings"),
+    StdinFlag("review_context_pack.py", "--files-from"),
+    StdinFlag(
+        "review_context_pack.py",
+        "--name-status-from",
+        stdin_argvs=(("--name-status-from", "-"),),
+    ),
+    StdinFlag("render_tiered_findings.py", "--findings"),
+    StdinFlag(
+        "checkpoint_abort.py",
+        "--cheap-results-from",
+        mode_option="--mode",
+        modes=("abort",),
+        default_mode="abort",
+    ),
+    StdinFlag(
+        "checkpoint_abort.py",
+        "--from",
+        mode_option="--mode",
+        modes=("outcome", "merge"),
+        default_mode="abort",
+        stdin_argvs=(("--mode", "outcome"), ("--mode", "merge")),
+    ),
+    StdinFlag("pr_close_keyword_lint.py", "--body-file"),
+    StdinFlag("autoship_queue.py", "--input-file"),
+)
 
 
 @dataclass(frozen=True)
@@ -37,8 +82,8 @@ class StdinScript:
     argv: tuple[str, ...]
     flag: str | None
     fixture: str
-    piped: Golden
-    devnull: Golden
+    piped: Golden | None
+    devnull: Golden | None
 
     @property
     def needs_flag(self) -> bool:
@@ -76,12 +121,12 @@ _GROUPING_FIXTURE = json.dumps(
     {"batches": [], "ungrouped": [{"number": 1, "createdAt": "2026-01-01T00:00:00Z"}]}
 )
 
-#: The one fixture above 64 KiB: a PR body whose only finding sits after
+#: Larger than a pipe buffer (64 KiB): a PR body whose only finding sits after
 #: ~72 KB of filler, so a reader that stops early changes the output.
-LARGE_FIXTURE_SCRIPT = "scripts/pr_close_keyword_lint.py"
 _LARGE_PR_BODY_FIXTURE = "filler line\n" * 6000 + "This does not close #7\n"
 
-_ORCHESTRATOR_RUNS = "INFO: dispatching persona codebase-recon\n"
+#: The stderr line ``orchestrator.py --skip-llm`` prints before it dispatches.
+ORCHESTRATOR_RUNS_STDERR = "INFO: dispatching persona codebase-recon\n"
 
 STDIN_SCRIPTS: tuple[StdinScript, ...] = (
     StdinScript(
@@ -123,25 +168,24 @@ STDIN_SCRIPTS: tuple[StdinScript, ...] = (
         "a.py\nb.py\n",
         piped=Golden(
             0,
-            "{\n"
-            '  "base_ref": "HEAD",\n'
-            '  "complete": false,\n'
-            '  "files_included": [],\n'
-            '  "files_omitted": [\n'
-            "    {\n"
-            '      "file": "a.py",\n'
-            '      "reason": "not present in the working tree (deleted or renamed)"\n'
-            "    },\n"
-            "    {\n"
-            '      "file": "b.py",\n'
-            '      "reason": "not present in the working tree (deleted or renamed)"\n'
-            "    }\n"
-            "  ],\n"
-            '  "files_requested": 2,\n'
-            '  "pack_bytes": 906,\n'
-            f'  "path": "{CWD_PLACEHOLDER}/.claude/review-context/pack-088cd6e739f60ee1.md",\n'
-            '  "unique_body_bytes": 0\n'
-            "}\n",
+            json.dumps(
+                {
+                    "base_ref": "HEAD",
+                    "complete": False,
+                    "files_omitted": [
+                        {
+                            "file": "a.py",
+                            "reason": "not present in the working tree (deleted or renamed)",
+                        },
+                        {
+                            "file": "b.py",
+                            "reason": "not present in the working tree (deleted or renamed)",
+                        },
+                    ],
+                    "files_requested": 2,
+                }
+            ),
+            json_keys=("base_ref", "complete", "files_omitted", "files_requested"),
         ),
         devnull=Golden(1, '{"error": "no files given", "path": null}\n'),
     ),
@@ -170,7 +214,7 @@ STDIN_SCRIPTS: tuple[StdinScript, ...] = (
         devnull=Golden(1, "", "cheap-tier results are not valid JSON"),
     ),
     StdinScript(
-        LARGE_FIXTURE_SCRIPT,
+        "scripts/pr_close_keyword_lint.py",
         (),
         "--body-file",
         _LARGE_PR_BODY_FIXTURE,
@@ -193,7 +237,7 @@ STDIN_SCRIPTS: tuple[StdinScript, ...] = (
         ("--skip-llm",),
         None,
         "add a login page\n",
-        piped=Golden(0, "", _ORCHESTRATOR_RUNS),
-        devnull=Golden(0, "", _ORCHESTRATOR_RUNS),
+        piped=None,
+        devnull=None,
     ),
 )

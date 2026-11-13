@@ -19,7 +19,8 @@ Usage:
   python3 pr_close_keyword_lint.py --body-file <path> [--json]
   echo "$BODY" | python3 pr_close_keyword_lint.py [--json]
 
-Always exits 0 (advisory only). Stdlib-only.
+Exits 0 on every lint result (advisory only), except exit 2 when it would read
+a terminal or socket stdin that never reaches EOF: pass --body-file. Stdlib-only.
 """
 
 from __future__ import annotations

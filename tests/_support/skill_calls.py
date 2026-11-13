@@ -1,7 +1,7 @@
 """Find shell calls in SKILL.md text and judge whether they can hang on stdin.
 
 Neutral helper: it knows nothing about which scripts read stdin. Callers pass
-``(script basename, input flag)`` pairs.
+``InputFlag`` rules (or ``(script basename, input flag)`` pairs).
 
 A call is scanned in two places:
 
@@ -11,14 +11,19 @@ A call is scanned in two places:
 - an inline-code span outside any fence.
 
 Inside a command, a call starts at a segment (split on ``|``, ``||``, ``&&``,
-``;``, ``&``) that begins with ``python3`` or with a path containing ``/``
-whose basename is the script. Plain ``python``, a bare script name
-(``change_impact.py`` with no ``/`` and no ``python3``), and an inline span that
-is only a path with no arguments are mentions, not calls. Direct path
-execution inside a scanned fence is a call.
+``;``, ``&``) that begins with ``python3``, with the launcher form
+``sh|bash <path>/py.sh <script-path>``, or with a path containing ``/`` whose
+basename is the script. Leading ``(``, ``$(``, ``then``, ``do`` and ``time``
+words are skipped, as are env assignments. Plain ``python``, a bare script
+name (``change_impact.py`` with no ``/`` and no ``python3``), and an inline
+span that is only a path with no arguments are mentions, not calls. Direct path
+execution inside a scanned fence is a call. A ``#`` comment (unquoted, at the
+start of a word) is dropped before tokenizing.
 
-A call is safe when it has any of the script's input flags (exact token or
-``--flag=value``; a script may have several), is the target of a pipe (``|`` before it, or the previous
+A call is safe when it has one of the script's applicable input flags (exact
+token or ``--flag=value``, with a value other than ``-``, which means stdin; a
+script may have several, and a rule may apply only to some ``--mode`` values),
+is the target of a pipe (``|`` before it, or the previous
 logical line ends with ``|``), or has a ``<``, ``<<`` or ``<<<`` redirect
 after it. A pipe after the call never excuses it.
 """
@@ -28,6 +33,7 @@ from __future__ import annotations
 import re
 import shlex
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
@@ -40,6 +46,25 @@ _PLACEHOLDER_RE = re.compile(r"<[A-Za-z][^<>|&;\n]*[^\s<>|&;]>")
 _ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _SEGMENT_OPS = frozenset({"|", "||", "&&", ";", "&"})
 _REDIRECT_OPS = frozenset({"<", "<<", "<<<"})
+#: Words that can sit between a segment start and the command it runs.
+_PREFIX_WORDS = frozenset({"(", "$", "$(", "then", "do", "time", "else", "if", "!", "{"})
+_SHELL_LAUNCHERS = frozenset({"sh", "bash"})
+_PY_LAUNCHER = "py.sh"
+
+
+@dataclass(frozen=True)
+class InputFlag:
+    """One flag that makes ``script`` read a file instead of stdin.
+
+    With ``mode_option`` set, the rule applies only when that option's value
+    (or ``default_mode`` when the option is absent) is in ``modes``.
+    """
+
+    script: str
+    flag: str
+    mode_option: str | None = None
+    modes: tuple[str, ...] = ()
+    default_mode: str | None = None
 
 
 class Command(NamedTuple):
@@ -127,11 +152,25 @@ def _heredoc_delimiter(text: str) -> str | None:
     return match.group(1) or match.group(2) or match.group(3)
 
 
+def strip_comment(text: str) -> str:
+    """Drop a trailing ``#`` comment: an unquoted ``#`` that starts a word."""
+    quote = ""
+    for index, char in enumerate(text):
+        if quote:
+            if char == quote:
+                quote = ""
+        elif char in "'\"":
+            quote = char
+        elif char == "#" and (index == 0 or text[index - 1].isspace()):
+            return text[:index].rstrip()
+    return text
+
+
 def tokenize(text: str) -> list[str]:
-    cleaned = _PLACEHOLDER_RE.sub("PLACEHOLDER", text)
+    cleaned = _PLACEHOLDER_RE.sub("PLACEHOLDER", strip_comment(text))
     lexer = shlex.shlex(cleaned, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
-    lexer.commenters = "#"
+    lexer.commenters = ""
     try:
         return list(lexer)
     except ValueError:
@@ -157,10 +196,14 @@ def split_segments(tokens: list[str]) -> Iterator[tuple[str, list[str]]]:
 def _call_script(segment: list[str], inline: bool) -> str | None:
     """Return the script basename if the segment is a call, else None."""
     words = list(segment)
-    while words and _ENV_ASSIGN_RE.match(words[0]):
+    while words and (_ENV_ASSIGN_RE.match(words[0]) or words[0] in _PREFIX_WORDS):
         words.pop(0)
     if not words:
         return None
+    if words[0] in _SHELL_LAUNCHERS and len(words) > 1:
+        words.pop(0)
+    if words[0].rsplit("/", 1)[-1] == _PY_LAUNCHER:
+        return words[1].rsplit("/", 1)[-1] if len(words) > 1 else None
     if words[0] == "python3":
         words.pop(0)
         while words and words[0].startswith("-") and words[0] != "-":
@@ -173,22 +216,48 @@ def _call_script(segment: list[str], inline: bool) -> str | None:
     return None
 
 
-def has_flag(args: Iterable[str], flag: str) -> bool:
-    return any(arg == flag or arg.startswith(flag + "=") for arg in args)
+def option_value(args: list[str], option: str) -> str | None:
+    """Value of ``option`` (``--opt value`` or ``--opt=value``), else None."""
+    for index, arg in enumerate(args):
+        if arg == option:
+            return args[index + 1] if index + 1 < len(args) else ""
+        if arg.startswith(option + "="):
+            return arg[len(option) + 1 :]
+    return None
 
 
-def unguarded_calls(
-    command: Command, scripts: Iterable[tuple[str, str]]
-) -> list[Offender]:
-    """Return the calls in ``command`` that can hang on stdin.
+def has_flag(args: list[str], flag: str) -> bool:
+    """True when ``flag`` is given a value other than ``-`` (stdin)."""
+    value = option_value(args, flag)
+    return value is not None and value != "-"
 
-    ``scripts`` holds ``(script basename, input flag)`` pairs; a script may
-    appear in several pairs, one per flag.
+
+def _applies(rule: InputFlag, segment: list[str]) -> bool:
+    if rule.mode_option is None:
+        return True
+    mode = option_value(segment, rule.mode_option)
+    return (rule.default_mode if mode is None else mode) in rule.modes
+
+
+def _rules(scripts: Iterable[InputFlag | tuple[str, str]]) -> dict[str, list[InputFlag]]:
+    rules: dict[str, list[InputFlag]] = {}
+    for item in scripts:
+        rule = item if isinstance(item, InputFlag) else InputFlag(*item)
+        rules.setdefault(rule.script, []).append(rule)
+    return rules
+
+
+def judge_calls(
+    command: Command, scripts: Iterable[InputFlag | tuple[str, str]]
+) -> list[tuple[Offender, bool]]:
+    """Return every call to a listed script in ``command`` as
+    ``(call, safe)``: ``safe`` is False when the call can hang on stdin.
+
+    ``scripts`` holds one ``InputFlag`` (or ``(script basename, flag)`` pair)
+    per input flag; a script may appear several times.
     """
-    flags: dict[str, set[str]] = {}
-    for name, flag in scripts:
-        flags.setdefault(name, set()).add(flag)
-    offenders: list[Offender] = []
+    flags = _rules(scripts)
+    judged: list[tuple[Offender, bool]] = []
     parts = list(split_segments(tokenize(command.command_text)))
     for index, (separator, segment) in enumerate(parts):
         name = _call_script(segment, command.is_inline)
@@ -198,17 +267,35 @@ def unguarded_calls(
             index == 0 and command.preceding_line.rstrip().endswith("|")
         )
         redirected = any(token in _REDIRECT_OPS for token in segment)
-        flagged = any(has_flag(segment, flag) for flag in flags[name])
-        if piped or redirected or flagged:
-            continue
-        offenders.append(
-            Offender(command.file, command.line, name, command.command_text)
+        flagged = any(
+            _applies(rule, segment) and has_flag(segment, rule.flag)
+            for rule in flags[name]
         )
-    return offenders
+        call = Offender(command.file, command.line, name, command.command_text)
+        judged.append((call, piped or redirected or flagged))
+    return judged
+
+
+def unguarded_calls(
+    command: Command, scripts: Iterable[InputFlag | tuple[str, str]]
+) -> list[Offender]:
+    """Return the calls in ``command`` that can hang on stdin."""
+    return [call for call, safe in judge_calls(command, scripts) if not safe]
+
+
+def find_calls(
+    file: str, text: str, scripts: Iterable[InputFlag | tuple[str, str]]
+) -> list[tuple[Offender, bool]]:
+    """Every call to a listed script in ``text``, safe or not."""
+    rules = list(scripts)
+    found: list[tuple[Offender, bool]] = []
+    for command in iter_commands(file, text):
+        found.extend(judge_calls(command, rules))
+    return found
 
 
 def find_offenders(
-    file: str, text: str, scripts: Iterable[tuple[str, str]]
+    file: str, text: str, scripts: Iterable[InputFlag | tuple[str, str]]
 ) -> list[Offender]:
     pairs = list(scripts)
     found: list[Offender] = []
@@ -218,7 +305,7 @@ def find_offenders(
 
 
 def find_offenders_in_files(
-    paths: Iterable[Path], scripts: Iterable[tuple[str, str]]
+    paths: Iterable[Path], scripts: Iterable[InputFlag | tuple[str, str]]
 ) -> list[Offender]:
     pairs = list(scripts)
     found: list[Offender] = []
