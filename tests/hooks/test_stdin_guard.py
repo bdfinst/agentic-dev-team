@@ -283,6 +283,7 @@ def test_stream_whose_fileno_raises(error, can_reach_eof):
     assert stdin_guard.stream_can_reach_eof(stream) is can_reach_eof
 
 
+@NO_SOCKETS_ON_WINDOWS
 def test_refusal_message_names_the_script_flag_and_pipe_and_goes_to_stderr_only(
     probe_script, open_socket_stdin
 ):
