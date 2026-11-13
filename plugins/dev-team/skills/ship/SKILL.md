@@ -218,7 +218,7 @@ lands once checks pass. **Human gate** — the PR is the final review artifact.
 When `--issues` was given, the resulting PR body must carry one `Closes #<N>`
 line per member issue — not just one — so merging it closes every batch
 member. `/pr`'s existing closing-keyword-lint guidance
-(`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pr_close_keyword_lint.py"`, see
+(`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pr_close_keyword_lint.py" --body-file <body-file>`, see
 `skills/pr/SKILL.md`) needs no change to support this: it already lints each
 `Closes #<N>` line independently, so a batch PR body simply carries more of
 them. `/ship` confirms the created PR body actually carries one such line

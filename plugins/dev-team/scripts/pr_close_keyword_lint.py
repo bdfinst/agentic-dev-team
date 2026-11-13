@@ -29,6 +29,13 @@ import json
 import re
 import sys
 from dataclasses import asdict, dataclass
+from pathlib import Path
+
+_HOOKS_LIB_DIR = Path(__file__).resolve().parents[1] / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
+
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 CLOSE_RE = re.compile(
     r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)", re.IGNORECASE
@@ -90,7 +97,7 @@ def main(argv: list[str]) -> int:
         with open(args.body_file, "r", encoding="utf-8") as handle:
             body = handle.read()
     else:
-        body = sys.stdin.read()
+        body = read_stdin_or_exit("--body-file")
 
     findings = find_findings(body)
 

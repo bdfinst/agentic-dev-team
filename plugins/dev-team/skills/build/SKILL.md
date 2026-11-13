@@ -262,9 +262,14 @@ Work each step **one behavior at a time** — never all the code then all the te
    a state file older than 24h — see [`../code-review/SKILL.md`](../code-review/SKILL.md) step 6a's ledger-lifecycle table. Pass a `--run-id` that is unique per checkpoint; the step/slice identity above is sufficient.
 
    **Architectural-impact gate.** The resolver's `lenses` list is narrowed
-   further for structural lenses: pipe the checkpoint's diff through
-   `skills/code-review/scripts/change_impact.py --files <changed files>` and
-   drop any agent in its `skipLenses`. A step whose diff changes no import,
+   further for structural lenses. Pipe the checkpoint's diff into the script
+   and drop any agent in its `skipLenses`:
+
+   ```bash
+   git -c diff.relative=false diff --no-color <base> | python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_impact.py" --files <changed files>
+   ```
+
+   A step whose diff changes no import,
    adds/moves/deletes no file, edits no manifest or infra file, and changes
    no public symbol has moved no boundary for `arch-review` to evaluate. The
    gate is fail-safe — anything it cannot classify keeps every lens. Contract

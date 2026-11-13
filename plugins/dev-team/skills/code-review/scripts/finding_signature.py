@@ -52,7 +52,14 @@ import hashlib
 import json
 import re
 import sys
+from pathlib import Path
 from typing import NamedTuple
+
+_HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
+
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 #: Two reports of the same normalized finding within this many lines of each
 #: other are the same finding. Fixes shift line numbers slightly; a finding
@@ -388,9 +395,7 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    from pathlib import Path
-
-    raw = sys.stdin.read() if args.findings == "-" else Path(args.findings).read_text("utf-8")
+    raw = read_stdin_or_exit("--findings") if args.findings == "-" else Path(args.findings).read_text("utf-8")
     data = json.loads(raw) if raw.strip() else []
     if isinstance(data, dict):
         data = data.get("findings", [])

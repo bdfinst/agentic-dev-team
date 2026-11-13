@@ -64,6 +64,12 @@ import re
 import sys
 from pathlib import Path
 
+_HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
+
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+
 #: Lens -> the impact signals that justify dispatching it. A lens is dropped
 #: only when NONE of its signals are present. Grow this map from #1624's
 #: measured per-agent data, not from intuition (see module docstring).
@@ -342,7 +348,7 @@ def main(argv=None) -> int:
 
     try:
         diff_text = (
-            sys.stdin.read()
+            read_stdin_or_exit("--diff-from")
             if args.diff_from == "-"
             else Path(args.diff_from).read_text(encoding="utf-8")
         )

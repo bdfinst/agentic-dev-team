@@ -43,6 +43,11 @@ SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 from lib.slug import derive_slug
 
+_HOOKS_LIB_DIR = SCRIPTS.parent / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
+from stdin_guard import stream_can_reach_eof  # type: ignore[import-not-found]
+
 # Default personas for plan review — the five plan-review-* critics.
 DEFAULT_PERSONAS = [
     "plan-review-acceptance",
@@ -817,16 +822,31 @@ async def run_pipeline(
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_REQUEST = "default request"
+
+
 def _resolve_request_from_stdin() -> str:
-    """Return the piped stdin request, or "default request" as fallback.
+    """Return the piped stdin request, or DEFAULT_REQUEST as fallback.
 
     Tests stdin CONTENT, not just whether it's a tty: a piped-but-empty
     stdin (e.g. `< /dev/null` in a hook/CI invocation) must still resolve
     to "default request" — an empty request now drives live persona
     dispatch (the Research phase), not just classify().
+
+    A terminal is silent. Any other stdin that never reaches EOF (an open
+    socket, a closed descriptor) is not read, so the run cannot hang; it
+    uses the default request and says so on stderr.
     """
-    piped_text = sys.stdin.read().strip() if not sys.stdin.isatty() else ""
-    return piped_text or "default request"
+    stream = sys.stdin
+    if stream is not None and not stream.closed and stream.isatty():
+        return DEFAULT_REQUEST
+    if not stream_can_reach_eof(stream):
+        sys.stderr.write(
+            "orchestrator.py: stdin never reaches EOF here (open socket or closed "
+            f"stream); using the {DEFAULT_REQUEST}.\n"
+        )
+        return DEFAULT_REQUEST
+    return stream.read().strip() or DEFAULT_REQUEST
 
 
 def main(argv=None) -> int:

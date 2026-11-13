@@ -58,8 +58,13 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
+_HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
+
 from finding_signature import finding_agent as _finding_agent
 from finding_signature import finding_category as _finding_category
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 #: Rendered instead of any per-finding line when a round has zero findings —
 #: there is nothing to list and nothing to expand.
@@ -210,7 +215,11 @@ _FINDING_LIST_KEYS = ("findings", "topFindings", "issues")
 
 
 def _load_findings(path: str) -> list[dict]:
-    raw = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
+    raw = (
+        read_stdin_or_exit("--findings")
+        if path == "-"
+        else Path(path).read_text(encoding="utf-8")
+    )
     data = json.loads(raw) if raw.strip() else []
     if isinstance(data, list):
         return [f for f in data if isinstance(f, dict)]
