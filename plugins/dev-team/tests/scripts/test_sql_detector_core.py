@@ -568,7 +568,18 @@ def test_tokenizer_never_raises_on_odd_bytes():
         "é'x",
         "a" * 5000 + "'",
     ]:
-        tokenize(text)
+        tokens = tokenize(text)
+        assert [t.text for t in tokens] == _slices_at(text, tokens), repr(text)
+
+
+def _slices_at(text, tokens):
+    """The text each token's ``line``/``col`` points at, ``len(token.text)`` long."""
+    line_starts = [0] + [k + 1 for k, ch in enumerate(text) if ch == "\n"]
+    slices = []
+    for t in tokens:
+        start = line_starts[t.line - 1] + t.col - 1
+        slices.append(text[start : start + len(t.text)])
+    return slices
 
 
 def test_scan_reports_unreadable_files_from_as_a_file_error(tmp_path):

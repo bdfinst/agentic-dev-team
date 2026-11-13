@@ -26,9 +26,12 @@ whether the rows come from `VALUES` or from a `SELECT`. When a migration adds,
 drops, or reorders a column, the statement fails with a column-count error or
 loads a value into the wrong column. The `SELECT` source can be plain,
 parenthesized, after a `WITH` clause or an `OUTPUT` clause, or a `UNION` of
-selects. The target name can hold numbered placeholders such as `{0}`, as in
-`INSERT INTO FDTEMP_{0} VALUES (...)`. `INSERT ... DEFAULT VALUES` and an
-`INSERT` with a column list are not reported. An `INSERT ... SELECT *` is reported only as
+selects. The target name can hold template placeholders written on one line,
+such as `{0}`, `{0:N2}`, or `{tableName}`, as in
+`INSERT INTO FDTEMP_{0} VALUES (...)`. The `INSERT` branch of a `MERGE`
+(`WHEN NOT MATCHED THEN INSERT VALUES (...)`) is reported the same way.
+`INSERT ... DEFAULT VALUES` and an `INSERT` with a column list are not
+reported. An `INSERT ... SELECT *` is reported only as
 [`sql.schema.insert-select-star`](#sqlschemainsert-select-star).
 
 ### sql.schema.insert-select-star

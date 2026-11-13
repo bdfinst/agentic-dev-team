@@ -82,7 +82,11 @@ _QUERY_INTRO = _SET_OPERATOR_OR_QUANTIFIER | frozenset(
     ]
 )  # fmt: skip
 #: Words that end a T-SQL ``OUTPUT`` clause.
-_OUTPUT_END = frozenset(["SELECT", "VALUES", "VALUE", "EXEC", "DEFAULT", "WITH"])
+_OUTPUT_TERMINATORS = frozenset(
+    ["SELECT", "VALUES", "VALUE", "EXEC", "DEFAULT", "WITH"]
+)
+#: Most tokens between the braces of a ``{...}`` template placeholder.
+_MAX_PLACEHOLDER_TOKENS = 16
 #: Deepest paren nesting of a query expression that the source parser follows.
 _MAX_QUERY_NESTING = 64
 #: Words that cannot be the target table of an INSERT (trigger headers, ``ON``).
@@ -101,32 +105,49 @@ def _adjacent(a, b) -> bool:
 
 
 def _render(tokens) -> str:
-    """Matched tokens as one line of text, with dotted and templated names rejoined."""
+    """Matched tokens as one line of text, with dotted and templated names rejoined.
+
+    Tokens written with no space between them stay joined when either is a
+    ``{``, ``}``, or ``.``, or when they sit inside a ``{...}`` placeholder.
+    """
     parts: list[str] = []
+    brace_depth = 0
     for k, token in enumerate(tokens):
         is_glued = (
             k > 0
             and _adjacent(tokens[k - 1], token)
-            and (tokens[k - 1].text in _GLUE_PUNCT or token.text in _GLUE_PUNCT)
+            and (
+                brace_depth > 0
+                or tokens[k - 1].text in _GLUE_PUNCT
+                or token.text in _GLUE_PUNCT
+            )
         )
         if k > 0 and not is_glued:
             parts.append(" ")
         parts.append(token.text)
+        if _punct(token, "{"):
+            brace_depth += 1
+        elif _punct(token, "}") and brace_depth:
+            brace_depth -= 1
     return "".join(parts).replace(" . ", ".")
 
 
 def _placeholder_end(tokens, i: int) -> int:
-    """Index after a numbered ``{n}`` placeholder at ``i``, or ``i``."""
-    if i + 2 < len(tokens) and _punct(tokens[i], "{"):
-        number, close = tokens[i + 1], tokens[i + 2]
-        if (
-            number.kind == NUMBER
-            and number.text.isdigit()
-            and _punct(close, "}")
-            and _adjacent(tokens[i], number)
-            and _adjacent(number, close)
-        ):
-            return i + 3
+    """Index after a ``{...}`` template placeholder at ``i``, or ``i``.
+
+    A placeholder is a non-empty brace group on one line with no nested ``{``
+    or ``;``, as in ``{0}``, ``{0:N2}``, ``{tableName}``, or ``{GetSuffix()}``.
+    """
+    n = len(tokens)
+    if not (i < n and _punct(tokens[i], "{")):
+        return i
+    limit = min(n, i + 2 + _MAX_PLACEHOLDER_TOKENS)
+    for k in range(i + 1, limit):
+        token = tokens[k]
+        if token.line != tokens[i].line or _punct(token, "{") or _punct(token, ";"):
+            return i
+        if _punct(token, "}"):
+            return k + 1 if k > i + 1 else i
     return i
 
 
@@ -206,20 +227,28 @@ def _output_end(tokens, j: int) -> int | None:
     """Index after a T-SQL ``OUTPUT ...`` clause at ``j``, or ``j`` if none.
 
     The clause ends at the first ``SELECT``, ``VALUES``, ``EXEC``, ``DEFAULT``,
-    or ``WITH`` that is not a qualified column such as ``inserted.value``.
+    or ``WITH`` outside parentheses that is not a column or alias name, as in
+    ``inserted.value``, ``AS value``, or ``INTO @audit (id, value)``.
     ``None`` when a ``;`` ends the statement inside the clause.
     """
     n = len(tokens)
     if not (j < n and _is(tokens[j], "OUTPUT")):
         return j
+    depth = 0
     while j < n:
         token = tokens[j]
         if _punct(token, ";"):
             return None
-        if (
-            token.kind == WORD
-            and token.text.upper() in _OUTPUT_END
+        if _punct(token, "("):
+            depth += 1
+        elif _punct(token, ")"):
+            depth -= 1
+        elif (
+            depth == 0
+            and token.kind == WORD
+            and token.text.upper() in _OUTPUT_TERMINATORS
             and not _punct(tokens[j - 1], ".")
+            and not _is(tokens[j - 1], "AS")
         ):
             return j
         j += 1
@@ -230,13 +259,20 @@ def check_positional_insert(ctx: Context) -> Iterator[Hit]:
     """An INSERT with no column list, fed by ``VALUES`` or a named ``SELECT``.
 
     An INSERT whose SELECT source has a star item is left to
-    ``sql.schema.insert-select-star``, so the statement gets one finding.
+    ``sql.schema.insert-select-star``, so the statement gets one finding. A
+    ``MERGE ... THEN INSERT VALUES`` branch has no target name of its own.
     """
     tokens = ctx.tokens
     n = len(tokens)
     sources = _insert_sources(tokens)
     for i, token in enumerate(tokens):
         if not _is(token, "INSERT"):
+            continue
+        if i > 0 and _is(tokens[i - 1], "THEN"):
+            if i + 1 < n and (
+                _is(tokens[i + 1], "VALUES") or _is(tokens[i + 1], "VALUE")
+            ):
+                yield Hit(token.line, _render(tokens[i : i + 2]))
             continue
         j = _target_end(tokens, i)
         if j is None or _is_column_list(tokens, j):
@@ -659,6 +695,13 @@ RULES = (
                 (1,),
             ),
             Fixture("placeholder-target", "INSERT INTO t_{0} VALUES (1);", (1,)),
+            Fixture("interpolated-target", "INSERT INTO {table} VALUES (1);", (1,)),
+            Fixture(
+                "merge-insert",
+                "MERGE INTO t USING s ON t.id = s.id\n"
+                "WHEN NOT MATCHED THEN INSERT VALUES (s.id);",
+                (2,),
+            ),
             Fixture(
                 "placeholder-after-dot",
                 "INSERT INTO dbo.{5}_ws_{0} SELECT id FROM t;",
@@ -674,6 +717,15 @@ RULES = (
             Fixture("placeholder-after-space", "INSERT INTO t {0} VALUES (1);"),
             Fixture(
                 "placeholder-after-space-select", "INSERT INTO t {0} SELECT x FROM b;"
+            ),
+            Fixture(
+                "merge-insert-column-list",
+                "MERGE INTO t USING s ON t.id = s.id\n"
+                "WHEN NOT MATCHED THEN INSERT (id) VALUES (s.id);",
+            ),
+            Fixture(
+                "output-into-column-list",
+                "INSERT INTO t (a) OUTPUT inserted.a INTO @log (a, value) VALUES (1);",
             ),
             Fixture("in-comment", "-- INSERT INTO t VALUES (1)"),
         ),

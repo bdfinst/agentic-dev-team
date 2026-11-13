@@ -151,7 +151,10 @@ _TEST_DIR_NAMES = frozenset({"test", "tests"})
 #: "no Assert, expect, should, verify, or equivalent assertion call" —
 #: test-review.md's own generic (language-agnostic) wording for the
 #: no-assertion check.
-_ASSERTION_RE = re.compile(r"\b(assert\w*|expect|should\w*|verify\w*)\b", re.IGNORECASE)
+_ASSERTION_RE = re.compile(
+    r"\b(assert\w*|expect|should\w*|verify\w*)\b|\bpytest\.(?:raises|warns)\b",
+    re.IGNORECASE,
+)
 
 
 # --- Test-region extraction (brace/paren-balanced, per language) ------------

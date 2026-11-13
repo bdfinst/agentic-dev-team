@@ -141,6 +141,36 @@ class TestNoAssertion:
         assert len(hits) == 1
         assert result["mechanicalFail"] is True
 
+    def test_python_pytest_raises_counts_as_an_assertion(self, tmp_path):
+        """`with pytest.raises(...)` asserts that the call raises, so a test
+        whose only check is that block is not a no-assertion test."""
+        test_file = _tests_dir(tmp_path) / "test_widget.py"
+        test_file.write_text(
+            "import pytest\n"
+            "\n"
+            "def test_rejects_bad_input():\n"
+            "    with pytest.raises(ValueError, match='bad'):\n"
+            "        parse('bad')\n"
+            "\n"
+            "def test_warns_on_old_input():\n"
+            "    with pytest.warns(DeprecationWarning):\n"
+            "        parse('old')\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        assert _findings_by_category(result, "no-assertion") == []
+        assert result["mechanicalFail"] is False
+
+    def test_a_call_named_raises_is_not_an_assertion(self, tmp_path):
+        test_file = _tests_dir(tmp_path) / "test_widget.py"
+        test_file.write_text("def test_renders():\n    widget.raises()\n", encoding="utf-8")
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        assert len(_findings_by_category(result, "no-assertion")) == 1
+
     def test_python_multiline_signature_with_assertion_is_not_flagged(self, tmp_path):
         """Regression (backstop review, #2169): a black-formatted
         multi-line signature put the body's first real line right after a

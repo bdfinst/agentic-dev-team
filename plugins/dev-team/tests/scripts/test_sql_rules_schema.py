@@ -155,21 +155,61 @@ def test_placeholder_after_whitespace_is_not_part_of_the_name(stmt):
     assert detect(stmt) == []
 
 
-# Known limitation: only a bare numbered ``{n}`` written with no spaces is a
-# name part. Other brace text ends the name, so these inserts are not reported.
+@pytest.mark.parametrize(
+    ("stmt", "expected_text"),
+    [
+        pytest.param(
+            "INSERT INTO t_{abc} VALUES (1)", "INSERT INTO t_{abc} VALUES", id="named"
+        ),
+        pytest.param(
+            "INSERT INTO {tableName} VALUES (1)",
+            "INSERT INTO {tableName} VALUES",
+            id="interpolated",
+        ),
+        pytest.param(
+            "INSERT INTO t_{GetSuffix()} VALUES (1)",
+            "INSERT INTO t_{GetSuffix()} VALUES",
+            id="interpolated-call",
+        ),
+        pytest.param(
+            "INSERT INTO t_{1.5} VALUES (1)", "INSERT INTO t_{1.5} VALUES", id="number"
+        ),
+        pytest.param(
+            "INSERT INTO t_{0:N2} VALUES (1)",
+            "INSERT INTO t_{0:N2} VALUES",
+            id="format-spec",
+        ),
+        pytest.param(
+            "INSERT INTO t_{0,10} VALUES (1)",
+            "INSERT INTO t_{0,10} VALUES",
+            id="alignment",
+        ),
+        pytest.param(
+            "INSERT INTO t_{ 0} VALUES (1)",
+            "INSERT INTO t_{ 0} VALUES",
+            id="space-after-open",
+        ),
+        pytest.param(
+            "INSERT INTO t_{0 } VALUES (1)",
+            "INSERT INTO t_{0 } VALUES",
+            id="space-before-close",
+        ),
+    ],
+)
+def test_any_one_line_brace_group_is_a_placeholder(stmt, expected_text):
+    findings = detect(stmt)
+    assert [(f["rule"], f["text"]) for f in findings] == [(POSITIONAL, expected_text)]
+
+
 @pytest.mark.parametrize(
     "stmt",
     [
-        pytest.param("INSERT INTO t_{abc} VALUES (1)", id="not-a-number"),
-        pytest.param("INSERT INTO t_{1.5} VALUES (1)", id="not-an-integer"),
-        pytest.param("INSERT INTO t_{0:N2} VALUES (1)", id="format-spec"),
-        pytest.param("INSERT INTO t_{ 0} VALUES (1)", id="space-after-open"),
-        pytest.param("INSERT INTO t_{0 } VALUES (1)", id="space-before-close"),
         pytest.param("INSERT INTO t_{\n0} VALUES (1)", id="line-break"),
         pytest.param("INSERT INTO t_{0 VALUES (1)", id="unclosed"),
+        pytest.param("INSERT INTO t_{} VALUES (1)", id="empty"),
     ],
 )
-def test_unsupported_placeholder_forms_are_not_name_parts(stmt):
+def test_malformed_brace_text_is_not_a_name_part(stmt):
     assert detect(stmt) == []
 
 
@@ -322,6 +362,85 @@ def test_insert_with_column_list_is_clean(stmt):
 )
 def test_star_in_any_source_branch_is_one_insert_select_star_finding(stmt):
     assert [f["rule"] for f in detect(stmt)] == [INSERT_SELECT_STAR]
+
+
+@pytest.mark.parametrize(
+    ("stmt", "expected"),
+    [
+        pytest.param(
+            "INSERT INTO t OUTPUT inserted.id INTO @audit (id, value) SELECT id FROM s",
+            [(POSITIONAL, "INSERT INTO t SELECT")],
+            id="into-column-list",
+        ),
+        pytest.param(
+            "INSERT INTO t OUTPUT inserted.id INTO @audit (id, value) VALUES (1)",
+            [(POSITIONAL, "INSERT INTO t VALUES")],
+            id="into-column-list-values",
+        ),
+        pytest.param(
+            "INSERT INTO t OUTPUT inserted.id AS value SELECT * FROM s",
+            [
+                (
+                    INSERT_SELECT_STAR,
+                    "INSERT INTO t OUTPUT inserted.id AS value SELECT *",
+                )
+            ],
+            id="alias",
+        ),
+        pytest.param(
+            "INSERT INTO t OUTPUT inserted.id INTO @audit (id, value) SELECT * FROM s",
+            [
+                (
+                    INSERT_SELECT_STAR,
+                    "INSERT INTO t OUTPUT inserted.id INTO @audit ( id , value ) SELECT *",
+                )
+            ],
+            id="into-column-list-star",
+        ),
+    ],
+)
+def test_keyword_inside_an_output_clause_does_not_end_it(stmt, expected):
+    assert [(f["rule"], f["text"]) for f in detect(stmt)] == expected
+
+
+@pytest.mark.parametrize(
+    "stmt",
+    [
+        pytest.param(
+            "MERGE INTO t USING s ON t.id = s.id\n"
+            "WHEN NOT MATCHED THEN INSERT VALUES (s.id, s.name);",
+            id="not-matched",
+        ),
+        pytest.param(
+            "MERGE t USING s ON t.id = s.id\n"
+            "WHEN NOT MATCHED BY TARGET THEN\nINSERT VALUES (s.id);",
+            id="by-target",
+        ),
+    ],
+)
+def test_merge_insert_without_column_list_is_positional(stmt):
+    findings = detect(stmt)
+    assert [(f["rule"], f["text"]) for f in findings] == [(POSITIONAL, "INSERT VALUES")]
+    assert findings[0]["line"] == stmt.count("\n", 0, stmt.index("INSERT")) + 1
+
+
+@pytest.mark.parametrize(
+    "stmt",
+    [
+        pytest.param(
+            "MERGE INTO t USING s ON t.id = s.id\n"
+            "WHEN NOT MATCHED THEN INSERT (id, name) VALUES (s.id, s.name);",
+            id="column-list",
+        ),
+        pytest.param(
+            "MERGE INTO t USING s ON t.id = s.id\n"
+            "WHEN NOT MATCHED THEN INSERT DEFAULT VALUES;",
+            id="default-values",
+        ),
+    ],
+)
+def test_merge_insert_with_column_list_is_clean(stmt):
+    assert detect(stmt) == []
 
 
 def test_insert_does_not_claim_a_select_after_its_statement_ends():
