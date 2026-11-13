@@ -14,6 +14,7 @@ from _benefit_baseline_rules import (
     ISSUE_CITES,
     NO_VERDICT_STATUSES,
     PINNED_STATUS,
+    RECORD_CAPABLE,
     Context,
     cell_token,
     check_baseline_cells,
@@ -33,11 +34,12 @@ RECORD_CHECKS = (check_measured_cells, check_records)
 def good_baseline(metric_id: str) -> str:
     """A valid cell for the metric's pinned status; a measured metric starts as not-yet-run."""
     status = PINNED_STATUS[metric_id]
-    head = (
-        "no-reference: not-yet-run; replay pending"
-        if status == "measured"
-        else f"{status}: reference text"
-    )
+    if status == "measured":
+        head = "no-reference: not-yet-run; replay pending"
+    elif status == "no-reference" and metric_id in RECORD_CAPABLE:
+        head = "no-reference: fixture-missing; reference text"
+    else:
+        head = f"{status}: reference text"
     cite = ISSUE_CITES.get(metric_id)
     return f"{head} (#{cite})" if cite else head
 

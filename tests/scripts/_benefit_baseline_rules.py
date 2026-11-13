@@ -51,7 +51,7 @@ PINNED_STATUS = {
     "injection-overhead": "by-definition",
     "guard-false-positive": "by-definition",
     PBT: "measured",
-    TR_TP: "measured",
+    TR_TP: "no-reference",
     "injection-uptake": "forward-captured",
     "test-review-token-delta": "forward-captured",
     "abort-yield": "no-reference",

@@ -89,7 +89,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "test-review true-positive change on the agent-eval fixtures, after minus before",
       "instrument": "manual-input",
       "identity_class": "id-bearing",
-      "baseline": "no-reference: not-yet-run; true-positive rate of test-review before the pre-phase change, on the same fixtures",
+      "baseline": "no-reference: fixture-missing; only 4 tr-* fixtures exist, below minimum_n 10, so no live run was made; the pre-phase change was introduced by ee2bc429f (#2197, marker 'Mechanical pre-phase')",
       "unit": "percentage points",
       "keep": ">= 0",
       "tune": "< 0",
