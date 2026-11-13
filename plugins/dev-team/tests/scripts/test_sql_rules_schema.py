@@ -473,6 +473,12 @@ def test_keyword_inside_an_output_clause_does_not_end_it(stmt, expected):
             3,
             id="by-target",
         ),
+        pytest.param(
+            "MERGE INTO t USING s ON t.id = s.id\n"
+            "WHEN NOT MATCHED THEN INSERT OVERRIDING SYSTEM VALUE VALUES (s.id);",
+            2,
+            id="overriding",
+        ),
     ],
 )
 def test_merge_insert_without_column_list_is_positional(stmt, expected_line):
@@ -530,6 +536,11 @@ def test_procedural_then_insert_with_a_target_is_an_ordinary_insert(
             "MERGE INTO t USING s ON t.id = s.id\n"
             "WHEN NOT MATCHED THEN INSERT DEFAULT VALUES;",
             id="default-values",
+        ),
+        pytest.param(
+            "MERGE INTO t USING s ON t.id = s.id\n"
+            "WHEN NOT MATCHED THEN INSERT (id) OVERRIDING USER VALUE VALUES (s.id);",
+            id="column-list-overriding",
         ),
     ],
 )

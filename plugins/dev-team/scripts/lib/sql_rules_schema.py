@@ -264,7 +264,27 @@ def _is_merge_insert(tokens, i: int) -> bool:
     if i < 1 or i + 1 >= len(tokens) or not _is(tokens[i - 1], "THEN"):
         return False
     nxt = tokens[i + 1]
-    return _punct(nxt, "(") or any(_is(nxt, w) for w in ("VALUES", "VALUE", "DEFAULT"))
+    return _punct(nxt, "(") or any(
+        _is(nxt, w) for w in ("VALUES", "VALUE", "DEFAULT", "OVERRIDING")
+    )
+
+
+def _merge_values_index(tokens, i: int) -> int | None:
+    """Index of ``VALUES`` in a MERGE ``INSERT`` at ``i`` with no column list.
+
+    Skips a Postgres ``OVERRIDING {SYSTEM|USER} VALUE`` clause. ``None`` when
+    the branch has a column list or no ``VALUES``.
+    """
+    j = i + 1
+    if (
+        j + 2 < len(tokens)
+        and _is(tokens[j], "OVERRIDING")
+        and _is(tokens[j + 2], "VALUE")
+    ):
+        j += 3
+    if j < len(tokens) and (_is(tokens[j], "VALUES") or _is(tokens[j], "VALUE")):
+        return j
+    return None
 
 
 def check_positional_insert(ctx: Context) -> Iterator[Hit]:
@@ -281,8 +301,9 @@ def check_positional_insert(ctx: Context) -> Iterator[Hit]:
         if not _is(token, "INSERT"):
             continue
         if _is_merge_insert(tokens, i):
-            if _is(tokens[i + 1], "VALUES") or _is(tokens[i + 1], "VALUE"):
-                yield Hit(token.line, _render(tokens[i : i + 2]))
+            values = _merge_values_index(tokens, i)
+            if values is not None:
+                yield Hit(token.line, _render([token, tokens[values]]))
             continue
         j = _target_end(tokens, i)
         if j is None or _is_column_list(tokens, j):
