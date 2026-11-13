@@ -1,7 +1,8 @@
 """stdin_guard - refuse stdin streams that never reach EOF.
 
-Claude Code's Bash tool gives a command a socket on stdin that never closes.
-A script that reads stdin by default then blocks until the tool times out.
+A stdin that is a socket or terminal, as seen when a script runs under the
+Bash tool, may never reach EOF. A script that reads stdin by default then
+blocks until the tool times out.
 ``read_stdin_or_exit`` reads a stream only when its type can end, and
 otherwise exits with a usage error that names the flag to pass instead.
 
@@ -22,14 +23,12 @@ import sys
 REFUSAL_EXIT_STATUS = 2
 
 
-def stdin_is_readable(stream=None) -> bool:
-    """True when reading ``stream`` (default ``sys.stdin``) can reach EOF.
+def stream_can_reach_eof(stream) -> bool:
+    """True when reading ``stream`` can reach EOF; ``None`` cannot.
 
     Inspects the descriptor of the given stream, never the process's fd 0.
-    A stream with no descriptor (an in-memory stream) is readable.
+    A stream with no descriptor (an in-memory stream) can reach EOF.
     """
-    if stream is None:
-        stream = sys.stdin
     if stream is None or getattr(stream, "closed", False):
         return False
     try:
@@ -55,7 +54,7 @@ def read_stdin_or_exit(flag: str, stream=None) -> str:
     """
     if stream is None:
         stream = sys.stdin
-    if stdin_is_readable(stream):
+    if stream_can_reach_eof(stream):
         return stream.read()
     script = os.path.basename(sys.argv[0])
     sys.stderr.write(

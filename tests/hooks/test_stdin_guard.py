@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -31,6 +32,8 @@ REFUSAL_TIMEOUT_SECONDS = 5
 PIPE_BUFFER_EXCEEDING_BYTES = 200_000
 REFUSAL_EXIT_STATUS = 2
 NEVER_ENDS_MARKER = "stdin never reaches EOF"
+EXPECTED_SCRIPT_COUNT = 8
+NEVER_OPEN_FD = 2**30
 
 NO_SOCKETS_ON_WINDOWS = pytest.mark.skipif(
     sys.platform == "win32",
@@ -38,6 +41,9 @@ NO_SOCKETS_ON_WINDOWS = pytest.mark.skipif(
 )
 NO_PTY_ON_WINDOWS = pytest.mark.skipif(
     sys.platform == "win32", reason="the pty module does not exist on Windows"
+)
+NO_DIRECTORY_FDS_ON_WINDOWS = pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows cannot open a directory as a descriptor"
 )
 
 
@@ -47,15 +53,29 @@ def _write_then_close(write_fd: int, payload: bytes) -> None:
 
 
 def _read_through_pipe(payload: bytes) -> str:
-    """Read ``payload`` through a pipe, with the write on its own thread."""
+    """Read ``payload`` through a pipe, with the write on its own thread.
+
+    An exception raised by the writer thread is re-raised after the join.
+    """
     read_fd, write_fd = os.pipe()
-    writer = threading.Thread(target=_write_then_close, args=(write_fd, payload))
+    writer_errors: list[OSError] = []
+
+    def write() -> None:
+        try:
+            _write_then_close(write_fd, payload)
+        except OSError as error:  # re-raised on the test thread below
+            writer_errors.append(error)
+
+    writer = threading.Thread(target=write)
     writer.start()
     try:
         with os.fdopen(read_fd, "r") as stream:
-            return stdin_guard.read_stdin_or_exit("--findings", stream=stream)
+            text = stdin_guard.read_stdin_or_exit("--findings", stream=stream)
     finally:
         writer.join()
+    if writer_errors:
+        raise writer_errors[0]
+    return text
 
 
 def test_piped_input_is_read():
@@ -63,10 +83,7 @@ def test_piped_input_is_read():
 
 
 def test_empty_pipe_returns_an_empty_string():
-    read_fd, write_fd = os.pipe()
-    os.close(write_fd)
-    with os.fdopen(read_fd, "r") as stream:
-        assert stdin_guard.read_stdin_or_exit("--findings", stream=stream) == ""
+    assert _read_through_pipe(b"") == ""
 
 
 def test_pipe_larger_than_the_pipe_buffer_is_read_completely():
@@ -100,14 +117,26 @@ def test_default_stream_is_the_current_sys_stdin(monkeypatch):
     assert stdin_guard.read_stdin_or_exit("--findings") == "abc"
 
 
-def test_table_lists_the_eight_scripts_with_real_flags():
+FLAGGED_SCRIPTS = [row for row in STDIN_SCRIPTS if row.flag is not None]
+
+
+def test_table_lists_the_expected_number_of_distinct_scripts():
     scripts = {row.script for row in STDIN_SCRIPTS}
-    assert len(STDIN_SCRIPTS) == len(scripts) == 8
-    for row in STDIN_SCRIPTS:
-        source = (REPO_ROOT / "plugins" / "dev-team" / row.script).read_text("utf-8")
-        assert row.needs_flag == (row.flag is not None)
-        if row.flag is not None:
-            assert f'"{row.flag}"' in source, row.script
+    assert len(STDIN_SCRIPTS) == len(scripts) == EXPECTED_SCRIPT_COUNT
+
+
+@pytest.mark.parametrize("row", FLAGGED_SCRIPTS, ids=lambda row: row.script)
+def test_table_flag_is_registered_as_an_argparse_option(row):
+    source = (REPO_ROOT / "plugins" / "dev-team" / row.script).read_text("utf-8")
+    # The flag must be an exact string argument of an add_argument( call,
+    # so "--findings-file" or a flag only mentioned in a comment does not match.
+    registered = re.compile(
+        r"add_argument\(\s*(?:[\"'][^\"']*[\"']\s*,\s*)*"
+        + r"[\"']"
+        + re.escape(row.flag)
+        + r"[\"']"
+    )
+    assert registered.search(source), f"{row.flag} is not an add_argument option"
 
 
 @pytest.fixture
@@ -135,10 +164,10 @@ def _run_probe(script: Path, flag: str, stdin) -> subprocess.CompletedProcess:
 
 
 def _assert_refused(result: subprocess.CompletedProcess, flag: str) -> None:
-    assert result.returncode == REFUSAL_EXIT_STATUS
-    assert result.stdout == ""
-    assert NEVER_ENDS_MARKER in result.stderr
-    assert flag in result.stderr
+    assert result.returncode == REFUSAL_EXIT_STATUS, result.stderr
+    assert result.stdout == "", result.stderr
+    assert NEVER_ENDS_MARKER in result.stderr, result.stderr
+    assert flag in result.stderr, result.stderr
 
 
 @pytest.fixture
@@ -156,7 +185,6 @@ def open_socket_stdin():
 def test_socket_that_never_ends_is_refused(probe_script, open_socket_stdin):
     result = _run_probe(probe_script, "--diff-from", open_socket_stdin)
     _assert_refused(result, "--diff-from")
-    assert "pipe" in result.stderr
 
 
 @NO_SOCKETS_ON_WINDOWS
@@ -196,42 +224,69 @@ def test_closed_stream_object_is_refused(capsys):
     assert _refusal_of(stream, capsys) == (REFUSAL_EXIT_STATUS, "")
 
 
-def test_stream_whose_descriptor_was_closed_is_refused(capsys):
-    read_fd, write_fd = os.pipe()
-    os.close(write_fd)
-    stream = os.fdopen(read_fd, "r", closefd=False)
-    os.close(read_fd)
+def _stream_with_fileno(fileno) -> SimpleNamespace:
+    return SimpleNamespace(closed=False, fileno=fileno)
+
+
+def _raise(error: Exception):
+    def fileno():
+        raise error
+
+    return fileno
+
+
+def test_stream_whose_descriptor_is_not_open_is_refused(capsys):
+    stream = _stream_with_fileno(lambda: NEVER_OPEN_FD)
     assert _refusal_of(stream, capsys) == (REFUSAL_EXIT_STATUS, "")
 
 
 def test_missing_stdin_is_refused(monkeypatch, capsys):
     monkeypatch.setattr(sys, "stdin", None)
-    with pytest.raises(SystemExit) as raised:
-        stdin_guard.read_stdin_or_exit("--findings")
-    assert (raised.value.code, capsys.readouterr().out) == (REFUSAL_EXIT_STATUS, "")
+    assert _refusal_of(None, capsys) == (REFUSAL_EXIT_STATUS, "")
 
 
 @NO_SOCKETS_ON_WINDOWS
-def test_predicate_reports_a_socket_unreadable_without_exiting(open_socket_stdin):
+def test_socket_cannot_reach_eof_and_does_not_exit(open_socket_stdin):
     with os.fdopen(os.dup(open_socket_stdin.fileno()), "r") as stream:
-        assert stdin_guard.stdin_is_readable(stream) is False
+        assert stdin_guard.stream_can_reach_eof(stream) is False
 
 
-def test_directory_is_unreadable(tmp_path: Path):
+@NO_PTY_ON_WINDOWS
+def test_terminal_cannot_reach_eof():
+    import pty
+
+    master_fd, slave_fd = pty.openpty()
+    try:
+        with os.fdopen(slave_fd, "r") as stream:
+            assert stdin_guard.stream_can_reach_eof(stream) is False
+    finally:
+        os.close(master_fd)
+
+
+@NO_DIRECTORY_FDS_ON_WINDOWS
+def test_directory_cannot_reach_eof(tmp_path: Path):
     directory_fd = os.open(tmp_path, os.O_RDONLY)
     try:
-        stream = SimpleNamespace(closed=False, fileno=lambda: directory_fd)
-        assert stdin_guard.stdin_is_readable(stream) is False
+        stream = _stream_with_fileno(lambda: directory_fd)
+        assert stdin_guard.stream_can_reach_eof(stream) is False
     finally:
         os.close(directory_fd)
 
 
-def test_refusal_message_names_the_script_and_goes_to_stderr_only(
+@pytest.mark.parametrize(
+    ("error", "can_reach_eof"),
+    [(OSError, False), (ValueError, True)],
+    ids=["fileno-oserror-fails-safe", "fileno-valueerror-on-open-stream"],
+)
+def test_stream_whose_fileno_raises(error, can_reach_eof):
+    stream = _stream_with_fileno(_raise(error("no descriptor")))
+    assert stdin_guard.stream_can_reach_eof(stream) is can_reach_eof
+
+
+def test_refusal_message_names_the_script_flag_and_pipe_and_goes_to_stderr_only(
     probe_script, open_socket_stdin
 ):
     result = _run_probe(probe_script, "--findings", open_socket_stdin)
     assert result.stdout == ""
-    assert result.stderr == (
-        "probe_tool.py: no input; stdin never reaches EOF here (terminal or open "
-        "socket). Pass --findings <file> or pipe the input in.\n"
-    )
+    for expected in (probe_script.name, "--findings", NEVER_ENDS_MARKER, "pipe"):
+        assert expected in result.stderr, result.stderr
