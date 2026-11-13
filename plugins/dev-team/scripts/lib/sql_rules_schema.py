@@ -69,20 +69,24 @@ _STATEMENT_START = frozenset(
         "TRUNCATE",
     ]
 )
-#: Words that join one query to the next, so a ``SELECT`` after one continues it.
-_SET_OPERATOR = frozenset(["UNION", "INTERSECT", "EXCEPT", "MINUS", "ALL", "DISTINCT"])
+#: Words that join two query branches.
+_SET_OPERATOR = frozenset(["UNION", "INTERSECT", "EXCEPT", "MINUS"])
+#: Words that end a set operator, so a ``SELECT`` after one continues the query.
+_SET_OPERATOR_OR_QUANTIFIER = _SET_OPERATOR | frozenset(["ALL", "DISTINCT"])
 #: A word before ``(`` that opens a query, as opposed to a function call.
-_QUERY_INTRO = frozenset(
+_QUERY_INTRO = _SET_OPERATOR_OR_QUANTIFIER | frozenset(
     [
-        "UNION", "INTERSECT", "EXCEPT", "MINUS", "ALL", "DISTINCT", "IN", "EXISTS",
-        "ANY", "SOME", "AS", "FROM", "JOIN", "APPLY", "LATERAL", "ON", "WHERE",
-        "AND", "OR", "NOT", "THEN", "ELSE", "WHEN", "MATERIALIZED", "INTO",
+        "IN", "EXISTS", "ANY", "SOME", "AS", "FROM", "JOIN", "APPLY", "LATERAL",
+        "ON", "WHERE", "AND", "OR", "NOT", "THEN", "ELSE", "WHEN", "MATERIALIZED",
+        "INTO",
     ]
 )  # fmt: skip
+#: Words that end a T-SQL ``OUTPUT`` clause.
+_OUTPUT_END = frozenset(["SELECT", "VALUES", "VALUE", "EXEC", "DEFAULT", "WITH"])
+#: Deepest paren nesting of a query expression that the source parser follows.
+_MAX_QUERY_NESTING = 64
 #: Words that cannot be the target table of an INSERT (trigger headers, ``ON``).
 _NOT_A_TARGET = frozenset(["AS", "ON", "OR"])
-#: Words that join two query branches. ``ALL`` and ``DISTINCT`` may follow one.
-_SET_JOIN = frozenset(["UNION", "INTERSECT", "EXCEPT", "MINUS"])
 #: Punctuation that a name or placeholder joins with no space, as in ``dbo.{5}_ws``.
 _GLUE_PUNCT = frozenset(["{", "}", "."])
 
@@ -201,17 +205,23 @@ def _is_column_list(tokens, j: int) -> bool:
 def _output_end(tokens, j: int) -> int | None:
     """Index after a T-SQL ``OUTPUT ...`` clause at ``j``, or ``j`` if none.
 
-    ``None`` when the statement ends inside the clause.
+    The clause ends at the first ``SELECT``, ``VALUES``, ``EXEC``, ``DEFAULT``,
+    or ``WITH`` that is not a qualified column such as ``inserted.value``.
+    ``None`` when a ``;`` ends the statement inside the clause.
     """
     n = len(tokens)
     if not (j < n and _is(tokens[j], "OUTPUT")):
         return j
-    while j < n and not any(
-        _is(tokens[j], w)
-        for w in ("SELECT", "VALUES", "VALUE", "EXEC", "DEFAULT", "WITH")
-    ):
-        if _punct(tokens[j], ";"):
+    while j < n:
+        token = tokens[j]
+        if _punct(token, ";"):
             return None
+        if (
+            token.kind == WORD
+            and token.text.upper() in _OUTPUT_END
+            and not _punct(tokens[j - 1], ".")
+        ):
+            return j
         j += 1
     return j
 
@@ -291,7 +301,7 @@ def _continues_query(tokens, k: int) -> bool:
         return False
     prev = tokens[k - 1]
     return _punct(prev, "(") or (
-        prev.kind == WORD and prev.text.upper() in _SET_OPERATOR
+        prev.kind == WORD and prev.text.upper() in _SET_OPERATOR_OR_QUANTIFIER
     )
 
 
@@ -433,10 +443,10 @@ def _insert_source_start(tokens, i: int) -> int | None:
         return None
     if j < n and _is(tokens[j], "WITH"):
         j = _cte_end(tokens, j)
-    lead = j
-    while lead < n and _punct(tokens[lead], "("):
-        lead += 1
-    if lead < n and _is(tokens[lead], "SELECT"):
+    select_pos = j
+    while select_pos < n and _punct(tokens[select_pos], "("):
+        select_pos += 1
+    if select_pos < n and _is(tokens[select_pos], "SELECT"):
         return j
     return None
 
@@ -446,20 +456,26 @@ def _select_end(tokens, s: int) -> int:
     end = s + 1
     for k, depth in _walk(tokens, s + 1):
         token = tokens[k]
-        if depth == 0 and token.kind == WORD and token.text.upper() in _SET_JOIN:
+        if depth == 0 and token.kind == WORD and token.text.upper() in _SET_OPERATOR:
             return k
         end = k + 1
     return end
 
 
-def _query_branches(tokens, j: int, branches: list[int]) -> int:
-    """Collect the SELECT branches of the query expression at ``j``.
+def _collect_query_branches(
+    tokens, j: int, branches: list[int], nesting: int = 0
+) -> int:
+    """Append the SELECT branches of the query expression at ``j`` to ``branches``.
 
     A branch is ``SELECT ...`` or a parenthesized query expression. Branches are
     joined by ``UNION``, ``INTERSECT``, ``EXCEPT``, or ``MINUS``, each with an
     optional ``ALL`` or ``DISTINCT``. Returns the index after the expression.
+    Past ``_MAX_QUERY_NESTING`` parens it stops, so crafted input cannot exhaust
+    the stack.
     """
     n = len(tokens)
+    if nesting > _MAX_QUERY_NESTING:
+        return j
     while j < n:
         if _is(tokens[j], "SELECT"):
             branches.append(j)
@@ -469,14 +485,14 @@ def _query_branches(tokens, j: int, branches: list[int]) -> int:
             and j + 1 < n
             and (_is(tokens[j + 1], "SELECT") or _punct(tokens[j + 1], "("))
         ):
-            j = _query_branches(tokens, j + 1, branches)
+            j = _collect_query_branches(tokens, j + 1, branches, nesting + 1)
             if not (j < n and _punct(tokens[j], ")")):
                 return j
             j += 1
         else:
             return j
         if not (
-            j < n and tokens[j].kind == WORD and tokens[j].text.upper() in _SET_JOIN
+            j < n and tokens[j].kind == WORD and tokens[j].text.upper() in _SET_OPERATOR
         ):
             return j
         j += 1
@@ -497,11 +513,11 @@ def _insert_sources(tokens) -> dict[int, list[int]]:
     for i, token in enumerate(tokens):
         if not _is(token, "INSERT"):
             continue
-        start = _insert_source_start(tokens, i)
-        if start is None:
+        source_start = _insert_source_start(tokens, i)
+        if source_start is None:
             continue
         branches: list[int] = []
-        _query_branches(tokens, start, branches)
+        _collect_query_branches(tokens, source_start, branches)
         if branches:
             found[i] = branches
     return found

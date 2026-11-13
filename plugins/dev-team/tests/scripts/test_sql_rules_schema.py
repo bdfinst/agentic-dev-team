@@ -114,8 +114,15 @@ def test_placeholder_target_without_column_list_is_positional(stmt):
     assert [f["rule"] for f in detect(stmt)] == [POSITIONAL]
 
 
-def test_placeholder_target_with_column_list_is_clean():
-    assert detect("INSERT INTO FDTEMP_{0} (id) SELECT id FROM t") == []
+@pytest.mark.parametrize(
+    "stmt",
+    [
+        pytest.param("INSERT INTO FDTEMP_{0} (id) SELECT id FROM t", id="spaced"),
+        pytest.param("INSERT INTO FDTEMP_{0}(id) SELECT id FROM t", id="no-space"),
+    ],
+)
+def test_placeholder_target_with_column_list_is_clean(stmt):
+    assert detect(stmt) == []
 
 
 @pytest.mark.parametrize(
@@ -142,9 +149,6 @@ def test_placeholder_target_is_shown_as_written(stmt, expected_text):
     [
         pytest.param("INSERT INTO t {0} VALUES (1)", id="values"),
         pytest.param("INSERT INTO t {0} SELECT id FROM s", id="select"),
-        pytest.param(
-            "INSERT INTO FDTEMP_{0}(id) SELECT id FROM t", id="column-list-no-space"
-        ),
     ],
 )
 def test_placeholder_after_whitespace_is_not_part_of_the_name(stmt):
@@ -213,6 +217,19 @@ def test_placeholder_anywhere_in_the_name(stmt, rule):
         pytest.param(
             "INSERT INTO t SELECT a FROM s INTERSECT SELECT b FROM u", id="intersect"
         ),
+        pytest.param(
+            "INSERT INTO t SELECT a FROM s EXCEPT SELECT b FROM u", id="except"
+        ),
+        pytest.param("INSERT INTO t SELECT a FROM s MINUS SELECT b FROM u", id="minus"),
+        pytest.param(
+            "INSERT INTO t SELECT a FROM s UNION DISTINCT SELECT b FROM u",
+            id="union-distinct",
+        ),
+        pytest.param("INSERT INTO t VALUE (1)", id="value-singular"),
+        pytest.param(
+            "INSERT INTO t OUTPUT inserted.value SELECT id FROM s",
+            id="output-qualified-keyword-column",
+        ),
         pytest.param("INSERT INTO t OUTPUT inserted.id SELECT id FROM s", id="output"),
         pytest.param("INSERT INTO t OUTPUT inserted.id VALUES (1)", id="output-values"),
         pytest.param("INSERT INTO archive AS a SELECT id FROM orders", id="alias"),
@@ -264,6 +281,18 @@ def test_insert_with_column_list_is_clean(stmt):
             id="recursive-cte",
         ),
         pytest.param("INSERT INTO t OUTPUT inserted.id SELECT * FROM s", id="output"),
+        pytest.param(
+            "INSERT INTO t OUTPUT inserted.value SELECT * FROM s",
+            id="output-qualified-keyword-column",
+        ),
+        pytest.param(
+            "INSERT INTO t (id) OUTPUT deleted.Value SELECT * FROM s",
+            id="output-qualified-keyword-column-with-list",
+        ),
+        pytest.param(
+            "INSERT INTO t SELECT a FROM s EXCEPT (SELECT * FROM u)",
+            id="except-parenthesized-branch",
+        ),
         pytest.param("INSERT INTO t WITH (TABLOCK) SELECT * FROM s", id="table-hint"),
         pytest.param(
             "INSERT INTO t SELECT a FROM s UNION ALL (SELECT * FROM u)",
@@ -293,6 +322,21 @@ def test_insert_with_column_list_is_clean(stmt):
 )
 def test_star_in_any_source_branch_is_one_insert_select_star_finding(stmt):
     assert [f["rule"] for f in detect(stmt)] == [INSERT_SELECT_STAR]
+
+
+def test_insert_does_not_claim_a_select_after_its_statement_ends():
+    stmt = "INSERT INTO t OUTPUT inserted.id;\nSELECT * FROM u"
+    assert rules_by_line(stmt) == [(2, SELECT_STAR)]
+
+
+def test_positional_text_names_the_target_and_source_keyword():
+    stmt = "INSERT INTO t OUTPUT inserted.value SELECT id FROM s"
+    assert [f["text"] for f in detect(stmt)] == ["INSERT INTO t SELECT"]
+
+
+def test_deeply_nested_source_does_not_exhaust_the_stack():
+    stmt = "INSERT INTO t " + "(" * 5000 + "SELECT 1"
+    assert detect(stmt) == []
 
 
 def test_parenthesized_source_ends_at_its_closing_paren():
