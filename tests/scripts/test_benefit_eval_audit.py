@@ -17,6 +17,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from _benefit_baseline_rules import verdict_paragraph
 from _benefit_eval_support import (
     LONG_ID,
     REAL_PREREG,
@@ -878,7 +879,9 @@ def test_metric_ids_appear_only_inside_the_block(real):
     outside = text[:start] + text[end:]
     # The verdict-order paragraph names the metrics that take no verdict; that list is derived from the
     # baseline cells and checked by test_benefit_baseline_status.py, so it is the one allowed prose mention.
-    outside = "\n".join(line for line in outside.splitlines() if not line.startswith("**Verdict order.**"))
+    paragraph = verdict_paragraph(text)
+    assert paragraph is not None, "the verdict-order paragraph is missing"
+    outside = outside.replace(paragraph, "")
     assert [m.id for m in real.metrics if m.id in outside] == []
 
 
@@ -927,3 +930,12 @@ def test_real_prereg_audit_with_data_reports_confirmed_manual_no_instrument_and_
     }
     assert streams.audit_exit_code(statuses) == 1
 
+
+def test_real_prereg_audit_reports_every_registered_metric_and_exits_1_while_gaps_remain(world, real, capsys):
+    # Exit 1 holds while a metric has no instrument (expand-rate, report-size-cut) or only an id-less one
+    # (contradicted-rate); it becomes 0 only when no such metric is left.
+    code = cli.main(cli_argv("audit", world, REAL_PREREG, "--json"))
+    payload = json.loads(capsys.readouterr().out)
+    assert code == payload["exit_code"] == 1
+    reported = [metric for status in payload["statuses"] for metric in status["metrics"]]
+    assert sorted(reported) == sorted(m.id for m in real.metrics)

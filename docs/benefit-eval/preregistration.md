@@ -15,7 +15,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "Delta-scoping skip rate: skipped (lens, file) pairs over candidate pairs",
       "instrument": "ledger-skips",
       "identity_class": "id-bearing",
-      "baseline": "by-definition: 20.69% theoretical ceiling from the #2165 estimate; a measured rate above it signals a counting defect; real-session data waits on #2306 (session id on consult and checkpoint rows)",
+      "baseline": "by-definition: 20.69% theoretical ceiling, an estimate from #2165 with no committed source; a measured rate above it signals a counting defect; real-session data waits on #2306 (session id on consult and checkpoint rows)",
       "unit": "percent",
       "keep": ">= 10",
       "tune": "< 10",
@@ -165,7 +165,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "instrument": "none",
       "identity_class": "id-less",
       "id_less_handling": "unmeasurable",
-      "baseline": "unmeasurable: no size store exists, so the 59.0% on the one round measured so far stays a single-round (n=1) figure; the store is tracked in #2308",
+      "baseline": "unmeasurable: no size store exists, so the 59.0% on the one round measured so far stays a single hand-measured round (n=1) with no committed source; the store is tracked in #2308",
       "unit": "percent",
       "keep": ">= 40",
       "tune": "< 40",
@@ -344,7 +344,7 @@ The parser requires every field except `id_less_handling`, `ceiling`, and `ratio
 | `instrument` | A stream name, `subagent-transcripts` (the subagent transcripts of real sessions), `manual-input` (a number you enter by hand), or `none` (nothing persists it); any other value fails the parser |
 | `identity_class` | `id-bearing` if rows carry a session id you can check against a transcript; `id-less` if not |
 | `id_less_handling` | For `id-less` only, exactly one of `UNVERIFIED` (print the number on an `UNVERIFIED (no session ids)` line that never feeds a verdict or the exit code) or `unmeasurable` (print `unmeasurable` and no number; file a follow-up issue). The report prints `unmeasurable` for any metric with that handling, whatever its stream |
-| `baseline` | The reference for the person reading the report, in the form `<token>: <text>`. The token is one status from the table under [Baseline status](#baseline-status), lowercase and followed by a colon and a space; the text is non-empty and gives the reason or a pointer. `tests/scripts/test_benefit_baseline_status.py` enforces the form, not the CLI, which does not read or print the cell |
+| `baseline` | The reference for the person reading the report, in the form `<token>: <text>`. The token is one status from the table under [Baseline status](#baseline-status), lowercase and followed by a colon and a space; the text is non-empty and gives the reason or a pointer. The CLI requires a non-empty cell and never prints or interprets its token; `tests/scripts/test_benefit_baseline_status.py` enforces the form |
 | `unit` | The unit of the number and of the thresholds |
 | `keep`, `tune`, `retire` | Threshold as a direction (`<`, `<=`, `>`, `>=`) and a number, in the unit named by `unit` |
 | `direction`, `inclusivity` | The within-condition for the keep threshold, so `keep` must use the `direction` operator; `<=` and `>=` are `inclusive`, `<` and `>` are `exclusive` |
@@ -366,7 +366,7 @@ The first word of each `baseline` cell states where its reference comes from. Th
 | `by-definition` | The reference is true by construction, for example 0 characters of injection |
 | `measured` | A committed record under `.dev-team-reports/baselines/` holds a replayed reference value |
 | `forward-captured` | Taken from the first real sessions after the instrument emits, split at the boundary |
-| `no-reference` | First measurement, so no reference exists. A metric that cannot be `measured` yet also uses this status, with a reason (`not-yet-run`, `tool-unavailable`, `fixture-missing`, `cost-declined` or `commit-unreproducible`) written as `no-reference: <reason>; <text>` |
+| `no-reference` | First measurement, so no reference exists. A metric that a replayed record can back, and that cannot be `measured` yet, also uses this status, with a reason (`not-yet-run`, `tool-unavailable`, `fixture-missing`, `cost-declined` or `commit-unreproducible`) written as `no-reference: <reason>; <text>`. Other `no-reference` cells need no reason |
 | `unmeasurable` | No instrument exists. Holds exactly when the entry's `id_less_handling` is `unmeasurable`; the cell names its follow-up issue |
 
 The cell of each metric holds its own status. A `measured` cell cites its record path. The report does not print the status, so a verdict on a `no-reference` or `unmeasurable` metric is not guarded by the tool; the rule under Verdict order covers it by hand.
