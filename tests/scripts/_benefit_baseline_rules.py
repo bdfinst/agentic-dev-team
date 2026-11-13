@@ -104,7 +104,8 @@ SHA = re.compile(r"[0-9a-f]{40}")
 #: Absolute locations and transcript directories that must not appear in a committed file. The root forms
 #: match only where a path starts, so a repo-relative `docs/users/` stays valid.
 PRIVATE_PATH = re.compile(
-    r"(?<![\w./\\-])(?:/Users/|/home/|/private/var/|[A-Za-z]:\\{1,2}Users\\)|\.claude/projects/",
+    r"(?<![\w./\\-])(?:/Users/|/home/|/root/|/tmp/|/var/folders/|/private/var/|[A-Za-z]:\\{1,2}Users\\)"
+    r"|\.claude/projects/",
     re.IGNORECASE,
 )
 
@@ -236,7 +237,11 @@ def check_issue_cites(ctx: Context, findings: Findings) -> None:
             findings.problems.append(f"{metric_id}.baseline: cites no #{number}")
     for metric_id, entry in sorted(ctx.entries.items()):
         uncited = not re.search(r"#\d+", entry["baseline"])
-        if metric_id not in ISSUE_CITES and cell_token(entry) == "unmeasurable" and uncited:
+        if (
+            metric_id not in ISSUE_CITES
+            and cell_token(entry) == "unmeasurable"
+            and uncited
+        ):
             findings.problems.append(
                 f"{metric_id}.baseline: unmeasurable cell cites no follow-up issue (#<number>)"
             )
@@ -267,11 +272,14 @@ def check_status_table(ctx: Context, findings: Findings) -> None:
 
 
 def verdict_paragraph(doc_text: str) -> str | None:
-    """The `**Verdict order.**` paragraph under `## Rules`."""
+    """The `**Verdict order.**` paragraph under `## Rules`, before the next `## ` heading."""
     rules = re.search(r"^## Rules\s*$", doc_text, re.MULTILINE)
     if not rules:
         return None
-    for paragraph in re.split(r"\n\s*\n", doc_text[rules.end() :]):
+    section = doc_text[rules.end() :]
+    if next_heading := re.search(r"^## ", section, re.MULTILINE):
+        section = section[: next_heading.start()]
+    for paragraph in re.split(r"\n\s*\n", section):
         if paragraph.lstrip().startswith(VERDICT_MARKER):
             return paragraph
     return None
@@ -422,9 +430,18 @@ def record_files(repo_root: Path | None) -> list[Path]:
 
 def check_measured_cells(ctx: Context, findings: Findings) -> None:
     """A measured cell cites a record path that resolves, and the metric's own record exists."""
-    for metric_id, entry in sorted(ctx.entries.items()):
-        if cell_token(entry) != "measured":
-            continue
+    measured = [
+        (metric_id, entry)
+        for metric_id, entry in sorted(ctx.entries.items())
+        if cell_token(entry) == "measured"
+    ]
+    if measured and ctx.repo_root is None:
+        findings.problems.append(
+            f"{', '.join(metric_id for metric_id, _ in measured)}: measured cells cannot be checked; "
+            "the context names no repository root"
+        )
+        return
+    for metric_id, entry in measured:
         cited = RECORD_PATH.search(entry["baseline"])
         if not cited:
             findings.problems.append(
@@ -563,18 +580,47 @@ def _git_user_name() -> str:
     return done.stdout.strip()
 
 
+#: Account names shared by many machines. A document may use them as ordinary words, and they identify no one,
+#: so they are never treated as a user name.
+GENERIC_ACCOUNTS = frozenset(
+    {
+        "user",
+        "test",
+        "admin",
+        "administrator",
+        "runner",
+        "runneradmin",
+        "root",
+        "ubuntu",
+        "ci",
+        "builder",
+        "build",
+        "github",
+        "docker",
+        "jenkins",
+    }
+)
+
+
 def current_usernames(
     getuser: Callable[[], str] = getpass.getuser,
     git_name: Callable[[], str] = _git_user_name,
 ) -> list[str]:
-    """The operating-system user and the git user name, read at run time so no name is stored here."""
+    """The operating-system user and the git user name, read at run time so no name is stored here.
+
+    Names under three characters and generic account names are left out, so the result does not depend on
+    which shared account runs the test."""
     names = []
     try:
         names.append(getuser())
     except (KeyError, OSError):
         pass
     names.append(git_name())
-    return [name for name in names if len(name) >= 3]
+    return [
+        name
+        for name in names
+        if len(name) >= 3 and name.strip().lower() not in GENERIC_ACCOUNTS
+    ]
 
 
 def _strings_in(value) -> Iterator[str]:

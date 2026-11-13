@@ -1,5 +1,6 @@
 {
   "command": "uv run --python 3.12 --no-project --with \"mutmut<3\" --with pytest mutmut run --paths-to-mutate=<target> --runner \"python -m pytest -x -q -p no:cacheprovider <existing_tests>\"; run once per target from a clean export of commit, then read mutmut junitxml (a testcase without a failure is killed; a timeout counts as killed)",
+  "command_example": "uv run --python 3.12 --no-project --with \"mutmut<3\" --with pytest mutmut run --paths-to-mutate=plugins/dev-team/scripts/issue_deps.py --runner \"python -m pytest -x -q -p no:cacheprovider tests/scripts/test_issue_deps.py\"",
   "inputs": [
     "plugins/dev-team/scripts/issue_deps.py",
     "plugins/dev-team/scripts/plan_waves.py",

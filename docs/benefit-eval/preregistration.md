@@ -81,7 +81,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
         "few aborts in the window",
         "the fix loop changes the code the deferred lenses review"
       ],
-      "computation": "metrics_ledger.abort_yield over checkpoint-aborts rows from aborted checkpoints; lenses deferred after a completed checkpoint are excluded; a deferred lens found something new when a later stop-hook row in the same session names it as the lens that tripped the abort rule; prints abort frequency beside it, aborted rows over abort-mode rows for each source on its own",
+      "computation": "metrics_ledger.abort_yield over checkpoint-aborts rows from aborted checkpoints; lenses deferred after a completed checkpoint are excluded; a deferred lens found something new when a stop-hook row at or after the abort in the same session names it as the lens that tripped the abort rule; prints abort frequency beside it, aborted rows over abort-mode rows for each source on its own",
       "rationale": "At most a quarter finding something new means the abort mostly saves work; above 60% it only reorders the work."
     },
     {
@@ -277,7 +277,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
         "the hand-check is one person's judgment",
         "the sample is seeded, not spread across the window"
       ],
-      "computation": "manual-input: false positives over the sample from metrics_hooks.completion_guard_sample (20 flagged dispatches, or all if fewer); list the session ids",
+      "computation": "manual-input: false positives over the sample from metrics_hooks.completion_guard_sample (20 flagged dispatches, or all if fewer); list the session ids as 8-character prefixes in the #2200 comment, then enter the full ids in the manual-input file",
       "rationale": "One false positive in a 20-dispatch sample (5%) is the loosest rate that still allows blocking; above 30% the classifier is not worth keeping."
     },
     {
@@ -311,7 +311,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "property-based-testing mutants killed beyond the target's existing tests, mean per target",
       "instrument": "manual-input",
       "identity_class": "id-bearing",
-      "baseline": "measured: mutants killed by the same target's existing tests, mean per target; record at .dev-team-reports/baselines/benefit-pbt-mutants-killed.json",
+      "baseline": "measured: mutants killed by the same target's existing tests, mean per target; the value is existing-test kills per target, not comparable to the generated-minus-existing delta this metric reports; record at .dev-team-reports/baselines/benefit-pbt-mutants-killed.json",
       "unit": "mutants per target",
       "keep": ">= 1",
       "tune": "< 1",
@@ -379,7 +379,7 @@ The cell of each metric holds its own status. A `measured` cell cites its record
 
 **Minimum N.** One rule for every metric: below `minimum_n`, the metric prints `NULL (N=n)` and no value. Findings parity counts diffs, so its `minimum_n` is lower than the rest, because you hand-run it. Every other metric uses the shared value in the block.
 
-**Parity cap.** Any ledger-off actionable signature missing from the ledger-on set is a regression. File it as a bug. It forces the delta-scoping verdict to `tune` at best, whatever the skip rate.
+**Parity cap.** Any ledger-off actionable signature missing from the ledger-on set is a regression. File it as a bug. It caps the delta-scoping skip rate verdict at `tune`, whatever the skip rate. The cap applies to the verdicts of the entries whose `parity_cap` is `tune`: the delta-scoping skip rate and findings parity. Findings parity keeps its own `parity_cap` of `tune`; its thresholds are unchanged.
 
 **Id-less instruments.** `artifact-usage.json` carries no session ids. The report prints its numbers on an `UNVERIFIED (no session ids)` line. Such a line prints its status, but it never feeds a verdict and never changes the exit code. A metric with `unmeasurable` handling gets no number and a follow-up issue. The block declares no handling for `cost-metering.jsonl`, because no metric reads it.
 
@@ -398,7 +398,7 @@ The cell of each metric holds its own status. A `measured` cell cites its record
 
 A hand-entered metric with no entry has N of 0 and prints `no rows in window`.
 
-The exit code of a report comes from the lines that feed a verdict. A line on an id-less instrument and a `DIRECTIONAL` line print their own status and exit code, but do not change the run's code. Malformed input is always 2. An `unmeasurable` line adds exit 0.
+The exit code of a report comes from the lines that feed a verdict. A line on an id-less instrument and a `DIRECTIONAL` line print their own status; the JSON output also carries their exit code. They do not change the run's code. Malformed input is always 2. An `unmeasurable` line adds exit 0.
 
 The audit exits 1 for a `gap` or a `no instrument` metric, 2 for malformed input or a missing argument, and 0 otherwise. A parity regression is a manual finding in the #2200 comment, not an exit code.
 
@@ -407,7 +407,7 @@ The audit exits 1 for a `gap` or a `no instrument` metric, 2 for malformed input
 The `computation` cell of each entry is the map. It names one of three sources:
 
 - **Stream and function.** A `metrics_*` module function in `scripts/lib/benefit_eval/` that reads the instrument.
-- **Manual-input file.** `.claude/metrics/benefit-manual-input.json` is a JSON object keyed by metric `id`. Each value is `{"value": <number>, "n": <integer>, "sessions": ["<session id>"], "note": "<text>"}`. Enter each session id in full; the report checks it against the transcripts, counts one with no real transcript as `unverified`, and prints the first 8 characters of the others. A malformed file exits 2. The `test-review` true-positive change comes from `/agent-eval` output and the completion-guard false-positive rate from the hand-check of the seeded sample. Both go in this file, as do findings parity, the `contradicted` tallies, and the PBT mutant kills. For the `contradicted` tally, `value` is the count of contradicted verdicts and `n` is the verdicts reviewed; the rate divides `value` by invocations.
+- **Manual-input file.** `.claude/metrics/benefit-manual-input.json` is a JSON object keyed by metric `id`. Each value is `{"value": <number>, "n": <integer>, "sessions": ["<session id>"], "note": "<text>"}`. `value` and `n` are required; `sessions` and `note` are optional. Enter each session id in full; the report checks it against the transcripts, counts one with no real transcript as `unverified`, and prints the first 8 characters of the others. A malformed file exits 2. The `test-review` true-positive change comes from `/agent-eval` output and the completion-guard false-positive rate from the hand-check of the seeded sample. Both go in this file, as do findings parity, the `contradicted` tallies, and the PBT mutant kills. For the `contradicted` tally, `value` is the count of contradicted verdicts and `n` is the verdicts reviewed; the rate divides `value` by invocations.
 - **Unmeasurable.** No instrument persists the number. The audit reports `no instrument`, and you file a follow-up issue instead of adding an emitter.
 
 Transcript-derived numbers join at the grain of session and agent type, because the `skill-injection` stream carries no agent id. The `test-review` token change reads one dispatch per subagent transcript, so it needs no stream.
@@ -434,6 +434,6 @@ Transcript-derived numbers join at the grain of session and agent type, because 
 4. Post to #2200 as one comment: the block, the audit output, the window end date. Show session ids as their first 8 characters only. Note the comment's UTC creation time.
 5. Wait for the window in each entry to close. An unmet minimum N at the null date stays `NULL`.
 6. Hand-run parity on copies of past diffs, once with the ledger on and once with it moved aside. Use at least the parity minimum N from the block. Compare actionable signatures. Record the diff ids in the #2200 comment.
-7. Run the report with `--prereg-posted <timestamp>`. Use the comment time from step 4, as an ISO 8601 UTC timestamp ending in `Z`. Add `--boundary <timestamp>`, the same format, for the before-and-after metric. Add `--window-start <timestamp>` with the time #2199 merged, and `--window-end <timestamp>` at the close of the window, in the same format; a row counts from the start up to but not including the end, and without them every row counts. Expect exit 2 without the first two; the report prints the post time beside its own run time. Run `report --help` for the other options. Attest that the comment came first; the tool does not check it.
+7. Run the report with `--prereg-posted <timestamp>`. Use the comment time from step 4, as an ISO 8601 UTC timestamp ending in `Z`. Add `--boundary <timestamp>`, the same format, for the before-and-after metric. Add `--window-start <timestamp>` with the time #2199 merged, and `--window-end <timestamp>` at the close of the window, in the same format; a row counts from the start up to but not including the end, and without them every row counts. Expect exit 2 without `--prereg-posted`, and without `--boundary` when the before-and-after metric is pre-registered; the report prints the post time beside its own run time. Run `report --help` for the other options. Attest that the comment came first; the tool does not check it.
 8. Hand-post one verdict comment on #2164 and one on #2172. For each metric give the value, N, the threshold, the verdict, and the confounds on directional numbers.
 9. Delete or archive the tooling after both verdicts post. If no verdict posts by the null date, delete it anyway.

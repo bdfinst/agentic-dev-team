@@ -29,6 +29,7 @@ from _benefit_baseline_rules import (
     ISSUE_CITES,
     PBT,
     PINNED_STATUS,
+    PINNED_THRESHOLDS,
     REASONS,
     THRESHOLD_FIELDS,
     TR_TP,
@@ -46,6 +47,78 @@ from _benefit_baseline_rules import (
 from _benefit_eval_support import REAL_PREREG, real_entries
 
 from _repo_root import REPO_ROOT
+
+# --- literals the rules must equal -----------------------------------------------------------------------
+# The helper holds the values the rules use. These copies are the deliberate pin: changing a value in the
+# helper alone turns the equality tests below red, so a change has to be made, and read, in both places.
+
+PINNED_TOKENS = (
+    "by-definition",
+    "measured",
+    "forward-captured",
+    "no-reference",
+    "unmeasurable",
+)
+
+PINNED_STATUS_MAP = {
+    "skip-rate": "by-definition",
+    "findings-parity": "by-definition",
+    "injection-overhead": "by-definition",
+    "guard-false-positive": "by-definition",
+    "pbt-mutants-killed": "measured",
+    "test-review-tp-change": "no-reference",
+    "injection-uptake": "forward-captured",
+    "test-review-token-delta": "forward-captured",
+    "abort-yield": "no-reference",
+    "guard-divergence": "no-reference",
+    "contradicted-rate": "no-reference",
+    "expand-rate": "unmeasurable",
+    "report-size-cut": "unmeasurable",
+}
+
+PINNED_ISSUE_CITES = {
+    "skip-rate": 2306,
+    "abort-yield": 2306,
+    "expand-rate": 2307,
+    "report-size-cut": 2308,
+}
+
+# keep, tune, retire and minimum_n as merged in docs/benefit-eval/preregistration.md at commit 02201d4d.
+MERGED_THRESHOLDS = {
+    "skip-rate": (">= 10", "< 10", "< 3", 10),
+    "findings-parity": ("<= 0", "<= 2", ">= 3", 3),
+    "abort-yield": ("<= 25", "> 25", "> 60", 10),
+    "test-review-tp-change": (">= 0", "< 0", "< -10", 10),
+    "test-review-token-delta": ("<= -15", "> -15", "> 0", 10),
+    "expand-rate": ("<= 20", "> 20", "> 50", 10),
+    "report-size-cut": (">= 40", "< 40", "< 15", 10),
+    "injection-overhead": ("<= 400", "> 400", "> 1200", 10),
+    "injection-uptake": (">= 50", "< 50", "< 10", 10),
+    "guard-divergence": (">= 2", "< 2", "< 0.5", 10),
+    "guard-false-positive": ("<= 5", "> 5", "> 30", 10),
+    "contradicted-rate": (">= 0.2", "< 0.2", "< 0.05", 10),
+    "pbt-mutants-killed": (">= 1", "< 1", "<= 0", 10),
+}
+
+#: A number no pinned follow-up issue uses.
+OTHER_ISSUE = max(PINNED_ISSUE_CITES.values()) + 1
+
+
+def test_rules_use_the_pinned_allowed_tokens():
+    assert ALLOWED_TOKENS == PINNED_TOKENS
+
+
+def test_rules_use_the_pinned_status_of_each_metric():
+    assert PINNED_STATUS == PINNED_STATUS_MAP
+
+
+def test_rules_use_the_pinned_follow_up_issue_of_each_cell():
+    assert ISSUE_CITES == PINNED_ISSUE_CITES
+
+
+def test_rules_use_the_merged_thresholds():
+    assert PINNED_THRESHOLDS == MERGED_THRESHOLDS
+
 
 # --- the real pre-registration ---------------------------------------------------------------------------
 
@@ -75,7 +148,7 @@ def test_real_pre_registration_passes_rule(check):
 
 
 def test_every_pinned_status_is_an_allowed_token():
-    assert set(PINNED_STATUS.values()) <= set(ALLOWED_TOKENS)
+    assert set(PINNED_STATUS_MAP.values()) <= set(PINNED_TOKENS)
 
 
 # --- baseline cells --------------------------------------------------------------------------------------
@@ -176,6 +249,7 @@ def test_a_no_reference_cell_without_a_reason_is_rejected_for_a_record_capable_m
         with_baseline(PBT, "no-reference: text with no reason separator"),
         check_baseline_cells,
         starts=f"{PBT}.baseline:",
+        has=("reason '' is not one of",),
     )
 
 
@@ -205,7 +279,7 @@ def test_a_no_reference_cell_on_a_record_capable_metric_pinned_to_another_status
     ("metric_id", "cell"),
     [
         ("expand-rate", "by-definition: counted by hand"),
-        ("skip-rate", "unmeasurable: no instrument (#2306)"),
+        ("skip-rate", f"unmeasurable: no instrument (#{ISSUE_CITES['skip-rate']})"),
     ],
     ids=[
         "unmeasurable-handling-without-the-status",
@@ -229,7 +303,7 @@ def test_a_cell_missing_its_follow_up_issue_number_is_rejected_naming_the_metric
     metric_id, number
 ):
     ctx = with_baseline(
-        metric_id, good_baseline(metric_id).replace(f"#{number}", "#9999")
+        metric_id, good_baseline(metric_id).replace(f"#{number}", f"#{OTHER_ISSUE}")
     )
     assert_rejected(
         ctx, check_issue_cites, starts=f"{metric_id}.baseline:", has=(f"#{number}",)
@@ -242,11 +316,12 @@ def test_an_issue_number_can_follow_the_reason_text():
 
 
 def test_an_issue_number_that_only_prefixes_the_cited_one_is_rejected():
+    cited = ISSUE_CITES["expand-rate"]
     ctx = with_baseline(
-        "expand-rate", "unmeasurable: nothing is counted; follow-up #23071"
+        "expand-rate", f"unmeasurable: nothing is counted; follow-up #{cited}1"
     )
     assert_rejected(
-        ctx, check_issue_cites, starts="expand-rate.baseline:", has=("#2307",)
+        ctx, check_issue_cites, starts="expand-rate.baseline:", has=(f"#{cited}",)
     )
 
 
@@ -257,9 +332,13 @@ def test_an_unmeasurable_cell_for_a_metric_with_no_pinned_issue_must_still_cite_
         starts="contradicted-rate.baseline:",
         has=("#<number>",),
     )
+
+
+def test_an_unmeasurable_cell_for_a_metric_with_no_pinned_issue_accepts_any_cited_issue():
     assert_clean(
         with_baseline(
-            "contradicted-rate", "unmeasurable: no instrument exists (#9999)"
+            "contradicted-rate",
+            f"unmeasurable: no instrument exists (#{OTHER_ISSUE})",
         ),
         check_issue_cites,
     )
@@ -338,6 +417,15 @@ def test_verdict_order_can_be_reworded_around_the_id_list():
         "is posted for:", "is ever posted for these metrics:"
     )
     assert_clean(ctx_for(entries, doc_text=doc), check_verdict_order)
+
+
+def test_a_verdict_order_paragraph_in_a_later_section_is_not_the_one_under_rules():
+    entries = good_entries()
+    section = good_doc(entries).split("## Rules\n\n", 1)[1]
+    doc = "## Rules\n\n**Other.** text\n\n## Later section\n\n" + section
+    assert_rejected(
+        ctx_for(entries, doc_text=doc), check_verdict_order, starts="verdict order: no"
+    )
 
 
 def test_a_document_without_a_verdict_order_paragraph_is_rejected():

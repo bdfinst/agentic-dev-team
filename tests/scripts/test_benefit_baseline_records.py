@@ -26,6 +26,7 @@ from _benefit_baseline_rules import (
     RECORDS_DIR,
     TR_TP,
     Context,
+    check_measured_cells,
     check_no_private_paths,
     check_records,
     current_usernames,
@@ -35,6 +36,7 @@ from _benefit_baseline_rules import (
 from lane_fixtures import commit_file, git
 
 MISSING = object()  # an override value that removes the field
+UNKNOWN_SHA = "1" * 40  # a well-formed commit id that no repository holds
 
 # --- records ---------------------------------------------------------------------------------------------
 
@@ -132,6 +134,20 @@ def test_a_measured_metric_without_its_record_is_rejected_naming_the_record(repo
     )
 
 
+def test_a_measured_cell_in_a_context_with_no_repository_root_is_rejected_naming_the_metric():
+    ctx = with_baseline(PBT, record_cell(PBT))
+    assert_rejected(
+        ctx,
+        check_measured_cells,
+        starts=f"{PBT}: measured cells cannot be checked",
+        has=("no repository root",),
+    )
+
+
+def test_a_context_with_no_repository_root_and_no_measured_cell_is_accepted():
+    assert_clean(ctx_for(), check_measured_cells)
+
+
 def test_a_no_reference_metric_needs_no_record(repo):
     assert_clean(ctx_for(repo_root=repo.root), *RECORD_CHECKS)
 
@@ -193,24 +209,29 @@ def test_a_record_with_a_missing_or_null_field_is_rejected_naming_record_and_fie
 
 
 @pytest.mark.parametrize(
-    ("field_name", "bad_value"),
+    ("metric_id", "field_name", "bad_value"),
     [
-        ("command", 7),
-        ("inputs", "scripts/replay.py"),
-        ("inputs", ["/etc/hosts"]),
-        ("commit", "abc123"),
-        ("date", "13/11/2026"),
-        ("value", True),
-        ("generated_properties", True),
-        ("target_ids", [1]),
+        (PBT, "command", 7),
+        (PBT, "inputs", "scripts/replay.py"),
+        (PBT, "inputs", ["/etc/hosts"]),
+        (PBT, "commit", "abc123"),
+        (PBT, "date", "13/11/2026"),
+        (PBT, "value", True),
+        (PBT, "value", "12"),
+        (PBT, "generated_properties", True),
+        (PBT, "generated_properties", "false"),
+        (PBT, "target_ids", [1]),
+        (TR_TP, "introduced_by_sha", "abc123"),
+        (TR_TP, "fixture_ids", [1]),
     ],
 )
 def test_a_record_field_of_the_wrong_type_is_rejected_naming_record_and_field(
-    repo, field_name, bad_value
+    repo, metric_id, field_name, bad_value
 ):
-    problems = problems_after_writing(repo, **{field_name: bad_value})
+    problems = problems_after_writing(repo, metric_id, **{field_name: bad_value})
     assert any(
-        p.startswith(f"{record_problem_prefix()} field {field_name!r}")
+        p.startswith(f"{record_problem_prefix(metric_id)} field {field_name!r}")
+        and ", expected " in p
         for p in problems
     ), problems
 
@@ -300,7 +321,7 @@ def test_files_that_are_not_benefit_records_are_ignored(repo):
 
 
 def test_a_record_commit_that_does_not_resolve_is_rejected_in_a_full_repository(repo):
-    write_pbt_record(repo, commit="1" * 40)
+    write_pbt_record(repo, commit=UNKNOWN_SHA)
     findings = run_checks(measured_ctx(repo, PBT), *RECORD_CHECKS)
     assert any(
         p.startswith(f"{record_problem_prefix()} field 'commit' ")
@@ -321,7 +342,7 @@ def shallow_repo(repo, tmp_path):
 def test_a_record_commit_absent_from_a_shallow_repository_is_skipped_with_a_named_reason(
     shallow_repo,
 ):
-    write_pbt_record(shallow_repo, commit="1" * 40)
+    write_pbt_record(shallow_repo, commit=UNKNOWN_SHA)
     findings = run_checks(measured_ctx(shallow_repo, PBT), *RECORD_CHECKS)
     assert findings.problems == []
     assert any("shallow" in skip for skip in findings.skips)
@@ -341,7 +362,7 @@ def test_an_introducing_commit_whose_parent_is_absent_from_a_shallow_repository_
 def test_an_unresolved_introducing_commit_is_a_problem_and_not_a_skip_in_a_full_repository(
     repo,
 ):
-    write_record(repo, TR_TP, build_record(repo, TR_TP, introduced_by_sha="1" * 40))
+    write_record(repo, TR_TP, build_record(repo, TR_TP, introduced_by_sha=UNKNOWN_SHA))
     findings = run_checks(measured_ctx(repo, TR_TP), *RECORD_CHECKS)
     assert any(
         p.startswith(f"{record_problem_prefix(TR_TP)} field 'introduced_by_sha' ")
@@ -357,7 +378,7 @@ def test_an_unresolved_introducing_commit_in_a_shallow_repository_skips_its_pare
         shallow_repo,
         TR_TP,
         build_record(
-            shallow_repo, TR_TP, introduced_by_sha="1" * 40, commit=shallow_repo.head
+            shallow_repo, TR_TP, introduced_by_sha=UNKNOWN_SHA, commit=shallow_repo.head
         ),
     )
     findings = run_checks(measured_ctx(shallow_repo, TR_TP), *RECORD_CHECKS)
@@ -385,11 +406,24 @@ def test_introduced_by_sha_whose_parent_is_not_the_commit_is_rejected(repo):
         "/Users/someone/work/file.json",
         "see /home/someone/file",
         "/private/var/folders/x",
+        "/var/folders/ab/T/scratch",
+        "run in /tmp/scratch/x",
+        "/root/.config/x",
         "C:\\Users\\someone\\file",
         "/USERS/someone/file",
         ".claude/projects/abc",
     ],
-    ids=["users", "home", "private-var", "windows-users", "upper-case", "transcript"],
+    ids=[
+        "users",
+        "home",
+        "private-var",
+        "var-folders",
+        "tmp",
+        "root-home",
+        "windows-users",
+        "upper-case",
+        "transcript",
+    ],
 )
 def test_a_baseline_cell_with_an_absolute_or_transcript_path_is_rejected_naming_metric_and_field(
     text,
@@ -404,7 +438,8 @@ def test_a_baseline_cell_with_an_absolute_or_transcript_path_is_rejected_naming_
 
 def test_a_repo_relative_path_with_a_directory_named_users_is_accepted():
     ctx = with_baseline(
-        "skip-rate", "by-definition: reference in docs/users/guide.md and src/home/x"
+        "skip-rate",
+        "by-definition: reference in docs/users/guide.md, src/home/x, tools/tmp/y and docs/root/z",
     )
     assert_clean(ctx, check_no_private_paths)
 
@@ -457,7 +492,9 @@ def test_the_user_name_of_the_person_running_the_test_is_rejected_without_being_
         check_no_private_paths,
         starts="skip-rate.baseline: contains the user name of the person running the test",
     )
-    assert name not in "\n".join(problems_for(ctx, check_no_private_paths))
+    assert (
+        name.lower() not in "\n".join(problems_for(ctx, check_no_private_paths)).lower()
+    )
 
 
 def test_a_user_name_inside_a_longer_word_is_accepted():
@@ -473,10 +510,11 @@ def test_a_user_name_inside_a_longer_word_is_accepted():
     ("os_user", "git_user", "expected"),
     [
         ("ab", "xy", []),
+        ("abc", "xyz", ["abc", "xyz"]),
         ("os-user", "Git User", ["os-user", "Git User"]),
         ("os-user", "", ["os-user"]),
     ],
-    ids=["too-short", "both-names", "unset-git-name"],
+    ids=["too-short", "exactly-three", "both-names", "unset-git-name"],
 )
 def test_current_usernames_keeps_the_names_of_three_or_more_characters(
     os_user, git_user, expected
@@ -487,3 +525,30 @@ def test_current_usernames_keeps_the_names_of_three_or_more_characters(
     )
 
 
+@pytest.mark.parametrize(
+    "error", [OSError("no such user"), KeyError("uid")], ids=["os-error", "key-error"]
+)
+def test_current_usernames_survives_an_os_user_that_cannot_be_read(error):
+    def failing_getuser():
+        raise error
+
+    assert current_usernames(getuser=failing_getuser, git_name=lambda: "Git User") == [
+        "Git User"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("os_user", "git_user"),
+    [("runner", "Admin"), ("UBUNTU", "builder"), ("Root", "test"), ("user", "ci")],
+    ids=["runner-admin", "ubuntu-builder", "root-test", "user-ci"],
+)
+def test_current_usernames_leaves_out_generic_account_names_in_any_case(
+    os_user, git_user
+):
+    assert current_usernames(getuser=lambda: os_user, git_name=lambda: git_user) == []
+
+
+def test_current_usernames_keeps_a_real_name_beside_a_generic_account():
+    assert current_usernames(
+        getuser=lambda: "runner", git_name=lambda: "Carol Diaz"
+    ) == ["Carol Diaz"]
