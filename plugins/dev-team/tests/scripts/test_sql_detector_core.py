@@ -554,7 +554,7 @@ def test_tokenizer_crlf_counts_one_line_per_newline():
     assert [t.line for t in tokenize("a\r\nb\r\nc")] == [1, 2, 3]
 
 
-def test_tokenizer_never_raises_on_odd_bytes():
+def test_tokenizer_positions_point_at_token_text_on_odd_input():
     for text in [
         "\x00",
         "﻿",
@@ -567,6 +567,9 @@ def test_tokenizer_never_raises_on_odd_bytes():
         "'",
         "é'x",
         "a" * 5000 + "'",
+        "'a\nb' c",
+        "/* x\ny */ z",
+        "a\r\nb",
     ]:
         tokens = tokenize(text)
         assert [t.text for t in tokens] == _slices_at(text, tokens), repr(text)

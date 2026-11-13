@@ -242,7 +242,7 @@ def _output_end(tokens, j: int) -> int | None:
         if _punct(token, "("):
             depth += 1
         elif _punct(token, ")"):
-            depth -= 1
+            depth = max(depth - 1, 0)
         elif (
             depth == 0
             and token.kind == WORD
@@ -253,6 +253,18 @@ def _output_end(tokens, j: int) -> int | None:
             return j
         j += 1
     return j
+
+
+def _is_merge_insert(tokens, i: int) -> bool:
+    """True for ``THEN INSERT`` with no target, the ``INSERT`` branch of a ``MERGE``.
+
+    A procedural ``IF ... THEN INSERT INTO t ...`` names its target, so it is an
+    ordinary INSERT.
+    """
+    if i < 1 or i + 1 >= len(tokens) or not _is(tokens[i - 1], "THEN"):
+        return False
+    nxt = tokens[i + 1]
+    return _punct(nxt, "(") or any(_is(nxt, w) for w in ("VALUES", "VALUE", "DEFAULT"))
 
 
 def check_positional_insert(ctx: Context) -> Iterator[Hit]:
@@ -268,10 +280,8 @@ def check_positional_insert(ctx: Context) -> Iterator[Hit]:
     for i, token in enumerate(tokens):
         if not _is(token, "INSERT"):
             continue
-        if i > 0 and _is(tokens[i - 1], "THEN"):
-            if i + 1 < n and (
-                _is(tokens[i + 1], "VALUES") or _is(tokens[i + 1], "VALUE")
-            ):
+        if _is_merge_insert(tokens, i):
+            if _is(tokens[i + 1], "VALUES") or _is(tokens[i + 1], "VALUE"):
                 yield Hit(token.line, _render(tokens[i : i + 2]))
             continue
         j = _target_end(tokens, i)
