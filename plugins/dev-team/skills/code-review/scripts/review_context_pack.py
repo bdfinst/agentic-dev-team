@@ -65,7 +65,10 @@ _HOOKS_LIB_DIR = _PLUGIN_ROOT / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
-from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+try:
+    from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+    read_stdin_or_exit = None
 
 try:
     import artifact_paths  # type: ignore[import-not-found]
@@ -270,11 +273,12 @@ def parse_name_status(lines) -> list[tuple[str, str]]:
 def _read_file_list(source: str | None, flag: str) -> list[str]:
     if not source:
         return []
-    text = (
-        read_stdin_or_exit(flag)
-        if source == "-"
-        else Path(source).read_text(encoding="utf-8")
-    )
+    if source != "-":
+        text = Path(source).read_text(encoding="utf-8")
+    elif read_stdin_or_exit is None:  # pragma: no cover - degraded fallback
+        text = sys.stdin.read()
+    else:
+        text = read_stdin_or_exit(flag)
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
@@ -296,7 +300,11 @@ def main(argv=None) -> int:
     cwd = Path(args.cwd) if args.cwd else Path.cwd()
     changed = parse_name_status(_read_file_list(args.name_status_from, "--name-status-from")) \
         if args.name_status_from else None
-    files = [p for p, _ in changed] if changed else _read_file_list(args.files_from, "--files-from")
+    files = (
+        [p for p, _ in changed]
+        if changed is not None
+        else _read_file_list(args.files_from, "--files-from")
+    )
     if not files:
         print(json.dumps({"error": "no files given", "path": None}))
         return 1

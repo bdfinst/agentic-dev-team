@@ -13,6 +13,11 @@ Flags:
   --fail-wave         Simulate a wave barrier failure (for testing).
   --dispatch-personas Dispatch plan-review personas (for testing).
 
+Request:
+  Read from stdin only when stdin is a pipe or a file. Otherwise (terminal,
+  open socket, closed stream) the request is "default request", and every
+  case but a terminal says so on stderr.
+
 Exit codes:
   0 = success
   1 = error (no prior state with --resume, wave barrier failure, etc.)
@@ -236,6 +241,7 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
                         f"Reply with only one word. Task: {request}"
                     ),
                 ],
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
                 timeout=CLASSIFY_TIMEOUT_S,
@@ -645,6 +651,7 @@ async def dispatch_persona(persona: str, plan: dict, skip_llm: bool = False) -> 
                     "json",
                     task_prompt,
                 ],
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
                 timeout=PERSONA_DISPATCH_TIMEOUT_S,

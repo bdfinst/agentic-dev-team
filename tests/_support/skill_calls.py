@@ -43,6 +43,8 @@ _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*([\w+-]*)")
 _INLINE_RE = re.compile(r"`([^`\n]+)`")
 # `<changed files>` style placeholders, which are not input redirects.
 _PLACEHOLDER_RE = re.compile(r"<[A-Za-z][^<>|&;\n]*[^\s<>|&;]>")
+#: What a ``<changed files>`` style placeholder becomes in a tokenized command.
+PLACEHOLDER_TOKEN = "PLACEHOLDER"
 _ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _SEGMENT_OPS = frozenset({"|", "||", "&&", ";", "&"})
 _REDIRECT_OPS = frozenset({"<", "<<", "<<<"})
@@ -75,7 +77,7 @@ class Command(NamedTuple):
     is_inline: bool
 
 
-class Offender(NamedTuple):
+class CallSite(NamedTuple):
     file: str
     line: int
     script: str
@@ -167,7 +169,7 @@ def strip_comment(text: str) -> str:
 
 
 def tokenize(text: str) -> list[str]:
-    cleaned = _PLACEHOLDER_RE.sub("PLACEHOLDER", strip_comment(text))
+    cleaned = _PLACEHOLDER_RE.sub(PLACEHOLDER_TOKEN, strip_comment(text))
     lexer = shlex.shlex(cleaned, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
     lexer.commenters = ""
@@ -226,7 +228,7 @@ def option_value(args: list[str], option: str) -> str | None:
     return None
 
 
-def has_flag(args: list[str], flag: str) -> bool:
+def has_file_valued_flag(args: list[str], flag: str) -> bool:
     """True when ``flag`` is given a value other than ``-`` (stdin)."""
     value = option_value(args, flag)
     return value is not None and value != "-"
@@ -239,76 +241,78 @@ def _applies(rule: InputFlag, segment: list[str]) -> bool:
     return (rule.default_mode if mode is None else mode) in rule.modes
 
 
-def _rules(scripts: Iterable[InputFlag | tuple[str, str]]) -> dict[str, list[InputFlag]]:
+def _rules_by_script(
+    input_flags: Iterable[InputFlag | tuple[str, str]],
+) -> dict[str, list[InputFlag]]:
     rules: dict[str, list[InputFlag]] = {}
-    for item in scripts:
+    for item in input_flags:
         rule = item if isinstance(item, InputFlag) else InputFlag(*item)
         rules.setdefault(rule.script, []).append(rule)
     return rules
 
 
 def judge_calls(
-    command: Command, scripts: Iterable[InputFlag | tuple[str, str]]
-) -> list[tuple[Offender, bool]]:
+    command: Command, input_flags: Iterable[InputFlag | tuple[str, str]]
+) -> list[tuple[CallSite, bool]]:
     """Return every call to a listed script in ``command`` as
     ``(call, safe)``: ``safe`` is False when the call can hang on stdin.
 
-    ``scripts`` holds one ``InputFlag`` (or ``(script basename, flag)`` pair)
+    ``input_flags`` holds one ``InputFlag`` (or ``(script basename, flag)`` pair)
     per input flag; a script may appear several times.
     """
-    flags = _rules(scripts)
-    judged: list[tuple[Offender, bool]] = []
+    rules_by_script = _rules_by_script(input_flags)
+    judged: list[tuple[CallSite, bool]] = []
     parts = list(split_segments(tokenize(command.command_text)))
     for index, (separator, segment) in enumerate(parts):
         name = _call_script(segment, command.is_inline)
-        if name not in flags:
+        if name not in rules_by_script:
             continue
         piped = separator == "|" or (
             index == 0 and command.preceding_line.rstrip().endswith("|")
         )
         redirected = any(token in _REDIRECT_OPS for token in segment)
         flagged = any(
-            _applies(rule, segment) and has_flag(segment, rule.flag)
-            for rule in flags[name]
+            _applies(rule, segment) and has_file_valued_flag(segment, rule.flag)
+            for rule in rules_by_script[name]
         )
-        call = Offender(command.file, command.line, name, command.command_text)
+        call = CallSite(command.file, command.line, name, command.command_text)
         judged.append((call, piped or redirected or flagged))
     return judged
 
 
 def unguarded_calls(
-    command: Command, scripts: Iterable[InputFlag | tuple[str, str]]
-) -> list[Offender]:
+    command: Command, input_flags: Iterable[InputFlag | tuple[str, str]]
+) -> list[CallSite]:
     """Return the calls in ``command`` that can hang on stdin."""
-    return [call for call, safe in judge_calls(command, scripts) if not safe]
+    return [call for call, safe in judge_calls(command, input_flags) if not safe]
 
 
 def find_calls(
-    file: str, text: str, scripts: Iterable[InputFlag | tuple[str, str]]
-) -> list[tuple[Offender, bool]]:
+    file: str, text: str, input_flags: Iterable[InputFlag | tuple[str, str]]
+) -> list[tuple[CallSite, bool]]:
     """Every call to a listed script in ``text``, safe or not."""
-    rules = list(scripts)
-    found: list[tuple[Offender, bool]] = []
+    listed = list(input_flags)
+    found: list[tuple[CallSite, bool]] = []
     for command in iter_commands(file, text):
-        found.extend(judge_calls(command, rules))
+        found.extend(judge_calls(command, listed))
     return found
 
 
 def find_offenders(
-    file: str, text: str, scripts: Iterable[InputFlag | tuple[str, str]]
-) -> list[Offender]:
-    pairs = list(scripts)
-    found: list[Offender] = []
+    file: str, text: str, input_flags: Iterable[InputFlag | tuple[str, str]]
+) -> list[CallSite]:
+    listed = list(input_flags)
+    found: list[CallSite] = []
     for command in iter_commands(file, text):
-        found.extend(unguarded_calls(command, pairs))
+        found.extend(unguarded_calls(command, listed))
     return found
 
 
 def find_offenders_in_files(
-    paths: Iterable[Path], scripts: Iterable[InputFlag | tuple[str, str]]
-) -> list[Offender]:
-    pairs = list(scripts)
-    found: list[Offender] = []
+    paths: Iterable[Path], input_flags: Iterable[InputFlag | tuple[str, str]]
+) -> list[CallSite]:
+    listed = list(input_flags)
+    found: list[CallSite] = []
     for path in paths:
-        found.extend(find_offenders(str(path), path.read_text(encoding="utf-8"), pairs))
+        found.extend(find_offenders(str(path), path.read_text(encoding="utf-8"), listed))
     return found

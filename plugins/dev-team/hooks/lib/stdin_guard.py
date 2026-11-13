@@ -5,6 +5,9 @@ Bash tool, may never reach EOF. A script that reads stdin by default then
 blocks until the tool times out.
 ``read_stdin_or_exit`` reads a stream only when its type can end, and
 otherwise exits with a usage error that names the flag to pass instead.
+A pipe, a regular file and the null device can end. Any other character
+device (``/dev/zero``, ``/dev/urandom``, a terminal) cannot, nor can a socket,
+a directory or a closed stream.
 
 Limits: a pipe whose writer never closes is not detected, and a socket that
 delivers data and then EOF is refused too (the caller passes the flag or
@@ -43,7 +46,14 @@ def stream_can_reach_eof(stream) -> bool:
         return False
     if stat.S_ISFIFO(mode) or stat.S_ISREG(mode):
         return True
-    return stat.S_ISCHR(mode) and not os.isatty(fd)
+    return stat.S_ISCHR(mode) and _is_null_device(fd)
+
+
+def _is_null_device(fd: int) -> bool:
+    try:
+        return os.path.samestat(os.fstat(fd), os.stat(os.devnull))
+    except OSError:
+        return False
 
 
 def read_stdin_or_exit(flag: str, stream=None) -> str:
@@ -58,7 +68,7 @@ def read_stdin_or_exit(flag: str, stream=None) -> str:
         return stream.read()
     script = os.path.basename(sys.argv[0])
     sys.stderr.write(
-        f"{script}: no input; stdin never reaches EOF here (terminal or open "
-        f"socket). Pass {flag} <file> or pipe the input in.\n"
+        f"{script}: no input; stdin never reaches EOF here (terminal, open "
+        f"socket or closed stream). Pass {flag} <file> or pipe the input in.\n"
     )
     sys.exit(REFUSAL_EXIT_STATUS)

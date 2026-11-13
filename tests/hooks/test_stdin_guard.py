@@ -20,7 +20,16 @@ from types import SimpleNamespace
 import pytest
 
 from _repo_root import REPO_ROOT
-from tests._support.stdin_scripts import STDIN_SCRIPTS
+from tests._support.stdin_harness import (
+    NO_PTY_ON_WINDOWS,
+    NO_SOCKETS_ON_WINDOWS,
+    REFUSAL,
+    SUBPROCESS_TIMEOUT_SECONDS,
+    assert_refused,
+    endless_socket,
+    terminal,
+)
+from tests._support.stdin_scripts import INPUT_FLAGS, STDIN_SCRIPTS
 
 LIB_DIR = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
 if str(LIB_DIR) not in sys.path:
@@ -28,20 +37,9 @@ if str(LIB_DIR) not in sys.path:
 
 import stdin_guard
 
-REFUSAL_TIMEOUT_SECONDS = 5
 PIPE_BUFFER_EXCEEDING_BYTES = 200_000
-REFUSAL_EXIT_STATUS = 2
-NEVER_ENDS_MARKER = "stdin never reaches EOF"
-EXPECTED_SCRIPT_COUNT = 8
 NEVER_OPEN_FD = 2**30
 
-NO_SOCKETS_ON_WINDOWS = pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="fstat cannot tell a socket from a pipe on Windows",
-)
-NO_PTY_ON_WINDOWS = pytest.mark.skipif(
-    sys.platform == "win32", reason="the pty module does not exist on Windows"
-)
 NO_DIRECTORY_FDS_ON_WINDOWS = pytest.mark.skipif(
     sys.platform == "win32", reason="Windows cannot open a directory as a descriptor"
 )
@@ -117,26 +115,64 @@ def test_default_stream_is_the_current_sys_stdin(monkeypatch):
     assert stdin_guard.read_stdin_or_exit("--findings") == "abc"
 
 
-FLAGGED_SCRIPTS = [row for row in STDIN_SCRIPTS if row.flag is not None]
+SCRIPT_PATH_BY_NAME = {Path(row.script).name: row.script for row in STDIN_SCRIPTS}
 
 
-def test_table_lists_the_expected_number_of_distinct_scripts():
-    scripts = {row.script for row in STDIN_SCRIPTS}
-    assert len(STDIN_SCRIPTS) == len(scripts) == EXPECTED_SCRIPT_COUNT
+def test_table_lists_distinct_scripts():
+    scripts = [row.script for row in STDIN_SCRIPTS]
+    assert len(scripts) == len(set(scripts))
 
 
-@pytest.mark.parametrize("row", FLAGGED_SCRIPTS, ids=lambda row: row.script)
-def test_table_flag_is_registered_as_an_argparse_option(row):
-    source = (REPO_ROOT / "plugins" / "dev-team" / row.script).read_text("utf-8")
-    # The flag must be an exact string argument of an add_argument( call,
-    # so "--findings-file" or a flag only mentioned in a comment does not match.
-    registered = re.compile(
+def test_every_input_flag_belongs_to_a_script_in_the_table():
+    assert {rule.script for rule in INPUT_FLAGS} <= set(SCRIPT_PATH_BY_NAME)
+
+
+def _add_argument_call(source: str, option: str) -> str | None:
+    """Source text of the ``add_argument(`` call whose option is exactly
+    ``option``, up to the next call: ``"--findings-file"`` or a flag only
+    mentioned in a comment does not match."""
+    opener = re.compile(
         r"add_argument\(\s*(?:[\"'][^\"']*[\"']\s*,\s*)*"
         + r"[\"']"
-        + re.escape(row.flag)
+        + re.escape(option)
         + r"[\"']"
     )
-    assert registered.search(source), f"{row.flag} is not an add_argument option"
+    match = opener.search(source)
+    if match is None:
+        return None
+    following = source.find("add_argument(", match.end())
+    return source[match.start() : following if following != -1 else len(source)]
+
+
+#: Every option the table names: each input flag, each rule's mode option, and
+#: each value that mode option has to accept.
+REGISTRATION_CASES = [
+    pytest.param(rule.script, rule.flag, None, id=f"{rule.script}-{rule.flag}")
+    for rule in INPUT_FLAGS
+] + [
+    pytest.param(
+        rule.script,
+        rule.mode_option,
+        mode,
+        id=f"{rule.script}-{rule.mode_option}-{mode or 'option'}",
+    )
+    for rule in INPUT_FLAGS
+    if rule.mode_option
+    for mode in (None, *rule.modes)
+]
+
+
+@pytest.mark.parametrize(("script", "option", "value"), REGISTRATION_CASES)
+def test_table_option_is_registered_as_an_argparse_option(script, option, value):
+    source = (REPO_ROOT / "plugins" / "dev-team" / SCRIPT_PATH_BY_NAME[script]).read_text(
+        "utf-8"
+    )
+    call = _add_argument_call(source, option)
+    assert call is not None, f"{option} is not an add_argument option of {script}"
+    if value is not None:
+        assert re.search(rf"[\"']{re.escape(value)}[\"']", call), (
+            f"{option} of {script} does not accept {value}"
+        )
 
 
 @pytest.fixture
@@ -153,38 +189,24 @@ def probe_script(tmp_path: Path) -> Path:
 
 
 def _run_probe(script: Path, flag: str, stdin) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, str(script), flag],
-        stdin=stdin,
-        capture_output=True,
-        text=True,
-        timeout=REFUSAL_TIMEOUT_SECONDS,
-        check=False,
-    )
-
-
-def _assert_refused(result: subprocess.CompletedProcess, flag: str) -> None:
-    assert result.returncode == REFUSAL_EXIT_STATUS, result.stderr
-    assert result.stdout == "", result.stderr
-    assert NEVER_ENDS_MARKER in result.stderr, result.stderr
-    assert flag in result.stderr, result.stderr
-
-
-@pytest.fixture
-def open_socket_stdin():
-    """The read end of a socket pair whose peer stays open: it never reaches EOF."""
-    reader, peer = socket.socketpair()
     try:
-        yield reader
-    finally:
-        reader.close()
-        peer.close()
+        return subprocess.run(
+            [sys.executable, str(script), flag],
+            stdin=stdin,
+            capture_output=True,
+            text=True,
+            timeout=SUBPROCESS_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"no result in {SUBPROCESS_TIMEOUT_SECONDS} s (hang or slow host)")
 
 
 @NO_SOCKETS_ON_WINDOWS
-def test_socket_that_never_ends_is_refused(probe_script, open_socket_stdin):
-    result = _run_probe(probe_script, "--diff-from", open_socket_stdin)
-    _assert_refused(result, "--diff-from")
+def test_socket_that_never_ends_is_refused(probe_script):
+    with endless_socket() as reader:
+        result = _run_probe(probe_script, "--diff-from", reader)
+    assert_refused(result, "--diff-from")
 
 
 @NO_SOCKETS_ON_WINDOWS
@@ -196,20 +218,38 @@ def test_socket_carrying_finished_input_is_refused(probe_script):
         result = _run_probe(probe_script, "--findings", reader)
     finally:
         reader.close()
-    _assert_refused(result, "--findings")
+    assert_refused(result, "--findings")
 
 
 @NO_PTY_ON_WINDOWS
 def test_terminal_is_refused(probe_script):
-    import pty
+    with terminal() as slave:
+        result = _run_probe(probe_script, "--findings", slave)
+    assert_refused(result, "--findings")
 
-    master_fd, slave_fd = pty.openpty()
-    try:
-        result = _run_probe(probe_script, "--findings", slave_fd)
-    finally:
-        os.close(slave_fd)
-        os.close(master_fd)
-    _assert_refused(result, "--findings")
+
+NO_CHARACTER_DEVICES_ON_WINDOWS = pytest.mark.skipif(
+    sys.platform == "win32", reason="/dev/zero does not exist on Windows"
+)
+
+
+@NO_CHARACTER_DEVICES_ON_WINDOWS
+def test_endless_character_device_is_refused_while_the_null_device_is_read(
+    probe_script,
+):
+    with open("/dev/zero", "rb") as endless:
+        refused = _run_probe(probe_script, "--findings", endless)
+    with open(os.devnull, "rb") as null_device:
+        read = _run_probe(probe_script, "--findings", null_device)
+    assert_refused(refused, "--findings")
+    assert (read.returncode, read.stdout, read.stderr) == (0, "", "")
+
+
+@NO_CHARACTER_DEVICES_ON_WINDOWS
+@pytest.mark.parametrize("device", ["/dev/zero", "/dev/urandom"])
+def test_endless_character_device_cannot_reach_eof(device):
+    with open(device, "rb") as stream:
+        assert stdin_guard.stream_can_reach_eof(stream) is False
 
 
 def _refusal_of(stream, capsys) -> tuple[int, str]:
@@ -221,14 +261,14 @@ def _refusal_of(stream, capsys) -> tuple[int, str]:
 def test_closed_stream_object_is_refused(capsys):
     with open(os.devnull) as stream:
         pass
-    assert _refusal_of(stream, capsys) == (REFUSAL_EXIT_STATUS, "")
+    assert _refusal_of(stream, capsys) == (2, "")
 
 
 def _stream_with_fileno(fileno) -> SimpleNamespace:
     return SimpleNamespace(closed=False, fileno=fileno)
 
 
-def _raise(error: Exception):
+def _fileno_raising(error: Exception):
     def fileno():
         raise error
 
@@ -237,30 +277,24 @@ def _raise(error: Exception):
 
 def test_stream_whose_descriptor_is_not_open_is_refused(capsys):
     stream = _stream_with_fileno(lambda: NEVER_OPEN_FD)
-    assert _refusal_of(stream, capsys) == (REFUSAL_EXIT_STATUS, "")
+    assert _refusal_of(stream, capsys) == (2, "")
 
 
 def test_missing_stdin_is_refused(monkeypatch, capsys):
     monkeypatch.setattr(sys, "stdin", None)
-    assert _refusal_of(None, capsys) == (REFUSAL_EXIT_STATUS, "")
+    assert _refusal_of(None, capsys) == (2, "")
 
 
 @NO_SOCKETS_ON_WINDOWS
-def test_socket_cannot_reach_eof_and_does_not_exit(open_socket_stdin):
-    with os.fdopen(os.dup(open_socket_stdin.fileno()), "r") as stream:
+def test_socket_cannot_reach_eof_and_does_not_exit():
+    with endless_socket() as reader, os.fdopen(os.dup(reader.fileno()), "r") as stream:
         assert stdin_guard.stream_can_reach_eof(stream) is False
 
 
 @NO_PTY_ON_WINDOWS
 def test_terminal_cannot_reach_eof():
-    import pty
-
-    master_fd, slave_fd = pty.openpty()
-    try:
-        with os.fdopen(slave_fd, "r") as stream:
-            assert stdin_guard.stream_can_reach_eof(stream) is False
-    finally:
-        os.close(master_fd)
+    with terminal() as slave, os.fdopen(slave, "r", closefd=False) as stream:
+        assert stdin_guard.stream_can_reach_eof(stream) is False
 
 
 @NO_DIRECTORY_FDS_ON_WINDOWS
@@ -279,15 +313,18 @@ def test_directory_cannot_reach_eof(tmp_path: Path):
     ids=["fileno-oserror-fails-safe", "fileno-valueerror-on-open-stream"],
 )
 def test_stream_whose_fileno_raises(error, can_reach_eof):
-    stream = _stream_with_fileno(_raise(error("no descriptor")))
+    stream = _stream_with_fileno(_fileno_raising(error("no descriptor")))
     assert stdin_guard.stream_can_reach_eof(stream) is can_reach_eof
 
 
 @NO_SOCKETS_ON_WINDOWS
-def test_refusal_message_names_the_script_flag_and_pipe_and_goes_to_stderr_only(
-    probe_script, open_socket_stdin
-):
-    result = _run_probe(probe_script, "--findings", open_socket_stdin)
+def test_refusal_message_is_exact_and_goes_to_stderr_only(probe_script):
+    with endless_socket() as reader:
+        result = _run_probe(probe_script, "--findings", reader)
     assert result.stdout == ""
-    for expected in (probe_script.name, "--findings", NEVER_ENDS_MARKER, "pipe"):
-        assert expected in result.stderr, result.stderr
+    assert result.stderr == (
+        f"{probe_script.name}: no input; stdin never reaches EOF here (terminal, "
+        "open socket or closed stream). Pass --findings <file> or pipe the input "
+        "in.\n"
+    )
+    assert REFUSAL in result.stderr
