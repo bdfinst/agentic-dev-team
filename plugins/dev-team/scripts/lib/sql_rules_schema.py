@@ -87,45 +87,136 @@ def _is(token, word: str) -> bool:
     return token.kind == WORD and token.text.upper() == word
 
 
+def _adjacent(a, b) -> bool:
+    """True when ``b`` starts right where ``a`` ends, with no whitespace."""
+    return a.line == b.line and a.col + len(a.text) == b.col
+
+
 def _render(tokens) -> str:
-    """Matched tokens as one line of text, with dotted names rejoined."""
-    return " ".join(t.text for t in tokens).replace(" . ", ".")
+    """Matched tokens as one line of text, with dotted and templated names rejoined."""
+    parts: list[str] = []
+    for k, token in enumerate(tokens):
+        glued = (
+            k > 0
+            and _adjacent(tokens[k - 1], token)
+            and (tokens[k - 1].text in "{}." or token.text in "{}.")
+        )
+        if k > 0 and not glued:
+            parts.append(" ")
+        parts.append(token.text)
+    return "".join(parts).replace(" . ", ".")
+
+
+def _placeholder_end(tokens, i: int) -> int:
+    """Index after a ``{n}`` String.Format placeholder at ``i``, or ``i``."""
+    if i + 2 < len(tokens) and _punct(tokens[i], "{"):
+        number, close = tokens[i + 1], tokens[i + 2]
+        if (
+            number.kind == NUMBER
+            and number.text.isdigit()
+            and _punct(close, "}")
+            and _adjacent(tokens[i], number)
+            and _adjacent(number, close)
+        ):
+            return i + 3
+    return i
+
+
+def _piece_end(tokens, i: int) -> int:
+    """Index after one word, quoted identifier, or placeholder at ``i``, or ``i``."""
+    if i < len(tokens) and tokens[i].kind in (WORD, QUOTED):
+        return i + 1
+    return _placeholder_end(tokens, i)
+
+
+def _part_end(tokens, i: int) -> int:
+    """Index after one name part: pieces written with no whitespace between them.
+
+    ``FDTEMP_{0}`` and ``{5}_WORKINGSET_{0}`` are one part each; in ``t {0}``
+    the placeholder is not part of the name.
+    """
+    end = _piece_end(tokens, i)
+    while end > i and end < len(tokens) and _adjacent(tokens[end - 1], tokens[end]):
+        nxt = _piece_end(tokens, end)
+        if nxt == end:
+            break
+        end = nxt
+    return end
 
 
 def _name_end(tokens, i: int) -> int:
     """Index after a possibly dotted table name starting at ``i``, or ``i``."""
     n = len(tokens)
-    if i >= n or tokens[i].kind not in (WORD, QUOTED):
+    end = _part_end(tokens, i)
+    if end == i:
         return i
-    i += 1
-    while i + 1 < n and tokens[i].kind == PUNCT and tokens[i].text == ".":
+    i = end
+    while i + 1 < n and _punct(tokens[i], "."):
         j = i + 1
-        while j < n and tokens[j].kind == PUNCT and tokens[j].text == ".":
+        while j < n and _punct(tokens[j], "."):
             j += 1  # T-SQL omitted schema part, as in db..t
-        if j >= n or tokens[j].kind not in (WORD, QUOTED):
+        end = _part_end(tokens, j)
+        if end == j:
             break
-        i = j + 1
+        i = end
     return i
 
 
+def _target_end(tokens, i: int) -> int | None:
+    """Index after ``INSERT [INTO] <table> [AS alias] [WITH (hints)]`` at ``i``.
+
+    ``None`` when no target table follows.
+    """
+    n = len(tokens)
+    j = i + 1
+    if j < n and _is(tokens[j], "INTO"):
+        j += 1
+    end = _name_end(tokens, j)
+    if end == j or tokens[j].text.upper() in _NOT_A_TARGET:
+        return None  # ``AFTER INSERT, UPDATE AS`` in a trigger header, not an INSERT
+    j = end
+    if j + 1 < n and _is(tokens[j], "AS") and tokens[j + 1].kind in (WORD, QUOTED):
+        j += 2
+    if j + 1 < n and _is(tokens[j], "WITH") and _punct(tokens[j + 1], "("):
+        j = _skip_group(tokens, j + 1)  # T-SQL table hint, as in WITH (TABLOCK)
+    return j
+
+
+def _is_column_list(tokens, j: int) -> bool:
+    """True when the ``(`` at ``j`` opens a target column list, not a query."""
+    n = len(tokens)
+    return (
+        j < n
+        and _punct(tokens[j], "(")
+        and not (
+            j + 1 < n and (_is(tokens[j + 1], "SELECT") or _punct(tokens[j + 1], "("))
+        )
+    )
+
+
 def check_positional_insert(ctx: Context) -> Iterator[Hit]:
-    """``INSERT [INTO] <table> [AS alias] VALUES`` has no column list."""
+    """An INSERT with no column list, fed by ``VALUES`` or a named ``SELECT``.
+
+    An INSERT whose SELECT source has a star item is left to
+    ``sql.schema.insert-select-star``, so the statement gets one finding.
+    """
     tokens = ctx.tokens
     n = len(tokens)
+    sources = _insert_sources(tokens)
     for i, token in enumerate(tokens):
         if not _is(token, "INSERT"):
             continue
-        j = i + 1
-        if j < n and _is(tokens[j], "INTO"):
-            j += 1
-        end = _name_end(tokens, j)
-        if end == j:
+        j = _target_end(tokens, i)
+        if j is None:
             continue
-        j = end
-        if j + 1 < n and _is(tokens[j], "AS") and tokens[j + 1].kind in (WORD, QUOTED):
-            j += 2
         if j < n and (_is(tokens[j], "VALUES") or _is(tokens[j], "VALUE")):
             yield Hit(token.line, _render(tokens[i : j + 1]))
+        elif (
+            i in sources
+            and not _is_column_list(tokens, j)
+            and not any(_star_item(tokens, s) for s in sources[i])
+        ):
+            yield Hit(token.line, _render([*tokens[i:j], tokens[sources[i][0]]]))
 
 
 def _punct(token, char: str) -> bool:
@@ -309,23 +400,11 @@ def _cte_end(tokens, j: int) -> int:
 def _insert_source_start(tokens, i: int) -> tuple[int, int] | None:
     """``(select_index, paren_level)`` of the query the INSERT at ``i`` reads."""
     n = len(tokens)
-    j = i + 1
-    if j < n and _is(tokens[j], "INTO"):
-        j += 1
-    end = _name_end(tokens, j)
-    if end == j or tokens[j].text.upper() in _NOT_A_TARGET:
-        return None  # ``AFTER INSERT, UPDATE AS`` in a trigger header, not an INSERT
-    j = end
-    if j + 1 < n and _is(tokens[j], "AS") and tokens[j + 1].kind in (WORD, QUOTED):
-        j += 2
-    if (
-        j < n
-        and _punct(tokens[j], "(")
-        and not (
-            j + 1 < n and (_is(tokens[j + 1], "SELECT") or _punct(tokens[j + 1], "("))
-        )
-    ):
-        j = _skip_group(tokens, j)  # the column list
+    j = _target_end(tokens, i)
+    if j is None:
+        return None
+    if _is_column_list(tokens, j):
+        j = _skip_group(tokens, j)
     if j < n and _is(tokens[j], "OUTPUT"):
         while j < n and not any(
             _is(tokens[j], w) for w in ("SELECT", "VALUES", "EXEC", "DEFAULT", "WITH")
@@ -359,12 +438,29 @@ def _insert_sources(tokens) -> dict[int, list[int]]:
         if start is None:
             continue
         first, level = start
-        found[i] = [first] + [
-            k
-            for k, depth in _walk(tokens, first + 1, level)
-            if depth == level and _is(tokens[k], "SELECT")
-        ]
+        found[i] = [first]
+        for k, depth in _walk(tokens, first + 1, level):
+            if depth < level:
+                break  # the source's own closing paren
+            if _is(tokens[k], "SELECT") and _is_set_branch(tokens, k, depth - level):
+                found[i].append(k)
     return found
+
+
+def _is_set_branch(tokens, k: int, extra: int) -> bool:
+    """True when the SELECT at ``k`` is a set-operation branch of the source.
+
+    ``extra`` is how many parens deeper than the source it sits. Each of
+    those parens must open right before it, after a ``UNION`` and the like,
+    as in ``UNION (SELECT ...)``.
+    """
+    if extra == 0:
+        return True
+    opener = k - extra
+    if opener < 1 or not all(_punct(t, "(") for t in tokens[opener:k]):
+        return False
+    prev = tokens[opener - 1]
+    return prev.kind == WORD and prev.text.upper() in _SET_OPERATOR
 
 
 def check_insert_select_star(ctx: Context) -> Iterator[Hit]:
@@ -474,16 +570,42 @@ RULES = (
         owner=OWNER_SCRIPT,
         severity="warning",
         message="INSERT without a column list depends on column order and breaks when the table gains a column.",
-        fix="Name the target columns: INSERT INTO t (col1, col2) VALUES (...).",
+        fix="Name the target columns: INSERT INTO t (col1, col2) VALUES (...), or INSERT INTO t (col1, col2) SELECT a, b FROM s.",
         positive=(
             Fixture("single-row", "INSERT INTO orders VALUES (1, 'a');", (1,)),
             Fixture("multi-row-lowercase", "insert into t values (1), (2);", (1,)),
             Fixture("second-statement", "SELECT 1;\nINSERT INTO s.t VALUES (1);", (2,)),
+            Fixture(
+                "named-select", "INSERT INTO archive SELECT id, name FROM orders;", (1,)
+            ),
+            Fixture(
+                "union-select",
+                "INSERT INTO a\nSELECT x FROM b UNION ALL SELECT y FROM c;",
+                (1,),
+            ),
+            Fixture("parenthesized-select", "INSERT INTO a (SELECT x FROM b);", (1,)),
+            Fixture(
+                "cte-select",
+                "INSERT INTO a WITH c AS (SELECT x FROM b) SELECT x FROM c;",
+                (1,),
+            ),
+            Fixture("placeholder-target", "INSERT INTO t_{0} VALUES (1);", (1,)),
+            Fixture(
+                "placeholder-after-dot",
+                "INSERT INTO dbo.{5}_ws_{0} SELECT id FROM t;",
+                (1,),
+            ),
         ),
         negative=(
             Fixture("column-list", "INSERT INTO orders (id, name) VALUES (1, 'a');"),
             Fixture("column-list-no-space", "insert into orders(id) values (1);"),
             Fixture("default-values", "INSERT INTO orders DEFAULT VALUES;"),
+            Fixture("select-with-column-list", "INSERT INTO a (x) SELECT x FROM b;"),
+            Fixture("select-star", "INSERT INTO archive SELECT * FROM orders;"),
+            Fixture("placeholder-after-space", "INSERT INTO t {0} VALUES (1);"),
+            Fixture(
+                "placeholder-after-space-select", "INSERT INTO t {0} SELECT x FROM b;"
+            ),
             Fixture("in-comment", "-- INSERT INTO t VALUES (1)"),
         ),
         check=check_positional_insert,
@@ -504,6 +626,9 @@ RULES = (
                 (1,),
             ),
             Fixture("qualified-star", "insert into a select o.* from orders o;", (1,)),
+            Fixture(
+                "placeholder-target", "INSERT INTO {5}_ws_{0} SELECT * FROM b;", (1,)
+            ),
             Fixture(
                 "second-statement",
                 "SELECT 1;\nINSERT INTO a\nSELECT * FROM b;",

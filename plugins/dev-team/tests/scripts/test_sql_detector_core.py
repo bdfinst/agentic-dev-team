@@ -122,6 +122,8 @@ def test_multi_row_lowercase_positional_insert(tmp_path):
         "INSERT orders VALUES (1)",
         "INSERT INTO orders AS o VALUES (1)",
         "INSERT INTO t\nVALUES\n(1)",
+        "INSERT INTO t SELECT a, b FROM s",
+        "INSERT INTO FDTEMP_{0} VALUES (1)",
     ],
 )
 def test_other_positional_spellings_fire(tmp_path, stmt):
@@ -135,7 +137,7 @@ def test_other_positional_spellings_fire(tmp_path, stmt):
     [
         "CREATE TRIGGER trg AFTER INSERT ON t FOR EACH ROW EXECUTE FUNCTION f()",
         "GRANT INSERT ON t TO app",
-        "INSERT INTO t SELECT a, b FROM s",
+        "INSERT INTO t (a, b) SELECT a, b FROM s",
     ],
 )
 def test_insert_keyword_without_values_does_not_fire(tmp_path, stmt):
