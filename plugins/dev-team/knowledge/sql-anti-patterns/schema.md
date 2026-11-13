@@ -14,15 +14,25 @@ names. Such a query works today and breaks after a harmless schema change. See
 Bad:
 
     INSERT INTO orders VALUES (1, 'a');
+    INSERT INTO archive SELECT id, name FROM orders;
 
 Good:
 
     INSERT INTO orders (id, name) VALUES (1, 'a');
+    INSERT INTO archive (id, name) SELECT id, name FROM orders;
 
-Rationale: an `INSERT ... VALUES` with no column list maps values to columns
-by position. When a migration adds, drops, or reorders a column, the statement
-fails with a column-count error or loads a value into the wrong column.
-`INSERT ... DEFAULT VALUES` and an `INSERT` with a column list are not reported.
+Rationale: an `INSERT` with no column list maps values to columns by position,
+whether the rows come from `VALUES` or from a `SELECT`. When a migration adds,
+drops, or reorders a column, the statement fails with a column-count error or
+loads a value into the wrong column. The `SELECT` source can be plain,
+parenthesized, after a `WITH` clause or an `OUTPUT` clause, or a `UNION` of
+selects. The target name can hold template placeholders written on one line,
+such as `{0}`, `{0:N2}`, or `{tableName}`, as in
+`INSERT INTO FDTEMP_{0} VALUES (...)`. The `INSERT` branch of a `MERGE`
+(`WHEN NOT MATCHED THEN INSERT VALUES (...)`) is reported the same way.
+`INSERT ... DEFAULT VALUES` and an `INSERT` with a column list are not
+reported. An `INSERT ... SELECT *` is reported only as
+[`sql.schema.insert-select-star`](#sqlschemainsert-select-star).
 
 ### sql.schema.insert-select-star
 
@@ -44,8 +54,11 @@ Rationale: `INSERT ... SELECT *` ties the target to the column count and order
 of the source. When a migration changes either table, the statement fails or
 loads values into the wrong columns. This is the one finding for the
 statement: [`sql.schema.select-star`](#sqlschemaselect-star) does not also
-report the same `SELECT`. An `INSERT` with a column list from a named select
-list is not reported.
+report the same `SELECT`, and
+[`sql.schema.positional-insert`](#sqlschemapositional-insert) does not also
+report a missing column list. An `INSERT` with a named select list is not
+reported here; without a target column list, it is a
+[`sql.schema.positional-insert`](#sqlschemapositional-insert) finding.
 
 ### sql.schema.select-star
 
