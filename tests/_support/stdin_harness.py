@@ -32,7 +32,7 @@ def assert_refused(result: subprocess.CompletedProcess, flag: str) -> None:
     """The run exited 2 with nothing on stdout and a refusal naming ``flag``."""
     # The literal 2 is deliberate: an independent oracle for the guard's constant.
     assert result.returncode == 2, result.stderr
-    assert result.stdout == "", result.stderr
+    assert result.stdout == "", result.stdout
     assert REFUSAL in result.stderr, result.stderr
     assert flag in result.stderr, result.stderr
 

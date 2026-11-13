@@ -392,8 +392,13 @@ def test_a_line_that_does_not_close_the_fence_leaves_its_body_scanned(
     ],
 )
 def test_text_after_the_closing_fence_is_not_scanned(opening, closer):
-    text = f"{opening}\n{closer}\n{CALL_WITHOUT_INPUT}\n"
-    assert offenders(text) == []
+    text = f"{opening}\n{CALL_WITHOUT_INPUT}\n{closer}\n{CALL_WITHOUT_INPUT}\n"
+    assert offending_scripts(text) == ["change_impact.py"]
+
+
+def test_a_fence_that_never_closes_still_has_its_calls_scanned():
+    text = f"```bash\n{CALL_WITHOUT_INPUT}\n"
+    assert offending_scripts(text) == ["change_impact.py"]
 
 
 # -- The shipped skills -----------------------------------------------------

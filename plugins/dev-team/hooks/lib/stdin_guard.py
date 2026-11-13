@@ -50,6 +50,8 @@ def stream_can_reach_eof(stream) -> bool:
 
 
 def _is_null_device(fd: int) -> bool:
+    if os.isatty(fd):
+        return False
     try:
         return os.path.samestat(os.fstat(fd), os.stat(os.devnull))
     except OSError:

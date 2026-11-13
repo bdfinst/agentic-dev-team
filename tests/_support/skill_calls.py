@@ -114,6 +114,8 @@ def iter_commands(file: str, text: str) -> Iterator[Command]:
             fence_marker = None
             continue
         block.append((number, raw))
+    if fence_marker is not None and fence_scanned:
+        yield from _fenced_commands(file, block)
 
 
 def _fenced_commands(file: str, block: list[tuple[int, str]]) -> Iterator[Command]:

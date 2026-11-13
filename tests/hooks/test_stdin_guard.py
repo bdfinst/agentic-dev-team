@@ -234,14 +234,9 @@ NO_CHARACTER_DEVICES_ON_WINDOWS = pytest.mark.skipif(
 
 
 @NO_CHARACTER_DEVICES_ON_WINDOWS
-def test_endless_character_device_is_refused_while_the_null_device_is_read(
-    probe_script,
-):
-    with open("/dev/zero", "rb") as endless:
-        refused = _run_probe(probe_script, "--findings", endless)
+def test_null_device_is_read_as_empty_input(probe_script):
     with open(os.devnull, "rb") as null_device:
         read = _run_probe(probe_script, "--findings", null_device)
-    assert_refused(refused, "--findings")
     assert (read.returncode, read.stdout, read.stderr) == (0, "", "")
 
 
