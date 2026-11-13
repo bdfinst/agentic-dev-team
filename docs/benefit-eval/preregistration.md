@@ -311,7 +311,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "property-based-testing mutants killed beyond the target's existing tests, mean per target",
       "instrument": "manual-input",
       "identity_class": "id-bearing",
-      "baseline": "no-reference: not-yet-run; mutants killed by the same target's existing tests",
+      "baseline": "measured: mutants killed by the same target's existing tests, mean per target; record at .dev-team-reports/baselines/benefit-pbt-mutants-killed.json",
       "unit": "mutants per target",
       "keep": ">= 1",
       "tune": "< 1",
@@ -373,7 +373,7 @@ The cell of each metric holds its own status. A `measured` cell cites its record
 
 ## Rules
 
-**Verdict order.** The report prints `within` or `breach` against `keep` only. You apply `retire`, `keep` and `tune` by hand when you post the verdict: evaluate `retire` first; if it does not apply, evaluate `keep`; otherwise the verdict is `tune`. Each threshold's own operator decides its boundary: `>=` includes the limit and `<` excludes it. No keep, tune, or retire verdict is posted for a metric whose baseline status is `no-reference` or `unmeasurable`. These metrics are: `abort-yield`, `contradicted-rate`, `expand-rate`, `guard-divergence`, `pbt-mutants-killed`, `report-size-cut`, `test-review-tp-change`.
+**Verdict order.** The report prints `within` or `breach` against `keep` only. You apply `retire`, `keep` and `tune` by hand when you post the verdict: evaluate `retire` first; if it does not apply, evaluate `keep`; otherwise the verdict is `tune`. Each threshold's own operator decides its boundary: `>=` includes the limit and `<` excludes it. No keep, tune, or retire verdict is posted for a metric whose baseline status is `no-reference` or `unmeasurable`. These metrics are: `abort-yield`, `contradicted-rate`, `expand-rate`, `guard-divergence`, `report-size-cut`, `test-review-tp-change`.
 
 **Within and breach.** The report prints `within` when the value meets the keep threshold using `direction`, and `breach` when it does not. A value exactly on the keep threshold is `within` when `inclusivity` is `inclusive` and `breach` when it is `exclusive`. `breach` is a threshold finding, not a verdict.
 
