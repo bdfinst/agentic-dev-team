@@ -162,8 +162,9 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Axis,
         choices=list(Axis),
         default=Axis.MODEL,
-        help="ladder a --stress step moves on: model (haiku, sonnet, opus; effort "
-        "when no model rung is left) or effort (default: model)",
+        help="ladder a --stress step moves on first: model (haiku, sonnet, opus) or "
+        "effort (low ... max); a step with no rung left there moves on the other "
+        "ladder (default: model)",
     )
     parser.add_argument(
         "--fixtures",
