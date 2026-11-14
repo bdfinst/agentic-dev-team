@@ -32,6 +32,12 @@ sys.path.insert(0, str(_HERE / "lib"))
 
 import review_roster
 
+_HOOKS_LIB_DIR = Path(__file__).resolve().parent.parent / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
+
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+
 DETECTOR = _HERE / "sql_anti_patterns.py"
 TIMEOUT_SECONDS = 120
 
@@ -42,7 +48,7 @@ def run_detector(paths: list[str], files_from: str | None) -> tuple[int, str]:
     # closed in the child, so the detector cannot open it.
     try:
         if files_from == "-":
-            listed = sys.stdin.read()
+            listed = read_stdin_or_exit("--files-from")
         elif files_from:
             listed = Path(files_from).read_text(encoding="utf-8")
         else:

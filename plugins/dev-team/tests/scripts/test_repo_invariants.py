@@ -711,3 +711,53 @@ class TestLedgerFilenameSingleSourced:
             repo_invariants.check_ledger_filename_single_sourced(["some/file.py"])
             == repo_invariants.check_ledger_filename_single_sourced(None)
         )
+
+
+class TestNoBareStdinReadInShippedScripts:
+    def _plugin(self, tmp_path, monkeypatch, files):
+        for rel, text in files.items():
+            target = tmp_path / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", tmp_path)
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", tmp_path)
+
+    def test_clean_in_the_real_repo(self):
+        assert repo_invariants.check_no_bare_stdin_read_in_shipped_scripts() == []
+
+    def test_flags_a_bare_read_outside_hooks(self, tmp_path, monkeypatch):
+        self._plugin(
+            tmp_path, monkeypatch, {"scripts/a.py": "import sys\ntext = sys.stdin.read()\n"}
+        )
+
+        findings = repo_invariants.check_no_bare_stdin_read_in_shipped_scripts()
+
+        assert [f["file"] for f in findings] == ["scripts/a.py"]
+        assert findings[0]["invariant"] == "no-bare-stdin-read-in-shipped-scripts"
+
+    def test_passes_a_script_routed_through_stdin_guard(self, tmp_path, monkeypatch):
+        self._plugin(
+            tmp_path,
+            monkeypatch,
+            {
+                "scripts/a.py": "from stdin_guard import read_stdin_or_exit\n"
+                "text = read_stdin_or_exit('--f')\n"
+            },
+        )
+
+        assert repo_invariants.check_no_bare_stdin_read_in_shipped_scripts() == []
+
+    def test_ignores_hooks_tests_and_comments(self, tmp_path, monkeypatch):
+        read = "import sys\ntext = sys.stdin.read()\n"
+        self._plugin(
+            tmp_path,
+            monkeypatch,
+            {
+                "hooks/h.py": read,
+                "tests/t.py": read,
+                "scripts/test_x.py": read,
+                "scripts/c.py": "# sys.stdin.read() is refused here\n",
+            },
+        )
+
+        assert repo_invariants.check_no_bare_stdin_read_in_shipped_scripts() == []

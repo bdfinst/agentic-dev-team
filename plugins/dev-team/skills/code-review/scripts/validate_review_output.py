@@ -57,6 +57,8 @@ _HOOKS_LIB_DIR = _PLUGIN_ROOT / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+
 try:
     import artifact_paths  # type: ignore[import-not-found]
     import atomic_state  # type: ignore[import-not-found]
@@ -427,7 +429,7 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    raw_text = sys.stdin.read() if args.file == "-" else Path(args.file).read_text(encoding="utf-8")
+    raw_text = read_stdin_or_exit("--file") if args.file == "-" else Path(args.file).read_text(encoding="utf-8")
     result = classify_and_validate(raw_text)
 
     if not result["valid"] and not args.dry_run:

@@ -54,6 +54,8 @@ _HOOKS_LIB_DIR = _PLUGIN_ROOT / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+
 try:
     import artifact_paths  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
@@ -280,7 +282,7 @@ def append_round(entry: dict, cwd=None) -> Path | None:
 def _load_findings(path: str | None):
     if not path:
         return []
-    text = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
+    text = read_stdin_or_exit("--findings") if path == "-" else Path(path).read_text(encoding="utf-8")
     if not text.strip():
         return []
     data = json.loads(text)
@@ -321,7 +323,7 @@ def main(argv=None) -> int:
     fix_diff = ""
     if args.fix_diff:
         fix_diff = (
-            sys.stdin.read()
+            read_stdin_or_exit("--fix-diff")
             if args.fix_diff == "-"
             else Path(args.fix_diff).read_text(encoding="utf-8")
         )

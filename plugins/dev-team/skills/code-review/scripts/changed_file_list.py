@@ -62,6 +62,13 @@ import argparse
 import json
 import sys
 from collections.abc import Iterable
+from pathlib import Path
+
+_HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
+
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 
 def parse_name_status(lines: Iterable[str]) -> list[dict]:
@@ -115,7 +122,7 @@ def main(argv=None) -> int:
     if args.name_status_from:
         try:
             if args.name_status_from == "-":
-                text = sys.stdin.read()
+                text = read_stdin_or_exit("--name-status-from")
             else:
                 with open(args.name_status_from) as handle:
                     text = handle.read()

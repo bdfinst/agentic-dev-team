@@ -83,6 +83,9 @@ _HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+
+
 # Both shared modules are imported, never re-implemented. There is deliberately
 # no `except ImportError` fallback (#1968): a hand-written stand-in for a shared
 # classifier is a second copy of the logic that can drift from its source
@@ -351,7 +354,7 @@ def main(argv=None) -> int:
     files = list(args.files)
     if args.files_from:
         if args.files_from == "-":
-            text = sys.stdin.read()
+            text = read_stdin_or_exit("--files-from")
         else:
             with open(args.files_from) as f:
                 text = f.read()

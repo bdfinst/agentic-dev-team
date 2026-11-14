@@ -1,4 +1,4 @@
-"""Shared table of the eight entry points that read stdin by default.
+"""Shared table of the entry points that read stdin by default or on a `-` flag value.
 
 Each row names a script (path relative to ``plugins/dev-team``), the argv that
 invokes it with its input flag absent, that input flag, a fixed piped fixture,
@@ -73,6 +73,28 @@ INPUT_FLAGS: tuple[StdinFlag, ...] = (
     ),
     StdinFlag("pr_close_keyword_lint.py", "--body-file"),
     StdinFlag("autoship_queue.py", "--input-file"),
+    StdinFlag("sql_anti_patterns.py", "--files-from", stdin_only_on_dash=True),
+    StdinFlag("sql_review_roster.py", "--files-from", stdin_only_on_dash=True),
+    StdinFlag("select_lenses.py", "--files-from", stdin_only_on_dash=True),
+    StdinFlag(
+        "select_lenses.py",
+        "--added-from",
+        stdin_only_on_dash=True,
+        stdin_argvs=(("--added-from", "-"),),
+    ),
+    StdinFlag("autoship_proposals.py", "--agent-response-file", stdin_only_on_dash=True),
+    StdinFlag("review_round_log.py", "--findings", stdin_only_on_dash=True),
+    StdinFlag(
+        "review_round_log.py",
+        "--fix-diff",
+        stdin_only_on_dash=True,
+        stdin_argvs=(("--fix-diff", "-"),),
+    ),
+    StdinFlag("change_size.py", "--numstat-from", stdin_only_on_dash=True),
+    StdinFlag("changed_file_list.py", "--name-status-from", stdin_only_on_dash=True),
+    StdinFlag("change_shape.py", "--files-from", stdin_only_on_dash=True),
+    StdinFlag("validate_review_output.py", "--file", stdin_only_on_dash=True),
+    StdinFlag("mutation_feasibility_gate.py", "--v3-findings-json", stdin_only_on_dash=True),
 )
 
 
@@ -84,6 +106,9 @@ class StdinScript:
     fixture: str
     piped: Golden | None
     devnull: Golden | None
+    #: Argv that makes a script read stdin only on an explicit ``-`` (appended
+    #: when no input file is given). Empty for a script that reads stdin by default.
+    stdin_argv: tuple[str, ...] = ()
 
     @property
     def needs_flag(self) -> bool:
@@ -127,6 +152,23 @@ _LARGE_PR_BODY_FIXTURE = "filler line\n" * 6000 + "This does not close #7\n"
 
 #: The stderr line ``orchestrator.py --skip-llm`` prints before it dispatches.
 ORCHESTRATOR_RUNS_STDERR = "INFO: dispatching persona codebase-recon\n"
+
+_SELECT_LENSES_OUTPUT = (
+    '{"lenses": ["concurrency-review", "doc-review", "naming-review", '
+    '"performance-review", "spec-compliance-review", "structure-review", '
+    '"test-review", "arch-review", "correctness-review", "domain-review", '
+    '"security-review"], "warnings": []}\n'
+)
+
+_REVIEW_OUTPUT_FIXTURE = '{"status":"pass","summary":"ok","issues":[]}'
+_REVIEW_OUTPUT_VALID = (
+    '{"agent": "x", "error": null, "extraction": "clean", "shape": "clean", '
+    '"valid": true}\n'
+)
+_REVIEW_OUTPUT_EMPTY = (
+    '{"agent": "x", "error": "output was empty or whitespace-only", '
+    '"extraction": null, "shape": "empty", "valid": false}\n'
+)
 
 STDIN_SCRIPTS: tuple[StdinScript, ...] = (
     StdinScript(
@@ -231,6 +273,149 @@ STDIN_SCRIPTS: tuple[StdinScript, ...] = (
         _GROUPING_FIXTURE,
         piped=Golden(0, '{"queue": [{"type": "solo", "issue": 1}], "deferred": []}\n'),
         devnull=Golden(1, "", "grouping output is not valid JSON"),
+    ),
+    StdinScript(
+        "scripts/sql_anti_patterns.py",
+        (),
+        "--files-from",
+        "a.sql\n",
+        piped=Golden(
+            2,
+            '{"findings": [], "errors": ["cannot read a.sql: No such file or directory"], '
+            '"skipped_fragments": {}}\n',
+        ),
+        devnull=Golden(
+            0, '{"findings": [], "errors": [], "skipped_fragments": {}}\n'
+        ),
+        stdin_argv=("--files-from", "-"),
+    ),
+    StdinScript(
+        "scripts/sql_review_roster.py",
+        (),
+        "--files-from",
+        "a.sql\n",
+        piped=Golden(
+            0,
+            '{"dispatch": true, "status": "ok", "message": "", "hits": [], '
+            '"errors": ["cannot read a.sql: No such file or directory"], '
+            '"skipped_fragments": {}, "dispatchFailure": null}\n',
+        ),
+        devnull=Golden(
+            0,
+            '{"dispatch": false, "status": "ok", "message": "", "hits": [], '
+            '"errors": [], "skipped_fragments": {}, "dispatchFailure": null}\n',
+        ),
+        stdin_argv=("--files-from", "-"),
+    ),
+    StdinScript(
+        "scripts/select_lenses.py",
+        ("--files", "x.py"),
+        "--files-from",
+        "a.py\n",
+        piped=Golden(0, _SELECT_LENSES_OUTPUT),
+        devnull=Golden(0, _SELECT_LENSES_OUTPUT),
+        stdin_argv=("--files-from", "-"),
+    ),
+    StdinScript(
+        "scripts/autoship_proposals.py",
+        ("validate-proposals", "--ungrouped-file", "/dev/null"),
+        "--agent-response-file",
+        "[]",
+        piped=Golden(1, "", "'/dev/null' is not valid JSON"),
+        devnull=Golden(1, "", "'/dev/null' is not valid JSON"),
+        stdin_argv=("--agent-response-file", "-"),
+    ),
+    StdinScript(
+        "skills/code-review/scripts/review_round_log.py",
+        (
+            "--round",
+            "1",
+            "--purpose",
+            "discovery",
+            "--outcome",
+            "no-op",
+            "--dry-run",
+        ),
+        "--findings",
+        "[]",
+        piped=Golden(
+            0,
+            '{"findings_new": 0, "outcome": "no-op", "round": 1}',
+            json_keys=("findings_new", "outcome", "round"),
+        ),
+        devnull=Golden(
+            0,
+            '{"findings_new": 0, "outcome": "no-op", "round": 1}',
+            json_keys=("findings_new", "outcome", "round"),
+        ),
+        stdin_argv=("--findings", "-"),
+    ),
+    StdinScript(
+        "skills/code-review/scripts/change_size.py",
+        (),
+        "--numstat-from",
+        "3\t1\ta.py\n",
+        piped=Golden(
+            0,
+            '{"addedLines": 3, "filesChanged": 1, "keepAgents": ["security-review", '
+            '"correctness-review", "spec-compliance-review", "doc-review"], '
+            '"qualifiesForFastPath": true}\n',
+        ),
+        devnull=Golden(
+            0,
+            '{"addedLines": 0, "filesChanged": 0, "keepAgents": [], '
+            '"qualifiesForFastPath": false}\n',
+        ),
+        stdin_argv=("--numstat-from", "-"),
+    ),
+    StdinScript(
+        "skills/code-review/scripts/changed_file_list.py",
+        (),
+        "--name-status-from",
+        "M\ta.py\n",
+        piped=Golden(0, '{"added": [], "files": [{"path": "a.py", "status": "M"}]}\n'),
+        devnull=Golden(0, '{"added": [], "files": []}\n'),
+        stdin_argv=("--name-status-from", "-"),
+    ),
+    StdinScript(
+        "skills/code-review/scripts/change_shape.py",
+        (),
+        "--files-from",
+        "a.py\n",
+        piped=Golden(
+            0,
+            '{"hasRuntimeSurface": true, "isProseOnly": false, "isTestOnly": false, '
+            '"skipLenses": []}\n',
+        ),
+        devnull=Golden(
+            0,
+            '{"hasRuntimeSurface": false, "isProseOnly": false, "isTestOnly": false, '
+            '"skipLenses": []}\n',
+        ),
+        stdin_argv=("--files-from", "-"),
+    ),
+    StdinScript(
+        "skills/code-review/scripts/validate_review_output.py",
+        ("--agent", "x", "--dry-run"),
+        "--file",
+        _REVIEW_OUTPUT_FIXTURE,
+        piped=Golden(0, _REVIEW_OUTPUT_VALID),
+        devnull=Golden(1, _REVIEW_OUTPUT_EMPTY),
+        stdin_argv=("--file", "-"),
+    ),
+    StdinScript(
+        "skills/mutation-testing/scripts/mutation_feasibility_gate.py",
+        (),
+        "--v3-findings-json",
+        '{"findings": []}',
+        piped=Golden(
+            0,
+            '{\n  "outcome": "enter-loop",\n  "reason": "per-test capture works and the '
+            'estimated round 0s is within the 1800s budget",\n  "estimated_round_seconds": 0.0,'
+            '\n  "budget_seconds": 1800.0,\n  "question": null,\n  "waiver": null\n}\n',
+        ),
+        devnull=Golden(2, "", "cannot read --v3-findings-json"),
+        stdin_argv=("--v3-findings-json", "-"),
     ),
     StdinScript(
         "scripts/orchestrator.py",

@@ -38,6 +38,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 import sql_scan
 from sql_dialect import DIALECTS
 
+_HOOKS_LIB_DIR = Path(__file__).resolve().parent.parent / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
+
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+
 EXIT_OK = 0
 EXIT_FILE_ERRORS = 2
 
@@ -46,7 +52,7 @@ def _read_paths(args: argparse.Namespace) -> list[str]:
     paths = list(args.paths)
     if args.files_from:
         if args.files_from == "-":
-            text = sys.stdin.read()
+            text = read_stdin_or_exit("--files-from")
         else:
             text = Path(args.files_from).read_text(encoding="utf-8")
         paths.extend(line.strip() for line in text.splitlines() if line.strip())

@@ -57,6 +57,8 @@ _HOOKS_LIB_DIR = _HERE.parent / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+
 # No `except ImportError` fallback (#1968). The fallback this replaced was a
 # hand-written second copy of `is_functional_config`, and nothing could catch
 # it drifting: the guard that claimed to (`test_select_lenses.py`'s
@@ -532,7 +534,7 @@ def build_review_roster(agents_dir: Path, registry_path: Path):
     return roster, warnings
 
 
-def _read_lines_from(path_or_dash: str):
+def _read_lines_from(path_or_dash: str, flag: str):
     """Read newline-separated, non-blank lines from a file or stdin (``-``).
 
     Returns ``(lines, error)``. Never raises — a missing or unreadable file
@@ -546,7 +548,7 @@ def _read_lines_from(path_or_dash: str):
     """
     try:
         if path_or_dash == "-":
-            text = sys.stdin.read()
+            text = read_stdin_or_exit(flag)
         else:
             with open(path_or_dash, encoding="utf-8") as handle:
                 text = handle.read()
@@ -610,7 +612,7 @@ def main(argv=None) -> int:
 
     files = list(args.files)
     if args.files_from:
-        extra, error = _read_lines_from(args.files_from)
+        extra, error = _read_lines_from(args.files_from, "--files-from")
         files.extend(extra)
         if error:
             resolver_warnings.append(f"unreadable-files-from:{args.files_from}")
@@ -619,7 +621,7 @@ def main(argv=None) -> int:
     if args.added is not None or args.added_from:
         added_files = set(args.added or [])
         if args.added_from:
-            extra, error = _read_lines_from(args.added_from)
+            extra, error = _read_lines_from(args.added_from, "--added-from")
             added_files.update(extra)
             if error:
                 resolver_warnings.append(f"unreadable-added-from:{args.added_from}")

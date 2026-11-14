@@ -72,6 +72,20 @@ SECOND_FLAG_FILE_CASES = [
         id="review_context_pack-name-status-from",
     ),
     pytest.param(
+        "select_lenses.py",
+        "--added-from",
+        ("--added-from", "{file}"),
+        "a.py\n",
+        id="select_lenses-added-from",
+    ),
+    pytest.param(
+        "review_round_log.py",
+        "--fix-diff",
+        ("--fix-diff", "{file}"),
+        "--- a/x\n+++ b/x\n",
+        id="review_round_log-fix-diff",
+    ),
+    pytest.param(
         "checkpoint_abort.py",
         "--from",
         ("--mode", "outcome", "--from", "{file}"),
@@ -96,7 +110,13 @@ def _run(
     text_in: str | None = None,
     leading_argv: tuple[str, ...] = (),
 ) -> subprocess.CompletedProcess:
-    argv = [sys.executable, str(PLUGIN_DIR / row.script), *leading_argv, *row.argv]
+    # A subcommand (first word not a flag) stays first; an input flag goes after it.
+    lead_at = 1 if row.argv and not row.argv[0].startswith("-") else 0
+    row_argv = list(row.argv)
+    row_argv[lead_at:lead_at] = leading_argv
+    if not leading_argv:
+        row_argv += row.stdin_argv
+    argv = [sys.executable, str(PLUGIN_DIR / row.script), *row_argv]
     try:
         return subprocess.run(
             argv,
