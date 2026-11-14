@@ -24,6 +24,7 @@ from _model_effort_support import (
     _stderr_lines,
     assert_nothing_ran,
 )
+from model_effort import plan
 from model_effort.formatting import format_usd
 
 MAX_COST_ABOVE_FULL_RUN = 2 * FULL_RUN_COST
@@ -57,6 +58,19 @@ class TestSpendRefusals:
         assert "'opus' (candidate arm)" in stderr
         assert "sonnet" not in stderr
         assert_nothing_ran(stub, world)
+
+    def test_unpriced_candidate_is_refused_before_the_inputs_are_copied(
+        self, world, monkeypatch
+    ):
+        copies = []
+        monkeypatch.setattr(
+            plan, "take_snapshot", lambda *args: copies.append(args) or None
+        )
+
+        code = _cli(world, StubClaude(world.stub_dir), "scout", "--model", "opus")
+
+        assert code == 2
+        assert copies == []
 
     def test_estimate_above_max_cost_exits_2_naming_both_figures_with_no_trial_and_no_placeholder(
         self, world, capsys

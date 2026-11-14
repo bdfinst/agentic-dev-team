@@ -154,6 +154,29 @@ def estimate_run(
     )
 
 
+def require_rates(
+    arms: Sequence[Arm], judge: Judge | None, pricing_table: dict
+) -> None:
+    """Refuse a run whose arms or judge have no rate, before anything is prepared for it.
+
+    Raises:
+        UsageError: an arm's or the judge's model has no rate in `pricing_table`.
+    """
+    _rates_by_arm(arms, pricing_table)
+    if judge is not None:
+        _judge_rate(judge, pricing_table)
+
+
+def _judge_rate(judge: Judge, pricing_table: dict) -> dict:
+    rate = external.pricing().rate(pricing_table, judge.model)
+    if rate is None:
+        raise UsageError(
+            f"no price for the rubric judge model {judge.model!r}: add it to "
+            f"{PRICING_FILE_HINT}, because the cost estimate and spend limit need a rate"
+        )
+    return rate
+
+
 def _judge_cost_usd(
     judge: Judge,
     fixtures: Sequence[ResolvedFixture],
@@ -162,12 +185,7 @@ def _judge_cost_usd(
 ) -> float:
     """One judgement on each fixture: rubric, points, task, material and an answer-sized
     allowance in (twice, when the judge also sees the trial's changes); verdicts out."""
-    rate = external.pricing().rate(pricing_table, judge.model)
-    if rate is None:
-        raise UsageError(
-            f"no price for the rubric judge model {judge.model!r}: add it to "
-            f"{PRICING_FILE_HINT}, because the cost estimate and spend limit need a rate"
-        )
+    rate = _judge_rate(judge, pricing_table)
     answer_chars = ANSWER_TOKENS_FOR_JUDGE * CHARS_PER_TOKEN * (2 if sees_changes else 1)
     total = 0.0
     for fixture in fixtures:
