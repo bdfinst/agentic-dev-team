@@ -3,6 +3,7 @@ name: deploy
 description: Deploy the application to staging or production.
 argument-hint: "[staging | production]"
 user-invocable: true
+disable-model-invocation: true
 ---
 
 # Deploy
@@ -47,11 +48,15 @@ then `docker push $ECR_REPO:$(git rev-parse --short HEAD)`
 
 ### 5. Update service
 
-Run `aws ecs update-service --cluster $CLUSTER --service $SERVICE --force-new-deployment`
+Record the live task definition for rollback: `PREVIOUS_TASK_DEFINITION=$(aws ecs describe-services --cluster $CLUSTER --services $SERVICE --query 'services[0].taskDefinition' --output text)`.
+
+Register a task definition for the new image: `NEW_TASK_DEFINITION=$(scripts/register-task-definition.sh $ECR_REPO:$(git rev-parse --short HEAD))`.
+
+Run `aws ecs update-service --cluster $CLUSTER --service $SERVICE --task-definition $NEW_TASK_DEFINITION`.
 
 ### 6. Smoke test
 
-Request `$APP_URL/health`. If it returns non-200 after 60 seconds, trigger rollback.
+Request `$APP_URL/health`. If it does not return 200 within 60 seconds, roll back: run `aws ecs update-service --cluster $CLUSTER --service $SERVICE --task-definition $PREVIOUS_TASK_DEFINITION`, then report the deployment as failed.
 
 ### 7. Report
 

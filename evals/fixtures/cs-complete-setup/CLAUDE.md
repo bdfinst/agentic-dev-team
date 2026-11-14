@@ -20,6 +20,7 @@ A React + TypeScript internal dashboard for managing customer accounts.
   - `server/routes/` — API route handlers
   - `server/middleware/` — Express middleware (JWT auth)
   - `server/prisma/` — Prisma schema
+- `scripts/` — Deploy helpers (`register-task-definition.sh`, needs the AWS CLI and `jq`)
 
 ## Commands
 
@@ -29,6 +30,13 @@ A React + TypeScript internal dashboard for managing customer accounts.
 - `npm run lint` — ESLint + Prettier check
 - `npm run db:migrate` — Run Prisma migrations
 - `npm run build` — Production build: frontend to `dist/`, server bundle to `dist/server/index.js`
+
+## Environment
+
+`npm run server` and `npm run db:migrate` read these variables; the server refuses to start without them:
+
+- `DATABASE_URL` — Postgres connection string for Prisma
+- `JWT_SECRET` — secret that signs and verifies API tokens
 
 ## Coding Conventions
 
