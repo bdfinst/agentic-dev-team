@@ -48,6 +48,7 @@ if str(_PACKAGE_PARENT) not in sys.path:
 
 from model_effort import (
     answer_key,
+    batch,
     check_jail,
     external,
     interrupts,
@@ -60,6 +61,7 @@ from model_effort import (
 )
 from model_effort.errors import UsageError
 from model_effort.execution import TrialRunner
+from model_effort.judge_tier import MODEL_TIERS
 from model_effort.plan import RunPlan, plan_run
 from model_effort.run_types import TrialSettings
 from model_effort.session import EXIT_FAILED, EXIT_USAGE
@@ -122,7 +124,16 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "agent", help="agent name, as in plugins/dev-team/agents/<agent>.md"
+        "agent",
+        nargs="?",
+        help="agent name, as in plugins/dev-team/agents/<agent>.md (omit with --batch)",
+    )
+    parser.add_argument(
+        "--batch",
+        choices=MODEL_TIERS,
+        help="stress batch: a --stress run for every agent whose frontmatter model is "
+        "this tier, with one combined estimate (rubric judge included) and one "
+        "approval; agents that cannot run are listed as skipped",
     )
     parser.add_argument(
         "--model",
@@ -251,24 +262,39 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
             return EXIT_FAILED
 
 
+def _settings_for(args: argparse.Namespace, plan: RunPlan) -> TrialSettings:
+    return TrialSettings(
+        trials=resolve_trials(args.trials, plan.agent, plan.grading.kind),
+        trial_timeout_seconds=args.trial_timeout_seconds,
+        claude_bin=args.claude_bin,
+    )
+
+
+def _check_target(args: argparse.Namespace) -> None:
+    if args.batch is None and args.agent is None:
+        raise UsageError("name an agent, or pass --batch haiku|sonnet|opus")
+    if args.batch is None:
+        return
+    if args.agent is not None:
+        raise UsageError("--batch runs every agent at its tier: drop the agent name")
+    if args.model or args.effort or args.fixture_stems:
+        raise UsageError(
+            "--batch picks each agent's arms and fixtures: drop --model, --effort "
+            "and --fixtures"
+        )
+
+
 def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> int:
     try:
+        _check_target(args)
+        console = session.Console(deps.stdin, deps.stdin_is_tty, sys.stdout, sys.stderr)
+        spend_limit = (
+            SpendLimit(args.max_cost_usd) if args.max_cost_usd is not None else None
+        )
+        if args.batch is not None:
+            return _run_batch(args, deps, guard, console, spend_limit)
         with _plan_from(args, deps) as plan:
-            settings = TrialSettings(
-                trials=resolve_trials(
-                    args.trials,
-                    args.agent,
-                    plan.grading.kind,
-                ),
-                trial_timeout_seconds=args.trial_timeout_seconds,
-                claude_bin=args.claude_bin,
-            )
-            console = session.Console(
-                deps.stdin, deps.stdin_is_tty, sys.stdout, sys.stderr
-            )
-            spend_limit = (
-                SpendLimit(args.max_cost_usd) if args.max_cost_usd is not None else None
-            )
+            settings = _settings_for(args, plan)
             return session.run_session(
                 plan,
                 settings,
@@ -284,9 +310,39 @@ def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> in
         return _report_usage_error(error)
 
 
-def _plan_from(args: argparse.Namespace, deps: Deps) -> AbstractContextManager[RunPlan]:
+def _run_batch(
+    args: argparse.Namespace,
+    deps: Deps,
+    guard: interrupts.RunGuard,
+    console: session.Console,
+    spend_limit: SpendLimit | None,
+) -> int:
+    stress_args = argparse.Namespace(**{**vars(args), "stress": True})
+
+    def plan_agent(agent: str) -> AbstractContextManager[RunPlan]:
+        return _plan_from(stress_args, deps, agent)
+
+    with batch.plan_batch(
+        args.batch, deps.eval_paths.agents_dir, plan_agent
+    ) as planned:
+        return batch.run_batch(
+            planned,
+            lambda plan: _settings_for(args, plan),
+            spend_limit,
+            console,
+            assume_yes=args.yes,
+            pricing_table=deps.pricing_table,
+            run_trial=deps.run_trial,
+            run_judge_process=deps.run_judge_process,
+            guard=guard,
+        )
+
+
+def _plan_from(
+    args: argparse.Namespace, deps: Deps, agent: str | None = None
+) -> AbstractContextManager[RunPlan]:
     return plan_run(
-        args.agent,
+        agent or args.agent,
         candidate_model=args.model,
         candidate_effort=args.effort,
         fixture_stems=_split_csv(args.fixture_stems),
