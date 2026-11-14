@@ -1,0 +1,33 @@
+{
+  "fixture": "sec-document-routes.ts",
+  "description": "Document routes that scope every query to the session user's ownerId except GET /documents/:id/download, which loads by id alone, so any signed-in user can download another user's document (broken object-level authorization)",
+  "applicableAgents": [
+    "security-review"
+  ],
+  "agents": {
+    "security-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 3
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "owner"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "Four of five handlers carry the ownerId filter; the download handler is authenticated, rate-limited and validates its id, so only the missing ownership filter is wrong"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Modeled on sec-sql-injection (one exploitable error drives fail); max 3 leaves room for a minor note on unhandled ZodError"
+      }
+    }
+  }
+}

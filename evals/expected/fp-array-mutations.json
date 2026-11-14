@@ -1,17 +1,35 @@
 {
   "fixture": "fp-array-mutations.ts",
   "description": "In-place array mutations via push, splice, sort, reverse - should flag errors",
-  "applicableAgents": ["js-fp-review"],
+  "applicableAgents": [
+    "js-fp-review"
+  ],
   "agents": {
     "js-fp-review": {
       "expectedStatus": "fail",
-      "issueCount": { "min": 4, "max": 8 },
-      "severities": {
-        "error": { "min": 2, "max": 5 },
-        "warning": { "min": 0, "max": 7 }
+      "issueCount": {
+        "min": 7,
+        "max": 10
       },
-      "mustMention": ["push", "sort"],
-      "mustNotMention": []
+      "severities": {
+        "error": {
+          "min": 6,
+          "max": 9
+        },
+        "warning": {
+          "min": 0,
+          "max": 3
+        }
+      },
+      "mustMention": [
+        "push",
+        "sort"
+      ],
+      "mustNotMention": [],
+      "_calibration": {
+        "source": "measured",
+        "note": "Run 20261009T122901Z-js-fp-review-haiku-medium-9363: 8/10 trials reported 9 issues and up to 8 errors, above the old 4-8 / 2-5 windows. The fixture plants 8 mutations of module-level or parameter arrays (two push on taskQueue, two sort, three splice, one reverse); the push onto the local completed array is at most a warning."
+      }
     }
   }
 }

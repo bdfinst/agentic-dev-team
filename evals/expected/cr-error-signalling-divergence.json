@@ -4,6 +4,7 @@
   "applicableAgents": ["correctness-review"],
   "agents": {
     "correctness-review": {
+      "hard": {"reason": "subtle-defect", "note": "A 17-line loader whose body reads correctly; the defect is only visible by comparing the docstring Raises: contract with the except clause that returns {}"},
       "expectedStatus": "fail",
       "issueCount": { "min": 1, "max": 2 },
       "severities": { "error": { "min": 1, "max": 2 } },

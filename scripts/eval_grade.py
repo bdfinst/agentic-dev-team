@@ -97,6 +97,27 @@ def _entry_grader(block: str, espec: dict) -> str:
 # Allowed `_calibration.source` values (#1466: calibration provenance).
 CALIBRATION_SOURCES = {"measured", "estimated-by-analogy"}
 
+# Allowed `hard.reason` values: why a weaker model tier plausibly misses the
+# expected verdict on this fixture. See evals/README.md "Hard and clean fixtures".
+HARD_REASONS = {"subtle-defect", "distractor", "long-file"}
+
+
+def hard_problems(label: str, hard) -> list[str]:
+    """Shape-check an optional `hard` marker on one agent/skill entry."""
+    if hard is None:
+        return []
+    if not isinstance(hard, dict):
+        return [f"{label}.hard must be an object"]
+    problems = []
+    if hard.get("reason") not in HARD_REASONS:
+        problems.append(
+            f"{label}.hard.reason must be one of {sorted(HARD_REASONS)}, "
+            f"got {hard.get('reason')!r}"
+        )
+    if not str(hard.get("note", "")).strip():
+        problems.append(f"{label}.hard.note must say what makes it hard")
+    return problems
+
 
 def check_corpus(expected_dir: Path, fixtures_dir: Path):
     """Return (fatal_problems, warnings).
@@ -196,6 +217,9 @@ def check_corpus(expected_dir: Path, fixtures_dir: Path):
                             f"must be one of {sorted(CALIBRATION_SOURCES)}, "
                             f"got {calib.get('source')!r}"
                         )
+                problems.extend(
+                    hard_problems(f"{ef.name}: {block}.{name}", espec.get("hard"))
+                )
         if fixture_stems and stem not in fixture_stems:
             warnings.append(
                 f"{ef.name}: no fixture file/dir with stem {stem!r} in "

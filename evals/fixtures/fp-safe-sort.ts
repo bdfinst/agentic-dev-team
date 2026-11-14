@@ -1,5 +1,3 @@
-// PASS: Safe sorting and reversing — toSorted, toReversed, spread-copy patterns
-
 interface Employee {
   id: number;
   name: string;

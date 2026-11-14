@@ -1,0 +1,24 @@
+{
+  "fixture": "cs-parcel-tracker-project-agent",
+  "description": "Complete, self-consistent Claude setup whose project-level agent in .claude/agents/ uses permissionMode and hooks; those fields are ignored only for plugin agents, and the hook script exists, so nothing should be flagged",
+  "applicableAgents": [
+    "claude-setup-review"
+  ],
+  "agents": {
+    "claude-setup-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "permissionMode and hooks are on the agent's plugin-unsupported list, but this agent lives in the project's .claude/agents/, where both fields take effect"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean counterpart to cs-parcel-tracker-agents with the same tree; zero findings"
+      }
+    }
+  }
+}

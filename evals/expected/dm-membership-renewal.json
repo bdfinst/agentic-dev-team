@@ -1,0 +1,33 @@
+{
+  "fixture": "dm-membership-renewal.ts",
+  "description": "Membership aggregate with a private-state entity, an immutable Money value object, a domain event and an orchestrating application service, except Membership.renew() fetches the tier price over HTTP with axios inside the domain entity",
+  "applicableAgents": [
+    "domain-review"
+  ],
+  "agents": {
+    "domain-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 2
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "mustMention": [
+        "renew"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "The model is otherwise rich (behavior on the entity, guarded state, immutable value object, thin application service); the only defect is one HTTP call inside an entity method"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Single planted infrastructure-in-domain leak, which makes the entity untestable without the network (error per the agent's Severity line); a second finding tolerated if the agent reports the axios import and the call separately"
+      }
+    }
+  }
+}

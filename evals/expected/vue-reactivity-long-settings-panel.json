@@ -1,0 +1,33 @@
+{
+  "fixture": "vue-reactivity-long-settings-panel.vue",
+  "description": "268-line settings panel where every watcher uses a getter, ref or computed source except watch(preferences.theme, ...), which passes a plain string from a reactive() object, so the theme-change tracking handler never fires",
+  "applicableAgents": [
+    "vue-reactivity-review"
+  ],
+  "agents": {
+    "vue-reactivity-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 3
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "watch"
+      ],
+      "hard": {
+        "reason": "long-file",
+        "note": "The single invalid watch source sits among four correct watchers in a long single-file component"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Window modeled on the framework's existing *-reactivity-issues fixture (one error per planted defect), narrowed to the single planted defect plus room for one incidental warning or suggestion."
+      }
+    }
+  }
+}

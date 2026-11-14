@@ -1,0 +1,24 @@
+{
+  "fixture": "ap-verified-fee-assertions.test",
+  "description": "mutation-kill-generated fee tests whose magic expected values (320, 470, 74, 99999999, 425) each cite the spec rule and show the arithmetic, and the header records the billing owner's PR review",
+  "applicableAgents": [
+    "ai-provenance-review"
+  ],
+  "agents": {
+    "ai-provenance-review": {
+      "expectedStatus": "skip",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "Autonomous-run authorship and magic assertion values are the verification-debt shape, but every value carries spec-rule evidence and a recorded human review"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean counterpart to ap-verification-debt: zero findings once each value's evidence is checked. Expects skip, not pass: the agent's Skip rule returns skip when every non-obvious decision in scope is covered by inline rationale."
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "fixture": "perf-client-level-timeout.ts",
+  "description": "Distractor: axios calls carry no per-call timeout but the client sets one at creation, the per-SKU loop only reads an in-memory Map built from one batched request, the reservation Map is swept by TTL, and the sweep interval is cleared in stop()",
+  "applicableAgents": [
+    "performance-review"
+  ],
+  "agents": {
+    "performance-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "Call sites look timeout-less and a loop sits after an HTTP call, but the timeout is client-level and the loop does no I/O; the Map has TTL eviction"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean fixture: any finding is a false positive. Deleting Map entries during for..of iteration verified safe on Node (size drops to 0)."
+      }
+    }
+  }
+}

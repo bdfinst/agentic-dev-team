@@ -4,6 +4,7 @@
   "applicableAgents": ["sql-review"],
   "agents": {
     "sql-review": {
+      "hard": {"reason": "distractor", "note": "SELECT * is a detector hit, but the comment states the consumer reads rows by column name only, so the agent must dismiss it"},
       "expectedStatus": "pass",
       "issueCount": { "min": 0, "max": 0 },
       "expectedFindings": [],

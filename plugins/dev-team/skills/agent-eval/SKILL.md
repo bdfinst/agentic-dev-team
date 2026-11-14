@@ -224,7 +224,7 @@ deliberately not relocated under `.claude/`) the record was appended to.
 definition + the **transitive closure** of files it reaches (knowledge/,
 skills/, and any bare `scripts/<n>.py` it names — e.g. `test-review.md`'s
 pointer to `test_review_mechanics.py`, #2169) + the fixture + expected JSON
-+ grader version. An unchanged SHA with a stored PASS replays at zero token
+- grader version. An unchanged SHA with a stored PASS replays at zero token
 cost; any changed input busts the cache — including an edit to
 `test_review_mechanics.py` itself, so a Phase 0 detection-logic change
 correctly busts cached `test-review` pairs instead of silently replaying a
@@ -439,6 +439,8 @@ Compare agent output against expected JSON:
 - Agent status matches `expectedStatus` → PASS
 - Agent status is "skip" and fixture is not in
   `applicableAgents` → PASS (correct skip)
+- Expected `pass`, agent status `warn`, every issue is a `suggestion`, and
+  the count is within `issueCount` → PASS (the window tolerates suggestions)
 - Mismatch → FAIL
 
 **Issue count:**

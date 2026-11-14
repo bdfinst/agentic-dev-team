@@ -1,0 +1,24 @@
+{
+  "fixture": "ang-reactivity-immutable-distractor.ts",
+  "description": "OnPush product list whose surface resembles known pitfalls but handles each correctly: sort() runs on a spread copy inside computed(), signals update with new objects, the resize stream runs outside the zone but re-enters with NgZone.run plus markForCheck, the subscription uses takeUntilDestroyed, and the effect() writes only to localStorage",
+  "applicableAgents": [
+    "angular-reactivity-review"
+  ],
+  "agents": {
+    "angular-reactivity-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "sort(), runOutsideAngular, subscribe() and effect() all appear, but each is used safely; flagging any of them is a false positive"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean control: pass means zero issues under the review-agent output contract, so the window is 0-0."
+      }
+    }
+  }
+}

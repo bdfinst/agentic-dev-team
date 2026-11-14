@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Upload documents</title>
+    <style>
+      body {
+        color: #1a1a1a;
+        background: #ffffff;
+        font-family: system-ui, sans-serif;
+      }
+      button,
+      input,
+      a {
+        outline: none;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      a:focus-visible {
+        box-shadow: 0 0 0 3px #005fcc;
+      }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      .error {
+        color: #b00020;
+      }
+      .icon {
+        width: 1rem;
+        height: 1rem;
+        vertical-align: middle;
+      }
+    </style>
+  </head>
+  <body>
+    <a class="visually-hidden" href="#content">Skip to main content</a>
+
+    <header>
+      <img src="/img/header-wave.svg" alt="" width="1200" height="40" />
+      <nav aria-label="Main">
+        <ul>
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/documents" aria-current="page">Documents</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main id="content" tabindex="-1">
+      <h1>Upload documents</h1>
+
+      <form
+        action="/documents"
+        method="post"
+        enctype="multipart/form-data"
+        novalidate
+      >
+        <p>
+          <label for="docTitle"
+            >Title <span aria-hidden="true">*</span
+            ><span class="visually-hidden">(required)</span></label
+          >
+          <input
+            id="docTitle"
+            name="title"
+            type="text"
+            required
+            aria-invalid="true"
+            aria-describedby="docTitleError"
+          />
+          <span id="docTitleError" class="error">
+            <svg
+              class="icon"
+              aria-hidden="true"
+              focusable="false"
+              viewBox="0 0 16 16"
+            >
+              <circle cx="8" cy="8" r="7" fill="currentColor" />
+            </svg>
+            Error: enter a title.
+          </span>
+        </p>
+
+        <p>
+          <label for="docFile">File</label>
+          <input id="docFile" name="file" type="file" accept=".pdf" required />
+        </p>
+
+        <button type="submit">
+          <svg
+            class="icon"
+            aria-hidden="true"
+            focusable="false"
+            viewBox="0 0 16 16"
+          >
+            <path d="M8 1v10M3 6l5-5 5 5" stroke="currentColor" fill="none" />
+          </svg>
+          Upload
+        </button>
+
+        <button type="button" aria-label="Clear form">
+          <svg
+            class="icon"
+            aria-hidden="true"
+            focusable="false"
+            viewBox="0 0 16 16"
+          >
+            <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" />
+          </svg>
+        </button>
+      </form>
+
+      <div role="status" aria-live="polite" id="uploadStatus"></div>
+    </main>
+  </body>
+</html>

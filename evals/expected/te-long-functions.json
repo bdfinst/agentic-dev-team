@@ -1,13 +1,34 @@
 {
   "fixture": "te-long-functions.ts",
   "description": "Code with excessively long functions exceeding recommended line limits",
-  "applicableAgents": ["token-efficiency-review"],
+  "applicableAgents": [
+    "token-efficiency-review"
+  ],
   "agents": {
     "token-efficiency-review": {
-      "expectedStatus": "fail",
-      "issueCount": { "min": 3, "max": 7 },
-      "severities": { "warning": { "min": 2, "max": 5 } },
-      "mustMention": ["function", "lines"]
+      "expectedStatus": "warn",
+      "issueCount": {
+        "min": 3,
+        "max": 9
+      },
+      "severities": {
+        "warning": {
+          "min": 2,
+          "max": 7
+        }
+      },
+      "mustMention": [
+        "function",
+        "lines"
+      ],
+      "hard": {
+        "reason": "long-file",
+        "note": "362-line file: two long handlers (about 220 and 85 lines), nesting deeper than 5 levels, a 17-line JSDoc and two commented-out blocks spread across it"
+      },
+      "_calibration": {
+        "source": "measured",
+        "note": "Run 20261009T134443Z-token-efficiency-review-haiku-high-5b08: both arms reported status warn in 9/10 trials (long functions are warnings, so the contract says warn). The fixture holds 6-8 distinct findings (2 long functions, deep nesting, verbose JSDoc, 2 commented-out blocks); up to 10 issues and 6 warnings observed."
+      }
     }
   }
 }

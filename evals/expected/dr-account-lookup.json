@@ -1,0 +1,27 @@
+{
+  "fixture": "dr-account-lookup.ts",
+  "description": "Account repository whose JSDoc matches every function except getAccount: its @returns promises null for a missing id, but the code throws AccountNotFoundError and the signature returns Promise<Account>",
+  "applicableAgents": [
+    "doc-review"
+  ],
+  "agents": {
+    "doc-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 2
+      },
+      "mustMention": [
+        "throw"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "Five accurate doc blocks; the one wrong @returns copies findAccountByEmail's null contract, so it reads as plausible"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Modeled on dr-orphaned-doc-comment (one documentation defect, fail via the doc-review warning-or-error rule)"
+      }
+    }
+  }
+}

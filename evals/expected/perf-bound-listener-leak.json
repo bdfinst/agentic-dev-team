@@ -1,0 +1,33 @@
+{
+  "fixture": "perf-bound-listener-leak.ts",
+  "description": "Otherwise bounded, timeout-guarded module whose unmount() passes a fresh this.onQuote.bind(this) to feed.off, so the listener mount() registered is never removed: every mount/unmount cycle leaks a listener that keeps the widget alive",
+  "applicableAgents": [
+    "performance-review"
+  ],
+  "agents": {
+    "performance-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 2
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "bind"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "off() looks symmetric with on(), but each bind() returns a new function, so the removal matches nothing; the cache is bounded and the fetch has a timeout"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Window modeled on perf-nplus1-loop narrowed to one defect. Leak verified by execution on Node: EventEmitter on('quote', w.onTick.bind(w)) then off('quote', w.onTick.bind(w)) leaves listenerCount 1."
+      }
+    }
+  }
+}

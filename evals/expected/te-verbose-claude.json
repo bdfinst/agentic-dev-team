@@ -1,13 +1,34 @@
 {
   "fixture": "te-verbose-claude.md",
   "description": "Verbose CLAUDE.md with excessive preamble and redundant instructions",
-  "applicableAgents": ["token-efficiency-review"],
+  "applicableAgents": [
+    "token-efficiency-review"
+  ],
   "agents": {
     "token-efficiency-review": {
       "expectedStatus": "fail",
-      "issueCount": { "min": 4, "max": 8 },
-      "severities": { "error": { "min": 1, "max": 3 } },
-      "mustMention": ["role preamble", "verbose"]
+      "issueCount": {
+        "min": 5,
+        "max": 25
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 6
+        }
+      },
+      "mustMention": [
+        "role preamble",
+        "verbos"
+      ],
+      "hard": {
+        "reason": "long-file",
+        "note": "278-line CLAUDE.md of about 10,800 characters; filler, hedging and nested bullets recur in every section"
+      },
+      "_calibration": {
+        "source": "measured",
+        "note": "Run 20261009T134443Z-token-efficiency-review-haiku-high-5b08: both arms reported 12-23 issues and up to 4 errors; the file has more than 14 filler/hedging lines, a role preamble, nested bullets 5 levels deep and exceeds the 5000-character limit, so 4-8 undercounted it. 'verbos' matches verbose and verbosity."
+      }
     }
   }
 }

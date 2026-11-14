@@ -1,0 +1,37 @@
+{
+  "fixture": "perf-export-report-long.ts",
+  "description": "273-line pure ledger-export module whose only performance defect is dedupeEntries: a findIndex inside filter over 200k-400k rows, O(n^2) where a Set/Map of seen ids is linear",
+  "applicableAgents": [
+    "performance-review"
+  ],
+  "agents": {
+    "performance-review": {
+      "expectedStatus": "warn",
+      "issueCount": {
+        "min": 1,
+        "max": 3
+      },
+      "severities": {
+        "error": {
+          "min": 0,
+          "max": 0
+        },
+        "warning": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "dedupe"
+      ],
+      "hard": {
+        "reason": "long-file",
+        "note": "One quadratic de-duplication buried among ~25 linear helpers in a 273-line file"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Algorithmic finding is warning severity per the agent's mapping. Cost verified by execution on Node: filter+findIndex dedupe of 20k rows took ~1350 ms vs ~3 ms for a Map."
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "fixture": "nm-plane-geometry.ts",
+  "description": "Plane-geometry helpers that use conventional short names (x, y, dx, dy, cos, sin, loop counter i, single-use lambda p) and a named degrees constant: none is a naming defect",
+  "applicableAgents": [
+    "naming-review"
+  ],
+  "agents": {
+    "naming-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "Short and single-letter identifiers look like unclear names, but each is a mathematical or loop convention the Naming Offender Catalog's What NOT to flag list exempts"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean counterpart to nm-clear-names; zero findings once the catalog's loop-counter and single-use-lambda exemptions are applied"
+      }
+    }
+  }
+}

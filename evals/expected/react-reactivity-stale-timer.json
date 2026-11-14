@@ -1,0 +1,33 @@
+{
+  "fixture": "react-reactivity-stale-timer.tsx",
+  "description": "Workout timer whose interval effect calls setElapsedSeconds(elapsedSeconds + 1) with only [isRunning] as dependencies, so the callback captures a stale elapsedSeconds and the display sticks at 1; cleanup, the completion effect and useMemo dependencies are correct",
+  "applicableAgents": [
+    "react-reactivity-review"
+  ],
+  "agents": {
+    "react-reactivity-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 2
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "stale"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "The effect has a dependency array and a cleanup; the only defect is the captured elapsedSeconds instead of a functional updater"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Window modeled on the framework's existing *-reactivity-issues fixture (one error per planted defect), narrowed to the single planted defect plus room for one incidental warning or suggestion."
+      }
+    }
+  }
+}

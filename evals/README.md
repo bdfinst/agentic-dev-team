@@ -241,6 +241,36 @@ An agent entry may also declare `expectedFindings`, a list of
 set exactly. Use it where `category` is a stable rule id, as for `sql-review`;
 `"expectedFindings": []` asserts the agent reports no categorized issue.
 
+## Hard and clean fixtures
+
+Every review agent (`plugins/dev-team/agents/*-review.md`) needs at least 5
+fixtures, at least 2 of them hard and at least 1 clean.
+
+- **Clean**: the agent's `expectedStatus` is `pass`, or `skip` when the
+  agent's own Skip rule covers the target. The fixture has no expected
+  finding, so any finding is a false positive. Make the fixture clean
+  for that agent's lens: a clean naming fixture has no magic number and no
+  concept named two ways.
+- **Hard**: the agent's entry carries a `hard` marker. A weaker model tier
+  plausibly misses the expected verdict. `reason` is `subtle-defect` (one
+  defect hidden in otherwise correct code), `distractor` (code that looks like
+  a defect but is not), or `long-file` (the defect sits in a long file).
+
+```json
+"hard": {
+  "reason": "distractor",
+  "note": "sort() runs only on spread copies, so no input array is mutated"
+}
+```
+
+`eval_grade.py --check-corpus` rejects an unknown `reason` or an empty `note`.
+`scripts/eval_fixture_coverage.py` prints the per-agent counts and exits 1
+when an agent is below a minimum; `tests/repo/test_eval_fixture_coverage.py`
+runs it in the pre-push gate.
+
+Keep the verdict out of the fixture: a header comment such as `// PASS:` or
+`// FAIL:` tells the agent the answer.
+
 ## Convention: executable claims (issue #1629)
 
 **Any fixture line or `_calibration` note that asserts concrete runtime

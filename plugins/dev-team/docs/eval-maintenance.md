@@ -7,7 +7,7 @@ For the operational run procedure, see [`eval-running-guide.md`](eval-running-gu
 ## The pieces
 
 | Piece | Where | Role |
-|---|---|---|
+| --- | --- | --- |
 | Fixtures | `evals/fixtures/` | Input code (deliberately good or bad) the agents review. |
 | Expectations | `evals/expected/*.json` | The **contract**: what a correct verdict looks like per fixture/agent. |
 | Grader | `scripts/eval_grade.py` | Deterministic, model-free: compares recorded actuals to expectations. |
@@ -22,7 +22,11 @@ For the operational run procedure, see [`eval-running-guide.md`](eval-running-gu
 `eval_grade.py grade_agent` checks each expectation field. An empty failure list
 means PASS:
 
-- **`expectedStatus`** — `pass` or `fail`. The value must match the agent's `status`.
+- **`expectedStatus`** — `pass`, `warn`, or `fail`. The value must match the agent's `status`.
+  One exception: an expected `pass` accepts `warn` when every issue is a `suggestion` and
+  the count is within `issueCount`. The output contract makes one suggestion a `warn`, so
+  a clean entry's `issueCount` window above zero could not otherwise be met.
+- **`hard: {reason, note}`** — optional; marks a hard fixture. The grader ignores it.
 - **`issueCount: {min, max}`** — the number of reported issues must fall in range.
 - **`severities: {error: {min,max}, ...}`** — the count per severity must fall in range.
 - **`mustMention: [...]`** — every keyword must appear (case-insensitive

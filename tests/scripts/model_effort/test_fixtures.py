@@ -18,6 +18,11 @@ class TestIsExpectedClean:
 
         assert fixture_resolution.is_expected_clean(entry, "a") is True
 
+    def test_expected_status_skip_is_clean(self):
+        entry = {"agents": {"a": {"expectedStatus": "skip"}}}
+
+        assert fixture_resolution.is_expected_clean(entry, "a") is True
+
     def test_expected_status_fail_is_not_clean(self):
         entry = {"agents": {"a": {"expectedStatus": "fail"}}}
 

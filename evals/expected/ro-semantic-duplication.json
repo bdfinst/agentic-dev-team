@@ -1,0 +1,33 @@
+{
+  "fixture": "ro-semantic-duplication.ts",
+  "description": "The free-shipping rule (subtotal at least 5000 cents and tier not basic) is written twice with different names and a De Morgan-inverted form in quoteShipping and cartBanner: a semantic DRY violation, since a rule change must edit both",
+  "applicableAgents": [
+    "refactor-opportunity-review"
+  ],
+  "agents": {
+    "refactor-opportunity-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 3
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "duplicat"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "The two copies use different variable names and one is negated with De Morgan, so they do not look alike"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Window modeled on ro-repeated-idiom with error severity for semantic duplication. Equivalence of the two expressions verified by execution on Node over tiers basic/plus and subtotals 4999/5000/5001."
+      }
+    }
+  }
+}

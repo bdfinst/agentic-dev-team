@@ -1,0 +1,33 @@
+{
+  "fixture": "cs-parcel-tracker-agents",
+  "description": "Complete, self-consistent Claude setup (every documented path exists, every documented command is a package.json script, rules and a release skill present) whose one project agent declares effort: normal, which is not an allowed effort value",
+  "applicableAgents": [
+    "claude-setup-review"
+  ],
+  "agents": {
+    "claude-setup-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 3
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "mustMention": [
+        "effort"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "The only defect is one frontmatter value, effort: normal, in an otherwise valid agent inside a complete setup; it reads like a plausible effort level"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "One required-schema violation is one error, as in cs-broken-paths' per-path errors; up to 2 extra suggestions tolerated"
+      }
+    }
+  }
+}

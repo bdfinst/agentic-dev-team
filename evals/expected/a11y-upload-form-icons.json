@@ -1,0 +1,24 @@
+{
+  "fixture": "a11y-upload-form-icons",
+  "description": "Accessible upload form full of patterns that look like defects but are correct: outline:none replaced by a :focus-visible box-shadow, aria-hidden SVG icons next to visible text, an icon-only button named by aria-label, a decorative image with alt=\"\", a visually hidden required label, and an error tied to its input by aria-describedby and aria-invalid. Should pass review.",
+  "applicableAgents": [
+    "a11y-review"
+  ],
+  "agents": {
+    "a11y-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 1
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "outline:none, aria-hidden and alt=\"\" each match a Detect rule on sight; each is paired with the replacement that makes it correct"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean window copied from a11y-clean-form"
+      }
+    }
+  }
+}

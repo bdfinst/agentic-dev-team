@@ -1,0 +1,33 @@
+{
+  "fixture": "ca-billing-dashboard.tsx",
+  "description": "Long billing dashboard built on shared Panel, DataTable and EmptyState primitives with context for the customer. Buried in it, InvoiceRow, TaskRow and SubscriptionRow each copy the same overdue rule and badge markup (paid / overdue by N days / due in N days), so changing the rule needs three edits.",
+  "applicableAgents": [
+    "component-architecture-review"
+  ],
+  "agents": {
+    "component-architecture-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 4
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "overdue"
+      ],
+      "hard": {
+        "reason": "long-file",
+        "note": "The three copies of the overdue rule sit roughly 100 lines apart in a 388-line file whose other components are well factored"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Window modeled on ca-duplicate-cards: one semantic duplication at error, room for a two-level onSelect pass-through suggestion"
+      }
+    }
+  }
+}

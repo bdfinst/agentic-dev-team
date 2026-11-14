@@ -12,16 +12,38 @@ from __future__ import annotations
 from ._common import in_range, mentions
 
 
+def _tolerated_suggestion_warn(spec: dict, status, issues: list) -> bool:
+    """True when a `pass` expectation meets a `warn` made only of tolerated suggestions.
+
+    The output contract sets `pass` to zero issues and `warn` to issues with no
+    error, so an agent that reports one suggestion must say `warn`. A clean
+    entry that pairs `expectedStatus: pass` with an `issueCount` window above
+    zero tolerates such suggestions; without this rule that window could never
+    be met. The `issueCount` check still bounds how many are tolerated.
+    """
+    window_max = spec.get("issueCount", {}).get("max", 0)
+    return (
+        spec.get("expectedStatus") == "pass"
+        and status == "warn"
+        and 0 < len(issues) <= window_max
+        and all(i.get("severity") == "suggestion" for i in issues)
+    )
+
+
 def grade_verdict(spec: dict, actual: dict) -> list[str]:
     """Return a list of check-failure strings; empty list == PASS."""
     fails: list[str] = []
 
+    issues = actual.get("issues", []) or []
     exp_status = spec.get("expectedStatus")
     got_status = actual.get("status")
-    if exp_status is not None and got_status != exp_status:
+    if (
+        exp_status is not None
+        and got_status != exp_status
+        and not _tolerated_suggestion_warn(spec, got_status, issues)
+    ):
         fails.append(f"status: expected {exp_status!r}, got {got_status!r}")
 
-    issues = actual.get("issues", []) or []
     if "issueCount" in spec and not in_range(len(issues), spec["issueCount"]):
         rng = spec["issueCount"]
         fails.append(

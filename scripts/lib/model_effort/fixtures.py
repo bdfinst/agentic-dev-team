@@ -15,7 +15,9 @@ from pathlib import Path
 
 from .errors import UsageError
 
-EXPECTED_STATUS_CLEAN = "pass"
+# A clean fixture has no expected finding: the agent passes it, or skips it when
+# its own Skip rule covers the target.
+EXPECTED_STATUSES_CLEAN = frozenset({"pass", "skip"})
 
 
 class FixtureKind(StrEnum):
@@ -34,7 +36,7 @@ class ResolvedFixture:
 def is_expected_clean(expected_entry: dict, agent: str) -> bool:
     """True when the expected entry says `agent` should report no problems."""
     expectation = expected_entry.get("agents", {}).get(agent, {})
-    return expectation.get("expectedStatus") == EXPECTED_STATUS_CLEAN
+    return expectation.get("expectedStatus") in EXPECTED_STATUSES_CLEAN
 
 
 def describe_fixture(path: Path) -> tuple[str, FixtureKind]:

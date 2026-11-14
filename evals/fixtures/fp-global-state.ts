@@ -3,7 +3,7 @@
 declare const window: { localStorage: Storage; location: { href: string } } & Record<string, unknown>;
 
 let appVersion = "1.0.0"; // should be const
-let requestCount = 0; // should be const (or use a different pattern)
+let requestCount = 0;
 
 function trackPageView(page: string): void {
   requestCount++; // mutation: ++ outside a loop
@@ -28,10 +28,10 @@ function incrementCounter(): number {
   return requestCount;
 }
 
-let debugMode = false; // should be const
+let debugMode = false;
 
 function enableDebug(): void {
-  debugMode = true; // reassignment of let that should be const
+  debugMode = true; // mutation: module-level state reassigned from a function
   process.env.DEBUG = "true"; // mutation: process.env assignment
 }
 

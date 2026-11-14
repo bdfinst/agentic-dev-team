@@ -1,0 +1,33 @@
+{
+  "fixture": "vue-reactivity-composable-arg.ts",
+  "description": "Cart composable passes subtotalCents.value (a plain number) into useFormattedPrice, whose computed() closes over the parameter, so formattedSubtotal never changes after the first call; the rest of the composable replaces reactive arrays correctly",
+  "applicableAgents": [
+    "vue-reactivity-review"
+  ],
+  "agents": {
+    "vue-reactivity-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 2
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "reactiv"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "A single .value read at the call site freezes a computed; the computed itself looks correct in isolation"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Window modeled on the framework's existing *-reactivity-issues fixture (one error per planted defect), narrowed to the single planted defect plus room for one incidental warning or suggestion."
+      }
+    }
+  }
+}

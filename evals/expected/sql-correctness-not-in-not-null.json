@@ -4,6 +4,8 @@
   "applicableAgents": ["sql-review"],
   "agents": {
     "sql-review": {
+      "hard": {"reason": "distractor", "note": "NOT IN over a subquery is the classic NULL trap, but the subquery column is declared NOT NULL, so the detector hit must be dismissed"},
+      "_calibration": {"source": "estimated-by-analogy", "note": "0-0 is not a tuned bound: the output contract defines pass as zero issues"},
       "expectedStatus": "pass",
       "issueCount": { "min": 0, "max": 0 },
       "expectedFindings": []

@@ -1,0 +1,24 @@
+{
+  "fixture": "sec-sales-report-query.ts",
+  "description": "Sales report endpoint that interpolates ORDER BY into SQL text, but only from fixed allowlist maps keyed by a zod enum; every value goes through $n parameters and the query is scoped to the session org",
+  "applicableAgents": [
+    "security-review"
+  ],
+  "agents": {
+    "security-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "A template-literal SQL string with ${orderBy} looks like SQL injection, but orderBy is built only from constant maps indexed by validated enum values"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean counterpart to sec-sql-injection: zero findings expected"
+      }
+    }
+  }
+}
