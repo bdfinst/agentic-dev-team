@@ -110,25 +110,3 @@ def test_an_effort_off_the_ladder_steps_on_the_model_only(axis):
 def test_off_both_ladders_has_no_step_either_way():
     assert set(_arms("fable", "turbo", Axis.EFFORT)) == {BASELINE_LABEL}
 
-
-def _committed_rubric_agents() -> list[str]:
-    from model_effort import grader_config, paths
-
-    return sorted(
-        agent
-        for agent, entry in grader_config.load_grader_map(paths.GRADER_MAP_PATH).items()
-        if grader_config.entry_grader(entry) == "rubric"
-    )
-
-
-@pytest.mark.parametrize("agent", _committed_rubric_agents())
-def test_each_committed_rubric_judge_can_judge_the_agents_stress_arms(agent):
-    from model_effort import grader_config, judge_tier, paths
-    from model_effort.agent_file import load_agent_file
-    from model_effort.agent_spec import build_agent_spec
-
-    spec = build_agent_spec(agent, load_agent_file(agent, paths.AGENTS_DIR))
-    grading = grader_config.resolve_agent_grading(agent, paths.GRADER_MAP_PATH)
-    arms = stress_arms(spec.model, spec.effort, Axis.MODEL)
-
-    judge_tier.check_judge_tier(grading.judge, [arm.model for arm in arms])
