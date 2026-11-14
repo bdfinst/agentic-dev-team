@@ -7,7 +7,7 @@
     },
     {
       "slice": "1",
-      "scenario": "Usernames just outside the length boundaries",
+      "scenario": "Usernames outside the length boundaries",
       "falsifier": "the 422 body omits the human-readable message"
     },
     {

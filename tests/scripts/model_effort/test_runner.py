@@ -11,6 +11,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 from _model_effort_support import (
@@ -264,30 +265,67 @@ class TestSignalsAroundSpawn:
 
 
 class TestTrialEnvironment:
-    def test_parent_session_identity_variables_are_removed_and_the_rest_kept(self):
-        parent = {
-            "CLAUDE_CODE_SESSION_ID": "parent-session",
-            "CLAUDE_CODE_ENTRYPOINT": "cli",
+    PARENT: ClassVar[dict[str, str]] = {
+        "CLAUDE_CODE_SESSION_ID": "parent-session",
+        "CLAUDE_CODE_ENTRYPOINT": "cli",
+        "HOME": "/home/me",
+        "PATH": "/bin",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C",
+        "AWS_SECRET_ACCESS_KEY": "secret",
+        "GITHUB_TOKEN": "token",
+        "ANTHROPIC_API_KEY": "key",
+        "CLAUDE_CODE_OAUTH_TOKEN": "oauth",
+    }
+
+    def test_the_env_is_built_from_the_allowlist_plus_the_one_credential_the_cli_uses(
+        self,
+    ):
+        env = invocation.build_trial_env(self.PARENT)
+
+        assert env == {
             "HOME": "/home/me",
+            "PATH": "/bin",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C",
             "ANTHROPIC_API_KEY": "key",
         }
 
-        env = invocation.build_trial_env(parent)
+    def test_with_a_credential_variable_home_is_the_empty_temp_home(self, tmp_path):
+        env = invocation.build_trial_env(self.PARENT, tmp_path)
 
-        assert env == {"HOME": "/home/me", "ANTHROPIC_API_KEY": "key"}
+        assert env["HOME"] == str(tmp_path)
 
-    def test_the_cli_process_receives_the_scrubbed_environment(
+    def test_without_a_credential_variable_home_is_kept_for_the_keychain_login(
+        self, tmp_path
+    ):
+        parent = {"HOME": "/home/me", "PATH": "/bin"}
+
+        assert invocation.build_trial_env(parent, tmp_path) == parent
+
+    def test_test_commands_get_no_credential_and_a_temp_home(self, tmp_path):
+        env = invocation.build_check_env(self.PARENT, tmp_path)
+
+        assert env == {
+            "HOME": str(tmp_path),
+            "PATH": "/bin",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C",
+        }
+
+    def test_the_cli_process_receives_only_allowlisted_variables(
         self, stub_dir, fixture_root, monkeypatch
     ):
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "parent-session")
-        monkeypatch.setenv("KEEP_ME", "1")
+        monkeypatch.setenv("DROP_ME", "1")
         stub = StubClaude(stub_dir)
 
         runner.run_trial(_make_file_fixture(fixture_root), _config(stub))
 
         env_names = stub.calls[0]["env_names"]
         assert "CLAUDE_CODE_SESSION_ID" not in env_names
-        assert "KEEP_ME" in env_names and "HOME" in env_names
+        assert "DROP_ME" not in env_names
+        assert "PATH" in env_names and "HOME" in env_names
 
 
 def _wait_until_marker_due(spawned: Path, delay: float) -> None:

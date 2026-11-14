@@ -25,6 +25,7 @@ def render_config(
         f"Tools: {', '.join(profile.enabled_tools) or NO_TOOLS_TEXT}",
         f"Withheld tools: {', '.join(profile.withheld_tools) or NONE_TEXT}",
         f"Grader: {_render_grader(plan)}",
+        *_render_check_jail(plan),
         f"Fixtures: {', '.join(fixture.stem for fixture in plan.fixtures)}",
         f"Trials per arm per fixture: {settings.trials.count} ({settings.trials.reason})",
         f"Trial timeout: {settings.trial_timeout_seconds:g} s",
@@ -38,8 +39,19 @@ def _render_grader(plan: RunPlan) -> str:
     if grading.judge is not None:
         text += f" (judge {grading.judge.model}, effort {grading.judge.effort})"
     if grading.sandbox:
-        text += "; write tools enabled in the trial's temp copy"
+        text += (
+            "; write tools enabled in the trial's temp copy, under Claude Code's "
+            "Bash sandbox (no network, writes confined to the copy)"
+        )
     return text
+
+
+def _render_check_jail(plan: RunPlan) -> list[str]:
+    if not any(fixture.test_commands for fixture in plan.fixtures):
+        return []
+    if plan.check_jail is None:
+        return ["Test commands: UNJAILED (--allow-unjailed-checks)"]
+    return [f"Test commands: jailed with {plan.check_jail.tool} (no network, writes confined)"]
 
 
 def _render_estimate(run_estimate: RunEstimate) -> str:

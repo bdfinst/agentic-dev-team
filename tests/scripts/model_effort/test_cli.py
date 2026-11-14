@@ -54,6 +54,9 @@ from _model_effort_support import (
 )
 from model_effort import external, grading, paths, runner, trial_count
 from model_effort.arm import BASELINE_LABEL, CANDIDATE_LABEL
+from model_effort.grader_config import GraderKind
+
+EXPECTED_FINDINGS = GraderKind.EXPECTED_FINDINGS
 
 FAIL_VERDICT = {"status": "fail", "issues": [], "summary": "Layer violation."}
 
@@ -201,6 +204,7 @@ class TestTwoArmRun:
             "agent": "scout",
             "grader": "expected-findings",
             "judge": None,
+            "tier_change_eligible": True,
             "fidelity": "read-only-profile",
             "knowledge_dir": str(world.deps.eval_paths.knowledge_dir),
             "session_config": _expected_session_config(SONNET_MODEL_ID),
@@ -622,17 +626,17 @@ class TestTrialDefaults:
         ["security-review", "correctness-review", "architect", "security-engineer"],
     )
     def test_resolver_gives_every_high_stakes_agent_ten_trials(self, agent):
-        assert trial_count.resolve_trials(None, agent) == trial_count.TrialCount(
+        assert trial_count.resolve_trials(None, agent, EXPECTED_FINDINGS) == trial_count.TrialCount(
             10, "high-stakes default"
         )
 
     def test_resolver_gives_other_agents_five_trials(self):
-        assert trial_count.resolve_trials(None, "security-reviewer") == (
+        assert trial_count.resolve_trials(None, "security-reviewer", EXPECTED_FINDINGS) == (
             trial_count.TrialCount(5, "default")
         )
 
     def test_resolver_prefers_the_flag_over_the_high_stakes_default(self):
-        assert trial_count.resolve_trials(2, "architect") == trial_count.TrialCount(
+        assert trial_count.resolve_trials(2, "architect", EXPECTED_FINDINGS) == trial_count.TrialCount(
             2, "--trials"
         )
 

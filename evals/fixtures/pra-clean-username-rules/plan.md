@@ -14,7 +14,7 @@ emoji that break profile URLs. Enforce the documented username rules at the
 ## Acceptance Criteria
 
 - [ ] AC1: A username of 3 to 20 characters drawn only from `a-z`, `0-9`, and `_` is accepted and the account is created (HTTP 201).
-- [ ] AC2: A username of 2 characters or 21 characters is rejected with HTTP 422 and error code `USERNAME_LENGTH`; no account is created.
+- [ ] AC2: A username shorter than 3 characters (including the empty string) or longer than 20 characters is rejected with HTTP 422 and error code `USERNAME_LENGTH`; no account is created.
 - [ ] AC3: A username containing any character outside `a-z`, `0-9`, `_` (including upper case and spaces) is rejected with HTTP 422 and error code `USERNAME_CHARSET`; no account is created.
 - [ ] AC4: A username that matches an existing username is rejected with HTTP 409 and error code `USERNAME_TAKEN`; the existing account is unchanged.
 
@@ -42,7 +42,7 @@ Feature: Username rules at sign-up
       | abc                  |
       | abcdefghij_012345678 |
 
-  Scenario Outline: Usernames just outside the length boundaries
+  Scenario Outline: Usernames outside the length boundaries
     # Still passes if: the 422 body omits the human-readable message
     Given no account named "<name>" exists
     When a visitor signs up with username "<name>"
@@ -52,6 +52,7 @@ Feature: Username rules at sign-up
 
     Examples:
       | name                  |
+      |                       |
       | ab                    |
       | abcdefghij_0123456789 |
 
@@ -78,7 +79,7 @@ Feature: Username rules at sign-up
 
 **Complexity**: standard
 **IMPLEMENT**: Write `validate_username(name)` returning `None` or the error code `USERNAME_LENGTH` / `USERNAME_CHARSET`
-**TEST**: Table test over lengths 2, 3, 20, 21 and names `Bad Name`, `DANA`, `dana!`, `dana_1`; assert the exact error code for each
+**TEST**: Table test over lengths 0 (the empty string), 2, 3, 20, 21 and names `Bad Name`, `DANA`, `dana!`, `dana_1`; assert the exact error code for each
 **REFACTOR**: Compile the charset regex once at module level
 **Files**: `api/signup/validate.py`, `tests/signup/test_username.py`
 **Covers**: AC1, AC2, AC3

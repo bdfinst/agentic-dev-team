@@ -2,7 +2,9 @@
 """Compare an agent's frontmatter model/effort (baseline) with a candidate.
 
 Runs each trial through `claude -p` with the agent's read-only built-in tools
-against a fresh copy of a fixture, grades it against `evals/expected`, and
+(plus its write tools under Claude Code's Bash sandbox, for an agent
+evals/model-effort/graders.json marks `sandbox: true`) against a fresh copy of a
+fixture, grades it with the agent's grader from that map, and
 writes one JSON artifact per run to the runs directory. The fixtures, their
 expected entries and the knowledge directory are copied once when the run is
 planned, so editing them mid-run changes nothing. Trials alternate
@@ -45,6 +47,7 @@ if str(_PACKAGE_PARENT) not in sys.path:
     sys.path.insert(0, str(_PACKAGE_PARENT))
 
 from model_effort import (
+    check_jail,
     external,
     interrupts,
     invocation,
@@ -56,7 +59,6 @@ from model_effort import (
 )
 from model_effort.errors import UsageError
 from model_effort.execution import TrialRunner
-from model_effort.grader_config import GraderKind
 from model_effort.plan import RunPlan, plan_run
 from model_effort.run_types import TrialSettings
 from model_effort.session import EXIT_FAILED, EXIT_USAGE
@@ -103,6 +105,9 @@ class Deps:
     stdin_is_tty: Callable[[], bool] = _stdin_is_tty
     run_trial: TrialRunner = runner.run_trial
     run_judge_process: rubric_judge.ProcessRunner = runner.run_cli_process
+    find_check_jail: Callable[[], check_jail.CheckJail | None] = (
+        check_jail.find_working_jail
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -157,6 +162,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes",
         action="store_true",
         help="start without the confirmation prompt (required when stdin is not a TTY)",
+    )
+    parser.add_argument(
+        "--allow-unjailed-checks",
+        action="store_true",
+        help="run a fixture's test commands (agent-written code) without a jail when "
+        "no working sandbox-exec (macOS) or bwrap (Linux) is found; use only on a "
+        "disposable machine",
     )
     parser.add_argument(
         "--claude-bin",
@@ -225,7 +237,7 @@ def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> in
                 trials=resolve_trials(
                     args.trials,
                     args.agent,
-                    rubric_judged=plan.grading.kind is GraderKind.RUBRIC,
+                    plan.grading.kind,
                 ),
                 trial_timeout_seconds=args.trial_timeout_seconds,
                 claude_bin=args.claude_bin,
@@ -262,6 +274,8 @@ def _plan_from(args: argparse.Namespace, deps: Deps) -> AbstractContextManager[R
         rng=deps.rng,
         git_sha=deps.read_git_sha(),
         eval_paths=deps.eval_paths,
+        allow_unjailed_checks=args.allow_unjailed_checks,
+        find_check_jail=deps.find_check_jail,
     )
 
 

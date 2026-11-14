@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -28,18 +29,27 @@ from _model_effort_support import (
     _write_agent,
 )
 from model_effort import (
+    arm_totals,
+    artifact,
+    check_jail,
+    estimate,
     fixtures,
     grader_config,
     invocation,
+    judge_tier,
     outcome,
+    plan,
     process_record,
+    rubric_file,
     rubric_judge,
     runner,
     tools,
     transcript,
     trial_count,
 )
+from model_effort.arm import Arm
 from model_effort.errors import UsageError
+from model_effort.grader_config import GraderKind
 from model_effort.outcome import Outcome
 
 OPUS_JUDGE = "claude-opus-5-5"
@@ -53,6 +63,15 @@ A good answer decides.
 - **grounded**: Cites the provided material.
 """
 JUDGE_COST = 0.02
+# Passes only when the agent "fixed" value.txt; exits 4 when it finds that its own
+# source was tampered with, so a test can tell a restored checker from a weakened one.
+CHECKER = (
+    "import pathlib, sys\n"
+    "MARK = 'TAMP' + 'ERED'\n"
+    "if MARK in pathlib.Path(__file__).read_text():\n"
+    "    sys.exit(4)\n"
+    "sys.exit(0 if MARK in pathlib.Path('value.txt').read_text() else 3)\n"
+)
 PRICING = {
     "models": {**TEST_PRICING["models"], "test-judge": {"input": 5.0, "output": 25.0}},
     "aliases": {**TEST_PRICING["aliases"], "opus": "test-judge", OPUS_JUDGE: "test-judge"},
@@ -133,11 +152,7 @@ def gworld(tmp_path: Path) -> GraderWorld:
     )
     (fixtures / "tamper-proof").mkdir()
     (fixtures / "tamper-proof" / "value.txt").write_text("start", encoding="utf-8")
-    (fixtures / "tamper-proof" / "check.py").write_text(
-        "import pathlib, sys\n"
-        "sys.exit(0 if 'TAMPERED' in pathlib.Path('value.txt').read_text() else 3)\n",
-        encoding="utf-8",
-    )
+    (fixtures / "tamper-proof" / "check.py").write_text(CHECKER, encoding="utf-8")
     _write_entry(
         expected,
         "route-me",
@@ -165,6 +180,7 @@ def gworld(tmp_path: Path) -> GraderWorld:
             grader_map=graders / "graders.json",
         ),
         pricing_table=PRICING,
+        find_check_jail=check_jail.find_working_jail,
     )
     return GraderWorld(tmp_path, deps)
 
@@ -173,8 +189,8 @@ def _run(gworld: GraderWorld, stub: StubClaude, *args: str) -> int:
     return model_effort_ab.main(
         [
             *args,
-            "--trials",
-            "1",
+            *(() if "--trials" in args else ("--trials", "1")),
+            "--allow-unjailed-checks",
             "--yes",
             "--claude-bin",
             str(stub.path),
@@ -185,8 +201,8 @@ def _run(gworld: GraderWorld, stub: StubClaude, *args: str) -> int:
     )
 
 
-def _answer_call(text: str, *events: dict) -> dict:
-    result = _result_event(text, model_usage={SONNET_MODEL_ID: {}})
+def _answer_call(text: str, *events: dict, **result_fields) -> dict:
+    result = _result_event(text, model_usage={SONNET_MODEL_ID: {}}, **result_fields)
     return {"stdout": _stream(_init_event(SONNET_MODEL_ID), *events, result)}
 
 
@@ -285,6 +301,59 @@ class TestGraderMap:
         with pytest.raises(UsageError, match="lists no criteria"):
             grader_config.resolve_agent_grading("x", path)
 
+    def test_a_non_object_agent_entry_is_a_usage_error(self, tmp_path):
+        path = tmp_path / "graders.json"
+        path.write_text(json.dumps({"agents": {"x": "rubric"}}))
+
+        with pytest.raises(UsageError, match="entry must be an object, got str"):
+            grader_config.resolve_agent_grading("x", path)
+
+    def _map_with_default_judge(self, tmp_path, own_judge: dict | None) -> Path:
+        (tmp_path / "r.md").write_text(RUBRIC_TEXT)
+        entry = {"grader": "rubric", "rubric": "r.md"}
+        if own_judge is not None:
+            entry["judge"] = own_judge
+        path = tmp_path / "graders.json"
+        path.write_text(
+            json.dumps(
+                {"judge": {"model": OPUS_JUDGE, "effort": "high"}, "agents": {"x": entry}}
+            )
+        )
+        return path
+
+    def test_a_rubric_agent_without_its_own_judge_uses_the_top_level_judge(
+        self, tmp_path
+    ):
+        judge = grader_config.resolve_agent_grading(
+            "x", self._map_with_default_judge(tmp_path, None)
+        ).judge
+
+        assert (judge.model, judge.effort) == (OPUS_JUDGE, "high")
+
+    def test_an_agents_own_judge_overrides_the_top_level_judge(self, tmp_path):
+        path = self._map_with_default_judge(tmp_path, {"model": "claude-sonnet-5-5"})
+
+        judge = grader_config.resolve_agent_grading("x", path).judge
+
+        assert (judge.model, judge.effort) == ("claude-sonnet-5-5", "high")
+
+    def test_a_rubric_agent_with_no_judge_anywhere_is_refused(self, tmp_path):
+        (tmp_path / "r.md").write_text(RUBRIC_TEXT)
+        path = tmp_path / "graders.json"
+        path.write_text(
+            json.dumps({"agents": {"x": {"grader": "rubric", "rubric": "r.md"}}})
+        )
+
+        with pytest.raises(UsageError, match="needs a judge with a pinned"):
+            grader_config.resolve_agent_grading("x", path)
+
+    @pytest.mark.parametrize(
+        ("block", "grader"),
+        [({}, "verdict"), ({"grader": "finding_ids"}, "finding_ids")],
+    )
+    def test_an_entry_without_a_grader_uses_the_verdict_grader(self, block, grader):
+        assert grader_config.entry_grader(block) == grader
+
 
 class TestJudgeTier:
     @pytest.mark.parametrize(
@@ -298,7 +367,7 @@ class TestJudgeTier:
         ],
     )
     def test_model_tier_places_aliases_and_full_ids_on_the_ladder(self, model, tier):
-        assert grader_config.model_tier(model) == tier
+        assert judge_tier.model_tier(model) == tier
 
     @pytest.mark.parametrize(
         ("arms", "required"),
@@ -307,42 +376,42 @@ class TestJudgeTier:
     def test_the_judge_must_sit_one_tier_above_the_strongest_arm_capped_at_opus(
         self, arms, required
     ):
-        assert grader_config.required_judge_tier(arms) == required
+        assert judge_tier.required_judge_tier(arms) == required
 
     def test_a_judge_on_the_same_tier_as_an_arm_below_opus_is_refused(self):
-        judge = grader_config.Judge("claude-sonnet-5-5", "high", Path("r.md"), "", ("a",))
+        judge = rubric_file.Judge("claude-sonnet-5-5", "high", Path("r.md"), "", ("a",))
 
         with pytest.raises(UsageError, match="must be at least opus"):
-            grader_config.check_judge_tier(judge, ["haiku", "sonnet"])
+            judge_tier.check_judge_tier(judge, ["haiku", "sonnet"])
 
     def test_an_opus_judge_may_judge_an_opus_agent(self):
-        judge = grader_config.Judge(OPUS_JUDGE, "high", Path("r.md"), "", ("a",))
+        judge = rubric_file.Judge(OPUS_JUDGE, "high", Path("r.md"), "", ("a",))
 
-        grader_config.check_judge_tier(judge, ["opus", "sonnet"])
+        judge_tier.check_judge_tier(judge, ["opus", "sonnet"])
 
     def test_an_unplaceable_arm_model_is_refused(self):
-        judge = grader_config.Judge(OPUS_JUDGE, "high", Path("r.md"), "", ("a",))
+        judge = rubric_file.Judge(OPUS_JUDGE, "high", Path("r.md"), "", ("a",))
 
         with pytest.raises(UsageError, match="cannot place"):
-            grader_config.check_judge_tier(judge, ["fable", "sonnet"])
+            judge_tier.check_judge_tier(judge, ["fable", "sonnet"])
 
 
 class TestTrialCounts:
     def test_rubric_judged_agents_default_to_ten_trials(self):
-        count = trial_count.resolve_trials(None, "thinker", rubric_judged=True)
+        count = trial_count.resolve_trials(None, "thinker", GraderKind.RUBRIC)
 
         assert (count.count, count.reason) == (10, "rubric-judged default")
 
     def test_an_explicit_trial_flag_overrides_the_rubric_default(self):
-        assert trial_count.resolve_trials(3, "thinker", rubric_judged=True).count == 3
+        assert trial_count.resolve_trials(3, "thinker", GraderKind.RUBRIC).count == 3
 
     @pytest.mark.parametrize(
         ("grader", "trials", "allowed"),
         [
-            ("rubric", 10, True),
-            ("rubric", 9, False),
-            ("expected-findings", 3, True),
-            ("tests-pass", 1, True),
+            (GraderKind.RUBRIC, 10, True),
+            (GraderKind.RUBRIC, 9, False),
+            (GraderKind.EXPECTED_FINDINGS, 3, True),
+            (GraderKind.TESTS_PASS, 1, True),
         ],
     )
     def test_rubric_evidence_can_move_a_tier_only_with_ten_trials_per_arm(
@@ -447,23 +516,14 @@ class TestSandboxRunner:
 
         runner.init_sandbox_repo(tmp_path)
 
-        listed = subprocess.run(
-            ["git", "ls-files"], cwd=tmp_path, capture_output=True, text=True, check=True
-        )
-        assert listed.stdout.split() == ["a.txt"]
+        def git(*args: str) -> str:
+            return subprocess.run(
+                ["git", *args], cwd=tmp_path, capture_output=True, text=True, check=True
+            ).stdout
 
-    def test_protected_paths_are_restored_from_the_pristine_fixture(self, tmp_path):
-        pristine, work = tmp_path / "pristine", tmp_path / "work"
-        (pristine / "tests").mkdir(parents=True)
-        (pristine / "tests" / "t.py").write_text("original")
-        (work / "tests").mkdir(parents=True)
-        (work / "tests" / "t.py").write_text("weakened")
-        (work / "tests" / "extra.py").write_text("added by the agent")
-
-        runner.restore_protected_paths(pristine, work, ("tests",))
-
-        assert sorted(p.name for p in (work / "tests").iterdir()) == ["t.py"]
-        assert (work / "tests" / "t.py").read_text() == "original"
+        assert git("ls-files").split() == ["a.txt"]
+        assert git("rev-list", "--count", "HEAD").strip() == "1"
+        assert git("status", "--porcelain") == ""
 
     def test_a_check_command_runs_with_this_interpreter_and_reports_its_failure_line(
         self, tmp_path
@@ -480,8 +540,8 @@ class TestSandboxRunner:
 
 
 class TestRubricJudge:
-    def _judge(self) -> grader_config.Judge:
-        return grader_config.Judge(
+    def _judge(self) -> rubric_file.Judge:
+        return rubric_file.Judge(
             OPUS_JUDGE, "high", Path("r.md"), RUBRIC_TEXT, ("commits", "grounded")
         )
 
@@ -505,23 +565,53 @@ class TestRubricJudge:
         assert "- **picks-queue**: Picks the queue." in prompt
         assert "Decide." in prompt and "<answer>\nUse the queue.\n</answer>" in prompt
 
-    def test_a_judge_answer_without_criteria_raises_judge_error(self):
-        def run_process(argv, cwd, timeout, env):
-            return process_record.TrialProcessRecord(
-                exit_code=0, stdout=_stream(_result_event("no json")), stderr="", timed_out=False
-            )
+    def _run(self, run_process) -> rubric_judge.Judgement:
+        return rubric_judge.run_judge(
+            self._judge(),
+            [],
+            "task",
+            "answer",
+            claude_bin="claude",
+            timeout_seconds=5,
+            env=None,
+            run_process=run_process,
+        )
 
-        with pytest.raises(rubric_judge.JudgeError, match="no `criteria` list"):
-            rubric_judge.run_judge(
-                self._judge(),
-                [],
-                "task",
-                "answer",
-                claude_bin="claude",
-                timeout_seconds=5,
-                env=None,
-                run_process=run_process,
-            )
+    @pytest.mark.parametrize(
+        ("record_fields", "message"),
+        [
+            ({"timed_out": True}, "exceeded the time limit"),
+            ({"exit_code": 1, "stderr": "overloaded"}, r"failed \(exit 1\): overloaded"),
+            (
+                {"stdout": _stream(_result_event("boom", is_error=True))},
+                r"failed \(exit 0\): boom",
+            ),
+            ({"stdout": _stream(_init_event())}, "no result event"),
+            ({"stdout": _stream(_result_event("no json"))}, "no `criteria` list"),
+            (
+                {"stdout": _stream(_result_event('{"criteria": "all met"}'))},
+                "no `criteria` list",
+            ),
+        ],
+    )
+    def test_each_failure_raises_judge_error(self, record_fields, message):
+        fields = {"exit_code": 0, "stdout": "", "stderr": "", "timed_out": False}
+        fields.update(record_fields)
+
+        with pytest.raises(rubric_judge.JudgeError, match=message):
+            self._run(lambda *_args: process_record.TrialProcessRecord(**fields))
+
+    def test_a_judge_reporting_no_cost_yields_a_judgement_with_no_cost(self):
+        result = _result_event(json.dumps({"criteria": _met("commits")}))
+        del result["total_cost_usd"]
+        record = process_record.TrialProcessRecord(
+            exit_code=0, stdout=_stream(result), stderr="", timed_out=False
+        )
+
+        judgement = self._run(lambda *_args: record)
+
+        assert judgement.cost_usd is None
+        assert judgement.criteria == _met("commits")
 
 
 class TestRubricRun:
@@ -553,7 +643,7 @@ class TestRubricRun:
         assert _flag_value(judge_argv, "--model") == OPUS_JUDGE
         assert "Use the queue." in _flag_value(judge_argv, "-p")
 
-    def test_a_candidate_on_the_judges_tier_below_opus_is_refused_before_any_trial(
+    def test_a_judge_on_the_same_tier_as_an_arm_is_refused_before_any_trial(
         self, gworld, tmp_path, capsys
     ):
         stub_dir = tmp_path / "s"
@@ -602,6 +692,7 @@ class TestTestsPassRun:
         # `tamper` rewrites every staged file, the checker included: the run passes
         # only if the checker is restored before the test command runs.
         stub = StubClaude(stub_dir, tamper=True, **_answer_call("Done."))
+        # The checker exits 4 if it was tampered with; see the test with the restore disabled.
 
         code = _run(gworld, stub, "builder", "--model", "haiku")
 
@@ -611,6 +702,42 @@ class TestTestsPassRun:
         assert written["fidelity"] == "sandboxed-write-profile"
         assert _trial_outcomes(written) == ["pass", "pass"]
         assert written["arms"][0]["tools_enabled"] == ["Read", "Edit", "Bash"]
+
+    def test_without_the_restore_the_checker_reports_its_own_tampering(
+        self, gworld, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(runner, "restore_protected_paths", lambda *_args: None)
+        stub = _stub(tmp_path, tamper=True, **_answer_call("Done."))
+
+        _run(gworld, stub, "builder", "--model", "haiku")
+
+        trial = gworld.written()["arms"][0]["fixtures"][0]["trials"][0]
+        assert trial["grader_messages"] == [
+            "tests_pass: command '{python} check.py' exited 4"
+        ]
+
+    def test_a_timed_out_trial_runs_no_test_command(self, tmp_path):
+        fixture = tmp_path / "fx"
+        fixture.mkdir()
+        (fixture / "marker.py").write_text(
+            "import pathlib; pathlib.Path('ran').write_text('x')\n"
+        )
+        stub = _stub(tmp_path, sleep=5)
+        config = dataclasses.replace(
+            invocation.TrialConfig(
+                arm=Arm("candidate", "haiku", "low"),
+                system_prompt="p",
+                profile=tools.ToolProfile(("Read",), (), ()),
+                eval_paths=_eval_paths(),
+                claude_bin=str(stub.path),
+            ),
+            test_commands=("{python} marker.py",),
+        )
+
+        record = runner.run_trial(fixture, config, trial_timeout_seconds=0.5)
+
+        assert record.timed_out
+        assert record.check_results == ()
 
     def test_a_failing_test_command_grades_the_trial_failed_naming_its_exit_code(
         self, gworld, tmp_path
@@ -676,3 +803,682 @@ class TestCleanFixtures:
         entry = {"agents": {"critic": {"expectedStatus": "approve"}}}
 
         assert fixtures.is_expected_clean(entry, "critic") is False
+
+
+class TestRestoreProtectedPaths:
+    """The restore after the agent: back to pristine, and never a step outside the copy."""
+
+    @pytest.fixture
+    def trees(self, tmp_path) -> tuple[Path, Path, Path]:
+        pristine, work, outside = (tmp_path / n for n in ("pristine", "work", "outside"))
+        for root in (pristine, work):
+            (root / "tests").mkdir(parents=True)
+            (root / "tests" / "t.py").write_text("original")
+            (root / "tests" / "__init__.py").write_text("")
+        outside.mkdir()
+        (outside / "t.py").write_text("outside file")
+        return pristine, work, outside
+
+    def test_an_edited_file_is_put_back(self, trees):
+        pristine, work, _ = trees
+        (work / "tests" / "t.py").write_text("weakened")
+
+        runner.restore_protected_paths(pristine, work, ("tests/t.py",))
+
+        assert (work / "tests" / "t.py").read_text() == "original"
+
+    def test_a_deleted_file_is_put_back(self, trees):
+        pristine, work, _ = trees
+        (work / "tests" / "t.py").unlink()
+
+        runner.restore_protected_paths(pristine, work, ("tests/t.py",))
+
+        assert (work / "tests" / "t.py").read_text() == "original"
+
+    def test_a_protected_directory_loses_files_the_agent_added(self, trees):
+        pristine, work, _ = trees
+        (work / "tests" / "extra.py").write_text("added by the agent")
+
+        runner.restore_protected_paths(pristine, work, ("tests",))
+
+        assert sorted(p.name for p in (work / "tests").iterdir()) == ["__init__.py", "t.py"]
+
+    def test_a_file_replaced_by_a_symlink_outside_is_replaced_without_touching_its_target(
+        self, trees
+    ):
+        pristine, work, outside = trees
+        (work / "tests" / "t.py").unlink()
+        (work / "tests" / "t.py").symlink_to(outside / "t.py")
+
+        runner.restore_protected_paths(pristine, work, ("tests/t.py",))
+
+        restored = work / "tests" / "t.py"
+        assert not restored.is_symlink() and restored.read_text() == "original"
+        assert (outside / "t.py").read_text() == "outside file"
+
+    def test_a_parent_dir_symlinked_outside_is_replaced_and_nothing_outside_is_touched(
+        self, trees
+    ):
+        pristine, work, outside = trees
+        before = _tree_snapshot(outside)
+        shutil.rmtree(work / "tests")
+        (work / "tests").symlink_to(outside, target_is_directory=True)
+
+        runner.restore_protected_paths(pristine, work, ("tests/t.py",))
+
+        assert not (work / "tests").is_symlink()
+        assert (work / "tests" / "t.py").read_text() == "original"
+        assert _tree_snapshot(outside) == before
+
+    def test_a_protected_dir_that_is_a_symlink_is_removed_not_followed(self, trees):
+        pristine, work, outside = trees
+        before = _tree_snapshot(outside)
+        shutil.rmtree(work / "tests")
+        (work / "tests").symlink_to(outside, target_is_directory=True)
+
+        runner.restore_protected_paths(pristine, work, ("tests",))
+
+        assert not (work / "tests").is_symlink()
+        assert (work / "tests" / "t.py").read_text() == "original"
+        assert _tree_snapshot(outside) == before
+
+    @pytest.mark.parametrize("bad", ["/etc/passwd", "../outside/t.py", "tests/../../x"])
+    def test_an_absolute_or_climbing_path_is_refused_before_anything_changes(
+        self, trees, bad
+    ):
+        pristine, work, outside = trees
+        before = _tree_snapshot(outside)
+
+        with pytest.raises(runner.UnsafeProtectedPathError):
+            runner.restore_protected_paths(pristine, work, (bad,))
+
+        assert _tree_snapshot(outside) == before
+
+
+def _tree_snapshot(root: Path) -> dict[str, str]:
+    return {
+        str(path.relative_to(root)): path.read_text()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+class TestProtectedPathsAtFixtureLoad:
+    @pytest.mark.parametrize(
+        "bad", ["/abs/path", "../up", "tests/../../up", "", ".", "C:\\x", "a\\b"]
+    )
+    def test_an_absolute_or_climbing_entry_is_refused(self, bad):
+        with pytest.raises(UsageError, match="relative path inside the fixture"):
+            fixtures.checked_protected_paths("f", fixtures.FixtureKind.DIRECTORY, [bad])
+
+    def test_a_file_fixture_may_not_declare_protected_paths(self):
+        with pytest.raises(UsageError, match="single file"):
+            fixtures.checked_protected_paths("f", fixtures.FixtureKind.FILE, ["x"])
+
+    def test_a_non_list_value_is_refused(self):
+        with pytest.raises(UsageError, match="must be a list"):
+            fixtures.checked_protected_paths("f", fixtures.FixtureKind.DIRECTORY, "tests")
+
+    def test_relative_entries_inside_the_fixture_are_kept(self):
+        assert fixtures.checked_protected_paths(
+            "f", fixtures.FixtureKind.DIRECTORY, ["tests", "tests/__init__.py"]
+        ) == ("tests", "tests/__init__.py")
+
+    def test_the_plan_refuses_a_fixture_declaring_a_climbing_protected_path(
+        self, gworld, tmp_path, capsys
+    ):
+        path = gworld.deps.eval_paths.expected_dir / "tamper-proof.json"
+        entry = json.loads(path.read_text())
+        entry["agents"]["builder"]["protectedPaths"] = ["../../escape"]
+        path.write_text(json.dumps(entry))
+        stub = _stub(tmp_path)
+
+        assert _run(gworld, stub, "builder", "--model", "haiku") == 2
+        assert "relative path inside the fixture" in capsys.readouterr().err
+        assert stub.calls == []
+
+
+def _stub(tmp_path: Path, **behavior) -> StubClaude:
+    stub_dir = tmp_path / "stub"
+    stub_dir.mkdir(exist_ok=True)
+    return StubClaude(stub_dir, **behavior)
+
+
+class TestBashSandbox:
+    """Write-capable trials run under Claude Code's own Bash sandbox."""
+
+    def _config(self, **overrides) -> invocation.TrialConfig:
+        return dataclasses.replace(
+            invocation.TrialConfig(
+                arm=Arm("candidate", "haiku", "low"),
+                system_prompt="p",
+                profile=tools.ToolProfile(("Read", "Bash"), (), ()),
+                eval_paths=_eval_paths(),
+            ),
+            **overrides,
+        )
+
+    def test_a_sandboxed_trial_passes_the_documented_sandbox_settings(self, tmp_path):
+        config = self._config(
+            sandbox=True, deny_read=(tmp_path / "answers",), deny_write=(tmp_path,)
+        )
+
+        argv = invocation.build_argv(config, "task")
+
+        assert json.loads(_flag_value(argv, "--settings")) == {
+            "sandbox": {
+                "enabled": True,
+                "failIfUnavailable": True,
+                "autoAllowBashIfSandboxed": True,
+                "allowUnsandboxedCommands": False,
+                "network": {"allowedDomains": []},
+                "filesystem": {
+                    "denyRead": [str(tmp_path / "answers")],
+                    "denyWrite": [str(tmp_path)],
+                },
+            }
+        }
+        assert _flag_value(argv, "--permission-mode") == "acceptEdits"
+        assert _flag_value(argv, "--permission-prompts") == "none"
+        assert "--dangerously-skip-permissions" not in argv
+        assert "--restricted" in argv
+
+    def test_a_read_only_trial_gets_no_sandbox_flags(self):
+        argv = invocation.build_argv(self._config(), "task")
+
+        assert not {"--settings", "--permission-mode", "--permission-prompts"} & set(argv)
+
+    def test_a_sandboxed_trial_with_permission_denials_fails_as_a_tool_violation(self):
+        parsed = transcript.parse_stream(
+            _stream(_result_event("done", permission_denials=[{"tool_name": "Bash"}]))
+        )
+        record = process_record.TrialProcessRecord(
+            exit_code=0, stdout="", stderr="", timed_out=False
+        )
+
+        result = outcome.resolve_outcome(
+            record,
+            parsed,
+            ("Read",),
+            lambda _json: (True, []),
+            requires_agent_json=False,
+            fail_on_permission_denials=True,
+        )
+
+        assert result.outcome is Outcome.TOOL_VIOLATION
+        assert result.error == "the CLI denied 1 tool call(s) in the sandbox"
+
+    def test_denials_do_not_fail_a_trial_outside_the_sandbox(self):
+        parsed = transcript.parse_stream(
+            _stream(_result_event("done", permission_denials=[{"tool_name": "Bash"}]))
+        )
+        record = process_record.TrialProcessRecord(
+            exit_code=0, stdout="", stderr="", timed_out=False
+        )
+
+        result = outcome.resolve_outcome(
+            record, parsed, ("Read",), lambda _json: (True, []), requires_agent_json=False
+        )
+
+        assert result.outcome is Outcome.PASS
+
+    def test_a_sandbox_runs_trial_with_denials_is_recorded_as_a_tool_violation(
+        self, gworld, tmp_path
+    ):
+        stub = _stub(
+            tmp_path,
+            stdout=_stream(_result_event("Done.", permission_denials=[{"tool": "Bash"}])),
+        )
+
+        _run(gworld, stub, "builder", "--model", "haiku")
+
+        assert _trial_outcomes(gworld.written()) == ["tool_violation", "tool_violation"]
+
+    def test_only_the_sandboxed_trial_works_in_a_git_repo(self, gworld, tmp_path):
+        stub = _stub(tmp_path, **_answer_call("Done."))
+
+        _run(gworld, stub, "builder", "--model", "haiku")
+        (tmp_path / "read-only").mkdir()
+        read_only = StubClaude(tmp_path / "read-only", **_answer_call('{"status": "pass"}'))
+        _run(gworld, read_only, "router", "--model", "haiku")
+
+        assert stub.calls[0]["git_dirs"] == ["tamper-proof/.git"]
+        assert read_only.calls[0]["git_dirs"] == []
+
+    def test_a_sandboxed_trial_reads_its_own_knowledge_copy_outside_the_staging_dir(
+        self, gworld, tmp_path
+    ):
+        stub = _stub(tmp_path, **_answer_call("Done."))
+
+        _run(gworld, stub, "builder", "--model", "haiku")
+
+        first, second = (_flag_value(call["argv"], "--add-dir") for call in stub.calls[:2])
+        assert first != second
+        for call in stub.calls[:2]:
+            add_dir = Path(_flag_value(call["argv"], "--add-dir"))
+            assert Path(call["cwd"]) not in add_dir.parents
+            assert "model-effort-inputs-" not in str(add_dir)
+
+    def test_no_prompt_or_readable_dir_names_the_answer_key_and_the_sandbox_denies_it(
+        self, gworld, tmp_path
+    ):
+        stub = _stub(tmp_path, **_answer_call("Done."))
+
+        _run(gworld, stub, "builder", "--model", "haiku")
+
+        argv = stub.calls[0]["argv"]
+        settings = json.loads(_flag_value(argv, "--settings"))
+        denied = settings["sandbox"]["filesystem"]["denyRead"]
+        answer_dir = Path(denied[0])
+        assert answer_dir.name == "expected"
+        visible = [arg for arg in argv if arg != _flag_value(argv, "--settings")]
+        assert not any(str(answer_dir.parent) in arg for arg in visible)
+        assert str(Path(stub.calls[0]["cwd"])) not in str(answer_dir)
+
+
+class TestCheckJail:
+    def test_bwrap_binds_only_the_work_and_temp_dirs_writable_with_no_network(
+        self, tmp_path
+    ):
+        jail = check_jail.CheckJail(check_jail.BWRAP, "/usr/bin/bwrap")
+
+        argv = jail.wrap(["python3", "-V"], tmp_path / "w", tmp_path / "t")
+
+        assert argv[:4] == ["/usr/bin/bwrap", "--ro-bind", "/", "/"]
+        assert "--unshare-all" in argv
+        work, temp = str((tmp_path / "w").resolve()), str((tmp_path / "t").resolve())
+        assert ["--bind", work, work] == argv[argv.index(work) - 1 : argv.index(work) + 2]
+        assert ["--bind", temp, temp] == argv[argv.index(temp) - 1 : argv.index(temp) + 2]
+        assert argv[-2:] == ["python3", "-V"]
+
+    def test_the_sandbox_exec_profile_denies_network_and_writes_outside(self, tmp_path):
+        profile = check_jail.sandbox_exec_profile([tmp_path])
+
+        assert "(deny network*)" in profile
+        assert "(deny file-write*)" in profile
+        assert f'(subpath "{tmp_path}")' in profile
+
+    @pytest.mark.parametrize(
+        ("platform", "tool"),
+        [("darwin", "sandbox-exec"), ("linux", "bwrap"), ("win32", None)],
+    )
+    def test_each_platform_picks_its_jail_tool(self, platform, tool):
+        jail = check_jail.candidate_jail(platform, which=lambda name: f"/bin/{name}")
+
+        assert (jail.tool if jail else None) == tool
+
+    def test_a_missing_tool_means_no_jail(self):
+        assert check_jail.candidate_jail("linux", which=lambda _name: None) is None
+
+    def test_a_jailed_check_cannot_write_outside_its_work_dir(self, tmp_path):
+        jail = check_jail.find_working_jail()
+        if jail is None:
+            pytest.skip("no working sandbox-exec or bwrap on this machine")
+        work, outside = tmp_path / "work", tmp_path / "outside"
+        work.mkdir()
+        outside.mkdir()
+        (work / "escape.py").write_text(
+            "import pathlib, sys\n"
+            f"pathlib.Path({str(outside / 'x')!r}).write_text('x')\n"
+        )
+
+        result = runner.run_check_command(
+            "{python} escape.py", work, 30, None, jail=jail
+        )
+
+        assert result["exit_code"] != 0
+        assert not (outside / "x").exists()
+
+    def test_a_tests_pass_run_with_no_jail_is_refused_without_the_flag(
+        self, gworld, tmp_path, capsys
+    ):
+        deps = dataclasses.replace(gworld.deps, find_check_jail=lambda: None)
+        stub = _stub(tmp_path)
+
+        code = model_effort_ab.main(
+            [
+                "builder",
+                "--model",
+                "haiku",
+                "--trials",
+                "1",
+                "--yes",
+                "--claude-bin",
+                str(stub.path),
+                "--runs-dir",
+                str(gworld.runs_dir),
+            ],
+            deps=deps,
+        )
+
+        assert code == 2
+        assert "--allow-unjailed-checks" in capsys.readouterr().err
+        assert stub.calls == []
+
+    def test_with_the_flag_and_no_jail_the_echo_says_the_checks_are_unjailed(
+        self, gworld, tmp_path, capsys
+    ):
+        gworld.deps = dataclasses.replace(gworld.deps, find_check_jail=lambda: None)
+        stub = _stub(tmp_path, **_answer_call("Done."))
+
+        _run(gworld, stub, "builder", "--model", "haiku")
+
+        assert "Test commands: UNJAILED (--allow-unjailed-checks)" in capsys.readouterr().err
+
+    def test_with_a_jail_the_echo_names_it(self, gworld, tmp_path, capsys):
+        jail = check_jail.CheckJail("sandbox-exec", "/usr/bin/true")
+        gworld.deps = dataclasses.replace(gworld.deps, find_check_jail=lambda: jail)
+        stub = _stub(tmp_path, **_answer_call("Done."))
+
+        _run(gworld, stub, "builder", "--model", "haiku", "--max-cost", "0.000001")
+
+        err = capsys.readouterr().err
+        assert "Test commands: jailed with sandbox-exec (no network, writes confined)" in err
+        assert "under Claude Code's Bash sandbox (no network" in err
+
+
+class TestDispatchSetWithoutJson:
+    def test_a_prose_orchestrator_answer_is_graded_on_its_dispatches(
+        self, gworld, tmp_path
+    ):
+        stub = _stub(tmp_path)
+        stub.queue(
+            _answer_call("I sent this to the architect.", _dispatch_event("architect")),
+            _answer_call("I sent this to security.", _dispatch_event("security-review")),
+        )
+
+        _run(gworld, stub, "router", "--model", "haiku")
+
+        assert _trial_outcomes(gworld.written()) == ["pass", "graded_fail"]
+
+    def test_a_prose_answer_fails_an_entry_that_requires_a_verdict(
+        self, gworld, tmp_path
+    ):
+        path = gworld.deps.eval_paths.expected_dir / "route-me.json"
+        entry = json.loads(path.read_text())
+        entry["agents"]["router"]["expectedStatus"] = "pass"
+        path.write_text(json.dumps(entry))
+        stub = _stub(tmp_path, **_answer_call("Routed.", _dispatch_event("architect")))
+
+        _run(gworld, stub, "router", "--model", "haiku")
+
+        trial = gworld.written()["arms"][0]["fixtures"][0]["trials"][0]
+        assert trial["outcome"] == "graded_fail"
+        assert trial["grader_messages"] == [
+            "status: expected 'pass', but the answer has no JSON verdict"
+        ]
+
+
+class TestFixtureGraderMatchesThePlan:
+    def test_a_fixture_naming_another_grader_is_refused_before_any_trial(
+        self, gworld, tmp_path, capsys
+    ):
+        path = gworld.deps.eval_paths.expected_dir / "route-me.json"
+        entry = json.loads(path.read_text())
+        entry["agents"]["router"]["grader"] = "rubric"
+        path.write_text(json.dumps(entry))
+        stub = _stub(tmp_path)
+
+        code = _run(gworld, stub, "router", "--model", "haiku")
+
+        assert code == 2
+        assert "route-me (rubric) names a different grader" in capsys.readouterr().err
+        assert stub.calls == []
+
+    def test_a_fixture_with_no_grader_uses_verdict_which_a_rubric_plan_refuses(
+        self, gworld, tmp_path, capsys
+    ):
+        path = gworld.deps.eval_paths.expected_dir / "design-q.json"
+        entry = json.loads(path.read_text())
+        del entry["agents"]["thinker"]["grader"]
+        path.write_text(json.dumps(entry))
+
+        code = _run(gworld, _stub(tmp_path), "thinker", "--model", "opus")
+
+        assert code == 2
+        assert "design-q (verdict)" in capsys.readouterr().err
+
+
+class TestStubAgents:
+    def test_each_stub_has_a_minimal_tool_list_description_prompt_and_model(self):
+        stubs = json.loads(plan.build_stub_agents(["architect"]))
+
+        assert stubs == {
+            "architect": {
+                "description": "Stand-in for the architect agent.",
+                "prompt": (
+                    "Do not use any tool. Reply with exactly this JSON and nothing else: "
+                    f"{plan.STUB_AGENT_REPLY}"
+                ),
+                "model": "haiku",
+                "tools": ["Read"],
+            }
+        }
+
+
+class TestJudgeCost:
+    """A judgement is charged whether or not it succeeds, and estimated when unreported."""
+
+    def _estimate(self, judge_usd: float = 0.4) -> estimate.RunEstimate:
+        return estimate.RunEstimate(
+            by_arm=(("baseline", 1.0), ("candidate", 1.0)),
+            total_trials_per_arm=2,
+            judge_usd=judge_usd,
+            arm_count=2,
+        )
+
+    def _result(self, **fields) -> outcome.TrialResult:
+        return outcome.TrialResult(
+            outcome=Outcome.PASS,
+            reported_cost_usd=0.01,
+            model_id=None,
+            model_id_note=None,
+            grader_messages=(),
+            error=None,
+            **fields,
+        )
+
+    def test_a_reported_judge_cost_is_charged(self):
+        result = self._result(judge_cost_usd=0.3, judged=True)
+
+        assert self._estimate().charged_judge_usd(result) == 0.3
+        assert self._estimate().total_charged_usd("baseline", result) == pytest.approx(0.31)
+
+    def test_a_judgement_that_reported_no_cost_is_charged_the_per_judgement_estimate(self):
+        result = self._result(judged=True)
+
+        assert self._estimate().charged_judge_usd(result) == pytest.approx(0.1)
+
+    def test_a_trial_no_judge_ran_for_is_charged_nothing_for_judging(self):
+        assert self._estimate().charged_judge_usd(self._result()) == 0.0
+
+    def test_arm_totals_sum_reported_judge_costs_and_estimate_the_unreported(self):
+        from _model_effort_support import _arm_run
+
+        arm_run = _arm_run(
+            "baseline",
+            [self._result(judge_cost_usd=0.3, judged=True), self._result(judged=True)],
+        )
+
+        totals = arm_totals.compute_arm_totals(arm_run, self._estimate())
+
+        assert totals.judge_cost_usd == 0.3
+        assert totals.unreported_trials_estimate_usd == pytest.approx(0.1)
+
+    def test_a_failed_judge_carries_the_cost_it_reported(self):
+        result = _result_event("no json here", total_cost_usd=0.07)
+
+        def run_process(argv, cwd, timeout, env):
+            return process_record.TrialProcessRecord(
+                exit_code=0, stdout=_stream(result), stderr="", timed_out=False
+            )
+
+        with pytest.raises(rubric_judge.JudgeError) as raised:
+            TestRubricJudge()._run(run_process)
+
+        assert raised.value.cost_usd == 0.07
+
+    def test_the_estimate_prices_one_judgement_per_trial_of_every_arm(self, tmp_path):
+        fixture = fixtures.ResolvedFixture(
+            stem="f", path=tmp_path, kind=fixtures.FixtureKind.DIRECTORY, expected_clean=False
+        )
+        judge = rubric_file.Judge(OPUS_JUDGE, "high", Path("r.md"), RUBRIC_TEXT, ("a",))
+        arms = [Arm("baseline", "haiku", "low"), Arm("candidate", "sonnet", "low")]
+
+        one = estimate.estimate_run(arms, "p", [fixture], 1, PRICING, judge=judge)
+        three = estimate.estimate_run(arms, "p", [fixture], 3, PRICING, judge=judge)
+
+        assert one.judge_usd > 0
+        assert three.judge_usd == pytest.approx(3 * one.judge_usd)
+        assert three.per_judgement_usd() == pytest.approx(one.judge_usd / 2)
+
+    def test_a_rubric_run_records_judge_costs_in_arm_totals_and_the_echo(
+        self, gworld, tmp_path, capsys
+    ):
+        stub = _stub(tmp_path)
+        stub.queue(
+            _answer_call("Use the queue."),
+            _judge_call(_met("commits", "grounded", "picks-queue")),
+            _answer_call("Use the queue."),
+            {"stdout": _stream(_result_event("not json", total_cost_usd=0.05)), "exit_code": 0},
+        )
+
+        _run(gworld, stub, "thinker", "--model", "opus")
+
+        written = gworld.written()
+        baseline, candidate = written["arms"]
+        assert baseline["totals"]["judge_cost_usd"] == JUDGE_COST
+        assert candidate["totals"]["judge_cost_usd"] == 0.05
+        assert candidate["fixtures"][0]["trials"][0]["outcome"] == "judge_error"
+        assert ", rubric judge $" in capsys.readouterr().err
+
+    def test_judge_spend_alone_can_cross_the_spend_limit(self, gworld, tmp_path, capsys):
+        stub = _stub(tmp_path)
+        expensive_judge = _result_event(
+            json.dumps({"criteria": _met("commits", "grounded", "picks-queue")}),
+            model_usage={OPUS_JUDGE: {}},
+            total_cost_usd=5.0,
+        )
+        stub.queue(
+            _answer_call("Use the queue.", total_cost_usd=0.0),
+            {"stdout": _stream(expensive_judge)},
+        )
+
+        code = _run(gworld, stub, "thinker", "--model", "opus", "--max-cost", "1")
+
+        written = gworld.written()
+        assert code == 1
+        assert written["abort_reason"] == "max-cost"
+        assert written["arms"][0]["totals"]["actual_cost_usd"] == 0.0
+        assert _trial_outcomes(written) == ["pass"]
+
+
+class TestTierChangeEligibility:
+    def _arm_runs(self, counts: dict[str, int]):
+        from _model_effort_support import _arm_run
+
+        return [
+            _arm_run(label, [TestJudgeCost()._result() for _ in range(count)])
+            for label, count in counts.items()
+        ]
+
+    RUBRIC = grader_config.AgentGrading(GraderKind.RUBRIC)
+
+    def test_ten_completed_trials_per_arm_per_fixture_make_rubric_evidence_eligible(self):
+        runs = self._arm_runs({"baseline": 10, "candidate": 10})
+
+        assert artifact.tier_change_eligible(runs, self.RUBRIC) is True
+
+    def test_an_arm_short_of_ten_completed_trials_is_not_eligible(self):
+        runs = self._arm_runs({"baseline": 10, "candidate": 9})
+
+        assert artifact.tier_change_eligible(runs, self.RUBRIC) is False
+
+    def test_a_planned_fixture_with_no_completed_trial_is_not_eligible(self):
+        runs = self._arm_runs({"baseline": 10, "candidate": 10})
+        stem = runs[0].fixture_trials[0].stem
+
+        assert artifact.tier_change_eligible(runs, self.RUBRIC, [stem, "never-ran"]) is False
+
+    def test_deterministic_graders_are_eligible_with_any_completed_trials(self):
+        runs = self._arm_runs({"baseline": 1, "candidate": 1})
+
+        assert artifact.tier_change_eligible(runs, grader_config.DEFAULT_GRADING) is True
+
+    def test_the_rubric_run_artifact_records_ineligible_with_one_trial(self, gworld, tmp_path):
+        stub = _stub(tmp_path)
+        stub.queue(
+            _answer_call("Use the queue."),
+            _judge_call(_met("commits", "grounded", "picks-queue")),
+            _answer_call("Use the queue."),
+            _judge_call(_met("commits", "grounded", "picks-queue")),
+        )
+
+        _run(gworld, stub, "thinker", "--model", "opus")
+
+        assert gworld.written()["tier_change_eligible"] is False
+
+
+class TestJudgeSeesTheFixture:
+    def test_the_prompt_includes_the_fixtures_files_and_not_the_expected_entry(
+        self, gworld, tmp_path
+    ):
+        stub = _stub(tmp_path)
+        stub.queue(_answer_call("Use the queue."), _judge_call(_met("commits")))
+        expected = (gworld.deps.eval_paths.expected_dir / "design-q.json").read_text()
+
+        _run(gworld, stub, "thinker", "--model", "opus")
+
+        prompt = _flag_value(stub.calls[1]["argv"], "-p")
+        assert "## Provided material" in prompt
+        assert "### brief.md" in prompt and "\nbrief\n" in prompt
+        assert "Picks the queue." in prompt
+        assert expected not in prompt and '"rubricPoints"' not in prompt
+
+    def test_material_is_capped(self, tmp_path):
+        (tmp_path / "big.txt").write_text("x" * 500)
+
+        material = rubric_judge.fixture_material(tmp_path, max_chars=100)
+
+        assert material.endswith(rubric_judge.MATERIAL_TRUNCATED_NOTE)
+        assert len(material) < 200
+
+    def test_binary_files_and_git_internals_are_left_out(self, tmp_path):
+        (tmp_path / "blob.bin").write_bytes(b"\x00\xff\x00")
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "HEAD").write_text("ref")
+        (tmp_path / "a.md").write_text("text")
+
+        material = rubric_judge.fixture_material(tmp_path)
+
+        assert "### a.md" in material
+        assert "blob.bin" not in material and "HEAD" not in material
+
+
+class TestConfigEcho:
+    def test_a_rubric_run_echoes_its_judge_and_the_ten_trial_default(
+        self, gworld, tmp_path, capsys
+    ):
+        stub = _stub(tmp_path)
+
+        model_effort_ab.main(
+            [
+                "thinker",
+                "--model",
+                "opus",
+                "--yes",
+                "--max-cost",
+                "0.000001",
+                "--claude-bin",
+                str(stub.path),
+                "--runs-dir",
+                str(gworld.runs_dir),
+            ],
+            deps=gworld.deps,
+        )
+
+        err = capsys.readouterr().err
+        assert f"Grader: rubric (judge {OPUS_JUDGE}, effort high)" in err
+        assert "Trials per arm per fixture: 10 (rubric-judged default)" in err
+        assert ", rubric judge $" in err
+        assert stub.calls == []

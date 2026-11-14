@@ -1,6 +1,6 @@
 {
   "fixture": "srv-scope-drift-fake-red",
-  "description": "Discount-code step (hard: both scenarios have passing tests) whose rejection message 'Coupon has expired' contradicts the specified 'Discount code expired', whose diff edits the undeclared src/lib/logger.ts, and whose RED output is a module-not-found error rather than a behavioral failure; a correct review fails the step and flags all three.",
+  "description": "Discount-code step (hard: both scenarios have passing tests) whose rejection message 'Coupon has expired' contradicts the specified 'Discount code expired', whose diff edits the undeclared src/lib/logger.ts, and whose only falsification evidence is the stubbed implementation failing with 'Cannot find module', so the tests were never shown to fail for a behavioral reason; a correct review fails the step and flags all three.",
   "applicableAgents": [
     "spec-reviewer"
   ],
@@ -54,7 +54,10 @@
             "no-real-red",
             "wrong-failure-reason",
             "module not found",
-            "RED phase"
+            "RED phase",
+            "behavioral",
+            "falsif",
+            "never failed for"
           ]
         }
       ],

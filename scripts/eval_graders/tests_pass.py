@@ -18,7 +18,4 @@ from .integration import grade_integration
 
 def grade_tests_pass(spec: dict, actual: dict) -> list[str]:
     """Return a list of check-failure strings; empty list == PASS."""
-    return [
-        message.replace("integration:", "tests_pass:", 1)
-        for message in grade_integration(spec, actual)
-    ]
+    return grade_integration(spec, actual, label="tests_pass")

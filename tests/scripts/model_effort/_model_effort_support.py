@@ -209,6 +209,7 @@ calls.append({
         s.name for s in signal.pthread_sigmask(signal.SIG_BLOCK, [])
     ),
     "observed": observed,
+    "git_dirs": sorted(str(p.relative_to(cwd)) for p in cwd.rglob(".git")),
 })
 RECORD.write_text(json.dumps(calls))
 if BEHAVIOR.get("tamper"):

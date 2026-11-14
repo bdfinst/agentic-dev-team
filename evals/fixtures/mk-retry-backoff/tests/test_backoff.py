@@ -1,9 +1,15 @@
+import pytest
 from lib.backoff import delay_for, schedule
 
 
-def test_first_retry_waits_the_base_delay():
-    assert delay_for(1) == 0.5
+def test_later_retries_wait_longer():
+    assert delay_for(3) > delay_for(2)
 
 
-def test_schedule_has_one_delay_per_attempt():
-    assert len(schedule(3)) == 3
+def test_attempt_zero_is_rejected():
+    with pytest.raises(ValueError):
+        delay_for(0)
+
+
+def test_schedule_of_no_retries_is_empty():
+    assert schedule(0) == []

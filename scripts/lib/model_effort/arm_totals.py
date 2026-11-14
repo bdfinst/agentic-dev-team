@@ -25,7 +25,9 @@ class ArmTotals:
     expect no findings; a timeout or CLI error says nothing about the answer.
     `actual_cost_usd` sums the reported costs, so it is a lower bound when any
     trial reported none; `unreported_trials_estimate_usd` is what the spend limit
-    charged for those trials in their place.
+    charged for those trials in their place, and for rubric judgements that
+    reported no cost. `judge_cost_usd` sums what the judge reported, failed
+    judgements included.
     """
 
     label: str
@@ -56,9 +58,18 @@ def compute_arm_totals(arm_run: ArmRun, run_estimate: RunEstimate) -> ArmTotals:
             result.reported_cost_usd for result in arm_run.results
         ),
         unreported_trials_estimate_usd=total_cost_usd(
-            run_estimate.charged_usd(label, result)
-            for result in arm_run.results
-            if not result.cost_reported
+            [
+                *(
+                    run_estimate.charged_usd(label, result)
+                    for result in arm_run.results
+                    if not result.cost_reported
+                ),
+                *(
+                    run_estimate.charged_judge_usd(result)
+                    for result in arm_run.results
+                    if result.judged and result.judge_cost_usd is None
+                ),
+            ]
         ),
         estimated_cost_usd=run_estimate.cost_usd_for_arm(label),
         judge_cost_usd=total_cost_usd(

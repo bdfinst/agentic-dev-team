@@ -1,6 +1,6 @@
 {
   "fixture": "mk-retry-backoff",
-  "description": "Hard: five survivors in a capped exponential backoff, including a cap reached only at the last allowed attempt and an exhaustion guard; the report also lists one equivalent mutant the agent must exclude rather than chase. Passes when the tests pass and every killable mutant is killed.",
+  "description": "Hard: five survivors in a capped exponential backoff, including a 30-second cap that applies only at attempts 7 and 8 (0.5 * 2**6 = 32 and 0.5 * 2**7 = 64) and an exhaustion guard past attempt 8; the baseline tests never call attempt 1, so the attempt-floor mutant survives too; the report also lists one equivalent mutant the agent must exclude rather than chase. Passes when the tests pass and every killable mutant is killed.",
   "applicableAgents": [
     "mutation-kill"
   ],

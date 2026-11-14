@@ -162,6 +162,7 @@ def finish_run(
         plan.profile,
         run.abort_reason,
         plan.grading,
+        fixture_stems=[fixture.stem for fixture in plan.fixtures],
     )
     save_exit_code = save_artifact(
         plan.artifact_path, artifact_store.render_artifact(data), console

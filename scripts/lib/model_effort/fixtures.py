@@ -11,9 +11,10 @@ import json
 import shutil
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from .errors import UsageError
+from .grader_config import AGENT_BLOCK_DEFAULT_GRADER, entry_grader
 
 EXPECTED_STATUS_CLEAN = "pass"
 
@@ -30,7 +31,8 @@ class ResolvedFixture:
     `task` replaces the default review prompt; `{fixture}` in it is the staged
     fixture's name. `test_commands` run in the sandbox after the agent finishes,
     once `protected_paths` are restored from the pristine fixture. `rubric_points`
-    are the fixture's (id, requirement) pairs for the rubric judge.
+    are the fixture's (id, requirement) pairs for the rubric judge. `grader` is
+    the `scripts/eval_graders` grader the expected entry names, default included.
     """
 
     stem: str
@@ -41,6 +43,7 @@ class ResolvedFixture:
     test_commands: tuple[str, ...] = ()
     protected_paths: tuple[str, ...] = ()
     rubric_points: tuple[tuple[str, str], ...] = ()
+    grader: str = AGENT_BLOCK_DEFAULT_GRADER
 
 
 def agent_expectation(expected_entry: dict, agent: str) -> dict:
@@ -131,6 +134,45 @@ def resolve_fixtures(
     ]
 
 
+def checked_protected_paths(
+    stem: str, kind: FixtureKind, declared: object
+) -> tuple[str, ...]:
+    """The fixture's `protectedPaths`, each a relative path that stays inside the fixture.
+
+    Raises:
+        UsageError: the value is not a list of strings; an entry is empty,
+            absolute or climbs out with `..`; or a file fixture declares any.
+    """
+    if declared is None:
+        return ()
+    if not isinstance(declared, list) or not all(
+        isinstance(item, str) for item in declared
+    ):
+        raise UsageError(
+            f"fixture {stem}: `protectedPaths` must be a list of relative path strings"
+        )
+    if declared and kind is FixtureKind.FILE:
+        raise UsageError(
+            f"fixture {stem} is a single file, so it has nothing to protect: "
+            "drop `protectedPaths` or make the fixture a directory"
+        )
+    for relative in declared:
+        posix = PurePosixPath(relative)
+        if (
+            not relative.strip()
+            or posix.is_absolute()
+            or PureWindowsPath(relative).is_absolute()
+            or "\\" in relative
+            or ".." in posix.parts
+            or posix.parts in ((), (".",))
+        ):
+            raise UsageError(
+                f"fixture {stem}: protected path {relative!r} must be a relative "
+                "path inside the fixture, with no `..`"
+            )
+    return tuple(declared)
+
+
 def _resolved(
     stem: str, located: tuple[Path, FixtureKind], entry: dict, agent: str
 ) -> ResolvedFixture:
@@ -143,11 +185,14 @@ def _resolved(
         expected_clean=is_expected_clean(entry, agent),
         task=task if isinstance(task, str) and task.strip() else None,
         test_commands=tuple(expectation.get("testCommands", ())),
-        protected_paths=tuple(expectation.get("protectedPaths", ())),
+        protected_paths=checked_protected_paths(
+            stem, located[1], expectation.get("protectedPaths")
+        ),
         rubric_points=tuple(
             (point["id"], point["requirement"])
             for point in expectation.get("rubricPoints", ())
         ),
+        grader=entry_grader(expectation),
     )
 
 

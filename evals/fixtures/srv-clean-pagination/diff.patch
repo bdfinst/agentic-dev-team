@@ -29,11 +29,10 @@ new file mode 100644
 index 0000000..f0a1b2c
 --- /dev/null
 +++ b/tests/test_history_pagination.py
-@@ -0,0 +1,37 @@
+@@ -0,0 +1,36 @@
 +from datetime import date
 +
 +import pytest
-+
 +from billing.history import list_invoices
 +from tests.fakes import FakeInvoiceRepo, invoice
 +

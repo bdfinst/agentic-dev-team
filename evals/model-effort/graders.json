@@ -1,79 +1,21 @@
 {
-  "_comment": "How scripts/model_effort_ab.py grades each agent. An agent not listed here uses the expected-findings grader: its evals/expected entries, graded by scripts/eval_grade.py. `sandbox: true` lets a write-capable agent run with its write tools inside the trial's temp copy of the fixture. A rubric agent's judge is pinned one tier above the agent (opus agents are judged by opus); `rubric` is relative to this file. The decision log cites the grader per row from the run artifact's `grader` field, which comes from here.",
+  "_comment": "How scripts/model_effort_ab.py grades each agent. An agent not listed here uses the expected-findings grader: its evals/expected entries (verdict or finding_ids), graded by scripts/eval_grade.py. `sandbox: true` lets a write-capable agent run with its write tools inside the trial's temp copy of the fixture, under Claude Code's Bash sandbox. A rubric agent is judged by the top-level `judge` unless its entry pins its own; the judge sits one tier above the agent (opus agents are judged by opus). `rubric` is relative to this file. The decision log cites the grader per row from the run artifact's `grader` field, which comes from here.",
+  "judge": {"model": "claude-opus-5-5", "effort": "high"},
   "agents": {
-    "plan-review-acceptance": { "grader": "expected-findings" },
-    "plan-review-design": { "grader": "expected-findings" },
-    "plan-review-parallelization": { "grader": "expected-findings" },
-    "plan-review-strategic": { "grader": "expected-findings" },
-    "plan-review-ux": { "grader": "expected-findings" },
-    "gherkin-quality-critic": { "grader": "expected-findings" },
-    "spec-reviewer": { "grader": "expected-findings" },
-    "software-engineer": { "grader": "tests-pass", "sandbox": true },
-    "mutation-kill": { "grader": "tests-pass", "sandbox": true },
-    "orchestrator": { "grader": "dispatch-set" },
-    "quality-reviewer": { "grader": "dispatch-set", "sandbox": true },
-    "acceptance-examiner": {
-      "grader": "rubric",
-      "sandbox": true,
-      "judge": { "model": "claude-opus-5-5", "effort": "high" },
-      "rubric": "rubrics/acceptance-examiner.md"
-    },
-    "adr-author": {
-      "grader": "rubric",
-      "sandbox": true,
-      "judge": { "model": "claude-opus-5-5", "effort": "high" },
-      "rubric": "rubrics/adr-author.md"
-    },
-    "architect": {
-      "grader": "rubric",
-      "sandbox": true,
-      "judge": { "model": "claude-opus-5-5", "effort": "high" },
-      "rubric": "rubrics/architect.md"
-    },
-    "autoship-batch-proposer": {
-      "grader": "rubric",
-      "judge": { "model": "claude-sonnet-5-5", "effort": "high" },
-      "rubric": "rubrics/autoship-batch-proposer.md"
-    },
-    "codebase-recon": {
-      "grader": "rubric",
-      "sandbox": true,
-      "judge": { "model": "claude-opus-5-5", "effort": "high" },
-      "rubric": "rubrics/codebase-recon.md"
-    },
-    "platform-engineer": {
-      "grader": "rubric",
-      "sandbox": true,
-      "judge": { "model": "claude-opus-5-5", "effort": "high" },
-      "rubric": "rubrics/platform-engineer.md"
-    },
-    "product-manager": {
-      "grader": "rubric",
-      "judge": { "model": "claude-opus-5-5", "effort": "high" },
-      "rubric": "rubrics/product-manager.md"
-    },
-    "qa-engineer": {
-      "grader": "rubric",
-      "sandbox": true,
-      "judge": { "model": "claude-opus-5-5", "effort": "high" },
-      "rubric": "rubrics/qa-engineer.md"
-    },
-    "security-engineer": {
-      "grader": "rubric",
-      "sandbox": true,
-      "judge": { "model": "claude-opus-5-5", "effort": "high" },
-      "rubric": "rubrics/security-engineer.md"
-    },
-    "tech-writer": {
-      "grader": "rubric",
-      "sandbox": true,
-      "judge": { "model": "claude-opus-5-5", "effort": "high" },
-      "rubric": "rubrics/tech-writer.md"
-    },
-    "ui-ux-designer": {
-      "grader": "rubric",
-      "judge": { "model": "claude-opus-5-5", "effort": "high" },
-      "rubric": "rubrics/ui-ux-designer.md"
-    }
+    "software-engineer": {"grader": "tests-pass", "sandbox": true},
+    "mutation-kill": {"grader": "tests-pass", "sandbox": true},
+    "orchestrator": {"grader": "dispatch-set"},
+    "quality-reviewer": {"grader": "dispatch-set", "sandbox": true},
+    "acceptance-examiner": {"grader": "rubric", "sandbox": true, "rubric": "rubrics/acceptance-examiner.md"},
+    "adr-author": {"grader": "rubric", "sandbox": true, "rubric": "rubrics/adr-author.md"},
+    "architect": {"grader": "rubric", "sandbox": true, "rubric": "rubrics/architect.md"},
+    "autoship-batch-proposer": {"grader": "rubric", "judge": {"model": "claude-sonnet-5-5", "effort": "high"}, "rubric": "rubrics/autoship-batch-proposer.md"},
+    "codebase-recon": {"grader": "rubric", "sandbox": true, "rubric": "rubrics/codebase-recon.md"},
+    "platform-engineer": {"grader": "rubric", "sandbox": true, "rubric": "rubrics/platform-engineer.md"},
+    "product-manager": {"grader": "rubric", "rubric": "rubrics/product-manager.md"},
+    "qa-engineer": {"grader": "rubric", "sandbox": true, "rubric": "rubrics/qa-engineer.md"},
+    "security-engineer": {"grader": "rubric", "sandbox": true, "rubric": "rubrics/security-engineer.md"},
+    "tech-writer": {"grader": "rubric", "sandbox": true, "rubric": "rubrics/tech-writer.md"},
+    "ui-ux-designer": {"grader": "rubric", "rubric": "rubrics/ui-ux-designer.md"}
   }
 }

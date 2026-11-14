@@ -1,6 +1,6 @@
 {
   "fixture": "orch-research-csv-order",
-  "description": "Hard: a CSV column-order request with no auth, crypto, secrets or new API surface; Phase 1 research dispatches the architect and data-flow tracer but must not pull in the security engineer, and nothing implements yet.",
+  "description": "Hard: a CSV column-order request with no auth, crypto, secrets or new API surface; Phase 1 research dispatches codebase-recon (no RECON artifact exists), the architect and the data-flow tracer but must not pull in the security engineer, and nothing implements yet.",
   "applicableAgents": [
     "orchestrator"
   ],
@@ -11,7 +11,8 @@
       "dispatch": {
         "include": [
           "architect",
-          "data-flow-tracer"
+          "data-flow-tracer",
+          "codebase-recon"
         ],
         "exclude": [
           "security-engineer",

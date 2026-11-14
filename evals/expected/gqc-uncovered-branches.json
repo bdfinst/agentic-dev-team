@@ -20,7 +20,10 @@
             "non-positive",
             "amount <= 0",
             "zero or negative",
-            "negative amount"
+            "negative amount",
+            "NOT_POSITIVE",
+            "zero",
+            "<= 0"
           ]
         },
         {

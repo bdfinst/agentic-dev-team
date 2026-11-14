@@ -10,7 +10,6 @@ canary:
   script:
     - ./deploy --image pricing:$CI_COMMIT_SHA --traffic 5
     - sleep 300
-    # Gate: canary pods still alive after 5 minutes.
     - kubectl rollout status deploy/pricing-canary --timeout=60s
 
 promote:

@@ -57,6 +57,8 @@ class TrialResult:
     cost_reported: bool = True
     # What the rubric judge reported for grading this trial; None when no judge ran or it reported none.
     judge_cost_usd: float | None = None
+    # True when a rubric judge ran for this trial, whether or not it reported a cost or a verdict.
+    judged: bool = False
 
 
 def resolve_outcome(
@@ -67,6 +69,7 @@ def resolve_outcome(
     *,
     snapshot_dir: Path | None = None,
     requires_agent_json: bool = True,
+    fail_on_permission_denials: bool = False,
 ) -> TrialResult:
     """Apply the outcome precedence; `grader` is called only if all else passed.
 
@@ -74,10 +77,17 @@ def resolve_outcome(
     in the recorded error, as the trial's staging directory is. With
     `requires_agent_json` false, an answer with no JSON object is still graded
     (the grader gets an empty dict), for graders that judge the sandbox or the
-    answer's prose instead of its JSON.
+    answer's prose instead of its JSON. With `fail_on_permission_denials`, a
+    trial the CLI denied any tool call is a tool violation, so a sandboxed
+    trial's denials surface instead of passing unnoticed.
     """
     outcome, error, messages = _decide(
-        record, parsed, enabled_tools, grader, requires_agent_json
+        record,
+        parsed,
+        enabled_tools,
+        grader,
+        requires_agent_json,
+        fail_on_permission_denials,
     )
     return TrialResult(
         outcome=outcome,
@@ -101,6 +111,7 @@ def _decide(
     enabled_tools: Collection[str],
     grader: Grader,
     requires_agent_json: bool,
+    fail_on_permission_denials: bool = False,
 ) -> tuple[Outcome, str | None, list[str]]:
     if record.timed_out:
         return Outcome.TIMEOUT, _timeout_error(record), []
@@ -112,6 +123,12 @@ def _decide(
         return (
             Outcome.TOOL_VIOLATION,
             f"tools outside the enabled set: {', '.join(violations)}",
+            [],
+        )
+    if fail_on_permission_denials and parsed.permission_denial_count:
+        return (
+            Outcome.TOOL_VIOLATION,
+            f"the CLI denied {parsed.permission_denial_count} tool call(s) in the sandbox",
             [],
         )
     agent_json = extract_agent_json(parsed.result_text)

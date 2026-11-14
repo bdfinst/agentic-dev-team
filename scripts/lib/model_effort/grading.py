@@ -1,4 +1,4 @@
-"""Grade one trial's parsed agent output against its `evals/expected` entry.
+"""Grade one trial's recorded output against its `evals/expected` entry.
 
 Delegates to the repo's deterministic grader (`scripts/eval_grade.py`) so the
 harness and the CI agent-eval gate apply identical rules.
@@ -22,10 +22,10 @@ AGENT_ANSWER_ERRORS = (TypeError, KeyError, AttributeError, ValueError)
 def grade_trial(
     agent: str,
     stem: str,
-    parsed: dict,
+    actual: dict,
     eval_paths: EvalPaths,
 ) -> tuple[bool, list[str]]:
-    """Grade `parsed` for `agent` on fixture `stem`; return (passed, failure messages).
+    """Grade the recorded output `actual` for `agent` on fixture `stem`; return (passed, failure messages).
 
     Only the one expected file is copied into the grading dir, so the grader
     never sees other fixtures' entries. Agent JSON the grader cannot handle fails
@@ -35,7 +35,7 @@ def grade_trial(
         shutil.copy2(eval_paths.expected_dir / f"{stem}.json", grading_dir)
         try:
             results = external.grade_against_expected(
-                Path(grading_dir), stem, agent, parsed
+                Path(grading_dir), stem, agent, actual
             )
         except AGENT_ANSWER_ERRORS as error:
             return False, [f"grader raised {type(error).__name__}: {error}"]

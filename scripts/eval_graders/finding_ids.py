@@ -19,20 +19,12 @@ Spec fields (one agent block of an `evals/expected` entry)::
 
 from __future__ import annotations
 
-from ._common import mentions
-
-DEFAULT_STATUS_FIELD = "status"
+from ._common import check_status, mentions
 
 
 def grade_finding_ids(spec: dict, actual: dict) -> list[str]:
     """Return a list of check-failure strings; empty list == PASS."""
-    fails: list[str] = []
-    status_field = spec.get("statusField", DEFAULT_STATUS_FIELD)
-    if "expectedStatus" in spec and actual.get(status_field) != spec["expectedStatus"]:
-        fails.append(
-            f"{status_field}: expected {spec['expectedStatus']!r}, "
-            f"got {actual.get(status_field)!r}"
-        )
+    fails = check_status(spec, actual)
 
     findings = collect_findings(actual, spec.get("findingFields", []))
     for expected in spec.get("expectedFindingIds", []):

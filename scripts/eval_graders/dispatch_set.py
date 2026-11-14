@@ -11,7 +11,8 @@ Spec fields::
     dispatch.include   agents that must be dispatched
     dispatch.exclude   agents that must not be dispatched
     dispatch.exact     true: the dispatched set must equal `include`
-    statusField / expectedStatus   optional verdict check on the agent's JSON
+    statusField / expectedStatus   optional verdict check on the agent's JSON; an
+                       answer with no JSON fails it
 
 Recorded ``actual`` shape::
 
@@ -20,7 +21,7 @@ Recorded ``actual`` shape::
 
 from __future__ import annotations
 
-DEFAULT_STATUS_FIELD = "status"
+from ._common import check_status
 
 
 def bare_agent_name(name: str) -> str:
@@ -45,11 +46,6 @@ def grade_dispatch_set(spec: dict, actual: dict) -> list[str]:
         if extra:
             fails.append(f"dispatch: unexpected dispatch of {', '.join(extra)}")
 
-    if "expectedStatus" in spec:
-        field = spec.get("statusField", DEFAULT_STATUS_FIELD)
-        output = actual.get("output") or {}
-        if output.get(field) != spec["expectedStatus"]:
-            fails.append(
-                f"{field}: expected {spec['expectedStatus']!r}, got {output.get(field)!r}"
-            )
+    output = actual.get("output")
+    fails.extend(check_status(spec, output if isinstance(output, dict) else None))
     return fails

@@ -29,13 +29,15 @@ Recorded ``actual`` shape::
 from __future__ import annotations
 
 
-def grade_integration(spec: dict, actual: dict) -> list[str]:
-    """Return a list of check-failure strings; empty list == PASS."""
+def grade_integration(
+    spec: dict, actual: dict, *, label: str = "integration"
+) -> list[str]:
+    """Return a list of check-failure strings, each prefixed `label:`; empty list == PASS."""
     fails: list[str] = []
 
     expected_cmds = spec.get("testCommands", []) or []
     if not expected_cmds:
-        fails.append("integration: fixture declares no testCommands")
+        fails.append(f"{label}: fixture declares no testCommands")
         return fails
 
     results = {}
@@ -46,12 +48,12 @@ def grade_integration(spec: dict, actual: dict) -> list[str]:
     for cmd in expected_cmds:
         r = results.get(cmd)
         if r is None:
-            fails.append(f"integration: no result recorded for command {cmd!r}")
+            fails.append(f"{label}: no result recorded for command {cmd!r}")
             continue
         code = r.get("exit_code")
         if code != 0:
             stderr = str(r.get("stderr_first_line", "")).strip()
             tail = f" — {stderr}" if stderr else ""
-            fails.append(f"integration: command {cmd!r} exited {code}{tail}")
+            fails.append(f"{label}: command {cmd!r} exited {code}{tail}")
 
     return fails

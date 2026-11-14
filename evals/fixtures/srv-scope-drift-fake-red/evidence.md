@@ -1,6 +1,6 @@
 # Verification evidence — Step 1.1
 
-## RED
+## RED (falsification: implementation stubbed out by moving `src/checkout/discount.ts` aside)
 
 ```
 $ npx vitest run test/discount.test.ts

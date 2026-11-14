@@ -19,9 +19,10 @@ import tempfile
 import time
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from . import interrupts, invocation
+from .check_jail import CheckJail
 from .fixtures import copy_fixture
 from .process_record import TrialProcessRecord
 from .temp_tree import remove_tree
@@ -30,6 +31,7 @@ DEFAULT_TRIAL_TIMEOUT_SECONDS = 600
 # Shell convention for "command not found or not executable".
 COMMAND_NOT_RUNNABLE_EXIT_CODE = 127
 TEMP_DIR_PREFIX = "model-effort-ab-"
+PRIVATE_DIR_PREFIX = "model-effort-trial-private-"
 OUTPUT_ENCODING = "utf-8"
 KILL_COLLECT_TIMEOUT_SECONDS = 5
 # How often the wait on a process looks for an interrupt: the longest an operator
@@ -212,15 +214,19 @@ def run_trial(
 ) -> TrialProcessRecord:
     """Run one trial of `config` against a fresh copy of `fixture`.
 
-    A sandboxed trial's copy is first made a git repo with one commit. When the
-    config has test commands they run in the copy after the agent finishes, and
-    their results ride on the returned record.
+    A sandboxed trial's copy is first made a git repo with one commit, and the
+    trial reads its own copy of the knowledge directory, so a write to it cannot
+    reach a later trial. When the config has test commands they run in the copy
+    after the agent finishes, jailed when the config has a jail, with no
+    credential in their environment; their results ride on the returned record.
     """
-    argv = invocation.build_argv(
-        config, invocation.build_user_prompt(fixture.name, config.task)
-    )
-    env = invocation.build_trial_env(os.environ)
-    with staged_fixture(fixture) as staging_dir:
+    with staged_fixture(fixture) as staging_dir, _private_dirs() as private:
+        if config.sandbox:
+            config = _with_own_knowledge(config, private / "plugin")
+        argv = invocation.build_argv(
+            config, invocation.build_user_prompt(fixture.name, config.task)
+        )
+        env = invocation.build_trial_env(os.environ, _fresh_dir(private / "home"))
         work_dir = staging_dir / fixture.name if fixture.is_dir() else staging_dir
         if config.sandbox:
             init_sandbox_repo(work_dir)
@@ -228,11 +234,50 @@ def run_trial(
         if not config.test_commands or record.timed_out:
             return record
         restore_protected_paths(fixture, work_dir, config.protected_paths)
+        check_env = invocation.build_check_env(
+            os.environ, _fresh_dir(private / "check-home")
+        )
+        check_temp = _fresh_dir(private / "check-tmp")
         results = tuple(
-            run_check_command(command, work_dir, trial_timeout_seconds, env)
+            run_check_command(
+                command,
+                work_dir,
+                trial_timeout_seconds,
+                {**check_env, "TMPDIR": str(check_temp)},
+                jail=config.check_jail,
+                jail_temp_dir=check_temp,
+            )
             for command in config.test_commands
         )
         return dataclasses.replace(record, check_results=results)
+
+
+@contextmanager
+def _private_dirs() -> Iterator[Path]:
+    """A temp dir outside the staging dir for the trial's HOME, knowledge copy and check temp."""
+    root = Path(tempfile.mkdtemp(prefix=PRIVATE_DIR_PREFIX))
+    try:
+        yield root
+    finally:
+        remove_tree(root)
+
+
+def _fresh_dir(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _with_own_knowledge(
+    config: invocation.TrialConfig, plugin_root: Path
+) -> invocation.TrialConfig:
+    knowledge_dir = plugin_root / config.eval_paths.knowledge_dir.name
+    shutil.copytree(config.eval_paths.knowledge_dir, knowledge_dir, symlinks=True)
+    return dataclasses.replace(
+        config,
+        eval_paths=dataclasses.replace(
+            config.eval_paths, plugin_root=plugin_root, knowledge_dir=knowledge_dir
+        ),
+    )
 
 
 SANDBOX_GIT_IDENTITY = ("-c", "user.name=model-effort-ab", "-c", "user.email=ab@example.com")
@@ -259,29 +304,87 @@ def init_sandbox_repo(work_dir: Path) -> None:
         )
 
 
+class UnsafeProtectedPathError(RuntimeError):
+    """A protected path would resolve outside the trial's working copy."""
+
+
 def restore_protected_paths(
     pristine_fixture: Path, work_dir: Path, protected_paths: tuple[str, ...]
 ) -> None:
-    """Put each protected path back as the pristine fixture has it, so the agent cannot change its own grader."""
+    """Put each protected path back as the pristine fixture has it, so the agent cannot change its own grader.
+
+    The agent may have replaced any part of a path with a symlink. Every ancestor
+    is walked from `work_dir` down: a symlink or file in an ancestor's place is
+    removed and a real directory made, and each step is checked to resolve inside
+    `work_dir` before anything is removed or copied. A symlink is removed, never
+    followed, so nothing outside `work_dir` is touched.
+
+    Raises:
+        UnsafeProtectedPathError: a path is absolute or climbs out with `..`
+            (fixture loading refuses those first), or a step resolves outside
+            `work_dir`.
+    """
+    root = work_dir.resolve()
     for relative in protected_paths:
+        parts = PurePosixPath(relative).parts
+        if not parts or PurePosixPath(relative).is_absolute() or ".." in parts:
+            raise UnsafeProtectedPathError(f"protected path {relative!r} is not inside the fixture")
+        parent = root
+        for part in parts[:-1]:
+            parent = _real_dir(parent, part, root)
+        target = parent / parts[-1]
+        _assert_inside(target.parent, root)
+        _remove_entry(target)
         source = pristine_fixture / relative
-        target = work_dir / relative
-        if target.is_dir() and not target.is_symlink():
-            shutil.rmtree(target)
-        elif target.exists() or target.is_symlink():
-            target.unlink()
-        if source.is_dir():
+        if source.is_dir() and not source.is_symlink():
             shutil.copytree(source, target, symlinks=True)
-        elif source.exists():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+        elif source.is_file() or source.is_symlink():
+            shutil.copy2(source, target, follow_symlinks=False)
+
+
+def _real_dir(parent: Path, name: str, root: Path) -> Path:
+    """`parent / name` as a real directory inside `root`, replacing a symlink or file there."""
+    _assert_inside(parent, root)
+    entry = parent / name
+    if entry.is_symlink() or (entry.exists() and not entry.is_dir()):
+        entry.unlink()
+    if not entry.exists():
+        entry.mkdir()
+    _assert_inside(entry, root)
+    return entry
+
+
+def _remove_entry(target: Path) -> None:
+    if target.is_symlink() or target.is_file():
+        target.unlink()
+    elif target.is_dir():
+        shutil.rmtree(target)
+    elif target.exists():
+        target.unlink()
+
+
+def _assert_inside(path: Path, root: Path) -> None:
+    if not path.resolve().is_relative_to(root):
+        raise UnsafeProtectedPathError(f"{path} resolves outside the working copy {root}")
 
 
 def run_check_command(
-    command: str, work_dir: Path, timeout_seconds: float, env: dict[str, str]
+    command: str,
+    work_dir: Path,
+    timeout_seconds: float,
+    env: dict[str, str] | None,
+    *,
+    jail: CheckJail | None = None,
+    jail_temp_dir: Path | None = None,
 ) -> dict:
-    """Run one test command in `work_dir`; `{python}` is this interpreter."""
+    """Run one test command in `work_dir`; `{python}` is this interpreter.
+
+    With `jail` the command may write only to `work_dir` and `jail_temp_dir`
+    (default: `work_dir`) and has no network.
+    """
     argv = shlex.split(command.replace(PYTHON_PLACEHOLDER, shlex.quote(sys.executable)))
+    if jail is not None:
+        argv = jail.wrap(argv, work_dir, jail_temp_dir or work_dir)
     record = run_cli_process(argv, work_dir, timeout_seconds, env)
     return {
         "command": command,

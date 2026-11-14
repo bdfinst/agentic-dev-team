@@ -28,13 +28,13 @@ index 0000000..c4d5e6f
 --- /dev/null
 +++ b/tests/test_documents_get.py
 @@ -0,0 +1,18 @@
-+from datetime import datetime, timezone
++from datetime import UTC, datetime
 +
 +from docs_api.store import Document
 +
 +
 +def test_active_document_is_returned(client, seed):
-+    seed(Document("D-1", "Q3 report", datetime(2026, 11, 1, tzinfo=timezone.utc)))
++    seed(Document("D-1", "Q3 report", datetime(2026, 11, 1, tzinfo=UTC)))
 +    resp = client.get("/documents/D-1")
 +    assert resp.status_code == 200
 +    assert resp.json["title"] == "Q3 report"

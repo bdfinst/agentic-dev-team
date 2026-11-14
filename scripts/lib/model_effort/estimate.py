@@ -23,8 +23,8 @@ from .arm import Arm
 from .cost import total_cost_usd
 from .errors import UsageError
 from .fixtures import ResolvedFixture
-from .grader_config import Judge
-from .rubric_judge import JUDGE_SYSTEM_PROMPT
+from .rubric_file import Judge
+from .rubric_judge import JUDGE_SYSTEM_PROMPT, fixture_material
 
 if TYPE_CHECKING:
     from .outcome import TrialResult
@@ -57,6 +57,8 @@ class RunEstimate:
     total_trials_per_arm: int
     # The rubric judge's estimated dollars over every trial of every arm; 0.0 without a judge.
     judge_usd: float = 0.0
+    # How many arms share the judge estimate, to price one judgement.
+    arm_count: int = 2
 
     @property
     def estimated_total_usd(self) -> float:
@@ -79,6 +81,24 @@ class RunEstimate:
             if result.cost_reported
             else self.per_trial_usd(label)
         )
+
+    def per_judgement_usd(self) -> float:
+        """The judge estimate averaged over every planned judgement."""
+        return self.judge_usd / (self.total_trials_per_arm * self.arm_count)
+
+    def charged_judge_usd(self, result: TrialResult) -> float:
+        """What a trial's judgement counts for, by `charged_usd`'s rule.
+
+        Its reported cost, or the per-judgement estimate when a judge ran and
+        reported none; 0.0 when no judge ran.
+        """
+        if result.judge_cost_usd is not None:
+            return result.judge_cost_usd
+        return self.per_judgement_usd() if result.judged else 0.0
+
+    def total_charged_usd(self, label: str, result: TrialResult) -> float:
+        """The trial and its judgement together: what the spend limit counts."""
+        return self.charged_usd(label, result) + self.charged_judge_usd(result)
 
 
 def fixture_size_bytes(path: Path) -> int:
@@ -116,6 +136,7 @@ def estimate_run(
             for arm in arms
         ),
         total_trials_per_arm=len(fixtures) * trials_per_fixture,
+        arm_count=len(arms),
         judge_usd=(
             _judge_cost_usd(judge, fixtures, pricing_table) * trials_per_fixture * len(arms)
             if judge is not None
@@ -127,7 +148,7 @@ def estimate_run(
 def _judge_cost_usd(
     judge: Judge, fixtures: Sequence[ResolvedFixture], pricing_table: dict
 ) -> float:
-    """One judgement on each fixture: rubric, points, task and an answer-sized allowance in; verdicts out."""
+    """One judgement on each fixture: rubric, points, task, material and an answer-sized allowance in; verdicts out."""
     rate = external.pricing().rate(pricing_table, judge.model)
     if rate is None:
         raise UsageError(
@@ -142,6 +163,7 @@ def _judge_cost_usd(
             + len(judge.rubric_text)
             + sum(len(point_id) + len(text) for point_id, text in fixture.rubric_points)
             + len(invocation.build_user_prompt(fixture.path.name, fixture.task))
+            + len(fixture_material(fixture.path))
             + answer_chars
         )
         total += (

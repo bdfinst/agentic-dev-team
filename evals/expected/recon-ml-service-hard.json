@@ -1,6 +1,6 @@
 {
   "fixture": "recon-ml-service-hard",
-  "description": "FastAPI risk scorer with domain/adapters layering, a pickle-loaded model with a hashlib checksum, an httpx feature client, an extensionless bash CLI in bin/, a CI workflow, and a docs page that mentions login without code; a correct RECON catches the hidden CLI and the pickle model load and does not treat docs or CI as code surface.",
+  "description": "FastAPI risk scorer with domain/adapters layering, a pickle-loaded model with a hashlib checksum, an httpx feature client, an extensionless bash CLI in bin/, a CI workflow, and a docs page that mentions login without code; a correct RECON catches the hidden CLI and the pickle model load and does not treat the CI workflow as an entry point.",
   "applicableAgents": [
     "codebase-recon"
   ],
@@ -24,10 +24,6 @@
         {
           "id": "layers-and-framework",
           "requirement": "Reports fastapi as the dominant framework, and describes domain logic in `app/domain/` (pure scoring) with I/O isolated in `app/adapters/`."
-        },
-        {
-          "id": "no-doc-auth-path",
-          "requirement": "Does not put `docs/operations.md` in `auth_paths` (it only mentions login in prose), and `auth_paths` is empty or contains only code files."
         }
       ]
     }

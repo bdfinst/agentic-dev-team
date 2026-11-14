@@ -7,7 +7,7 @@ driven from tests and from other callers.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -22,15 +22,17 @@ from .agent_file import (
 )
 from .agent_spec import AgentSpec, build_agent_spec
 from .arm import BASELINE_LABEL, CANDIDATE_LABEL, Arm
+from .check_jail import CheckJail, find_working_jail
 from .errors import UsageError
 from .fixtures import ResolvedFixture, resolve_fixtures
 from .grader_config import (
     DEFAULT_GRADING,
+    REGISTRY_GRADERS,
     AgentGrading,
     GraderKind,
-    check_judge_tier,
     resolve_agent_grading,
 )
+from .judge_tier import check_judge_tier
 from .paths import EvalPaths
 from .run_id import make_run_id
 from .run_types import RunMetadata
@@ -56,6 +58,9 @@ class RunPlan:
     grading: AgentGrading = DEFAULT_GRADING
     # The `--agents` JSON that answers a dispatch-graded agent's dispatches.
     stub_agents: str | None = None
+    # How the fixtures' test commands are jailed; None with test commands means
+    # the operator allowed them to run unjailed.
+    check_jail: CheckJail | None = None
 
     @property
     def fixtures(self) -> tuple[ResolvedFixture, ...]:
@@ -75,6 +80,8 @@ def plan_run(
     rng,
     git_sha: str | None,
     eval_paths: EvalPaths,
+    allow_unjailed_checks: bool = False,
+    find_check_jail: Callable[[], CheckJail | None] = find_working_jail,
 ) -> Iterator[RunPlan]:
     """Yield the plan, with the artifact path reserved; the reservation is the last step.
 
@@ -130,6 +137,7 @@ def plan_run(
         if grading.kind is GraderKind.DISPATCH_SET
         else None
     )
+    jail = _check_jail_for(fixtures, allow_unjailed_checks, find_check_jail)
     run_id = make_run_id(now, agent, candidate.model, candidate.effort, rng)
     owned = ExitStack()
     try:
@@ -160,6 +168,7 @@ def plan_run(
                 artifact_path=artifact_path,
                 grading=grading,
                 stub_agents=stub_agents,
+                check_jail=jail,
             )
         yield planned
     finally:
@@ -170,6 +179,19 @@ def plan_run(
 def _refuse_fixtures_the_grader_cannot_use(
     agent: str, grading: AgentGrading, fixtures: list[ResolvedFixture]
 ) -> None:
+    accepted = REGISTRY_GRADERS[grading.kind]
+    mismatched = [
+        f"{fixture.stem} ({fixture.grader})"
+        for fixture in fixtures
+        if fixture.grader not in accepted
+    ]
+    if mismatched:
+        raise UsageError(
+            f"agent {agent!r} is graded {grading.kind.value} by "
+            "evals/model-effort/graders.json, but fixture "
+            f"{', '.join(mismatched)} names a different grader in its expected entry: "
+            f"use one of {', '.join(sorted(accepted))}, or fix the grader map"
+        )
     if grading.kind is not GraderKind.TESTS_PASS:
         return
     untested = [fixture.stem for fixture in fixtures if not fixture.test_commands]
@@ -178,6 +200,24 @@ def _refuse_fixtures_the_grader_cannot_use(
             f"agent {agent!r} is graded by tests passing, but fixture "
             f"{', '.join(untested)} declares no testCommands in its expected entry: add them"
         )
+
+
+def _check_jail_for(
+    fixtures: list[ResolvedFixture],
+    allow_unjailed: bool,
+    find_check_jail: Callable[[], CheckJail | None],
+) -> CheckJail | None:
+    """The jail for the fixtures' test commands; None when none run or the operator allowed it."""
+    if not any(fixture.test_commands for fixture in fixtures):
+        return None
+    jail = find_check_jail()
+    if jail is None and not allow_unjailed:
+        raise UsageError(
+            "the fixtures' test commands run code the agent wrote, and no working jail "
+            "(sandbox-exec on macOS, bwrap on Linux) was found: install bubblewrap, or "
+            "pass --allow-unjailed-checks to run them unjailed on a disposable machine"
+        )
+    return jail
 
 
 def _load_external_scripts() -> None:
@@ -242,11 +282,16 @@ def _refuse_invalid_values(
 
 
 STUB_AGENT_MODEL = "haiku"
+# A stub needs no tool to answer; naming one keeps it from inheriting every tool.
+STUB_AGENT_TOOLS = ("Read",)
 STUB_AGENT_REPLY = '{"status": "pass", "issues": [], "summary": "No findings."}'
 
 
 def build_stub_agents(agent_names: list[str]) -> str:
     """`--agents` JSON defining a stub for every agent, each replying with a fixed clean verdict.
+
+    Each stub names an explicit minimal tool list; an agent definition without
+    `tools` inherits every tool of the session.
 
     A dispatch-graded agent's dispatches then succeed cheaply and the same way
     every trial, so only its choice of agents varies.
@@ -259,6 +304,7 @@ def build_stub_agents(agent_names: list[str]) -> str:
                 f"{STUB_AGENT_REPLY}"
             ),
             "model": STUB_AGENT_MODEL,
+            "tools": list(STUB_AGENT_TOOLS),
         }
         for name in agent_names
     }

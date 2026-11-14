@@ -379,19 +379,22 @@ class TestTakeSnapshot:
 
         with snapshot.take_snapshot(source, fixtures) as taken:
             root = taken.root
+            answer_root = taken.answer_root
             inside = [
-                taken.eval_paths.expected_dir,
                 taken.eval_paths.fixtures_dir,
                 taken.eval_paths.plugin_root,
                 taken.eval_paths.knowledge_dir,
                 *(fixture.path for fixture in taken.fixtures),
             ]
             assert all(root in directory.parents for directory in inside)
+            assert taken.eval_paths.expected_dir.parent == answer_root
+            assert root not in answer_root.parents and answer_root not in root.parents
             assert taken.eval_paths.knowledge_dir.parent == taken.eval_paths.plugin_root
             assert taken.eval_paths.agents_dir == source.agents_dir
             assert [fixture.stem for fixture in taken.fixtures] == ["a", "service"]
 
         assert not root.exists()
+        assert not answer_root.exists()
 
     def test_a_failed_copy_leaves_no_directory_behind(
         self, tmp_path, private_tmp, monkeypatch
