@@ -1,6 +1,3 @@
-// PASS: File name carries the *.adapter.ts dotted suffix - a declared effect boundary,
-// so the console/fetch side effects here are expected and must not be flagged
-
 declare function fetch(url: string): Promise<{ json(): Promise<unknown> }>;
 
 async function fetchUserScore(userId: string): Promise<number> {

@@ -1,0 +1,33 @@
+{
+  "fixture": "ang-reactivity-zone-reentry.ts",
+  "description": "OnPush sync indicator polls inside NgZone.runOutsideAngular and assigns the template-bound lastCheckedAt field in the interval callback without NgZone.run or markForCheck, so change detection never runs and the timestamp never updates; the subscription and async-pipe code around it is correct",
+  "applicableAgents": [
+    "angular-reactivity-review"
+  ],
+  "agents": {
+    "angular-reactivity-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 2
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "zone"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "The only defect is one field assignment inside a runOutsideAngular timer; the rest of the component uses takeUntilDestroyed, the async pipe and signals correctly"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Window modeled on the framework's existing *-reactivity-issues fixture (one error per planted defect), narrowed to the single planted defect plus room for one incidental warning or suggestion."
+      }
+    }
+  }
+}

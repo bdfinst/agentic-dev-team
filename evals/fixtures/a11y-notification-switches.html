@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notification settings</title>
+    <style>
+      :focus-visible {
+        outline: 3px solid #005fcc;
+        outline-offset: 2px;
+      }
+      body {
+        color: #1a1a1a;
+        background: #ffffff;
+        font-family: system-ui, sans-serif;
+      }
+      .setting {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #d0d0d0;
+      }
+      .switch {
+        width: 3rem;
+        height: 1.5rem;
+        border-radius: 0.75rem;
+        background: #6b6b6b;
+        position: relative;
+        cursor: pointer;
+      }
+      .switch[aria-checked="true"] {
+        background: #0b6e2f;
+      }
+      .switch::after {
+        content: "";
+        position: absolute;
+        top: 0.15rem;
+        left: 0.15rem;
+        width: 1.2rem;
+        height: 1.2rem;
+        border-radius: 50%;
+        background: #ffffff;
+      }
+      .switch[aria-checked="true"]::after {
+        left: 1.65rem;
+      }
+      .hint {
+        color: #595959;
+        font-size: 0.875rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Account">
+        <ul>
+          <li><a href="/account/profile">Profile</a></li>
+          <li>
+            <a href="/account/notifications" aria-current="page"
+              >Notifications</a
+            >
+          </li>
+          <li><a href="/account/security">Security</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main>
+      <h1>Notification settings</h1>
+
+      <section aria-labelledby="channelsHeading">
+        <h2 id="channelsHeading">Channels</h2>
+
+        <div class="setting">
+          <div>
+            <span id="emailLabel">Email digests</span>
+            <p id="emailHint" class="hint">
+              A summary of activity, once a day.
+            </p>
+          </div>
+          <div
+            class="switch"
+            role="switch"
+            tabindex="0"
+            aria-checked="true"
+            aria-labelledby="emailLabel"
+            aria-describedby="emailHint"
+            data-setting="emailDigest"
+          ></div>
+        </div>
+
+        <div class="setting">
+          <div>
+            <span id="pushLabel">Push notifications</span>
+            <p id="pushHint" class="hint">Mentions and direct messages only.</p>
+          </div>
+          <div
+            class="switch"
+            role="switch"
+            tabindex="0"
+            aria-checked="false"
+            aria-labelledby="pushLabel"
+            aria-describedby="pushHint"
+            data-setting="push"
+          ></div>
+        </div>
+      </section>
+
+      <div id="saveStatus" role="status" aria-live="polite"></div>
+    </main>
+
+    <script>
+      const statusRegion = document.getElementById("saveStatus");
+
+      function toggle(switchElement) {
+        const isOn = switchElement.getAttribute("aria-checked") === "true";
+        switchElement.setAttribute("aria-checked", String(!isOn));
+        const label = document.getElementById(
+          switchElement.getAttribute("aria-labelledby"),
+        ).textContent;
+        statusRegion.textContent = `${label} turned ${isOn ? "off" : "on"}.`;
+        fetch("/api/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [switchElement.dataset.setting]: !isOn }),
+        });
+      }
+
+      for (const switchElement of document.querySelectorAll(".switch")) {
+        switchElement.addEventListener("click", () => toggle(switchElement));
+      }
+    </script>
+  </body>
+</html>

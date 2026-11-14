@@ -1,7 +1,6 @@
-"""The `verdict` grader (issue #309).
+"""The `verdict` grader.
 
-This is the original `grade_agent` path lifted verbatim out of the monolith: it
-grades a single review agent's recorded verdict (status, issue counts, severity
+It grades a single review agent's recorded verdict (status, issue counts, severity
 buckets, keyword presence/absence) against its expected JSON. It is the default
 grader for entries in an expected file's `agents` block, so existing fixtures
 grade byte-for-byte identically.
@@ -12,16 +11,42 @@ from __future__ import annotations
 from ._common import in_range, mentions
 
 
+def _tolerated_suggestion_warn(spec: dict, status, issues: list) -> bool:
+    """True when a `pass` expectation meets a `warn` made only of tolerated suggestions.
+
+    The output contract sets `pass` to zero issues and `warn` to issues with no
+    error, so an agent that reports one suggestion must say `warn`. A clean
+    entry that pairs `expectedStatus: pass` with an `issueCount` window above
+    zero tolerates such suggestions; without this rule that window could never
+    be met. The `issueCount` check still bounds how many are tolerated. A
+    window with no `max` is unbounded, as in `in_range`; an entry with no
+    `issueCount` at all tolerates nothing.
+    """
+    if "issueCount" not in spec:
+        return False
+    return (
+        spec.get("expectedStatus") == "pass"
+        and status == "warn"
+        and len(issues) > 0
+        and in_range(len(issues), spec["issueCount"])
+        and all(i.get("severity") == "suggestion" for i in issues)
+    )
+
+
 def grade_verdict(spec: dict, actual: dict) -> list[str]:
     """Return a list of check-failure strings; empty list == PASS."""
     fails: list[str] = []
 
+    issues = actual.get("issues", []) or []
     exp_status = spec.get("expectedStatus")
     got_status = actual.get("status")
-    if exp_status is not None and got_status != exp_status:
+    if (
+        exp_status is not None
+        and got_status != exp_status
+        and not _tolerated_suggestion_warn(spec, got_status, issues)
+    ):
         fails.append(f"status: expected {exp_status!r}, got {got_status!r}")
 
-    issues = actual.get("issues", []) or []
     if "issueCount" in spec and not in_range(len(issues), spec["issueCount"]):
         rng = spec["issueCount"]
         fails.append(

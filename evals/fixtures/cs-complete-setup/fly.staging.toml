@@ -1,0 +1,16 @@
+app = "acme-dashboard-staging"
+primary_region = "iad"
+
+[deploy]
+  strategy = "bluegreen"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"

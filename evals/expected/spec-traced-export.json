@@ -1,0 +1,24 @@
+{
+  "fixture": "spec-traced-export",
+  "description": "Audit log with a CSV export: the export looks like the unrequested feature in spec-unmet-criterion, but acceptance criteria 3 and 4 require it; every criterion and both scenarios are implemented and tested",
+  "applicableAgents": [
+    "spec-compliance-review"
+  ],
+  "agents": {
+    "spec-compliance-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "An export function is the scope-violation shape from spec-unmet-criterion; here criteria 3 and 4 ask for it, so flagging it is a false positive"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean fixture: zero findings, by analogy to spec-all-criteria-met"
+      }
+    }
+  }
+}

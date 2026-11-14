@@ -1,0 +1,29 @@
+{
+  "fixture": "spec-planned-file-missing",
+  "description": "Invoice reminders: overdue marking is implemented and tested, but criterion 2 (send one reminder email) has no implementation, the planned src/reminder-mailer.ts was never created, and the 'Overdue invoice triggers one reminder' scenario has no test",
+  "applicableAgents": [
+    "spec-compliance-review"
+  ],
+  "agents": {
+    "spec-compliance-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 2,
+        "max": 5
+      },
+      "severities": {
+        "error": {
+          "min": 2,
+          "max": 3
+        }
+      },
+      "mustMention": [
+        "remind"
+      ],
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Unmet criterion 2 and the uncovered scenario are errors; the missing planned file is a warning that may be folded into the criterion finding. Window by analogy to spec-unmet-criterion"
+      }
+    }
+  }
+}

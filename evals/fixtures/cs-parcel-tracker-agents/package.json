@@ -1,0 +1,25 @@
+{
+  "name": "parcel-tracker",
+  "version": "1.4.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "test": "vitest run",
+    "lint": "eslint src tests",
+    "build": "tsc -p tsconfig.json",
+    "db:migrate": "sh scripts/migrate.sh"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.11.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0",
+    "supertest": "^7.0.0"
+  }
+}

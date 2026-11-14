@@ -1,9 +1,10 @@
 {
   "fixture": "sql-correctness-not-in-not-null.sql",
-  "description": "NOT IN over a subquery column declared NOT NULL: the detector hit is a false positive and the agent dismisses it",
+  "description": "NOT IN over a subquery column declared NOT NULL: the detector hit is a false positive and the agent dismisses it. Minimal-pair fixture; sql-not-in-not-null-migration is the hard variant",
   "applicableAgents": ["sql-review"],
   "agents": {
     "sql-review": {
+      "_calibration": {"source": "estimated-by-analogy", "note": "0-0 is not a tuned bound: the output contract defines pass as zero issues"},
       "expectedStatus": "pass",
       "issueCount": { "min": 0, "max": 0 },
       "expectedFindings": []

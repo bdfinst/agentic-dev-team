@@ -1,11 +1,10 @@
-// PASS: Consistent naming, no abbreviations, named constants for magic values.
-
 const MAX_LOGIN_ATTEMPTS = 5;
 const SESSION_TIMEOUT_SECONDS = 1800;
 const MINIMUM_PASSWORD_LENGTH = 12;
 const TOKEN_EXPIRY_HOURS = 24;
+const MILLISECONDS_PER_SECOND = 1000;
 
-type AuthenticationStatus = "authenticated" | "expired" | "locked" | "unknown";
+type AuthenticationStatus = "authenticated" | "rejected" | "locked";
 
 interface AuthenticationResult {
   status: AuthenticationStatus;
@@ -17,22 +16,21 @@ interface AuthenticationResult {
 interface UserCredentials {
   emailAddress: string;
   passwordHash: string;
-  failedLoginCount: number;
-  lastLoginTimestamp: number;
+  failedAttemptCount: number;
+  lastLoginEpochSeconds: number;
 }
 
 function authenticateUser(
   credentials: UserCredentials,
   submittedPassword: string,
 ): AuthenticationResult {
-  const isAccountLocked =
-    credentials.failedLoginCount >= MAX_LOGIN_ATTEMPTS;
+  const isAccountLocked = credentials.failedAttemptCount >= MAX_LOGIN_ATTEMPTS;
 
   if (isAccountLocked) {
     return {
       status: "locked",
       sessionToken: null,
-      failedAttemptCount: credentials.failedLoginCount,
+      failedAttemptCount: credentials.failedAttemptCount,
       isAccountLocked: true,
     };
   }
@@ -43,12 +41,12 @@ function authenticateUser(
   );
 
   if (!isPasswordValid) {
-    const updatedFailedCount = credentials.failedLoginCount + 1;
+    const updatedFailedAttemptCount = credentials.failedAttemptCount + 1;
     return {
-      status: "unknown",
+      status: "rejected",
       sessionToken: null,
-      failedAttemptCount: updatedFailedCount,
-      isAccountLocked: updatedFailedCount >= MAX_LOGIN_ATTEMPTS,
+      failedAttemptCount: updatedFailedAttemptCount,
+      isAccountLocked: updatedFailedAttemptCount >= MAX_LOGIN_ATTEMPTS,
     };
   }
 
@@ -62,9 +60,9 @@ function authenticateUser(
   };
 }
 
-function isSessionExpired(lastActivityTimestamp: number): boolean {
-  const currentTimestamp = Math.floor(Date.now() / 1000);
-  const elapsedSeconds = currentTimestamp - lastActivityTimestamp;
+function isSessionExpired(lastActivityEpochSeconds: number): boolean {
+  const currentEpochSeconds = Math.floor(Date.now() / MILLISECONDS_PER_SECOND);
+  const elapsedSeconds = currentEpochSeconds - lastActivityEpochSeconds;
   return elapsedSeconds > SESSION_TIMEOUT_SECONDS;
 }
 
@@ -72,5 +70,10 @@ function isPasswordLongEnough(password: string): boolean {
   return password.length >= MINIMUM_PASSWORD_LENGTH;
 }
 
-declare function verifyPassword(plain: string, hash: string): boolean;
+declare function verifyPassword(
+  plainPassword: string,
+  passwordHash: string,
+): boolean;
 declare function generateSessionToken(expiryHours: number): string;
+
+export { authenticateUser, isSessionExpired, isPasswordLongEnough };

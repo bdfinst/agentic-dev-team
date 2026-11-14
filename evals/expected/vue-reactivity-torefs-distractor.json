@@ -1,0 +1,24 @@
+{
+  "fixture": "vue-reactivity-torefs-distractor.vue",
+  "description": "Profile form that destructures reactive() through toRefs, watches props.userId through a getter with onCleanup cancellation, updates the reactive form with Object.assign, sends a toRaw spread snapshot to the API, and removes window listeners in onUnmounted",
+  "applicableAgents": [
+    "vue-reactivity-review"
+  ],
+  "agents": {
+    "vue-reactivity-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "Destructuring, a spread of reactive state and an object passed to Object.assign all appear, but each keeps or intentionally drops tracking; flagging them is a false positive"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean control: pass means zero issues under the review-agent output contract, so the window is 0-0."
+      }
+    }
+  }
+}

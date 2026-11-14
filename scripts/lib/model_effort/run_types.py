@@ -43,6 +43,8 @@ class FixtureTrials:
     kind: FixtureKind
     expected_clean: bool
     results: Sequence[TrialResult]
+    # True when the agent is expected to skip the fixture, a subset of clean.
+    expected_skip: bool = False
 
 
 @dataclass(frozen=True)

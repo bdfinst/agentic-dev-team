@@ -1,0 +1,20 @@
+{
+  "fixture": "perf-clean-bounded-io.ts",
+  "description": "Clean counterpart to perf-nplus1-loop: a pool with connect, statement and query timeouts, one batched ANY($1) query released in finally, an LRU-bounded cache, a fetch with AbortSignal.timeout, and a heartbeat that skips a tick while the previous ping is in flight and whose stop function clears it",
+  "applicableAgents": [
+    "performance-review"
+  ],
+  "agents": {
+    "performance-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean fixture: any finding is a false positive, and a pass status means zero issues per the output contract."
+      }
+    }
+  }
+}

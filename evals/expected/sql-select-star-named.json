@@ -1,6 +1,6 @@
 {
   "fixture": "sql-select-star-named.sql",
-  "description": "SELECT * whose rows the comment says are read by column name only: the agent dismisses the detector hit and names the reason in summary",
+  "description": "SELECT * whose rows the comment says are read by column name only: the agent dismisses the detector hit and names the reason in summary. Minimal-pair fixture; sql-select-star-row-consumer is the hard variant",
   "applicableAgents": ["sql-review"],
   "agents": {
     "sql-review": {

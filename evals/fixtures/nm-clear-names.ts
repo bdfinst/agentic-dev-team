@@ -1,4 +1,7 @@
-// PASS: Variables reveal intent, functions describe actions, booleans prefixed, collections pluralized.
+const HIGH_VALUE_ORDER_THRESHOLD = 500;
+const PRIORITY_HANDLING_LABEL = "Priority handling";
+const STANDARD_HANDLING_LABEL = "Standard handling";
+const GIFT_WRAPPED_LABEL = "Gift wrapped";
 
 interface ShippingAddress {
   streetLine1: string;
@@ -25,11 +28,10 @@ interface Order {
 }
 
 function calculateOrderTotal(items: OrderItem[]): number {
-  const subtotal = items.reduce(
+  return items.reduce(
     (runningTotal, item) => runningTotal + item.unitPrice * item.quantity,
     0,
   );
-  return subtotal;
 }
 
 function formatShippingLabel(address: ShippingAddress): string {
@@ -40,31 +42,37 @@ function formatShippingLabel(address: ShippingAddress): string {
     address.countryCode,
   ];
 
-  const nonEmptyLines = addressLines.filter(
+  const presentLines = addressLines.filter(
     (line): line is string => line !== undefined,
   );
 
-  return nonEmptyLines.join("\n");
+  return presentLines.join("\n");
 }
 
-function findEligibleOrders(orders: Order[]): Order[] {
-  const eligibleOrders = orders.filter(
+function findExpressOrdersWithItems(orders: Order[]): Order[] {
+  return orders.filter(
     (order) => order.hasExpressShipping && order.items.length > 0,
   );
-  return eligibleOrders;
 }
 
 function buildOrderSummary(order: Order): string {
   const totalAmount = calculateOrderTotal(order.items);
-  const isHighValue = totalAmount > 500;
+  const isHighValue = totalAmount > HIGH_VALUE_ORDER_THRESHOLD;
   const itemCount = order.items.length;
 
   const summaryParts = [
     `Order ${order.orderId}: ${itemCount} items`,
     `Total: $${totalAmount.toFixed(2)}`,
-    isHighValue ? "Priority handling" : "Standard handling",
-    order.isGiftWrapped ? "Gift wrapped" : "",
+    isHighValue ? PRIORITY_HANDLING_LABEL : STANDARD_HANDLING_LABEL,
+    order.isGiftWrapped ? GIFT_WRAPPED_LABEL : "",
   ];
 
   return summaryParts.filter(Boolean).join(" | ");
 }
+
+export {
+  calculateOrderTotal,
+  formatShippingLabel,
+  findExpressOrdersWithItems,
+  buildOrderSummary,
+};

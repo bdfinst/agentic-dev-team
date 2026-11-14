@@ -1,17 +1,18 @@
 {
   "fixture": "cr-error-signalling-divergence",
-  "description": "Positive fixture for #1639/#1695: correctness-review's Detect category 7 (error-signalling divergence). load_config's docstring documents a Raises: contract (FileNotFoundError, json.JSONDecodeError) that the function body directly contradicts by catching both and returning {} instead.",
+  "description": "Positive fixture for #1639/#1695: correctness-review's Detect category 7 (error-signalling divergence). In a 106-line layered config module, load_config's docstring documents a Raises: contract (FileNotFoundError, json.JSONDecodeError) that its body contradicts by catching both and returning {}; resolve_settings documents the same FileNotFoundError and so silently runs without a base config. load_optional_overrides, which catches FileNotFoundError and returns {} as its docstring says, is correct.",
   "applicableAgents": ["correctness-review"],
   "agents": {
     "correctness-review": {
+      "hard": {"reason": "subtle-defect", "note": "The divergent loader sits beside load_optional_overrides, which uses the same try/open/return-{} shape correctly because its docstring documents the {} fallback; only comparing each docstring with its except clause separates the defect from its correct twin"},
       "expectedStatus": "fail",
       "issueCount": { "min": 1, "max": 2 },
       "severities": { "error": { "min": 1, "max": 2 } },
       "minConfidenceAnyOf": ["high", "medium"],
       "mustMention": ["load_config"],
       "_calibration": {
-        "source": "measured",
-        "note": "Measured 2026-08-01 against a live correctness-review dispatch on this fixture: 1 issue, severity error, confidence high, status fail — flagged the except clause swallowing both documented exceptions and returning {} instead, contradicting the docstring's Raises: section verbatim."
+        "source": "estimated-by-analogy",
+        "note": "A 2026-08-01 live dispatch on the earlier 17-line version reported 1 error at high confidence on load_config. The module now adds a correct look-alike loader and three helpers; the window keeps room for the same finding reported once on load_config and once on resolve_settings. Re-measure on the current content."
       }
     }
   }

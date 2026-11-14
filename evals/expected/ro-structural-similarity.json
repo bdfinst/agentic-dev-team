@@ -1,0 +1,24 @@
+{
+  "fixture": "ro-structural-similarity.ts",
+  "description": "Distractor: a library late fee and a travel early-booking discount share the same max/min shape but encode unrelated business rules that change independently; structural similarity, not semantic duplication",
+  "applicableAgents": [
+    "refactor-opportunity-review"
+  ],
+  "agents": {
+    "refactor-opportunity-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "The two functions are line-for-line parallel, which invites a shared-helper extraction the semantic-vs-structural test rejects"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean fixture: any finding is a false positive."
+      }
+    }
+  }
+}

@@ -4,6 +4,7 @@
   "applicableAgents": ["correctness-review"],
   "agents": {
     "correctness-review": {
+      "hard": {"reason": "distractor", "note": "Same bisect.insort complexity-claim shape as cr-runtime-claim-no-probe, but the claim is backed by a recorded timeit probe, so flagging it is a false positive"},
       "expectedStatus": "pass",
       "issueCount": { "min": 0, "max": 0 },
       "_calibration": {

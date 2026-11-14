@@ -14,8 +14,10 @@ enforce on every PR (see below):
 
 1. **Structural gate (always, model-free).** `eval_grade.py --check-corpus`
    asserts every `expected/*.json` is valid, declares an agent/skill target,
-   and pairs with a fixture; `tests/repo/eval_grader_tests.bats` exercises the
-   grader. No tokens, no flakes.
+   and pairs with a fixture; `tests/repo/test_eval_grader.py` exercises the
+   grader. `scripts/eval_fixture_coverage.py` checks every review agent's
+   fixture, hard and clean counts (see "Hard and clean fixtures"). No tokens,
+   no flakes.
 2. **Live gate (paid, label-gated).** Dispatches the review agents via the bare
    `claude` CLI (`@anthropic-ai/claude-code`), records their raw outputs to
    `actuals.json`, and grades against `baseline.json` — failing the PR on any
@@ -240,6 +242,40 @@ An agent entry may also declare `expectedFindings`, a list of
 `(category, severity)` pairs in the agent's `issues[]` to equal the declared
 set exactly. Use it where `category` is a stable rule id, as for `sql-review`;
 `"expectedFindings": []` asserts the agent reports no categorized issue.
+
+## Hard and clean fixtures
+
+Every review agent (`plugins/dev-team/agents/*-review.md`) needs at least 5
+fixtures, at least 2 of them hard and at least 1 clean.
+
+- **Clean**: the agent's `expectedStatus` is `pass`, or `skip` when the
+  agent's own Skip rule covers the target. The fixture has no expected
+  finding, so any finding is a false positive. Make the fixture clean
+  for that agent's lens: a clean naming fixture has no magic number and no
+  concept named two ways. Whether the agent's Skip rule really covers a
+  `skip` fixture is a reviewer judgment: the grader and the coverage gate
+  cannot check it.
+- **Hard**: the agent's entry carries a `hard` marker. A weaker model tier
+  plausibly misses the expected verdict. `reason` is `subtle-defect` (one
+  defect hidden in otherwise correct code), `distractor` (code that looks like
+  a defect but is not), or `long-file` (the defect sits in a long file).
+
+```json
+"hard": {
+  "reason": "distractor",
+  "note": "sort() runs only on spread copies, so no input array is mutated"
+}
+```
+
+`eval_grade.py --check-corpus` rejects an unknown `reason` or an empty `note`.
+`scripts/eval_fixture_coverage.py` prints the per-agent counts and exits 1
+when an agent is below a minimum, or 2 when a directory is missing or an
+expected file is malformed (invalid JSON, not an object, or `agents` not an
+object), whether or not it has a fixture; `tests/repo/test_eval_fixture_coverage.py`
+runs it in the pre-push gate.
+
+Keep the verdict out of the fixture: a header comment such as `// PASS:` or
+`// FAIL:` tells the agent the answer.
 
 ## Convention: executable claims (issue #1629)
 
@@ -471,7 +507,7 @@ trial writes no artifact and exits 1. The key fields:
 | `arms[].fixtures[].trials[].outcome` | The trial result, such as `pass`, `timeout` or `cli_error`. |
 | `arms[].fixtures[].trials[].cost_reported` | `false` when `claude` reported no cost; `cost_usd` is then 0. |
 | `arms[].estimated_cost_usd` | The pre-run estimate for the arm. |
-| `arms[].totals.clean_fixture_false_positives` | Trials the grader failed (`graded_fail`) on a fixture that expects no findings. Timeouts, CLI errors, parse failures and tool violations on such a fixture do not count. |
+| `arms[].totals.clean_fixture_false_positives` | Trials the grader failed (`graded_fail`) on a fixture that expects no findings. On a fixture that expects `skip`, a failed trial counts only when it reported issues. Timeouts, CLI errors, parse failures and tool violations on such a fixture do not count. |
 | `arms[].totals.actual_cost_usd` | The reported cost. It is a lower bound when any `cost_reported` is `false`. |
 | `arms[].totals.unreported_trials_estimate_usd` | The sum of per-trial estimates charged for trials that reported no cost. The `--max-cost` check counts these in place of the cost. |
 

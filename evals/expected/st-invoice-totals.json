@@ -1,0 +1,33 @@
+{
+  "fixture": "st-invoice-totals.ts",
+  "description": "Billing module whose computeInvoiceTotals and computeCreditNoteTotals each re-implement the same per-line discount, tax and rounding rule under different variable names; a change to the rule must be made in both places",
+  "applicableAgents": [
+    "structure-review"
+  ],
+  "agents": {
+    "structure-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 3
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "duplicat"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "Semantic duplication: the second copy renames every variable and writes the discount as x - x*r instead of x*(1-r), so the blocks are not textually similar"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Modeled on st-duplicate-code, which rates semantic duplication that forces multi-site edits as error. Probe: node over 25025 quantity/price/rate cases, Math.round(x*(1-r)) and Math.round(x - x*r) differ in 108 because of floating-point rounding, so the copies already disagree on some invoices."
+      }
+    }
+  }
+}

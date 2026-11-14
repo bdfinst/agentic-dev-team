@@ -1,0 +1,24 @@
+{
+  "fixture": "st-carrier-rate-rules.ts",
+  "description": "Shipping-rate module with three similarly shaped carrier price functions and a switch over a closed Carrier union; each function encodes a different rate rule and the switch only dispatches",
+  "applicableAgents": [
+    "structure-review"
+  ],
+  "agents": {
+    "structure-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "Three look-alike price functions and a switch read as duplication and a switch-to-polymorphism smell, but the rules differ (per-kg, oversize surcharge, flat) and design-smells says not to flag a switch over a closed enumeration"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean counterpart to st-duplicate-code; zero findings expected"
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "fixture": "test-session-expiry.test",
+  "description": "Session-expiry suite that reads Date.now() and uses literal durations, but every clock read runs under vi.useFakeTimers()/setSystemTime restored in afterEach, every duration derives from the SEC-7 constants, and both timeouts are tested on each side of the boundary. Nothing for test-review to flag.",
+  "applicableAgents": [
+    "test-review"
+  ],
+  "agents": {
+    "test-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "Date.now() calls and numeric literals look like an unstubbed clock and magic values, but the clock is faked per test and every value comes from the cited spec constants"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean counterpart modeled on tr-oracle-provenance-independent. Logic checked with node using explicit timestamps: isExpired at IDLE-1 -> false, at IDLE -> true; 48 touches at IDLE-1 steps keep the session alive and isExpired at SIGN_IN+ABSOLUTE -> true, which an idle-only check would report false."
+      }
+    }
+  }
+}
