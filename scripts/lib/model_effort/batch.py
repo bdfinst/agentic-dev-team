@@ -115,7 +115,8 @@ def run_batch(
     """Echo every agent's estimate and the combined one, ask once, then run each agent in turn.
 
     `spend_limit` bounds the combined estimate at the start and the charged cost
-    across the whole batch: each agent's run gets what is left of it.
+    across the whole batch: each agent's run gets what is left of it, and no
+    agent starts once nothing is left.
 
     Raises:
         UsageError: a model is unpriced, or the combined estimate is above `spend_limit`.
@@ -149,11 +150,18 @@ def run_batch(
         return EXIT_FAILED
     charged_usd = 0.0
     for index, (plan, settings, run_estimate) in enumerate(priced):
-        remaining = (
-            SpendLimit(spend_limit.max_cost_usd - charged_usd)
-            if spend_limit is not None
-            else None
-        )
+        remaining = None
+        if spend_limit is not None:
+            left_usd = spend_limit.max_cost_usd - charged_usd
+            if left_usd <= 0:
+                # Any trial would charge past the limit, so the agent is not started.
+                print(
+                    "error: spend limit reached; not run: "
+                    f"{', '.join(p.agent for p, _, _ in priced[index:])}",
+                    file=console.stderr,
+                )
+                return EXIT_FAILED
+            remaining = SpendLimit(left_usd)
         with guard.held():
             run = run_trials(
                 plan,

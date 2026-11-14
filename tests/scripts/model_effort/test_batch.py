@@ -171,3 +171,77 @@ def test_batch_stops_after_an_agent_run_that_does_not_complete(world):
     assert list(artifacts) == ["other"]
     assert artifacts["other"]["status"] == "incomplete"
     assert artifacts["other"]["verdict"]["decision"] == DECISION_KEEP
+
+
+# --- the spend limit across the batch -------------------------------------------
+
+# A trial cost so large that the tiny fixtures' estimate stays far below the limit.
+BIG_TRIAL_COST = 1.0
+# `other` runs first (3 arms, 1 fixture, 1 trial): three trials charge exactly this.
+LIMIT_USED_BY_OTHER = "3"
+
+
+def _batch_with_trial_cost(world, cost, *args):
+    deps = dataclasses.replace(world.deps, pricing_table=OPUS_PRICING)
+    deps, calls = _deps_with_canned_trials(deps, cost=cost)
+    code = _cli_canned(world, deps, "--batch", "sonnet", "--trials", "1", *args)
+    return code, calls
+
+
+def test_batch_does_not_start_an_agent_once_the_spend_limit_is_used_up(world, capsys):
+    code, calls = _batch_with_trial_cost(
+        world, BIG_TRIAL_COST, "--max-cost", LIMIT_USED_BY_OTHER
+    )
+
+    artifacts = _artifacts(world)
+    assert (code, len(calls)) == (1, 3)
+    assert list(artifacts) == ["other"]
+    assert artifacts["other"]["status"] == "complete"
+    assert "error: spend limit reached; not run: scout" in _stderr_lines(capsys)
+
+
+def test_batch_gives_the_next_agent_only_what_is_left_of_the_limit(world, capsys):
+    # other charges 2.25 of 3; scout gets 0.75: its second trial goes above it.
+    code, calls = _batch_with_trial_cost(world, 0.75, "--max-cost", LIMIT_USED_BY_OTHER)
+
+    artifacts = _artifacts(world)
+    assert (code, len(calls)) == (1, 5)
+    assert artifacts["scout"]["status"] == "incomplete"
+    assert artifacts["scout"]["abort_reason"] == "max-cost"
+    assert "error: batch stopped after scout; not run: none" in _stderr_lines(capsys)
+
+
+def _pinned_arm_estimates(monkeypatch, usd_per_arm):
+    from model_effort import estimate
+
+    real = estimate.estimate_run
+
+    def pinned(*args, **kwargs):
+        run_estimate = real(*args, **kwargs)
+        return dataclasses.replace(
+            run_estimate,
+            by_arm=tuple((label, usd_per_arm) for label, _ in run_estimate.by_arm),
+        )
+
+    monkeypatch.setattr(estimate, "estimate_run", pinned)
+
+
+def test_batch_estimate_equal_to_max_cost_runs(world, monkeypatch):
+    # 2 agents x 3 arms x 0.5 = 3.0, exactly the limit.
+    _pinned_arm_estimates(monkeypatch, 0.5)
+
+    code, calls = _batch(world, "--max-cost", "3")
+
+    assert (code, len(calls)) == (0, 9)
+
+
+def test_batch_estimate_just_above_max_cost_is_refused(world, monkeypatch, capsys):
+    _pinned_arm_estimates(monkeypatch, 0.5)
+
+    code, calls = _batch(world, "--max-cost", "2.99")
+
+    assert (code, calls) == (2, [])
+    assert (
+        "error: batch estimate $3.0000 is above --max-cost $2.9900: raise --max-cost, "
+        "or lower --trials"
+    ) in _stderr_lines(capsys)
