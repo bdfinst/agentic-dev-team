@@ -37,6 +37,23 @@ STREAMS = frozenset({
 })
 
 
+#: Environment variables that carry the session id to a script run outside a
+#: hook, first non-blank wins. Claude Code exports the first into the Bash
+#: tool's environment (checked by running a CLI emitter from a live session);
+#: the second is the hook variable in docs/python-hook-contract.md.
+SESSION_ENV_VARS = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
+
+
+def env_session_id() -> str | None:
+    """The current session id from the environment, or None. For CLI emitters
+    that have no hook payload to read it from."""
+    for name in SESSION_ENV_VARS:
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    return None
+
+
 def append_row(stream: str, row: dict, cwd: str | Path | None = None,
                session_id: str | None = None) -> bool:
     """Append ``row`` (plus ``ts``/``plugin_version``/``session_id``) to

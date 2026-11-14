@@ -687,7 +687,10 @@ are re-measured every convergence iteration.
 make post-merge benefit numbers for epics #2164 and #2172 exist. Each row is
 written fail-open by `hooks/lib/instrument_log.py` (never affects stdout, exit
 code, or control flow) and carries `ts`, `plugin_version`, and, when the
-emitter has one, `session_id`. They are **separate from `boundary-events.jsonl`**
+emitter has one, `session_id`. Hook emitters read `session_id` from the hook
+payload. The CLI emitters (`verdict_scope.py`, `checkpoint_abort.py`) read it
+from `CLAUDE_CODE_SESSION_ID`, then `CLAUDE_SESSION_ID`, and omit the field when
+neither is set. They are **separate from `boundary-events.jsonl`**
 on purpose: a `record` row there is read by the review-gate corroboration path,
 so measurement rows must not share it. Counts, enums and lens/agent names only.
 
@@ -695,8 +698,8 @@ so measurement rows must not share it. Counts, enums and lens/agent names only.
 |---|---|---|---|
 | `subagent-stops.jsonl` | `hooks/subagent_completion_guard.py` (every `SubagentStop`) | `classification` (`clean` \| `empty-final-turn` \| `truncated-final-turn` \| `unreadable`) | The completion-guard divergence rate's denominator. `boundary-events.jsonl` only carries the two non-clean classes, so a rate was not computable before. |
 | `skill-injection.jsonl` | `hooks/subagent_skill_context.py` (when a hint is injected) | `agent_type`, `skills` (list), `added_chars` | Injection overhead (`added_chars`) and the denominator for uptake; uptake itself is read from `Skill` tool calls in the subagent transcripts (`scripts/lib/session_log`). |
-| `ledger-skips.jsonl` | `scripts/verdict_scope.py` (every CLI consult) and `hooks/checkpoint_dispatch_instrument.py` (every scope-marked review-lens dispatch, `source: "dispatch-hook"`) | `candidate_pairs`, `skipped_pairs`, `fully_skipped_lenses` (list) | Realized delta-scoping skip rate = `skipped_pairs / candidate_pairs` over `source: "consult"` rows only. `dispatch-hook` rows are written for every scope-marked dispatch, but the marker already lists only the files the consult left to dispatch, so they count pairs the ledger could still have cleared (consult missed or stale); never use them as the skip rate and never sum across sources. Previously only printed to stdout. |
-| `checkpoint-aborts.jsonl` | `scripts/checkpoint_abort.py`, and `hooks/review_verdict_recorder.py` (one `source: "stop-hook"` row per parsed lens result: whether that result alone trips the abort rule; `deferred_lenses` is always empty there) | `mode: "abort"`: `aborted`, `triggering_agent`, `deferred_lenses`. `mode: "outcome"`: `aborted`, `redispatched`, `findings`, `blocking_findings`, `outcome` | Abort frequency, deferred-lens yield (`outcome` rows with `aborted` and `redispatched`), previously only printed. Filter on `source`: `checkpoint` rows carry the round's real `deferred_lenses`; `stop-hook` rows are per-result with `deferred_lenses` always empty, so use them only for per-result trip frequency. |
+| `ledger-skips.jsonl` | `scripts/verdict_scope.py` (every CLI consult) and `hooks/checkpoint_dispatch_instrument.py` (every scope-marked review-lens dispatch, `source: "dispatch-hook"`) | `candidate_pairs`, `skipped_pairs`, `fully_skipped_lenses` (list), `session_id` | Realized delta-scoping skip rate = `skipped_pairs / candidate_pairs` over `source: "consult"` rows only. `dispatch-hook` rows are written for every scope-marked dispatch, but the marker already lists only the files the consult left to dispatch, so they count pairs the ledger could still have cleared (consult missed or stale); never use them as the skip rate and never sum across sources. Previously only printed to stdout. |
+| `checkpoint-aborts.jsonl` | `scripts/checkpoint_abort.py`, and `hooks/review_verdict_recorder.py` (one `source: "stop-hook"` row per parsed lens result: whether that result alone trips the abort rule; `deferred_lenses` is always empty there) | `mode: "abort"`: `aborted`, `triggering_agent`, `deferred_lenses`. `mode: "outcome"`: `aborted`, `redispatched`, `findings`, `blocking_findings`, `outcome`. Both modes: `session_id` | Abort frequency, deferred-lens yield (`outcome` rows with `aborted` and `redispatched`), previously only printed. Filter on `source`: `checkpoint` rows carry the round's real `deferred_lenses`; `stop-hook` rows are per-result with `deferred_lenses` always empty, so use them only for per-result trip frequency. |
 
 ### Instrument audit (#2201)
 
