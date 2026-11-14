@@ -281,12 +281,13 @@ def report_key(ids: list[str]) -> str:
     return hashlib.sha256("\n".join(ids).encode("utf-8")).hexdigest()[:12]
 
 
-def log_render(ids: list[str], expand: str | None) -> None:
+def log_render(ids: list[str], expand: str | None, session_id: str | None = None) -> None:
     """Append one ``tiered-renders`` row for a rendered non-empty report — fail-open,
-    stdout and exit code untouched. ``expand`` is the raw ``--expand`` argument."""
+    stdout and exit code untouched. ``expand`` is the raw ``--expand`` argument;
+    ``session_id`` defaults to the environment's session id."""
     if not ids:
         return
-    session_id = env_session_id()
+    session_id = session_id or env_session_id()
     append_row(
         "tiered-renders",
         {"report": report_key(ids), "findings": len(ids), "expand": expand_mode(expand)},
@@ -351,7 +352,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--session",
         default=None,
-        help="Session id for the report-size row (default: $CLAUDE_CODE_SESSION_ID, then $CLAUDE_SESSION_ID).",
+        help="Session id for both metrics rows (default: $CLAUDE_CODE_SESSION_ID, then $CLAUDE_SESSION_ID).",
     )
     args = parser.parse_args(argv)
 
@@ -381,7 +382,7 @@ def main(argv: list[str] | None = None) -> int:
         print()
         print(block)
     _record_sizes(findings, ids, args.session)
-    log_render(ids, args.expand)
+    log_render(ids, args.expand, _resolve_session_id(args.session))
     return 0
 
 

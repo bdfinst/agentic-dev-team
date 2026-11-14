@@ -429,7 +429,7 @@ Transcript-derived numbers join at the grain of session and agent type, because 
 ## Operator runbook
 
 1. Review each threshold in the block. Edit it if you disagree, then commit.
-2. Run the audit: `python3 scripts/benefit_eval_cli.py audit`. Add `--json` for records. Exit 1 means a gap or a metric with no instrument; the unmeasurable metric makes it exit 1 on every run, so read the status tokens.
+2. Run the audit: `python3 scripts/benefit_eval_cli.py audit`. Add `--json` for records. Exit 1 means a gap or a metric with no instrument.
 3. Record each `no instrument` metric as `unmeasurable` with a follow-up issue. Wait for more sessions on a short gap. Record a gap still open when the window closes as `unmeasurable` too. If the audit finds neither, say so.
 4. Post to #2200 as one comment: the block, the audit output, the window end date. Show session ids as their first 8 characters only. List the baseline status of every metric in the comment, so your confirmation covers the statuses, and link the comment in the pull request description. Note the comment's UTC creation time.
 5. Wait for the window in each entry to close. An unmet minimum N at the null date stays `NULL`.

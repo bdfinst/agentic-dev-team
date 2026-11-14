@@ -277,6 +277,11 @@ class TestRenderLog:
         assert row["session_id"] == "sess-1"
         assert {"ts", "plugin_version", "report"} <= row.keys()
 
+    def test_session_flag_sets_the_render_row_session_id(self, tmp_path):
+        _run("--session", "flag", input_text=json.dumps([_finding()]), session="env")
+        (row,) = _render_rows(tmp_path)
+        assert row["session_id"] == "flag"
+
     def test_claude_session_id_alone_sets_the_session_id(self, tmp_path):
         _run(input_text=json.dumps([_finding()]), env_overrides={"CLAUDE_SESSION_ID": "legacy"})
         (row,) = _render_rows(tmp_path)
