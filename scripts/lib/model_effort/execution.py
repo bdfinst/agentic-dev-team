@@ -131,9 +131,7 @@ def run_trials(
     harness_error: str | None = None
     try:
         for index, slot in enumerate(slots):
-            if interrupts.take_pending():
-                abort_reason = AbortReason.INTERRUPT
-                break
+            interrupts.raise_if_pending()
             started_trials += 1
             result = executor.run(slot)
             ledger.record(slot, result)

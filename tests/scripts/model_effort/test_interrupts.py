@@ -213,11 +213,8 @@ class TestRunGuard:
             signal_own_thread(signal.SIGTERM)
 
         assert guard.arrived is True
-        held = interrupts.block()
-        try:
-            assert interrupts.take_pending() is False
-        finally:
-            interrupts.restore(held)
+        with interrupts.held_signals():
+            assert interrupts.pending() is False
 
     def test_a_keyboard_interrupt_from_the_body_is_absorbed_and_counted_as_arrived(
         self,

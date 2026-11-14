@@ -234,14 +234,12 @@ class TestInterruptsAreHeldForTheRun:
             )
 
         monkeypatch.setattr(runner, "_read_output", signal_then_read)
-        held = interrupts.block()
-        try:
+        guard = interrupts.RunGuard()
+        with guard.held():
             record = runner.run_trial(
-                fixture, _config(stub), trial_timeout_seconds=holder_seconds
-            )
-            still_pending = interrupts.take_pending()
-        finally:
-            interrupts.restore(held)
+                    fixture, _config(stub), trial_timeout_seconds=holder_seconds
+                )
+        still_pending = guard.arrived
 
         assert grace_started, "the process never reached the output grace"
         assert time.monotonic() - grace_started[0] < holder_seconds / 2
@@ -265,12 +263,10 @@ class TestInterruptsAreHeldForTheRun:
             real_kill(process)
 
         monkeypatch.setattr(runner, "_kill_process_group", signal_then_kill)
-        held = interrupts.block()
-        try:
+        guard = interrupts.RunGuard()
+        with guard.held():
             record = runner.run_trial(fixture, _config(stub), trial_timeout_seconds=1)
-            still_pending = interrupts.take_pending()
-        finally:
-            interrupts.restore(held)
+        still_pending = guard.arrived
 
         assert record.timed_out is True
         assert still_pending, "the signal was dropped instead of left for the run"
@@ -318,14 +314,11 @@ class TestInterruptsAreHeldForTheRun:
         def must_not_run(*_args):
             raise AssertionError("a trial started")
 
-        held = interrupts.block()
-        try:
+        with interrupts.RunGuard().held():
             signal_own_thread(signal.SIGTERM)
             run = execution.run_trials(
                 scout_plan, settings, _run_estimate(), run_trial=must_not_run
             )
-        finally:
-            interrupts.restore(held)
 
         assert (run.abort_reason, run.started_trials) == (AbortReason.INTERRUPT, 0)
 
@@ -342,32 +335,32 @@ class TestInterruptsAreHeldForTheRun:
         assert finished == ["body"]
         assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
 
-    def test_a_pending_signal_is_consumed_so_it_is_not_delivered_later(self):
-        held = interrupts.block()
-        try:
+    def test_a_pending_signal_is_raised_once_so_it_is_not_delivered_later(self):
+        guard = interrupts.RunGuard()
+        with guard.held():
             signal_own_thread(signal.SIGTERM)
-            first, second = interrupts.take_pending(), interrupts.take_pending()
-        finally:
-            interrupts.restore(held)
+            with pytest.raises(KeyboardInterrupt):
+                interrupts.raise_if_pending()
+            interrupts.raise_if_pending()
 
-        assert (first, second) == (True, False)
+        assert guard.arrived is False
 
     def test_a_signal_landing_just_before_the_restore_is_reported_not_raised(
         self, monkeypatch
     ):
-        held = interrupts.block()
+        held = interrupts._block()
 
         def consume_then_receive_one_more() -> bool:
             signal_own_thread(signal.SIGTERM)
             return False
 
-        # Fault injected: `take_pending` is replaced so a SIGTERM lands after the
+        # Fault injected: `_take_pending` is replaced so a SIGTERM lands after the
         # consume and before the restore. That window is a few bytecodes wide; the
         # public API gives a test no way to send a signal into it.
-        monkeypatch.setattr(interrupts, "take_pending", consume_then_receive_one_more)
+        monkeypatch.setattr(interrupts, "_take_pending", consume_then_receive_one_more)
         previous_handler = signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
         try:
-            arrived = interrupts.restore_reporting(held)
+            arrived = interrupts._restore_reporting(held)
         finally:
             signal.signal(signal.SIGTERM, previous_handler)
 
@@ -473,10 +466,10 @@ class TestSignalWhileFinishing:
     def test_a_signal_landing_as_the_signals_are_released_is_reported_as_finishing(
         self, world, capsys, monkeypatch
     ):
-        # Fault injected: one more SIGTERM as `restore_reporting` hands the mask
+        # Fault injected: one more SIGTERM as `_restore_reporting` hands the mask
         # back, still inside the session's guarded region. The public API cannot
         # reach that window: no step of the run runs there.
-        real_restore = interrupts.restore_reporting
+        real_restore = interrupts._restore_reporting
 
         def restore_then_receive_one_more(previous_mask):
             arrived = real_restore(previous_mask)
@@ -484,7 +477,7 @@ class TestSignalWhileFinishing:
             return arrived
 
         monkeypatch.setattr(
-            interrupts, "restore_reporting", restore_then_receive_one_more
+            interrupts, "_restore_reporting", restore_then_receive_one_more
         )
 
         code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
