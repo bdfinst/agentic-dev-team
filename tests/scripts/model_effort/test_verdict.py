@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import _model_effort_gate as gate
 import _model_effort_support  # noqa: F401  (puts the harness on sys.path first)
 import pytest
 from _model_effort_support import _trial_result
@@ -530,18 +531,50 @@ def test_verdict_dict_for_a_blocked_keep_has_no_arm():
 
 
 def test_the_decision_log_gate_excludes_the_same_agents():
-    import ast
+    assert gate.RECALL_GAP_AGENTS == set(RECALL_GAP_EXCLUDED_AGENTS)
 
-    from _repo_root import REPO_ROOT
 
-    gate = (REPO_ROOT / "tests" / "docs" / "_model_effort_gate.py").read_text(
-        encoding="utf-8"
+def test_the_decision_log_states_the_same_recall_gap_reason():
+    (reason,) = RECALL_GAP_EXCLUDED_AGENTS.values()
+
+    assert gate.RECALL_GAP_SENTENCE == f"{reason}."
+
+
+def test_the_gate_names_decisions_as_the_verdict_does():
+    assert (gate.DECISION_KEEP, gate.DECISION_DOWNGRADE, gate.DECISION_UPGRADE) == (
+        DECISION_KEEP,
+        DECISION_DOWNGRADE,
+        DECISION_UPGRADE,
     )
-    assigned = next(
-        node.value
-        for node in ast.walk(ast.parse(gate))
-        if isinstance(node, ast.Assign)
-        and any(getattr(t, "id", None) == "RECALL_GAP_AGENTS" for t in node.targets)
+
+
+def _gate_check(verdict, final_model, final_effort, direction, delta):
+    row = {"Final model": final_model, "Final effort": final_effort}
+    match = gate.EVIDENCE_RE.match(
+        f"eval:run-1; model:claude-{final_model}-5-5; effort:{final_effort}; "
+        f"fixtures:3; trials:{TRIALS}; delta:{delta}; cost:0.40->0.02"
+    )
+    assert match is not None
+    return gate.check_verdict(
+        "scout", row, match, direction, {"verdict": verdict_dict(verdict)}
     )
 
-    assert ast.literal_eval(assigned) == set(RECALL_GAP_EXCLUDED_AGENTS)
+
+def test_the_gate_accepts_the_downgrade_verdict_the_harness_writes():
+    verdict = decide(_current(2), _down(2), _up(0))
+
+    assert _gate_check(verdict, "haiku", "high", DECISION_DOWNGRADE, "0") == []
+
+
+def test_the_gate_accepts_the_upgrade_verdict_the_harness_writes():
+    verdict = decide(_current(0), _down(0), _up(TRIALS))
+
+    assert _gate_check(verdict, "opus", "high", DECISION_UPGRADE, "+1") == []
+
+
+def test_the_gate_rejects_a_row_the_harness_verdict_keeps():
+    verdict = decide(_current(3), _down(2), _up(0))
+
+    (problem,) = _gate_check(verdict, "haiku", "high", DECISION_DOWNGRADE, "0")
+    assert "verdict is 'keep', not 'downgrade'" in problem
+    assert "recall 2/4 below the current tier's 3/4" in problem

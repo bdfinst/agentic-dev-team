@@ -318,6 +318,11 @@ def test_keep_decision_with_moved_tier_fails():
         "ran it, fine",
         GOOD_EVIDENCE.replace("model:claude-haiku-5-5", "model:haiku"),
         GOOD_EVIDENCE.replace(f"eval:{GOOD_RUN_ID}", "eval:../run-1"),
+        GOOD_EVIDENCE.replace("delta:0", "delta:+0"),
+        GOOD_EVIDENCE.replace("delta:0", "delta:1"),
+        GOOD_EVIDENCE.replace("delta:0", "delta:-1"),
+        GOOD_EVIDENCE.replace("delta:0", "delta:+01"),
+        GOOD_EVIDENCE.replace("delta:0", "delta:"),
     ],
 )
 def test_malformed_downgrade_evidence_fails(evidence):
@@ -886,5 +891,88 @@ def test_recall_gap_agent_cannot_move_a_tier():
         (
             "correctness-review: results are excluded from evidence "
             "(known recall gap), so the tier cannot move"
+        )
+    ]
+
+
+def test_tier_change_to_a_model_the_verdict_did_not_pick_is_rejected():
+    # Same effort as the row; only the model differs.
+    verdict = make_verdict(DECISION_DOWNGRADE, "sonnet", "medium")
+    assert errors_with_stress_artifact(make_tier_change_row(), verdict=verdict) == [
+        f"b: artifact {GOOD_RUN_ID} verdict moves to sonnet/medium, not the row's haiku/medium"
+    ]
+
+
+@pytest.mark.parametrize(
+    "verdict",
+    [
+        make_verdict(DECISION_DOWNGRADE, "haiku", "medium"),
+        make_verdict(DECISION_KEEP, None, None),
+    ],
+)
+def test_upgrade_row_backed_by_a_non_upgrade_verdict_is_rejected(verdict):
+    artifact = {**ARTIFACTS_BY_RUN_ID[UPGRADE_RUN_ID], "verdict": verdict}
+    assert errors_for(make_upgrade_row(), {UPGRADE_RUN_ID: artifact}.get) == [
+        (
+            f"b: artifact {UPGRADE_RUN_ID} verdict is '{verdict['decision']}', "
+            "not 'upgrade': synthetic reason"
+        )
+    ]
+
+
+MODEL_UPGRADE_RUN_ID = "run-model-up"
+MODEL_UPGRADE_ARTIFACT = {
+    **make_artifact(
+        MODEL_UPGRADE_RUN_ID,
+        "o",
+        [
+            make_arm("baseline", "sonnet", "high", 0.02),
+            make_arm("step-down", "haiku", "high", 0.01),
+            make_arm("step-up", "opus", "high", 0.40),
+        ],
+    ),
+    "mode": "stress",
+    "tier_change_eligible": True,
+    "verdict": make_verdict(DECISION_UPGRADE, "opus", "high", ["f0"]),
+}
+
+
+def make_model_upgrade_row(**overrides):
+    defaults = {
+        "agent": "o",
+        "source": "o.md",
+        "baseline_model": "sonnet",
+        "baseline_effort": "high",
+        "final_model": "opus",
+        "final_effort": "high",
+        "evidence": (
+            f"eval:{MODEL_UPGRADE_RUN_ID}; model:claude-opus-5-5; effort:high; "
+            f"fixtures:{MIN_FIXTURES}; trials:3; delta:+1; cost:0.02->0.40"
+        ),
+    }
+    return make_upgrade_row(**{**defaults, **overrides})
+
+
+def test_model_axis_upgrade_backed_by_its_stress_verdict_passes():
+    assert (
+        errors_for(
+            make_model_upgrade_row(),
+            {MODEL_UPGRADE_RUN_ID: MODEL_UPGRADE_ARTIFACT}.get,
+        )
+        == []
+    )
+
+
+def test_model_axis_upgrade_to_a_model_the_verdict_did_not_pick_is_rejected():
+    artifact = {
+        **MODEL_UPGRADE_ARTIFACT,
+        "verdict": make_verdict(DECISION_UPGRADE, "sonnet", "high", ["f0"]),
+    }
+    assert errors_for(
+        make_model_upgrade_row(), {MODEL_UPGRADE_RUN_ID: artifact}.get
+    ) == [
+        (
+            f"o: artifact {MODEL_UPGRADE_RUN_ID} verdict moves to sonnet/high, "
+            "not the row's opus/high"
         )
     ]
