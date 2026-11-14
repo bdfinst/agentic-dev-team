@@ -128,6 +128,19 @@ class TestTrialOutcomes:
 
         assert result.reported_issue_count == 2
 
+    def test_passing_trial_records_how_many_issues_the_agent_reported(self):
+        verdict = {"status": "pass", "issues": [{"severity": "suggestion"}]}
+        result = _resolve(_verdict_stream(verdict))
+
+        assert result.outcome == Outcome.PASS
+        assert result.reported_issue_count == 1
+
+    def test_graded_json_without_an_issues_key_records_zero_issues(self):
+        result = _resolve(_verdict_stream({"status": "pass", "summary": "ok"}))
+
+        assert result.outcome == Outcome.PASS
+        assert result.reported_issue_count == 0
+
     def test_ungraded_trial_records_no_issue_count(self):
         result = _resolve(_stream(_result_event("I found nothing to report.")))
 

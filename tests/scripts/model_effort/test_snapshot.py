@@ -150,7 +150,6 @@ class TestRunInputsAreFrozenAtPlanTime:
         ]
         assert graded and set(graded) == {Outcome.GRADED_FAIL}
 
-
     def test_fixture_trials_carry_the_plans_skip_expectation(self, world, scout_plan):
         canned, _ = _deps_with_canned_trials(world.deps)
         settings = run_types.TrialSettings(
@@ -177,6 +176,7 @@ class TestRunInputsAreFrozenAtPlanTime:
             for fixture in arm_run.fixture_trials
         ]
         assert flags and all(flags)
+
 
 class TestSnapshotIsRemoved:
     @pytest.fixture(autouse=True)

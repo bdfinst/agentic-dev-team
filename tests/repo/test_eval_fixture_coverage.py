@@ -190,3 +190,13 @@ def test_a_malformed_expected_file_exits_2_naming_it(
     assert res.returncode == 2
     assert "Traceback" not in res.stderr
     assert f"malformed expected file c.json: {reason}" in res.stderr
+
+
+def test_a_malformed_expected_file_without_a_fixture_exits_2(corpus: Path) -> None:
+    _meeting_minimums(corpus)
+    (corpus / "expected" / "orphan.json").write_text('{"agents": null}')
+    res = _run_on(corpus)
+    assert res.returncode == 2
+    assert "malformed expected file orphan.json: `agents` is not a JSON object" in (
+        res.stderr
+    )

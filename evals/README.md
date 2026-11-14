@@ -270,7 +270,8 @@ fixtures, at least 2 of them hard and at least 1 clean.
 `eval_grade.py --check-corpus` rejects an unknown `reason` or an empty `note`.
 `scripts/eval_fixture_coverage.py` prints the per-agent counts and exits 1
 when an agent is below a minimum, or 2 when a directory is missing or an
-expected file is not a JSON object; `tests/repo/test_eval_fixture_coverage.py`
+expected file is malformed (invalid JSON, not an object, or `agents` not an
+object), whether or not it has a fixture; `tests/repo/test_eval_fixture_coverage.py`
 runs it in the pre-push gate.
 
 Keep the verdict out of the fixture: a header comment such as `// PASS:` or

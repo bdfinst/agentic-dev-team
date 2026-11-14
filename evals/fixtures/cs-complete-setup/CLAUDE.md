@@ -1,35 +1,34 @@
 # Acme Dashboard
 
-A React + TypeScript internal dashboard for managing customer accounts, billing, and support tickets.
+A React + TypeScript internal dashboard for managing customer accounts.
 
 ## Architecture
 
 - **Frontend**: React 18 with TypeScript, Vite bundler
-- **State**: Zustand for global state, React Query for server state
+- **State**: React Query for server state
 - **Backend**: Express API in `server/`, PostgreSQL via Prisma ORM
-- **Auth**: JWT-based auth with refresh tokens, middleware in `server/middleware/auth.ts`
+- **Auth**: JWT bearer-token auth, middleware in `server/middleware/auth.ts`
 
 ## Directory Structure
 
-- `src/` — React frontend source
+- `src/` — React frontend source (entry: `src/main.tsx`)
   - `src/components/` — Shared UI components
-  - `src/features/` — Feature modules (accounts, billing, tickets)
+  - `src/features/` — Feature modules (accounts)
   - `src/hooks/` — Custom React hooks
   - `src/utils/` — Helper functions
 - `server/` — Express backend
   - `server/routes/` — API route handlers
-  - `server/middleware/` — Auth, logging, error handling
-  - `server/prisma/` — Schema and migrations
+  - `server/middleware/` — Express middleware (JWT auth)
+  - `server/prisma/` — Prisma schema
 
 ## Commands
 
 - `npm run dev` — Start frontend dev server (port 3000)
 - `npm run server` — Start backend dev server (port 4000)
 - `npm test` — Run Vitest unit tests
-- `npm run test:e2e` — Run Playwright end-to-end tests
 - `npm run lint` — ESLint + Prettier check
 - `npm run db:migrate` — Run Prisma migrations
-- `npm run build` — Production build
+- `npm run build` — Production build: frontend to `dist/`, server bundle to `dist/server/index.js`
 
 ## Coding Conventions
 
@@ -37,5 +36,5 @@ A React + TypeScript internal dashboard for managing customer accounts, billing,
 - Colocate tests next to source files as `*.test.ts(x)`
 - All API responses follow `{ data, error, meta }` envelope
 - Use `zod` for runtime validation of API inputs
-- Prefer named exports over default exports
+- Prefer named exports over default exports (tool config files excepted)
 - Keep components under 150 lines; extract hooks for complex logic

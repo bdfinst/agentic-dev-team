@@ -37,6 +37,9 @@ class TestIsExpectedClean:
 
         assert fixture_resolution.is_expected_clean(entry, "a") is False
 
+    def test_null_agent_expectation_is_not_clean(self):
+        assert fixture_resolution.is_expected_clean({"agents": {"a": None}}, "a") is False
+
 
 class TestIsExpectedSkip:
     @pytest.mark.parametrize(("status", "skip"), [("skip", True), ("pass", False)])
@@ -44,6 +47,9 @@ class TestIsExpectedSkip:
         entry = {"agents": {"a": {"expectedStatus": status}}}
 
         assert fixture_resolution.is_expected_skip(entry, "a") is skip
+
+    def test_null_agent_expectation_is_not_a_skip(self):
+        assert fixture_resolution.is_expected_skip({"agents": {"a": None}}, "a") is False
 
 
 class TestDescribeFixture:

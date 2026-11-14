@@ -372,11 +372,19 @@ For each fixture/agent pair (agent fixtures):
    (`mechanicalFail` gating). Skip this sub-step entirely for every other
    agent.
 1b. **SQL detector pre-phase (#2283).** When `<agent-name>` is `sql-review`,
-   compute the detector gate for the fixture file — the same invocation
+   compute the detector gate for the fixture — the same invocation
    `/code-review` Step 3 uses — and append its JSON to the dispatch prompt:
 
    ```bash
    python3 "$CLAUDE_PLUGIN_ROOT/scripts/sql_anti_patterns.py" --gate <fixture-path>
+   ```
+
+   For a directory fixture, pass its files, not the directory: the detector
+   reports a directory path as an error or ignores it, so the agent would get
+   no hits to triage.
+
+   ```bash
+   find <fixture-path> -type f | sort | python3 "$CLAUDE_PLUGIN_ROOT/scripts/sql_anti_patterns.py" --gate --files-from -
    ```
 
    Frame it as "Detector hits for this file (computed by

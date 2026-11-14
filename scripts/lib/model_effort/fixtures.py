@@ -42,14 +42,21 @@ def is_clean_expectation(expectation: dict) -> bool:
     return expectation.get("expectedStatus") in EXPECTED_STATUSES_CLEAN
 
 
+def _expectation(expected_entry: dict, agent: str) -> dict:
+    """`agent`'s expectation in the entry, or {} when it is missing or not an object."""
+    agents = expected_entry.get("agents")
+    expectation = agents.get(agent) if isinstance(agents, dict) else None
+    return expectation if isinstance(expectation, dict) else {}
+
+
 def is_expected_clean(expected_entry: dict, agent: str) -> bool:
     """True when the expected entry says `agent` should report no problems."""
-    return is_clean_expectation(expected_entry.get("agents", {}).get(agent, {}))
+    return is_clean_expectation(_expectation(expected_entry, agent))
 
 
 def is_expected_skip(expected_entry: dict, agent: str) -> bool:
     """True when the expected entry says `agent` should skip the fixture."""
-    expectation = expected_entry.get("agents", {}).get(agent, {})
+    expectation = _expectation(expected_entry, agent)
     return expectation.get("expectedStatus") == EXPECTED_STATUS_SKIP
 
 

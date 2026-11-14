@@ -5,13 +5,15 @@ export interface Account {
   name: string;
 }
 
+function fetchAccounts(): Promise<Account[]> {
+  return fetch("/api/accounts")
+    .then((response) => response.json())
+    .then((body) => body.data);
+}
+
 export function useAccounts() {
   return useQuery<Account[]>({
     queryKey: ["accounts"],
-    queryFn: async () => {
-      const response = await fetch("/api/accounts");
-      const body = await response.json();
-      return body.data;
-    },
+    queryFn: fetchAccounts,
   });
 }

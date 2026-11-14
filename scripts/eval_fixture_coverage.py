@@ -17,7 +17,9 @@ The review agents are `plugins/dev-team/agents/*-review.md`. Every one of them
 needs at least MIN_FIXTURES fixtures, MIN_HARD hard and MIN_CLEAN clean.
 
 Exit codes: 0 every review agent meets the minimums, 1 at least one does not,
-2 a directory is missing or an expected file is not a JSON object.
+2 a directory is missing or an expected file is malformed (invalid JSON, not
+an object, or `agents` not an object). Every expected file is validated, with
+or without a fixture.
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ REVIEW_AGENT_SUFFIX = "-review.md"
 
 
 class MalformedExpectedError(Exception):
-    """An expected file is not valid JSON or not a JSON object."""
+    """An expected file is invalid JSON, not an object, or has a non-object `agents`."""
 
 
 @dataclass
@@ -81,10 +83,10 @@ def coverage(
     by_agent = {agent: AgentCoverage(agent) for agent in agents}
     stems = fixture_stems(fixtures_dir)
     for path in sorted(expected_dir.glob("*.json")):
+        entry = _load_entry(path)
         stem = path.stem
         if stem not in stems:
             continue
-        entry = _load_entry(path)
         for agent, expectation in entry.get("agents", {}).items():
             if agent not in by_agent or not isinstance(expectation, dict):
                 continue

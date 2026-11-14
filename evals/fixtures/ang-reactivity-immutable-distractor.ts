@@ -37,7 +37,8 @@ const FILTER_STORAGE_KEY = "product-list.filter";
       }
     </ul>
     <p>Viewport width: {{ viewportWidth() }}</p>
-    <p>{{ (recommendations$ | async)?.length ?? 0 }} recommendations</p>
+    @let recommendationCount = (recommendations$ | async)?.length ?? 0;
+    <p>{{ recommendationCount }} recommendations</p>
   `,
 })
 export class ProductListComponent {
