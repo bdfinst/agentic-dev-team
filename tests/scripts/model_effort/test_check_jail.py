@@ -81,14 +81,32 @@ class TestProbe:
             lambda writable: real_profile(writable).replace(PREFERENCE_DENIAL, ""),
         )
 
+        domains = []
+        real_new_domain = check_jail.new_preference_probe_domain
+
+        def recording_new_domain():
+            domains.append(real_new_domain())
+            return domains[-1]
+
+        monkeypatch.setattr(check_jail, "new_preference_probe_domain", recording_new_domain)
+
         check_jail.probe(jail)
 
+        (domain,) = domains
         read = subprocess.run(
-            ["/usr/bin/defaults", "read", check_jail.PREFERENCE_PROBE_DOMAIN, "probe"],
+            ["/usr/bin/defaults", "read", domain, "probe"],
             capture_output=True,
             check=False,
         )
         assert read.returncode != 0
+
+
+def test_each_probe_writes_its_own_preference_domain():
+    first = check_jail.new_preference_probe_domain()
+    second = check_jail.new_preference_probe_domain()
+
+    assert first != second
+    assert first.startswith(check_jail.PREFERENCE_PROBE_DOMAIN_PREFIX + ".")
 
 
 SIGNALS_OWN_CHILD = (
