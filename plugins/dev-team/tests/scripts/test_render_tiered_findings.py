@@ -221,21 +221,23 @@ class TestRenderExpand:
 _SESSION_ENV = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
 
 
-def _run(*args, input_text=None, cwd=None, session=None):
-    """Run the CLI outside the repository, so a default render's size row never
-    lands in the checkout's own metrics, with the session id under test only."""
+def _run(*args, input_text=None, cwd=None, session=None, env_overrides=None):
+    """Run the CLI outside the repository, so a size row never lands in the
+    checkout's own metrics, with only the session variables under test set."""
     env = {k: v for k, v in os.environ.items() if k not in _SESSION_ENV}
     if session is not None:
         env["CLAUDE_CODE_SESSION_ID"] = session
-    return subprocess.run(
-        [sys.executable, str(_SCRIPT), *args],
-        input=input_text,
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=cwd or tempfile.mkdtemp(),
-        env=env,
-    )
+    env.update(env_overrides or {})
+    with tempfile.TemporaryDirectory() as scratch:
+        return subprocess.run(
+            [sys.executable, str(_SCRIPT), *args],
+            input=input_text,
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=cwd or scratch,
+            env=env,
+        )
 
 
 def _size_rows(base: Path) -> list[dict]:
@@ -380,7 +382,7 @@ class TestCli:
 
 
 class TestReportSizes:
-    """Each default render records the round's untiered and tiered report sizes."""
+    """Every successful render records the round's untiered and tiered report sizes."""
 
     def test_untiered_report_inlines_full_message_and_suggested_fix(self):
         findings = [_finding(message="First sentence. Second sentence.")]
@@ -398,21 +400,53 @@ class TestReportSizes:
         ids = rtf.compute_ids(findings)
         assert len(rtf.render_untiered_report(findings, ids).splitlines()) == 1
 
+    def test_untiered_report_collapses_whitespace_runs_in_the_message(self):
+        findings = [_finding(message="  One\n\n  two\tthree  ", suggestedFix="")]
+        ids = rtf.compute_ids(findings)
+        assert " — One two three (" in rtf.render_untiered_report(findings, ids)
+
+    def test_untiered_report_renders_a_missing_message_as_empty_text(self):
+        finding = _finding(suggestedFix="")
+        del finding["message"]
+        ids = rtf.compute_ids([finding])
+        assert rtf.render_untiered_report([finding], ids) == (
+            "src/auth/login.ts:42 [structure-review] warning/medium —  "
+            "(structure-review:src/auth/login.ts:42:warning)"
+        )
+
     def test_sizes_are_utf8_bytes_of_each_rendering(self):
         findings = [
             _finding(),
             _finding(line=7, message="Long — detail. More detail follows here."),
         ]
         ids = rtf.compute_ids(findings)
-        sizes = rtf.report_sizes(findings, ids)
+        sizes = rtf.measure_report_sizes(findings, ids)
         assert sizes == {
             "findings": 2,
-            "full_bytes": len(
-                rtf.render_untiered_report(findings, ids).encode("utf-8")
-            ),
+            "untiered_bytes": len(rtf.render_untiered_report(findings, ids).encode("utf-8")),
             "tiered_bytes": len(rtf.render_tier1_report(findings, ids).encode("utf-8")),
         }
-        assert sizes["tiered_bytes"] < sizes["full_bytes"]
+        assert sizes["tiered_bytes"] < sizes["untiered_bytes"]
+
+    def test_sizes_match_a_hand_counted_byte_oracle(self):
+        # Tier-1 line "f:1 [a] s/c — M. (a:f:1:s)" is 28 bytes (the dash is 3);
+        # the untiered line adds " N." (31), then "\nSuggested fix: X" (17).
+        # The Tier-1 report adds "\n" plus the 79-byte expansion hint.
+        finding = {"agent": "a", "file": "f", "line": 1, "severity": "s",
+                   "confidence": "c", "message": "M. N.", "suggestedFix": "X"}
+        ids = rtf.compute_ids([finding])
+        assert rtf.measure_report_sizes([finding], ids) == {
+            "findings": 1,
+            "untiered_bytes": 48,
+            "tiered_bytes": 108,
+        }
+
+    def test_a_one_sentence_finding_with_no_fix_measures_larger_tiered(self):
+        """The expansion hint makes the Tier-1 report the larger one here; the
+        row records that as-is rather than clamping it."""
+        findings = [_finding(message="Only sentence.", suggestedFix="")]
+        sizes = rtf.measure_report_sizes(findings, rtf.compute_ids(findings))
+        assert sizes["tiered_bytes"] > sizes["untiered_bytes"]
 
     def test_default_render_appends_one_row_with_the_session_id(self, tmp_path):
         findings = [_finding()]
@@ -422,8 +456,15 @@ class TestReportSizes:
         assert row["session_id"] == "sess-1"
         ids = rtf.compute_ids(findings)
         assert {
-            k: row[k] for k in ("findings", "full_bytes", "tiered_bytes")
-        } == rtf.report_sizes(findings, ids)
+            k: row[k] for k in ("findings", "untiered_bytes", "tiered_bytes")
+        } == rtf.measure_report_sizes(findings, ids)
+
+    def test_zero_finding_render_records_the_clean_pass_summary_size(self, tmp_path):
+        r = _run(input_text=json.dumps([]), cwd=tmp_path, session="s")
+        assert r.returncode == 0
+        (row,) = _size_rows(tmp_path)
+        size = len(rtf.CLEAN_PASS_SUMMARY.encode("utf-8"))
+        assert (row["findings"], row["untiered_bytes"], row["tiered_bytes"]) == (0, size, size)
 
     def test_session_flag_overrides_the_environment(self, tmp_path):
         _run(
@@ -436,20 +477,68 @@ class TestReportSizes:
         (row,) = _size_rows(tmp_path)
         assert row["session_id"] == "from-flag"
 
-    def test_row_without_a_session_id_still_records_the_sizes(self, tmp_path):
+    def test_claude_session_id_alone_supplies_the_session(self, tmp_path):
+        _run(
+            input_text=json.dumps([_finding()]),
+            cwd=tmp_path,
+            env_overrides={"CLAUDE_SESSION_ID": "legacy"},
+        )
+        (row,) = _size_rows(tmp_path)
+        assert row["session_id"] == "legacy"
+
+    def test_claude_code_session_id_wins_when_both_are_set(self, tmp_path):
+        _run(
+            input_text=json.dumps([_finding()]),
+            cwd=tmp_path,
+            env_overrides={"CLAUDE_CODE_SESSION_ID": "current", "CLAUDE_SESSION_ID": "legacy"},
+        )
+        (row,) = _size_rows(tmp_path)
+        assert row["session_id"] == "current"
+
+    def test_empty_claude_code_session_id_falls_through(self, tmp_path):
+        _run(
+            input_text=json.dumps([_finding()]),
+            cwd=tmp_path,
+            env_overrides={"CLAUDE_CODE_SESSION_ID": "", "CLAUDE_SESSION_ID": "legacy"},
+        )
+        (row,) = _size_rows(tmp_path)
+        assert row["session_id"] == "legacy"
+
+    def test_row_without_a_session_id_has_no_session_key(self, tmp_path):
         _run(input_text=json.dumps([_finding()]), cwd=tmp_path)
         (row,) = _size_rows(tmp_path)
-        assert "session_id" not in row and row["findings"] == 1
+        assert "session_id" not in row
+        assert row["findings"] == 1
 
-    def test_expand_render_records_no_second_row_for_the_same_round(self, tmp_path):
+    def test_expand_all_render_records_the_round(self, tmp_path):
         findings = [_finding()]
-        _run(
-            "--expand",
-            "all",
-            input_text=json.dumps(findings),
-            cwd=tmp_path,
-            session="s",
+        r = _run("--expand", "all", input_text=json.dumps(findings), cwd=tmp_path, session="s")
+        ids = rtf.compute_ids(findings)
+        assert r.returncode == 0
+        assert r.stdout == (
+            rtf.render_tier1_report(findings, ids) + "\n\n" + rtf.render_tier2_report(findings, ids) + "\n"
         )
+        (row,) = _size_rows(tmp_path)
+        assert {
+            k: row[k] for k in ("findings", "untiered_bytes", "tiered_bytes")
+        } == rtf.measure_report_sizes(findings, ids)
+
+    def test_expand_one_render_records_the_same_sizes_as_the_default(self, tmp_path):
+        findings = [_finding(), _finding(line=7)]
+        ids = rtf.compute_ids(findings)
+        default = _run(input_text=json.dumps(findings), cwd=tmp_path, session="s")
+        expanded = _run("--expand", ids[1], input_text=json.dumps(findings), cwd=tmp_path, session="s")
+        assert default.returncode == 0
+        assert expanded.returncode == 0
+        assert expanded.stdout == (
+            rtf.render_tier1_report(findings, ids) + "\n\n" + rtf.render_tier2_block(findings[1], ids[1]) + "\n"
+        )
+        first, second = ({k: v for k, v in row.items() if k != "ts"} for row in _size_rows(tmp_path))
+        assert first == second
+
+    def test_unknown_expand_id_exits_1_and_records_nothing(self, tmp_path):
+        r = _run("--expand", "no-such-id", input_text=json.dumps([_finding()]), cwd=tmp_path, session="s")
+        assert r.returncode == 1
         assert _size_rows(tmp_path) == []
 
     def test_recording_leaves_stdout_as_the_tier1_report(self, tmp_path):
@@ -460,3 +549,13 @@ class TestReportSizes:
             == rtf.render_tier1_report(findings, rtf.compute_ids(findings)) + "\n"
         )
         assert r.stderr == ""
+
+    def test_a_size_measurement_that_raises_leaves_stdout_and_exit_code_unchanged(self, tmp_path):
+        """A lone surrogate in the suggested fix cannot encode as UTF-8, so measuring
+        the untiered report raises; the Tier-1 report never prints the fix."""
+        findings = [_finding(suggestedFix="\udc80")]
+        r = _run(input_text=json.dumps(findings), cwd=tmp_path, session="s")
+        assert r.returncode == 0
+        assert r.stdout == rtf.render_tier1_report(findings, rtf.compute_ids(findings)) + "\n"
+        assert r.stderr == ""
+        assert _size_rows(tmp_path) == []

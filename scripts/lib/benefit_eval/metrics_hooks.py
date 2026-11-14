@@ -2,9 +2,11 @@
 completion-guard divergence rate with its hand-check sample, the
 ``test-review`` dispatch token change, and the tiered-findings report-size cut.
 
-Uptake, the sample's agent ids and the dispatch tokens come from the subagent
-transcripts that ``session_log`` discovers, because the streams carry no agent
-id; the join grain is (session, agent type). Read-only.
+For the hook metrics, uptake, the sample's agent ids and the dispatch tokens
+come from the subagent transcripts that ``session_log`` discovers, because the
+hook streams carry no agent id; their join grain is (session, agent type).
+``report_size_cut`` reads no transcript: it reads the review-round stream that
+the ``render_tiered_findings.py`` CLI writes, one row per render. Read-only.
 
 Stdlib-only.
 """
@@ -161,16 +163,31 @@ def injection_uptake(metric: Metric, ctx: ReportContext) -> ReportLine:
 def report_size_cut(metric: Metric, ctx: ReportContext) -> ReportLine:
     """Mean per-round percent by which the Tier-1 report is smaller than the untiered one.
 
-    A clean-pass round renders the same summary either way, so it is counted and left out."""
+    A clean-pass round renders the same summary either way, so it is counted and left out. Re-renders
+    of one round write identical rows, so rows equal in session, findings and both sizes count once.
+    Raises ``InputError`` for a row with findings but an empty untiered report."""
     part = ctx.partition(metric.instrument)
-    cuts, sessions, clean = [], [], 0
+    cuts, sessions, clean_pass_rounds = [], [], 0
+    seen: set[tuple[str, int, int, int]] = set()
     for row in part.real:
-        full = streams.row_field(row, "full_bytes", int, minimum=0)
-        tiered = streams.row_field(row, "tiered_bytes", int, minimum=0)
-        if streams.row_field(row, "findings", int, minimum=0) == 0 or full == 0:
-            clean += 1
+        findings = streams.row_field(row, "findings", int, minimum=0)
+        untiered_bytes = streams.row_field(row, "untiered_bytes", int, minimum=0)
+        tiered_bytes = streams.row_field(row, "tiered_bytes", int, minimum=0)
+        round_key = (row.data["session_id"], findings, untiered_bytes, tiered_bytes)
+        if round_key in seen:
             continue
-        cuts.append(formatting.percent(full - tiered, full))
+        seen.add(round_key)
+        if findings == 0:
+            clean_pass_rounds += 1
+            continue
+        if untiered_bytes == 0:
+            raise streams.InputError(
+                row.file,
+                row.line,
+                f"row field 'untiered_bytes' is 0 although 'findings' is {findings}",
+                streams.REPAIR_ROW,
+            )
+        cuts.append(formatting.percent(untiered_bytes - tiered_bytes, untiered_bytes))
         sessions.append(row.data["session_id"])
     value = sum(cuts) / len(cuts) if cuts else None
     return formatting.measured_line(
@@ -180,7 +197,7 @@ def report_size_cut(metric: Metric, ctx: ReportContext) -> ReportLine:
         sessions,
         len(part.unverified),
         f"mean {formatting.number_text(value)} {metric.unit}" if cuts else "",
-        details=[f"clean-pass rounds left out: {clean}"],
+        details=[f"clean-pass rounds left out: {clean_pass_rounds}"],
     )
 
 

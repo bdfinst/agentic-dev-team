@@ -12,14 +12,15 @@ already on hand and one measurement row.
 
 ## Report-size row
 
-A default render (no `--expand`) appends one row to
+Every successful render, with or without `--expand`, appends one row to
 `.claude/metrics/review-report-sizes.jsonl` through `instrument_log`:
-`findings`, `full_bytes` (UTF-8 bytes of the untiered report, every
+`findings`, `untiered_bytes` (UTF-8 bytes of the untiered report, every
 finding's full message and suggested fix inline) and `tiered_bytes` (UTF-8
-bytes of the Tier-1 report printed), plus `session_id` from `--session`,
-else `$CLAUDE_CODE_SESSION_ID`, else `$CLAUDE_SESSION_ID`. An `--expand`
-render re-renders a round already recorded, so it writes no row. The write
-is fail-open and never changes stdout or the exit code.
+bytes of the Tier-1 report), plus `session_id` from `--session`, else
+`$CLAUDE_CODE_SESSION_ID`, else `$CLAUDE_SESSION_ID`. The sizes do not depend
+on `--expand`, so re-renders of one round write identical rows, which the
+metric counts once. An unknown `--expand` id writes no row. Measuring and
+writing are fail-open and never change stdout or the exit code.
 
 This script is prose-path only. `--json` (step 7's other branch) and
 `./corrections/*.json` (step 8) read/write the full finding objects
@@ -86,6 +87,9 @@ CLEAN_PASS_SUMMARY = "Clean pass: 0 findings this round — nothing to expand."
 #: Rendered once, after the Tier-1 lines, when the round has at least one
 #: finding. Omitted entirely on a zero-finding round (see CLEAN_PASS_SUMMARY)
 #: because there is nothing an --expand call could act on.
+#: Label that introduces a finding's suggested fix on its own line.
+SUGGESTED_FIX_LABEL = "Suggested fix: "
+
 EXPAND_HINT = "Expand a finding with --expand <finding-id>, or --expand all for every finding."
 
 #: First-sentence split: a `.`/`!`/`?` followed by whitespace or end-of-string.
@@ -188,19 +192,19 @@ def render_untiered_report(findings: list[dict], ids: list[str]) -> str:
         return CLEAN_PASS_SUMMARY
     lines = []
     for finding, finding_id in zip(findings, ids):
-        full = " ".join(str(finding.get("message") or "").split())
-        lines.append(_finding_entry(finding, finding_id, full))
+        message = " ".join(str(finding.get("message") or "").split())
+        lines.append(_finding_entry(finding, finding_id, message))
         fix = finding.get("suggestedFix")
         if fix:
-            lines.append(f"Suggested fix: {fix}")
+            lines.append(f"{SUGGESTED_FIX_LABEL}{fix}")
     return "\n".join(lines)
 
 
-def report_sizes(findings: list[dict], ids: list[str]) -> dict:
+def measure_report_sizes(findings: list[dict], ids: list[str]) -> dict:
     """UTF-8 byte sizes of the untiered and the Tier-1 report for one round."""
     return {
         "findings": len(findings),
-        "full_bytes": len(render_untiered_report(findings, ids).encode("utf-8")),
+        "untiered_bytes": len(render_untiered_report(findings, ids).encode("utf-8")),
         "tiered_bytes": len(render_tier1_report(findings, ids).encode("utf-8")),
     }
 
@@ -209,10 +213,23 @@ def report_sizes(findings: list[dict], ids: list[str]) -> dict:
 _SESSION_ENV = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
 
 
-def _session_id(flag: str | None) -> str | None:
-    if flag:
-        return flag
+def _resolve_session_id(session_flag: str | None) -> str | None:
+    if session_flag:
+        return session_flag
     return next((os.environ[name] for name in _SESSION_ENV if os.environ.get(name)), None)
+
+
+def _record_sizes(findings: list[dict], ids: list[str], session_flag: str | None) -> None:
+    """Append this round's size row. Fail-open: a measurement or write error
+    must never change the report printed or the exit code."""
+    try:
+        append_row(
+            "review-report-sizes",
+            measure_report_sizes(findings, ids),
+            session_id=_resolve_session_id(session_flag),
+        )
+    except Exception:  # noqa: BLE001, S110 — measurement must never break the render
+        pass
 
 
 def render_tier2_block(finding: dict, finding_id: str) -> str:
@@ -221,7 +238,7 @@ def render_tier2_block(finding: dict, finding_id: str) -> str:
     lines = [f"=== {finding_id} ===", str(finding.get("message") or "")]
     fix = finding.get("suggestedFix")
     if fix:
-        lines.append(f"Suggested fix: {fix}")
+        lines.append(f"{SUGGESTED_FIX_LABEL}{fix}")
     return "\n".join(lines)
 
 
@@ -315,14 +332,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.expand is None:
         print(tier1)
-        # One size row per round: an --expand call re-renders a round already recorded.
-        append_row("review-report-sizes", report_sizes(findings, ids), session_id=_session_id(args.session))
+        _record_sizes(findings, ids, args.session)
         return 0
 
     if args.expand == "all":
         print(tier1)
         print()
         print(render_tier2_report(findings, ids))
+        _record_sizes(findings, ids, args.session)
         return 0
 
     block = render_expand_one(findings, ids, args.expand)
@@ -334,6 +351,7 @@ def main(argv: list[str] | None = None) -> int:
     print(tier1)
     print()
     print(block)
+    _record_sizes(findings, ids, args.session)
     return 0
 
 

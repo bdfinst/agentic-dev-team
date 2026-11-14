@@ -164,7 +164,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "Tiered findings report-size cut: percent smaller than the untiered report",
       "instrument": "review-report-sizes",
       "identity_class": "id-bearing",
-      "baseline": "no-reference: the 59.0% on the one round measured so far stays a single hand-measured round (n=1) with no committed source; render_tiered_findings.py has recorded each round's sizes since #2308",
+      "baseline": "no-reference: the 59.0% on the one round measured so far stays a single hand-measured round (n=1) with no committed source, and its measuring method is not recoverable; the comparison rests on the UTF-8 byte rule in the computation cell; render_tiered_findings.py has recorded each round's sizes since #2308",
       "unit": "percent",
       "keep": ">= 40",
       "tune": "< 40",
@@ -177,9 +177,10 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "parity_cap": "none",
       "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
       "confounds": [
-        "one hand-measured round before the store existed"
+        "one hand-measured round before the store existed, by a method that is not recoverable",
+        "two rounds in one session with identical findings and sizes count once, because re-renders of one round write identical rows"
       ],
-      "computation": "metrics_hooks.report_size_cut: mean per-round percent cut, (full_bytes - tiered_bytes) / full_bytes, over review-report-sizes rows of real sessions with at least one finding; clean-pass rounds are counted and left out",
+      "computation": "metrics_hooks.report_size_cut: mean per-round percent cut, (untiered_bytes - tiered_bytes) / untiered_bytes in UTF-8 bytes, over review-report-sizes rows of real sessions with at least one finding, rows equal in session, findings and both sizes counted once; clean-pass rounds are counted and left out",
       "rationale": "Keeping two thirds of the one-round cut over many rounds shows the saving holds beyond one example."
     },
     {

@@ -900,7 +900,7 @@ def test_prereg_is_not_referenced_from_shipped_plugin_files():
     assert offenders == []
 
 
-def test_real_prereg_audit_with_no_data_flags_every_stream_and_the_unmeasurable_metrics(world, real):
+def test_real_prereg_audit_with_no_data_flags_every_stream_and_the_unmeasurable_metric(world, real):
     statuses = {s.instrument: s for s in streams.audit(real.metrics, world.sources)}
     assert {name: s.status for name, s in statuses.items()} == {
         "ledger-skips": "gap",
