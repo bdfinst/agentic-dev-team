@@ -200,3 +200,11 @@ def test_a_malformed_expected_file_without_a_fixture_exits_2(corpus: Path) -> No
     assert "malformed expected file orphan.json: `agents` is not a JSON object" in (
         res.stderr
     )
+
+
+def test_a_non_utf8_expected_file_exits_2(corpus: Path) -> None:
+    _meeting_minimums(corpus)
+    (corpus / "expected" / "latin.json").write_bytes(b'{"description": "caf\xe9"}')
+    res = _run_on(corpus)
+    assert res.returncode == 2
+    assert "malformed expected file latin.json: not valid JSON" in res.stderr

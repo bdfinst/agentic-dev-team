@@ -37,4 +37,4 @@ A React + TypeScript internal dashboard for managing customer accounts.
 - All API responses follow `{ data, error, meta }` envelope
 - Use `zod` for runtime validation of API inputs
 - Prefer named exports over default exports (tool config files excepted)
-- Keep components under 150 lines; extract hooks for complex logic
+- Extract hooks for complex component logic (function length limit: `.claude/rules/style.md`)

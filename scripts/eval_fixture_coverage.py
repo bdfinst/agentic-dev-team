@@ -102,7 +102,7 @@ def coverage(
 def _load_entry(path: Path) -> dict:
     try:
         entry = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
         raise MalformedExpectedError(f"{path.name}: not valid JSON: {error}") from error
     if not isinstance(entry, dict):
         raise MalformedExpectedError(f"{path.name}: not a JSON object")
