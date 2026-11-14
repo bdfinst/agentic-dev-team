@@ -45,6 +45,14 @@ class TestValidateCandidate:
         assert "cannot read the agent contract" in str(excinfo.value)
         assert "agent-contract.json" in str(excinfo.value)
 
+    def test_a_contract_of_another_shape_is_refused_naming_the_file(self, monkeypatch):
+        monkeypatch.setattr(
+            external.agent_contract_validator(), "load_contract", lambda: {"fields": {}}
+        )
+
+        with pytest.raises(UsageError, match="agent-contract.json"):
+            plan.validate_candidate("haiku", None)
+
     @pytest.mark.parametrize("effort", ["hgih", "ultracode", ""])
     def test_effort_outside_the_contract_is_refused_listing_valid_values(self, effort):
         with pytest.raises(UsageError) as excinfo:

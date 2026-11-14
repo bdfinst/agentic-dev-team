@@ -138,7 +138,10 @@ def _grading_rows(returned) -> list[tuple[str, bool, list[str]]]:
         raise drifted
     rows = returned[0]
     if not isinstance(rows, list) or not all(
-        isinstance(row, tuple) and len(row) == 3 and isinstance(row[2], list)
+        isinstance(row, tuple)
+        and len(row) == 3
+        and isinstance(row[1], bool)
+        and isinstance(row[2], list)
         for row in rows
     ):
         raise drifted
@@ -151,14 +154,48 @@ def should_scrub_env_var(name: str) -> bool:
 
 
 def contract_enums() -> tuple[Sequence[str], Sequence[str]] | None:
-    """The agent contract's allowed `model` and `effort` values, or None when it cannot be read."""
+    """The agent contract's allowed `model` and `effort` values, or None when it cannot be read.
+
+    Raises:
+        ExternalContractError: the contract no longer has a string `enum` list for
+            both fields.
+    """
     contract = agent_contract_validator().load_contract()
     if contract is None:
         return None
-    fields = contract["fields"]
-    return fields["model"]["enum"], fields["effort"]["enum"]
+    return _contract_enum(contract, "model"), _contract_enum(contract, "effort")
+
+
+def _contract_enum(contract, field: str) -> list[str]:
+    try:
+        enum = contract["fields"][field]["enum"]
+    except (KeyError, TypeError) as error:
+        raise ExternalContractError(
+            f"agent-contract.json no longer has fields.{field}.enum: {error!r}"
+        ) from error
+    if not isinstance(enum, list) or not all(isinstance(value, str) for value in enum):
+        raise ExternalContractError(
+            f"agent-contract.json fields.{field}.enum is no longer a list of strings"
+        )
+    return enum
 
 
 def model_is_valid(value: str, enum: Sequence[str]) -> bool:
-    """True when `value` is in the agent contract's model `enum` or is a full model ID."""
-    return agent_contract_validator()._model_is_valid(value, enum)
+    """True when `value` is in the agent contract's model `enum` or is a full model ID.
+
+    Raises:
+        ExternalContractError: the validator no longer has `_model_is_valid`, or it
+            no longer returns a bool.
+    """
+    check = getattr(agent_contract_validator(), "_model_is_valid", None)
+    if not callable(check):
+        raise ExternalContractError(
+            "plugins/marketplace-dev/scripts/validate_agent_contract.py no longer "
+            "defines _model_is_valid"
+        )
+    valid = check(value, enum)
+    if not isinstance(valid, bool):
+        raise ExternalContractError(
+            "validate_agent_contract.py _model_is_valid no longer returns a bool"
+        )
+    return valid

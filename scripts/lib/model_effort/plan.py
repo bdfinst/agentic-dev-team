@@ -319,7 +319,13 @@ def _refuse_invalid_values(
     Raises:
         UsageError: a value is not in the contract, or the contract is unreadable.
     """
-    enums = external.contract_enums()
+    try:
+        enums = external.contract_enums()
+    except external.ExternalContractError as error:
+        raise UsageError(
+            f"the agent contract no longer has the shape the harness reads: {error}. "
+            "Update the harness to match it"
+        ) from error
     if enums is None:
         raise UsageError(
             "cannot read the agent contract (plugins/marketplace-dev/knowledge/"
