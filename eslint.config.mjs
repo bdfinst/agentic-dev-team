@@ -104,6 +104,9 @@ export default tseslint.config(
   {
     files: clean,
     extends: [eslint.configs.recommended, ...tseslint.configs.recommended],
+    // Directory fixtures carry their own tsconfig.json, so the parser must not
+    // infer a root from the nearest one.
+    languageOptions: { parserOptions: { tsconfigRootDir: rootDir } },
     rules: {
       // TypeScript itself resolves identifiers; `no-undef` only produces false
       // positives here (e.g. test globals like `describe`/`it`, Svelte 5 runes
