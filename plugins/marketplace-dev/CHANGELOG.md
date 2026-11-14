@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.2.4...marketplace-dev-v1.3.0) (2026-11-14)
+
+
+### Features
+
+* **marketplace-dev:** keep model/effort decision log as an ADR 0026 sync surface ([#2316](https://github.com/bdfinst/agentic-dev-team/issues/2316)) ([2fb82eb](https://github.com/bdfinst/agentic-dev-team/commit/2fb82eb97af94760428d58b49d604cc2a26c4ebf))
+
 ## [1.2.4](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.2.3...marketplace-dev-v1.2.4) (2026-10-03)
 
 
