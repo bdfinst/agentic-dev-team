@@ -329,18 +329,20 @@ def _refuse_invalid_values(
     """
     try:
         enums = external.contract_enums()
+        if enums is None:
+            raise UsageError(
+                "cannot read the agent contract (plugins/marketplace-dev/knowledge/"
+                "agent-contract.json) to validate model and effort values: "
+                "restore the file"
+            )
+        models, efforts = enums
+        model_valid = model is None or external.model_is_valid(model, models)
     except external.ExternalContractError as error:
         raise UsageError(
             f"the agent contract no longer has the shape the harness reads: {error}. "
             "Update the harness to match it"
         ) from error
-    if enums is None:
-        raise UsageError(
-            "cannot read the agent contract (plugins/marketplace-dev/knowledge/"
-            "agent-contract.json) to validate model and effort values: restore the file"
-        )
-    models, efforts = enums
-    if model is not None and not external.model_is_valid(model, models):
+    if not model_valid:
         raise UsageError(
             f"{model_label} {model!r} is not valid: use one of "
             f"{', '.join(models)}, or a full model ID such as claude-opus-4-8"

@@ -11,6 +11,7 @@ import pytest
 from ab_inputs import make_file_fixture, write_agent_file, write_expected
 from ab_results import CLI_FAILURE_RECORD
 from ab_world import cli_canned, deps_with_canned_trials, stderr_lines
+from model_effort import external
 from model_effort.approval import DECLINED_MESSAGE, NO_TTY_MESSAGE
 from model_effort.arm import BASELINE_LABEL
 from model_effort.stress_arms import STEP_DOWN_LABEL, STEP_UP_LABEL
@@ -203,6 +204,24 @@ def test_batch_lists_an_agent_with_unreadable_frontmatter_as_skipped(world, caps
     assert any(
         line.startswith("  broken: cannot read frontmatter of agent 'broken'")
         for line in lines
+    ), lines
+
+
+def test_batch_lists_an_agent_whose_model_validator_drifted_as_skipped(
+    world, capsys, monkeypatch
+):
+    def drifted(_value, _enum):
+        raise external.ExternalContractError("_model_is_valid drifted")
+
+    monkeypatch.setattr(external, "model_is_valid", drifted)
+
+    code, calls = _batch(world)
+
+    lines = stderr_lines(capsys)
+    assert code == 2
+    assert calls == []
+    assert any(
+        "scout: " in line and "_model_is_valid drifted" in line for line in lines
     ), lines
 
 

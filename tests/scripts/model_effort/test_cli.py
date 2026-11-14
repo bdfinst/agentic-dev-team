@@ -114,6 +114,21 @@ class TestPreRunRefusals:
         stderr = capsys.readouterr().err
         assert "already exists" in stderr and "rerun" in stderr
 
+    def test_a_model_validator_that_drifted_exits_2_and_writes_nothing(
+        self, world, capsys, monkeypatch
+    ):
+        def drifted(_value, _enum):
+            raise external.ExternalContractError("_model_is_valid drifted")
+
+        monkeypatch.setattr(external, "model_is_valid", drifted)
+        stub = StubClaude(world.stub_dir)
+
+        code = cli(world, stub, *SCOUT_HAIKU_ARGS)
+
+        assert code == 2
+        assert "_model_is_valid drifted" in capsys.readouterr().err
+        assert_nothing_ran(stub, world)
+
     def test_unknown_agent_exits_2_listing_valid_agents_and_writes_nothing(
         self, world, capsys
     ):

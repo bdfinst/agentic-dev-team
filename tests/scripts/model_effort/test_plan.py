@@ -55,6 +55,17 @@ class TestValidateCandidate:
         with pytest.raises(UsageError, match="agent-contract.json"):
             plan.validate_candidate("haiku", None)
 
+    def test_a_model_validator_that_drifted_is_refused_naming_the_drift(
+        self, monkeypatch
+    ):
+        def drifted(_value, _enum):
+            raise external.ExternalContractError("_model_is_valid drifted")
+
+        monkeypatch.setattr(external, "model_is_valid", drifted)
+
+        with pytest.raises(UsageError, match="_model_is_valid drifted"):
+            plan.validate_candidate("haiku", None)
+
     @pytest.mark.parametrize("effort", ["hgih", "ultracode", ""])
     def test_effort_outside_the_contract_is_refused_listing_valid_values(self, effort):
         with pytest.raises(UsageError) as excinfo:
