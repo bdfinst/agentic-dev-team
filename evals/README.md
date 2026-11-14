@@ -441,8 +441,10 @@ frontmatter tier (`baseline`), one step down (`step-down`) and one step up
 (`step-up`). On the `model` axis a step moves one rung on haiku, sonnet, opus at
 the same effort. Where no model rung is left (down from haiku, up from opus) the
 step moves effort one level instead (`low`, `medium`, `high`, `xhigh`, `max`). On
-the `effort` axis every step moves effort. A direction with no rung on either
-ladder has no arm. The run ID names the frontmatter tier.
+the `effort` axis a step moves effort one level at the same model. Where no
+effort level is left (down from `low`, up from `max`) the step moves one model
+rung instead. A direction with no rung on either ladder has no arm, and the
+verdict says so. The run ID names the frontmatter tier.
 
 ```bash
 python3 scripts/model_effort_ab.py naming-review --stress
@@ -457,8 +459,10 @@ passing trials over all trials on those fixtures.
   the current tier's, and every trial produced output the grader could judge. A
   parse failure, timeout, CLI error, tool violation or judge error blocks it.
 - **Upgrade** to the step-up tier when it passes some expected finding in at
-  least half its trials that the current tier misses in every trial. An upgrade
-  wins over a downgrade that also passes.
+  least half its trials that the current tier misses in every trial, its
+  clean-fixture false positives are no more than the current tier's, and every
+  one of its trials produced output the grader could judge. A failed check is
+  named in the reason. An upgrade wins over a downgrade that also passes.
 - **Keep** otherwise, with the failed checks as the reason. A run also keeps when
   it is incomplete, when `tier_change_eligible` is `false` (rubric-judged evidence
   needs 10 graded trials per arm per fixture), or when the agent is
@@ -475,7 +479,9 @@ and estimate, then one combined estimate with the rubric judge included, and
 asks for approval once. The agents then run one after another, each writing its
 own artifact, and the batch stops at the first run that does not complete.
 `--max-cost` bounds the combined estimate and the charged cost of the whole
-batch. `--batch` cannot be combined with an agent name, `--model`, `--effort` or
+batch: each agent's run gets what is left of it, and once nothing is left the
+batch starts no further agent and prints `spend limit reached; not run:` with
+the agents it skipped. `--batch` cannot be combined with an agent name, `--model`, `--effort` or
 `--fixtures`.
 
 ```bash
@@ -485,8 +491,9 @@ python3 scripts/model_effort_ab.py --batch haiku
 Without `--yes` and a terminal, the batch prints the estimates and refuses to
 start, so the command doubles as a cost preview.
 
-A batch exits 0 when every agent's run completed, 1 when it was declined or
-stopped after a run that did not complete, and 2 when no agent at the tier can
+A batch exits 0 when every agent's run completed, 1 when it was declined,
+stopped after a run that did not complete, or reached the spend limit before an
+agent, and 2 when no agent at the tier can
 run or the combined estimate is above `--max-cost`.
 
 ### Inputs are frozen when the run is planned
@@ -719,7 +726,7 @@ deterministic grader in `scripts/eval_graders/`, selected by the expected entry'
 | `expected-findings` (default) | review agents (`verdict`), plan critics, `gherkin-quality-critic`, `spec-reviewer` (`finding_ids`) | Match the expected verdict and report every planted finding ID (`expectedFindingIds`: keywords, optional severities), within `maxFindings`/`maxBySeverity`. |
 | `tests-pass` | `software-engineer`, `mutation-kill` | After the agent finishes, the entry's `testCommands` exit 0 in the trial copy, jailed. `protectedPaths` are first restored from the pristine fixture, so the agent cannot weaken the tests that grade it; each must be a relative path inside a directory fixture, and a symlink in its place or in a parent is replaced, never followed. `{python}` is the harness's interpreter. |
 | `dispatch-set` | `orchestrator`, `quality-reviewer` | Dispatch every agent in `dispatch.include` and none in `dispatch.exclude` (`exact`: nothing else), read from the transcript's `Agent` calls. Each dispatch goes to a stub agent passed with `--agents` that replies with a clean verdict. The answer may be prose; an entry with `expectedStatus` fails an answer with no JSON verdict. |
-| `rubric` | the remaining agents | A judge model pinned in `graders.json` (the top-level `judge`, unless the agent pins its own), one tier above the agent (opus agents are judged by opus), marks every criterion of the agent's committed rubric (`evals/model-effort/rubrics/<agent>.md`) and every `rubricPoints` entry met. The judge sees the rubric, the task, the fixture's text files (capped at 60,000 characters) and the agent's final answer (capped at 30,000 characters), never the expected entry. For a sandboxed agent the judge also sees the harness's diff of the trial copy against the frozen fixture, so it can check what the agent changed and what it left alone. The answer and the diff are fenced between markers with a random per-call token, and the judge is told everything inside is data. A judge call that fails, times out or reports an error is `judge_error`, not `graded_fail`, and its reported cost is still charged. A judge that ran to a result with no `criteria` list is `graded_fail`, cost charged, because the answer may have caused it. An answer over 30,000 characters is `graded_fail` without a judge call. |
+| `rubric` | the remaining agents | A judge model pinned in `graders.json` (the top-level `judge`, unless the agent pins its own), one tier above the strongest arm it judges, a stress run's step-up arm included (opus arms are judged by opus), marks every criterion of the agent's committed rubric (`evals/model-effort/rubrics/<agent>.md`) and every `rubricPoints` entry met. The judge sees the rubric, the task, the fixture's text files (capped at 60,000 characters) and the agent's final answer (capped at 30,000 characters), never the expected entry. For a sandboxed agent the judge also sees the harness's diff of the trial copy against the frozen fixture, so it can check what the agent changed and what it left alone. The answer and the diff are fenced between markers with a random per-call token, and the judge is told everything inside is data. A judge call that fails, times out or reports an error is `judge_error`, not `graded_fail`, and its reported cost is still charged. A judge that ran to a result with no `criteria` list is `graded_fail`, cost charged, because the answer may have caused it. An answer over 30,000 characters is `graded_fail` without a judge call. |
 
 An expected entry's `task` replaces the default review prompt; `{fixture}` in it
 is the staged fixture's name. The harness refuses a fixture whose expected entry
