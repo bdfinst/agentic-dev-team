@@ -423,6 +423,26 @@ class TestTakeSnapshot:
         assert not root.exists()
         assert not answer_root.exists()
 
+    def test_symlinks_in_the_knowledge_dir_and_a_directory_fixture_stay_links(
+        self, tmp_path, private_tmp
+    ):
+        # Policy: a link is copied as a link, never as its target's content, so the
+        # snapshot never pulls in a file from outside the tree it copies.
+        source, fixtures = self._source(tmp_path)
+        outside = tmp_path / "outside.md"
+        outside.write_text("outside", encoding="utf-8")
+        (source.knowledge_dir / "link.md").symlink_to(outside)
+        (fixtures[1].path / "link.py").symlink_to(outside)
+
+        with snapshot.take_snapshot(source, fixtures) as taken:
+            copied_links = [
+                taken.eval_paths.knowledge_dir / "link.md",
+                taken.fixtures[1].path / "link.py",
+            ]
+            kept = [(link.is_symlink(), os.readlink(link)) for link in copied_links]
+
+        assert kept == [(True, str(outside)), (True, str(outside))]
+
     def test_a_failed_copy_leaves_no_directory_behind(
         self, tmp_path, private_tmp, monkeypatch
     ):

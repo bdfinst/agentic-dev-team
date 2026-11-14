@@ -14,6 +14,9 @@ Layout under the snapshot root:
 Under the answer root (a separate temp dir):
   expected/             `<stem>.json` for each of those fixtures
 
+A symlink in the knowledge directory or in a directory fixture is copied as a
+link, never as its target's content, so nothing outside those trees is copied.
+
 No prompt or CLI flag names the answer root, apart from the Bash sandbox's
 deny-read list for a write-capable trial, so the expected entries stay out of
 the agent's reach.

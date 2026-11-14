@@ -212,6 +212,42 @@ class TestInterruptsAreHeldForTheRun:
         )
         assert _outcomes(written, BASELINE_LABEL) == ["pass"]
 
+    def test_signal_during_the_output_grace_ends_the_wait_early_and_stays_pending(
+        self, stub_dir, fixture_root, monkeypatch
+    ):
+        # A grace as long as the holder's sleep: only the signal can end it early.
+        holder_seconds = 30
+        monkeypatch.setattr(runner, "KILL_COLLECT_TIMEOUT_SECONDS", holder_seconds)
+        stub = StubClaude(stub_dir, stdout="result", holder_sleep=holder_seconds)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        # Call-through spy on `_read_output`: the grace wait is its call without
+        # `stop_at_exit`, and the signal lands just before it starts.
+        real_read = runner._read_output
+        grace_started = []
+
+        def signal_then_read(process, deadline, *, stop_at_exit, stdin_text=None):
+            if not stop_at_exit:
+                signal_own_thread(signal.SIGTERM)
+                grace_started.append(time.monotonic())
+            return real_read(
+                process, deadline, stop_at_exit=stop_at_exit, stdin_text=stdin_text
+            )
+
+        monkeypatch.setattr(runner, "_read_output", signal_then_read)
+        held = interrupts.block()
+        try:
+            record = runner.run_trial(
+                fixture, _config(stub), trial_timeout_seconds=holder_seconds
+            )
+            still_pending = interrupts.take_pending()
+        finally:
+            interrupts.restore(held)
+
+        assert grace_started, "the process never reached the output grace"
+        assert time.monotonic() - grace_started[0] < holder_seconds / 2
+        assert (record.exit_code, record.stdout, record.timed_out) == (0, "result", False)
+        assert still_pending, "the signal was dropped instead of left for the run"
+
     def test_signal_while_the_timeout_is_handled_still_kills_the_group(
         self, stub_dir, fixture_root, monkeypatch
     ):

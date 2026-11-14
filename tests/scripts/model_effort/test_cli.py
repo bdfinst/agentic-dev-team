@@ -524,8 +524,13 @@ class TestPreRunRefusals:
 
         code = _cli(world, stub, "write-capable")
 
+        err = capsys.readouterr().err
         assert code == 2
-        assert "marks it `sandbox: true`" in capsys.readouterr().err
+        assert "marks it `sandbox: true`" in err
+        assert (
+            "Choose an agent whose tools are limited to Read, Grep and Glob, "
+            "or mark it `sandbox: true` in evals/model-effort/graders.json."
+        ) in err
         assert_nothing_ran(stub, world)
 
     def test_missing_runs_directory_exits_2_before_any_trial(self, world, capsys):
