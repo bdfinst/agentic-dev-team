@@ -237,6 +237,8 @@ class TestSessionConfig:
 # newlines around it, and well under 0.1 s once neither does.
 FENCE_SCAN_BUDGET_SECONDS = 1.5
 BLANK_LINES_AFTER_FENCE = 20_000
+# Enough openers with no closer to take tens of seconds if each one rescans the rest.
+UNCLOSED_FENCES = 20_000
 
 
 class TestExtractAgentJson:
@@ -284,6 +286,25 @@ class TestExtractAgentJson:
 
         assert result is None
         assert time.monotonic() - started < FENCE_SCAN_BUDGET_SECONDS
+
+    def test_many_unclosed_fences_opened_mid_line_are_scanned_in_bounded_time(self):
+        text = "see ```json\n" * UNCLOSED_FENCES
+
+        started = time.monotonic()
+        result = transcript.extract_agent_json(text)
+
+        assert result is None
+        assert time.monotonic() - started < FENCE_SCAN_BUDGET_SECONDS
+
+    def test_unclosed_fences_after_a_closed_one_leave_its_object(self):
+        text = '```json\n{"status": "pass"}\n```\n' + "see ```json\n" * 3
+
+        assert transcript.extract_agent_json(text) == {"status": "pass"}
+
+    def test_an_object_after_an_unclosed_fence_is_still_found(self):
+        text = 'a fenced block\n```json\n{"broken": \n```\nthen {"status": "fail"}'
+
+        assert transcript.extract_agent_json(text) == {"status": "fail"}
 
     def test_fence_opened_with_trailing_spaces_and_a_carriage_return_is_parsed(self):
         text = '```json \t\r\n{"status": "pass"}\n```'
