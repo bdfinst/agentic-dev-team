@@ -8,7 +8,18 @@ routine. This module renders a compact Tier-1 line per finding by default,
 and defers the full message/suggestedFix narrative (Tier-2) to an explicit
 `--expand <finding-id>|all`, using the SAME in-memory finding list already
 aggregated for the report — no re-dispatch, no I/O beyond the finding JSON
-already on hand.
+already on hand and one measurement row.
+
+## Report-size row
+
+A default render (no `--expand`) appends one row to
+`.claude/metrics/review-report-sizes.jsonl` through `instrument_log`:
+`findings`, `full_bytes` (UTF-8 bytes of the untiered report, every
+finding's full message and suggested fix inline) and `tiered_bytes` (UTF-8
+bytes of the Tier-1 report printed), plus `session_id` from `--session`,
+else `$CLAUDE_CODE_SESSION_ID`, else `$CLAUDE_SESSION_ID`. An `--expand`
+render re-renders a round already recorded, so it writes no row. The write
+is fail-open and never changes stdout or the exit code.
 
 This script is prose-path only. `--json` (step 7's other branch) and
 `./corrections/*.json` (step 8) read/write the full finding objects
@@ -44,6 +55,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections import Counter
@@ -64,6 +76,7 @@ if str(_HOOKS_LIB_DIR) not in sys.path:
 
 from finding_signature import finding_agent as _finding_agent
 from finding_signature import finding_category as _finding_category
+from instrument_log import append_row  # type: ignore[import-not-found]
 from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 #: Rendered instead of any per-finding line when a round has zero findings —
@@ -142,16 +155,19 @@ def compute_ids(findings: list[dict]) -> list[str]:
     return ids
 
 
-def render_tier1_line(finding: dict, finding_id: str) -> str:
-    """One Tier-1 line: `file:line [agent] severity/confidence —
-    <first sentence of message> (<finding-id>)`."""
+def _finding_entry(finding: dict, finding_id: str, text: str) -> str:
     file_path = str(finding.get("file") or "")
     line = _finding_line(finding)
     agent = _finding_agent(finding)
     severity = str(finding.get("severity") or "")
     confidence = str(finding.get("confidence") or "")
-    sentence = first_sentence(finding.get("message", ""))
-    return f"{file_path}:{line} [{agent}] {severity}/{confidence} — {sentence} ({finding_id})"
+    return f"{file_path}:{line} [{agent}] {severity}/{confidence} — {text} ({finding_id})"
+
+
+def render_tier1_line(finding: dict, finding_id: str) -> str:
+    """One Tier-1 line: `file:line [agent] severity/confidence —
+    <first sentence of message> (<finding-id>)`."""
+    return _finding_entry(finding, finding_id, first_sentence(finding.get("message", "")))
 
 
 def render_tier1_report(findings: list[dict], ids: list[str]) -> str:
@@ -162,6 +178,41 @@ def render_tier1_report(findings: list[dict], ids: list[str]) -> str:
     lines = [render_tier1_line(f, i) for f, i in zip(findings, ids)]
     lines.append(EXPAND_HINT)
     return "\n".join(lines)
+
+
+def render_untiered_report(findings: list[dict], ids: list[str]) -> str:
+    """The report as it read before tiering: each finding's Tier-1 header with
+    its full message, then its suggested fix on its own line when present.
+    Used only to measure the size the tiering saves; never printed."""
+    if not findings:
+        return CLEAN_PASS_SUMMARY
+    lines = []
+    for finding, finding_id in zip(findings, ids):
+        full = " ".join(str(finding.get("message") or "").split())
+        lines.append(_finding_entry(finding, finding_id, full))
+        fix = finding.get("suggestedFix")
+        if fix:
+            lines.append(f"Suggested fix: {fix}")
+    return "\n".join(lines)
+
+
+def report_sizes(findings: list[dict], ids: list[str]) -> dict:
+    """UTF-8 byte sizes of the untiered and the Tier-1 report for one round."""
+    return {
+        "findings": len(findings),
+        "full_bytes": len(render_untiered_report(findings, ids).encode("utf-8")),
+        "tiered_bytes": len(render_tier1_report(findings, ids).encode("utf-8")),
+    }
+
+
+#: Environment variables that may carry the running Claude Code session id, in preference order.
+_SESSION_ENV = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
+
+
+def _session_id(flag: str | None) -> str | None:
+    if flag:
+        return flag
+    return next((os.environ[name] for name in _SESSION_ENV if os.environ.get(name)), None)
 
 
 def render_tier2_block(finding: dict, finding_id: str) -> str:
@@ -246,6 +297,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="A finding-id to render Tier-2 for, or 'all' to render every finding's Tier-2 block.",
     )
+    parser.add_argument(
+        "--session",
+        default=None,
+        help="Session id for the report-size row (default: $CLAUDE_CODE_SESSION_ID, then $CLAUDE_SESSION_ID).",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -259,6 +315,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.expand is None:
         print(tier1)
+        # One size row per round: an --expand call re-renders a round already recorded.
+        append_row("review-report-sizes", report_sizes(findings, ids), session_id=_session_id(args.session))
         return 0
 
     if args.expand == "all":

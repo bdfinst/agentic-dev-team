@@ -73,7 +73,7 @@ PINNED_STATUS_MAP = {
     "guard-divergence": "no-reference",
     "contradicted-rate": "no-reference",
     "expand-rate": "unmeasurable",
-    "report-size-cut": "unmeasurable",
+    "report-size-cut": "no-reference",
 }
 
 PINNED_ISSUE_CITES = {

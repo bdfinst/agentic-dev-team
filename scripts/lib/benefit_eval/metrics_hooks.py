@@ -1,6 +1,6 @@
 """Subagent-hook metrics: skill-injection overhead and uptake, the
-completion-guard divergence rate with its hand-check sample, and the
-``test-review`` dispatch token change.
+completion-guard divergence rate with its hand-check sample, the
+``test-review`` dispatch token change, and the tiered-findings report-size cut.
 
 Uptake, the sample's agent ids and the dispatch tokens come from the subagent
 transcripts that ``session_log`` discovers, because the streams carry no agent
@@ -155,6 +155,32 @@ def injection_uptake(metric: Metric, ctx: ReportContext) -> ReportLine:
         (r.data["session_id"] for r in part.real),
         len(part.unverified),
         prefix="uptake ",
+    )
+
+
+def report_size_cut(metric: Metric, ctx: ReportContext) -> ReportLine:
+    """Mean per-round percent by which the Tier-1 report is smaller than the untiered one.
+
+    A clean-pass round renders the same summary either way, so it is counted and left out."""
+    part = ctx.partition(metric.instrument)
+    cuts, sessions, clean = [], [], 0
+    for row in part.real:
+        full = streams.row_field(row, "full_bytes", int, minimum=0)
+        tiered = streams.row_field(row, "tiered_bytes", int, minimum=0)
+        if streams.row_field(row, "findings", int, minimum=0) == 0 or full == 0:
+            clean += 1
+            continue
+        cuts.append(formatting.percent(full - tiered, full))
+        sessions.append(row.data["session_id"])
+    value = sum(cuts) / len(cuts) if cuts else None
+    return formatting.measured_line(
+        metric,
+        value,
+        len(cuts),
+        sessions,
+        len(part.unverified),
+        f"mean {formatting.number_text(value)} {metric.unit}" if cuts else "",
+        details=[f"clean-pass rounds left out: {clean}"],
     )
 
 

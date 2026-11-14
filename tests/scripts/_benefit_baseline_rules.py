@@ -58,7 +58,7 @@ PINNED_STATUS = {
     "guard-divergence": "no-reference",
     "contradicted-rate": "no-reference",
     "expand-rate": "unmeasurable",
-    "report-size-cut": "unmeasurable",
+    "report-size-cut": "no-reference",
 }
 
 #: Metrics whose baseline a replayed record can back; their `no-reference` cells must give a reason.

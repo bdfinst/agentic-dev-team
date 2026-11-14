@@ -8,8 +8,11 @@ failure contract, and the zero-finding clean-pass path.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
@@ -215,14 +218,31 @@ class TestRenderExpand:
         assert rtf.render_expand_one(findings, ids, "no-such-id") is None
 
 
-def _run(*args, input_text=None):
+_SESSION_ENV = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
+
+
+def _run(*args, input_text=None, cwd=None, session=None):
+    """Run the CLI outside the repository, so a default render's size row never
+    lands in the checkout's own metrics, with the session id under test only."""
+    env = {k: v for k, v in os.environ.items() if k not in _SESSION_ENV}
+    if session is not None:
+        env["CLAUDE_CODE_SESSION_ID"] = session
     return subprocess.run(
         [sys.executable, str(_SCRIPT), *args],
         input=input_text,
         capture_output=True,
         text=True,
         check=False,
+        cwd=cwd or tempfile.mkdtemp(),
+        env=env,
     )
+
+
+def _size_rows(base: Path) -> list[dict]:
+    log = base / ".claude" / "metrics" / "review-report-sizes.jsonl"
+    if not log.exists():
+        return []
+    return [json.loads(line) for line in log.read_text().splitlines()]
 
 
 class TestCli:
@@ -334,7 +354,11 @@ class TestCli:
         `issues`, not `findings` — same silent-empty failure mode as the
         `topFindings` case above."""
         findings = [_finding()]
-        r = _run(input_text=json.dumps({"status": "warn", "issues": findings, "summary": "x"}))
+        r = _run(
+            input_text=json.dumps(
+                {"status": "warn", "issues": findings, "summary": "x"}
+            )
+        )
         r_bare = _run(input_text=json.dumps(findings))
         assert r.returncode == 0
         assert r.stdout == r_bare.stdout
@@ -345,7 +369,94 @@ class TestCli:
         `{"agents": [...]}` object with no consolidated list at the top
         level) must error loudly rather than silently rendering
         `CLEAN_PASS_SUMMARY`."""
-        r = _run(input_text=json.dumps({"agents": [{"agentName": "x", "issues": [_finding()]}]}))
+        r = _run(
+            input_text=json.dumps(
+                {"agents": [{"agentName": "x", "issues": [_finding()]}]}
+            )
+        )
         assert r.returncode != 0
         assert "cannot interpret --findings input" in r.stderr
         assert rtf.CLEAN_PASS_SUMMARY not in r.stdout
+
+
+class TestReportSizes:
+    """Each default render records the round's untiered and tiered report sizes."""
+
+    def test_untiered_report_inlines_full_message_and_suggested_fix(self):
+        findings = [_finding(message="First sentence. Second sentence.")]
+        ids = rtf.compute_ids(findings)
+        assert rtf.render_untiered_report(findings, ids).splitlines() == [
+            (
+                "src/auth/login.ts:42 [structure-review] warning/medium — "
+                "First sentence. Second sentence. (structure-review:src/auth/login.ts:42:warning)"
+            ),
+            "Suggested fix: Split into LoginController, RegistrationController, and PasswordResetController",
+        ]
+
+    def test_untiered_report_omits_the_fix_line_when_absent(self):
+        findings = [_finding(suggestedFix="")]
+        ids = rtf.compute_ids(findings)
+        assert len(rtf.render_untiered_report(findings, ids).splitlines()) == 1
+
+    def test_sizes_are_utf8_bytes_of_each_rendering(self):
+        findings = [
+            _finding(),
+            _finding(line=7, message="Long — detail. More detail follows here."),
+        ]
+        ids = rtf.compute_ids(findings)
+        sizes = rtf.report_sizes(findings, ids)
+        assert sizes == {
+            "findings": 2,
+            "full_bytes": len(
+                rtf.render_untiered_report(findings, ids).encode("utf-8")
+            ),
+            "tiered_bytes": len(rtf.render_tier1_report(findings, ids).encode("utf-8")),
+        }
+        assert sizes["tiered_bytes"] < sizes["full_bytes"]
+
+    def test_default_render_appends_one_row_with_the_session_id(self, tmp_path):
+        findings = [_finding()]
+        r = _run(input_text=json.dumps(findings), cwd=tmp_path, session="sess-1")
+        assert r.returncode == 0
+        (row,) = _size_rows(tmp_path)
+        assert row["session_id"] == "sess-1"
+        ids = rtf.compute_ids(findings)
+        assert {
+            k: row[k] for k in ("findings", "full_bytes", "tiered_bytes")
+        } == rtf.report_sizes(findings, ids)
+
+    def test_session_flag_overrides_the_environment(self, tmp_path):
+        _run(
+            "--session",
+            "from-flag",
+            input_text=json.dumps([_finding()]),
+            cwd=tmp_path,
+            session="from-env",
+        )
+        (row,) = _size_rows(tmp_path)
+        assert row["session_id"] == "from-flag"
+
+    def test_row_without_a_session_id_still_records_the_sizes(self, tmp_path):
+        _run(input_text=json.dumps([_finding()]), cwd=tmp_path)
+        (row,) = _size_rows(tmp_path)
+        assert "session_id" not in row and row["findings"] == 1
+
+    def test_expand_render_records_no_second_row_for_the_same_round(self, tmp_path):
+        findings = [_finding()]
+        _run(
+            "--expand",
+            "all",
+            input_text=json.dumps(findings),
+            cwd=tmp_path,
+            session="s",
+        )
+        assert _size_rows(tmp_path) == []
+
+    def test_recording_leaves_stdout_as_the_tier1_report(self, tmp_path):
+        findings = [_finding()]
+        r = _run(input_text=json.dumps(findings), cwd=tmp_path, session="s")
+        assert (
+            r.stdout
+            == rtf.render_tier1_report(findings, rtf.compute_ids(findings)) + "\n"
+        )
+        assert r.stderr == ""

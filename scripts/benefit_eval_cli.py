@@ -120,6 +120,7 @@ def _handler_for(metric: prereg.Metric, prereg_path: Path) -> Handler:
             (metrics_hooks.completion_guard_sample,),
         ),
         "test-review-token-delta": Handler(metrics_hooks.test_review_token_delta),
+        "report-size-cut": Handler(metrics_hooks.report_size_cut),
         "contradicted-rate": Handler(
             metrics_cost.verdict_rate, (metrics_cost.skill_adoption,)
         ),

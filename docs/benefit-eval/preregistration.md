@@ -162,10 +162,9 @@ This document fixes, before any data is read, how each mechanism shipped by epic
     {
       "id": "report-size-cut",
       "metric": "Tiered findings report-size cut: percent smaller than the untiered report",
-      "instrument": "none",
-      "identity_class": "id-less",
-      "id_less_handling": "unmeasurable",
-      "baseline": "unmeasurable: no size store exists, so the 59.0% on the one round measured so far stays a single hand-measured round (n=1) with no committed source; the store is tracked in #2308",
+      "instrument": "review-report-sizes",
+      "identity_class": "id-bearing",
+      "baseline": "no-reference: the 59.0% on the one round measured so far stays a single hand-measured round (n=1) with no committed source; render_tiered_findings.py has recorded each round's sizes since #2308",
       "unit": "percent",
       "keep": ">= 40",
       "tune": "< 40",
@@ -174,14 +173,13 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "inclusivity": "inclusive",
       "minimum_n": 10,
       "n_unit": "rounds",
-      "null_rule": "No instrument: record unmeasurable with its follow-up issue. No verdict.",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
       "parity_cap": "none",
       "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
       "confounds": [
-        "no instrument: render sizes are printed, not stored",
-        "one measured round so far"
+        "one hand-measured round before the store existed"
       ],
-      "computation": "unmeasurable: no persisted instrument; follow-up issue to file (store tiered and untiered sizes per render)",
+      "computation": "metrics_hooks.report_size_cut: mean per-round percent cut, (full_bytes - tiered_bytes) / full_bytes, over review-report-sizes rows of real sessions with at least one finding; clean-pass rounds are counted and left out",
       "rationale": "Keeping two thirds of the one-round cut over many rounds shows the saving holds beyond one example."
     },
     {
@@ -429,7 +427,7 @@ Transcript-derived numbers join at the grain of session and agent type, because 
 ## Operator runbook
 
 1. Review each threshold in the block. Edit it if you disagree, then commit.
-2. Run the audit: `python3 scripts/benefit_eval_cli.py audit`. Add `--json` for records. Exit 1 means a gap or a metric with no instrument; the two unmeasurable metrics make it exit 1 on every run, so read the status tokens.
+2. Run the audit: `python3 scripts/benefit_eval_cli.py audit`. Add `--json` for records. Exit 1 means a gap or a metric with no instrument; the unmeasurable metric makes it exit 1 on every run, so read the status tokens.
 3. Record each `no instrument` metric as `unmeasurable` with a follow-up issue. Wait for more sessions on a short gap. Record a gap still open when the window closes as `unmeasurable` too. If the audit finds neither, say so.
 4. Post to #2200 as one comment: the block, the audit output, the window end date. Show session ids as their first 8 characters only. List the baseline status of every metric in the comment, so your confirmation covers the statuses, and link the comment in the pull request description. Note the comment's UTC creation time.
 5. Wait for the window in each entry to close. An unmet minimum N at the null date stays `NULL`.

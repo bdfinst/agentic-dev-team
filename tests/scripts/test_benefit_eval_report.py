@@ -391,6 +391,58 @@ def test_agent_type_comes_from_the_dispatch_join_when_the_transcript_has_no_attr
 # --- completion guard --------------------------------------------------------
 
 
+# --- tiered findings report size ---------------------------------------------
+
+
+#: The instrument cells that point report-size-cut at the size stream, whatever the real entry names.
+SIZE_STREAM = {"report-size-cut": {
+    "instrument": "review-report-sizes", "identity_class": "id-bearing", "id_less_handling": None,
+}}
+
+
+def sizes(session_id: str, full: int, tiered: int, findings: int = 3) -> dict:
+    return {"ts": IN_WINDOW, "session_id": session_id, "findings": findings,
+            "full_bytes": full, "tiered_bytes": tiered}
+
+
+def test_report_size_cut_is_the_mean_per_round_percent_cut(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 24761, 10154), sizes("sess-a", 1000, 700)])
+    code, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"], **SIZE_STREAM)
+    line = line_of(out, "report-size-cut:")
+    assert "mean 44.50 percent" in line
+    assert "N=2 rounds" in line
+    assert line.endswith("| within")
+    assert code == 0
+
+
+def test_report_size_cut_leaves_zero_finding_rounds_out_and_counts_them(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 1000, 400), sizes("sess-a", 60, 60, findings=0)])
+    _, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"], **SIZE_STREAM)
+    block = block_of(out, "report-size-cut:")
+    assert "mean 60 percent" in block and "N=1 rounds" in block
+    assert "clean-pass rounds left out: 1" in block
+
+
+def test_report_size_cut_below_the_keep_floor_is_a_breach(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 1000, 900)])
+    code, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"], **SIZE_STREAM)
+    assert line_of(out, "report-size-cut:").endswith("| breach")
+    assert code == 1
+
+
+def test_report_size_cut_rejects_a_row_with_no_byte_count(world, tmp_path, capsys):
+    world.session("sess-a")
+    row = sizes("sess-a", 1000, 400)
+    del row["tiered_bytes"]
+    path = world.stream("review-report-sizes", [row])
+    code, _, err = run_report(world, tmp_path, capsys, ["report-size-cut"], **SIZE_STREAM)
+    assert code == 2
+    assert_input_error(err, path, 1, "row field 'tiered_bytes' is not a non-negative integer")
+
+
 def stop(session_id: str, classification: str, ts: str = IN_WINDOW) -> dict:
     return {"ts": ts, "session_id": session_id, "classification": classification}
 
@@ -1330,9 +1382,8 @@ def test_a_row_field_of_the_wrong_type_exits_2_with_file_line_problem_and_next(w
 
 
 def test_a_metric_with_no_instrument_prints_unmeasurable_and_does_not_change_the_exit_code(world, tmp_path, capsys):
-    code, out, _ = run_report(world, tmp_path, capsys, ["expand-rate", "report-size-cut"])
+    code, out, _ = run_report(world, tmp_path, capsys, ["expand-rate"])
     assert "expand-rate: unmeasurable" in out
-    assert "report-size-cut: unmeasurable" in out
     assert code == 0
 
 
