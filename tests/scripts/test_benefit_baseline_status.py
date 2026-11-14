@@ -72,7 +72,7 @@ PINNED_STATUS_MAP = {
     "abort-yield": "no-reference",
     "guard-divergence": "no-reference",
     "contradicted-rate": "no-reference",
-    "expand-rate": "unmeasurable",
+    "expand-rate": "no-reference",
     "report-size-cut": "unmeasurable",
 }
 
@@ -278,7 +278,7 @@ def test_a_no_reference_cell_on_a_record_capable_metric_pinned_to_another_status
 @pytest.mark.parametrize(
     ("metric_id", "cell"),
     [
-        ("expand-rate", "by-definition: counted by hand"),
+        ("report-size-cut", "by-definition: counted by hand"),
         ("skip-rate", f"unmeasurable: no instrument (#{ISSUE_CITES['skip-rate']})"),
     ],
     ids=[
@@ -311,8 +311,8 @@ def test_a_cell_missing_its_follow_up_issue_number_is_rejected_naming_the_metric
 
 
 def test_an_issue_number_can_follow_the_reason_text():
-    cell = f"unmeasurable: nothing is counted; follow-up #{ISSUE_CITES['expand-rate']}"
-    assert_clean(with_baseline("expand-rate", cell), check_issue_cites)
+    cell = f"unmeasurable: nothing is counted; follow-up #{ISSUE_CITES['report-size-cut']}"
+    assert_clean(with_baseline("report-size-cut", cell), check_issue_cites)
 
 
 def test_an_issue_number_that_only_prefixes_the_cited_one_is_rejected():

@@ -57,7 +57,7 @@ PINNED_STATUS = {
     "abort-yield": "no-reference",
     "guard-divergence": "no-reference",
     "contradicted-rate": "no-reference",
-    "expand-rate": "unmeasurable",
+    "expand-rate": "no-reference",
     "report-size-cut": "unmeasurable",
 }
 

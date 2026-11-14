@@ -91,14 +91,14 @@ class Handler:
 
 def _metric_modules():
     """The metric modules, imported on first use so the audit path loads only the reader and the pre-registration parser."""
-    from benefit_eval import metrics_cost, metrics_hooks, metrics_ledger
+    from benefit_eval import metrics_cost, metrics_hooks, metrics_ledger, metrics_tiered
 
-    return metrics_cost, metrics_hooks, metrics_ledger
+    return metrics_cost, metrics_hooks, metrics_ledger, metrics_tiered
 
 
 def _handler_for(metric: prereg.Metric, prereg_path: Path) -> Handler:
     """Hand-entered and unmeasurable metrics need no stream; every other metric needs a registered computation."""
-    metrics_cost, metrics_hooks, metrics_ledger = _metric_modules()
+    metrics_cost, metrics_hooks, metrics_ledger, metrics_tiered = _metric_modules()
     if (
         metric.instrument == streams.NO_INSTRUMENT
         or metric.id_less_handling == streams.UNMEASURABLE
@@ -123,6 +123,7 @@ def _handler_for(metric: prereg.Metric, prereg_path: Path) -> Handler:
         "contradicted-rate": Handler(
             metrics_cost.verdict_rate, (metrics_cost.skill_adoption,)
         ),
+        "expand-rate": Handler(metrics_tiered.expand_rate),
     }
     if metric.id not in handlers:
         raise streams.InputError(
@@ -135,7 +136,7 @@ def _handler_for(metric: prereg.Metric, prereg_path: Path) -> Handler:
 
 
 def run_report(args: argparse.Namespace) -> int:
-    metrics_cost, metrics_hooks, _ = _metric_modules()
+    metrics_cost, metrics_hooks, _, _ = _metric_modules()
     pre = prereg.load_prereg(args.prereg)
     roots = tuple(args.project_root or [Path.cwd()])
     sources = streams.Sources(roots, args.home_metrics, args.projects_root)

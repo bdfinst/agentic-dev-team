@@ -1326,11 +1326,94 @@ def test_a_row_field_of_the_wrong_type_exits_2_with_file_line_problem_and_next(w
     assert_input_error(err, path, 1, problem)
 
 
+# --- tiered-findings expand rate ---------------------------------------------
+
+
+def render(session_id: str, report: str, expand: str = "none", ts: str = IN_WINDOW) -> dict:
+    return {"ts": ts, "session_id": session_id, "report": report, "findings": 3, "expand": expand}
+
+
+def test_expand_rate_counts_each_report_once_and_expanded_when_any_render_expanded(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.session("sess-b")
+    world.stream(
+        "tiered-renders",
+        [
+            render("sess-a", "r1"),
+            render("sess-a", "r1", "one"),
+            render("sess-a", "r1", "all"),
+            render("sess-a", "r2"),
+            render("sess-b", "r1"),
+            render("sess-b", "r3"),
+        ],
+    )
+    code, out, _ = run_report(world, tmp_path, capsys, ["expand-rate"])
+    line = line_of(out, "expand-rate:")
+    assert "25.00% (1/4)" in line
+    assert "N=4 rendered reports" in line
+    assert "breach" in line
+    assert code == 1
+
+
+def test_expand_rate_exactly_on_its_ceiling_is_within(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("tiered-renders", [render("sess-a", f"r{i}") for i in range(5)] + [render("sess-a", "r0", "one")])
+    code, out, _ = run_report(world, tmp_path, capsys, ["expand-rate"])
+    line = line_of(out, "expand-rate:")
+    assert "20.00% (1/5)" in line
+    assert line.endswith("within")
+    assert code == 0
+
+
+def test_expand_rate_leaves_rows_without_a_real_session_out_of_the_rate(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("tiered-renders", [render("sess-a", "r1"), render("ghost", "r2", "all"), render("", "r3", "one")])
+    _, out, _ = run_report(world, tmp_path, capsys, ["expand-rate"])
+    block = block_of(out, "expand-rate:")
+    assert "0.00% (0/1)" in block
+    assert "unverified: 2" in block
+
+
+def test_expand_rate_rejects_an_unknown_expand_value(world, tmp_path, capsys):
+    world.session("sess-a")
+    path = world.stream("tiered-renders", [render("sess-a", "r1", "some")])
+    code, _, err = run_report(world, tmp_path, capsys, ["expand-rate"])
+    assert code == 2
+    assert_input_error(err, path, 1, "row field 'expand'")
+
+
+def test_expand_rate_validates_every_row_of_an_already_expanded_report(world, tmp_path, capsys):
+    world.session("sess-a")
+    path = world.stream("tiered-renders", [render("sess-a", "r1", "one"), render("sess-a", "r1", "some")])
+    code, _, err = run_report(world, tmp_path, capsys, ["expand-rate"])
+    assert code == 2
+    assert_input_error(err, path, 2, "row field 'expand'")
+
+
+@pytest.mark.parametrize("report", [None, 5], ids=["missing", "not-a-string"])
+def test_expand_rate_rejects_a_missing_or_non_string_report_key(world, tmp_path, capsys, report):
+    world.session("sess-a")
+    row = render("sess-a", "r1")
+    if report is None:
+        del row["report"]
+    else:
+        row["report"] = report
+    path = world.stream("tiered-renders", [row])
+    code, _, err = run_report(world, tmp_path, capsys, ["expand-rate"])
+    assert code == 2
+    assert_input_error(err, path, 1, "row field 'report'")
+
+
 # --- unmeasurable ------------------------------------------------------------
 
 
+NO_INSTRUMENT_CELLS = {"instrument": "none", "identity_class": "id-less", "id_less_handling": "unmeasurable"}
+
+
 def test_a_metric_with_no_instrument_prints_unmeasurable_and_does_not_change_the_exit_code(world, tmp_path, capsys):
-    code, out, _ = run_report(world, tmp_path, capsys, ["expand-rate", "report-size-cut"])
+    code, out, _ = run_report(
+        world, tmp_path, capsys, ["expand-rate", "report-size-cut"], **{"expand-rate": NO_INSTRUMENT_CELLS}
+    )
     assert "expand-rate: unmeasurable" in out
     assert "report-size-cut: unmeasurable" in out
     assert code == 0
@@ -1344,7 +1427,7 @@ def test_the_real_pre_registration_reports_every_metric_with_no_data(world, tmp_
     out = capsys.readouterr().out
     for metric_id in real_entries():
         assert f"\n{metric_id}: " in out
-    assert "expand-rate: unmeasurable" in out
+    assert "expand-rate: no rows in window" in out
     assert "UNVERIFIED (no session ids)" in out
     assert code == 3
 
@@ -1386,5 +1469,5 @@ def test_the_real_pre_registration_with_data_reports_each_metrics_own_status(wor
     assert statuses["guard-divergence"] == "NULL (N=1)"
     assert statuses["test-review-token-delta"] == "NULL (N=1)"
     assert statuses["contradicted-rate"] == "not entered"
-    assert statuses["expand-rate"] == "unmeasurable"
+    assert statuses["expand-rate"] == "no rows in window"
     assert code == payload["exit_code"] == 1

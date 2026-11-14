@@ -138,10 +138,9 @@ This document fixes, before any data is read, how each mechanism shipped by epic
     {
       "id": "expand-rate",
       "metric": "Tiered findings expand rate: share of rendered reports where --expand was used",
-      "instrument": "none",
-      "identity_class": "id-less",
-      "id_less_handling": "unmeasurable",
-      "baseline": "unmeasurable: nothing is counted today; the instrument is tracked in #2307",
+      "instrument": "tiered-renders",
+      "identity_class": "id-bearing",
+      "baseline": "no-reference: first measurement; render_tiered_findings.py has recorded each render of a non-empty report since #2307",
       "unit": "percent",
       "keep": "<= 20",
       "tune": "> 20",
@@ -150,13 +149,14 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "inclusivity": "inclusive",
       "minimum_n": 10,
       "n_unit": "rendered reports",
-      "null_rule": "No instrument: record unmeasurable with its follow-up issue. No verdict.",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
       "parity_cap": "none",
       "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
       "confounds": [
-        "no instrument: render_tiered_findings.py persists no row"
+        "a cold /code-review --expand run re-renders the panel, so its report key can differ from the report the reader saw",
+        "the report key hashes only finding ids, so two rounds in one session with identical finding sets count as one report"
       ],
-      "computation": "unmeasurable: no persisted instrument; follow-up issue to file (one row per render with the expand flag)",
+      "computation": "metrics_tiered.expand_rate: tiered-renders rows of real sessions grouped by session and report key; a report is expanded when any of its renders has expand other than none",
       "rationale": "Expanding in over a fifth of reports means the Tier-1 lines are too thin; above half the tiering saves no reading."
     },
     {
@@ -429,7 +429,7 @@ Transcript-derived numbers join at the grain of session and agent type, because 
 ## Operator runbook
 
 1. Review each threshold in the block. Edit it if you disagree, then commit.
-2. Run the audit: `python3 scripts/benefit_eval_cli.py audit`. Add `--json` for records. Exit 1 means a gap or a metric with no instrument; the two unmeasurable metrics make it exit 1 on every run, so read the status tokens.
+2. Run the audit: `python3 scripts/benefit_eval_cli.py audit`. Add `--json` for records. Exit 1 means a gap or a metric with no instrument; the unmeasurable metric makes it exit 1 on every run, so read the status tokens.
 3. Record each `no instrument` metric as `unmeasurable` with a follow-up issue. Wait for more sessions on a short gap. Record a gap still open when the window closes as `unmeasurable` too. If the audit finds neither, say so.
 4. Post to #2200 as one comment: the block, the audit output, the window end date. Show session ids as their first 8 characters only. List the baseline status of every metric in the comment, so your confirmation covers the statuses, and link the comment in the pull request description. Note the comment's UTC creation time.
 5. Wait for the window in each entry to close. An unmet minimum N at the null date stays `NULL`.
