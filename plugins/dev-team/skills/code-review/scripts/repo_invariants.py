@@ -1000,6 +1000,9 @@ def check_no_live_ceiling_refs(changed_files=None) -> list[dict]:
     return findings
 
 
+_STDIN_GUARD_IMPORT_RE = re.compile(
+    r"^\s*(from\s+stdin_guard\s+import|import\s+stdin_guard)\b", re.MULTILINE
+)
 _BARE_STDIN_READ_RE = re.compile(r"^[^#\n]*\bsys\.stdin\.read\(\)", re.MULTILINE)
 
 
@@ -1024,7 +1027,7 @@ def check_no_bare_stdin_read_in_shipped_scripts(changed_files=None) -> list[dict
         ):
             continue
         text = _read_text(path)
-        if _BARE_STDIN_READ_RE.search(text) and "stdin_guard" not in text:
+        if _BARE_STDIN_READ_RE.search(text) and not _STDIN_GUARD_IMPORT_RE.search(text):
             findings.append(
                 {
                     "invariant": "no-bare-stdin-read-in-shipped-scripts",

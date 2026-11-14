@@ -761,3 +761,21 @@ class TestNoBareStdinReadInShippedScripts:
         )
 
         assert repo_invariants.check_no_bare_stdin_read_in_shipped_scripts() == []
+
+    def test_a_comment_naming_stdin_guard_does_not_excuse_a_bare_read(
+        self, tmp_path, monkeypatch
+    ):
+        self._plugin(
+            tmp_path,
+            monkeypatch,
+            {"scripts/a.py": "# stdin_guard\nimport sys\ntext = sys.stdin.read()\n"},
+        )
+
+        findings = repo_invariants.check_no_bare_stdin_read_in_shipped_scripts()
+
+        assert [f["file"] for f in findings] == ["scripts/a.py"]
+
+    def test_corpus_wide_regardless_of_changed_files(self):
+        assert repo_invariants.check_no_bare_stdin_read_in_shipped_scripts(
+            ["some/file.py"]
+        ) == repo_invariants.check_no_bare_stdin_read_in_shipped_scripts(None)

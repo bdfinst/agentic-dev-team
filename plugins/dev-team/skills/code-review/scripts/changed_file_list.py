@@ -127,7 +127,8 @@ def main(argv=None) -> int:
                 with open(args.name_status_from) as handle:
                     text = handle.read()
         except (OSError, ValueError):
-            # Missing/unreadable path, closed stdin, or undecodable bytes:
+            # Missing/unreadable path or undecodable bytes (a stdin that never
+            # reaches EOF exits 2 via stdin_guard instead):
             # contribute no lines rather than crash the whole invocation —
             # consistent with every other unparseable-input case in this
             # module. `ValueError` also covers `UnicodeDecodeError` (a

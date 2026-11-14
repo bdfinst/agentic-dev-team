@@ -537,7 +537,8 @@ def build_review_roster(agents_dir: Path, registry_path: Path):
 def _read_lines_from(path_or_dash: str, flag: str):
     """Read newline-separated, non-blank lines from a file or stdin (``-``).
 
-    Returns ``(lines, error)``. Never raises — a missing or unreadable file
+    Returns ``(lines, error)``. Never raises (except that a ``-`` stdin that never reaches EOF exits 2 via
+    ``stdin_guard``) — a missing or unreadable file
     contributes no lines, matching `changed_file_list.py`'s identical helper
     — but unlike that helper, the failure is reported back via ``error``
     (``None`` on success, including a genuinely empty readable source) so

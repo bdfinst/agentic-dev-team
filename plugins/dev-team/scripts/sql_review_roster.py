@@ -8,7 +8,8 @@ dispatch decision from ``review_roster.sql_review_decision`` as JSON:
      "hits": [...], "errors": [...], "skipped_fragments": {...},
      "dispatchFailure": null | {...}}
 
-Always exits 0. A detector crash, a non-zero detector exit, a timeout, or
+Exits 0, except exit 2 for a ``--files-from -`` stdin that never reaches EOF
+(see ``stdin_guard``). A detector crash, a non-zero detector exit, a timeout, or
 unreadable output is ``status: "error"``, never a silent skip. The caller
 dispatches ``sql-review`` only when ``dispatch`` is true, passes ``hits``,
 ``errors``, and ``skipped_fragments`` in its context, and adds

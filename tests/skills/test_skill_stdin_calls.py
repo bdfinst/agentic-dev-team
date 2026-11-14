@@ -23,6 +23,7 @@ import pytest
 from _repo_root import REPO_ROOT
 from tests._support.skill_calls import (
     PLACEHOLDER_TOKEN,
+    InputFlag,
     find_calls,
     find_offenders,
     find_offenders_in_files,
@@ -537,3 +538,46 @@ def test_every_row_flag_is_in_the_input_flag_table():
         if row.needs_flag
     }
     assert expected <= table
+
+
+# -- Scripts that read stdin only on an explicit `-` -------------------------
+
+DASH_RULE = InputFlag("dash.py", "--in", stdin_only_on_dash=True)
+DASH_CALL = 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/dash.py"'
+
+
+@pytest.mark.parametrize(
+    ("args", "safe"),
+    [
+        ("--other x", True),
+        ("--in file.txt", True),
+        ("--in=file.txt", True),
+        ("--in -", False),
+        ("--in=-", False),
+        ("--in - < file.txt", True),
+    ],
+)
+def test_dash_only_script_is_unsafe_only_when_it_is_given_a_dash(args, safe):
+    text = fenced(f"{DASH_CALL} {args}")
+
+    assert (find_offenders("skills/x/SKILL.md", text, [DASH_RULE]) == []) is safe
+
+
+def test_dash_only_script_with_a_dash_is_safe_when_piped_to():
+    text = fenced(f"cat a.txt | {DASH_CALL} --in -")
+
+    assert find_offenders("skills/x/SKILL.md", text, [DASH_RULE]) == []
+
+
+def test_every_dash_only_row_names_its_flag_with_a_dash_as_stdin_argv():
+    dash_only = {
+        (rule.script, rule.flag) for rule in INPUT_FLAGS if rule.stdin_only_on_dash
+    }
+    rows = {
+        (row.script.rsplit("/", 1)[-1], row.flag): row.stdin_argv
+        for row in STDIN_SCRIPTS
+        if row.stdin_argv
+    }
+
+    assert set(rows) <= dash_only
+    assert all(argv == (flag, "-") for (_, flag), argv in rows.items())
