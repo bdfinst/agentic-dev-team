@@ -28,15 +28,16 @@ A React + TypeScript internal dashboard for managing customer accounts.
 - `npm run server` — Start backend dev server (port 4000)
 - `npm test` — Run Vitest unit tests
 - `npm run lint` — ESLint + Prettier check
-- `npm run db:migrate` — Run Prisma migrations
+- `npm run db:migrate` — Create and apply Prisma migrations against the local database
+- `npm run db:migrate:deploy` — Apply committed migrations to a deployed database
 - `npm run build` — Production build: frontend to `dist/client/` (served by Express), server bundle to `dist/server/index.js`
 
 ## Environment
 
-- `DATABASE_URL` — Postgres connection string; required by `npm run db:migrate`
+- `DATABASE_URL` — Postgres connection string; required by `npm run db:migrate` and `npm run db:migrate:deploy`
 - `JWT_SECRET` — secret that verifies API tokens; `npm run server` refuses to start without it
 
-In Fly.io, set `JWT_SECRET` with `fly secrets set --config fly.<environment>.toml`. Before deploying a schema change, run `npm run db:migrate` with `DATABASE_URL` pointing at that environment's database.
+In Fly.io, set `JWT_SECRET` with `fly secrets set --config fly.<environment>.toml`. Before deploying a schema change, run `npm run db:migrate:deploy` with `DATABASE_URL` pointing at that environment's database.
 
 ## Coding Conventions
 

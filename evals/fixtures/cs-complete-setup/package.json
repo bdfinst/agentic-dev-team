@@ -8,6 +8,7 @@
     "test": "vitest run",
     "lint": "eslint . && prettier --check .",
     "db:migrate": "prisma migrate dev --schema server/prisma/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema server/prisma/schema.prisma",
     "build": "vite build && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server/index.js"
   },
   "dependencies": {
