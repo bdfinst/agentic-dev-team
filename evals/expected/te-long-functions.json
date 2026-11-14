@@ -23,7 +23,7 @@
       ],
       "hard": {
         "reason": "long-file",
-        "note": "362-line file: two long handlers (about 220 and 85 lines), nesting deeper than 5 levels, a 17-line JSDoc and two commented-out blocks spread across it"
+        "note": "362-line file: two long handlers (about 204 and 82 lines), nesting deeper than 5 levels, a 17-line JSDoc and two commented-out blocks spread across it"
       },
       "_calibration": {
         "source": "measured",

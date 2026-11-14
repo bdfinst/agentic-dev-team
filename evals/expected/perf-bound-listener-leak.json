@@ -26,7 +26,7 @@
       },
       "_calibration": {
         "source": "estimated-by-analogy",
-        "note": "Window modeled on perf-nplus1-loop narrowed to one defect. Leak verified by execution on Node: EventEmitter on('quote', w.onTick.bind(w)) then off('quote', w.onTick.bind(w)) leaves listenerCount 1."
+        "note": "Window modeled on perf-nplus1-loop narrowed to one defect. Leak verified by execution on Node: EventEmitter on('quote', w.onQuote.bind(w)) then off('quote', w.onQuote.bind(w)) leaves listenerCount 1."
       }
     }
   }

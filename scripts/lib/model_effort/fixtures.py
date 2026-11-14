@@ -16,8 +16,10 @@ from pathlib import Path
 from .errors import UsageError
 
 # A clean fixture has no expected finding: the agent passes it, or skips it when
-# its own Skip rule covers the target.
+# its own Skip rule covers the target. scripts/eval_fixture_coverage.py uses
+# this rule too, through `is_clean_expectation`.
 EXPECTED_STATUSES_CLEAN = frozenset({"pass", "skip"})
+EXPECTED_STATUS_SKIP = "skip"
 
 
 class FixtureKind(StrEnum):
@@ -31,12 +33,24 @@ class ResolvedFixture:
     path: Path
     kind: FixtureKind
     expected_clean: bool
+    # True when the agent is expected to skip the fixture, a subset of clean.
+    expected_skip: bool = False
+
+
+def is_clean_expectation(expectation: dict) -> bool:
+    """True when one agent's expectation has no expected finding."""
+    return expectation.get("expectedStatus") in EXPECTED_STATUSES_CLEAN
 
 
 def is_expected_clean(expected_entry: dict, agent: str) -> bool:
     """True when the expected entry says `agent` should report no problems."""
+    return is_clean_expectation(expected_entry.get("agents", {}).get(agent, {}))
+
+
+def is_expected_skip(expected_entry: dict, agent: str) -> bool:
+    """True when the expected entry says `agent` should skip the fixture."""
     expectation = expected_entry.get("agents", {}).get(agent, {})
-    return expectation.get("expectedStatus") in EXPECTED_STATUSES_CLEAN
+    return expectation.get("expectedStatus") == EXPECTED_STATUS_SKIP
 
 
 def describe_fixture(path: Path) -> tuple[str, FixtureKind]:
@@ -114,6 +128,7 @@ def resolve_fixtures(
             path=index[stem][0],
             kind=index[stem][1],
             expected_clean=is_expected_clean(entries[stem], agent),
+            expected_skip=is_expected_skip(entries[stem], agent),
         )
         for stem in stems
     ]

@@ -7,8 +7,9 @@ exists in `evals/fixtures`. A fixture is:
 
 - clean when the agent's `expectedStatus` is `pass`, or `skip` for an agent
   whose Skip rule covers a target with nothing to report. It has no expected
-  finding, so any finding is a false positive. The model/effort harness uses
-  the same rule.
+  finding, so any finding is a false positive. The rule is
+  `is_clean_expectation` in scripts/lib/model_effort/fixtures.py, which the
+  model/effort harness uses too.
 - hard when the agent's entry carries a `hard` marker (a subtle defect,
   distractor code or a long file; see evals/README.md).
 
@@ -16,7 +17,7 @@ The review agents are `plugins/dev-team/agents/*-review.md`. Every one of them
 needs at least MIN_FIXTURES fixtures, MIN_HARD hard and MIN_CLEAN clean.
 
 Exit codes: 0 every review agent meets the minimums, 1 at least one does not,
-2 a directory is missing.
+2 a directory is missing or an expected file is not a JSON object.
 """
 
 from __future__ import annotations
@@ -28,11 +29,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+_PACKAGE_PARENT = REPO_ROOT / "scripts" / "lib"
+if str(_PACKAGE_PARENT) not in sys.path:
+    sys.path.insert(0, str(_PACKAGE_PARENT))
+
+from model_effort.fixtures import is_clean_expectation
+
 MIN_FIXTURES = 5
 MIN_HARD = 2
 MIN_CLEAN = 1
-CLEAN_STATUSES = frozenset({"pass", "skip"})
 REVIEW_AGENT_SUFFIX = "-review.md"
+
+
+class MalformedExpectedError(Exception):
+    """An expected file is not valid JSON or not a JSON object."""
 
 
 @dataclass
@@ -74,7 +84,7 @@ def coverage(
         stem = path.stem
         if stem not in stems:
             continue
-        entry = json.loads(path.read_text(encoding="utf-8"))
+        entry = _load_entry(path)
         for agent, expectation in entry.get("agents", {}).items():
             if agent not in by_agent or not isinstance(expectation, dict):
                 continue
@@ -82,9 +92,22 @@ def coverage(
             row.fixtures.append(stem)
             if expectation.get("hard"):
                 row.hard.append(stem)
-            if expectation.get("expectedStatus") in CLEAN_STATUSES:
+            if is_clean_expectation(expectation):
                 row.clean.append(stem)
     return [by_agent[agent] for agent in agents]
+
+
+def _load_entry(path: Path) -> dict:
+    try:
+        entry = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise MalformedExpectedError(f"{path.name}: not valid JSON: {error}") from error
+    if not isinstance(entry, dict):
+        raise MalformedExpectedError(f"{path.name}: not a JSON object")
+    agents = entry.get("agents", {})
+    if not isinstance(agents, dict):
+        raise MalformedExpectedError(f"{path.name}: `agents` is not a JSON object")
+    return entry
 
 
 def render(rows: list[AgentCoverage]) -> str:
@@ -115,7 +138,11 @@ def main(argv: list[str] | None = None) -> int:
         if not directory.is_dir():
             print(f"error: directory not found: {directory}", file=sys.stderr)
             return 2
-    rows = coverage(args.agents_dir, args.expected_dir, args.fixtures_dir)
+    try:
+        rows = coverage(args.agents_dir, args.expected_dir, args.fixtures_dir)
+    except MalformedExpectedError as error:
+        print(f"error: malformed expected file {error}", file=sys.stderr)
+        return 2
     print(render(rows))
     short = [row.agent for row in rows if row.gaps()]
     if short:

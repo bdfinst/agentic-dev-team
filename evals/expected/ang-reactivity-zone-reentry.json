@@ -1,6 +1,6 @@
 {
   "fixture": "ang-reactivity-zone-reentry.ts",
-  "description": "Sync indicator polls inside NgZone.runOutsideAngular and assigns the template-bound lastCheckedAt field in the interval callback without NgZone.run, so change detection never runs and the timestamp never updates; the subscription and async-pipe code around it is correct",
+  "description": "OnPush sync indicator polls inside NgZone.runOutsideAngular and assigns the template-bound lastCheckedAt field in the interval callback without NgZone.run or markForCheck, so change detection never runs and the timestamp never updates; the subscription and async-pipe code around it is correct",
   "applicableAgents": [
     "angular-reactivity-review"
   ],

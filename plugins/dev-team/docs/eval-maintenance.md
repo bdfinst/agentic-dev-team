@@ -19,19 +19,41 @@ For the operational run procedure, see [`eval-running-guide.md`](eval-running-gu
 
 ## How grading works (the rules)
 
-`eval_grade.py grade_agent` checks each expectation field. An empty failure list
+`eval_grade.py` looks up each entry's grader in `REGISTRY` (`scripts/eval_graders/__init__.py`).
+An `agents` entry defaults to the `verdict` grader, `grade_verdict` in
+`scripts/eval_graders/verdict.py`, which checks each expectation field. An empty failure list
 means PASS:
 
-- **`expectedStatus`** — `pass`, `warn`, or `fail`. The value must match the agent's `status`.
-  One exception: an expected `pass` accepts `warn` when every issue is a `suggestion` and
-  the count is within `issueCount`. The output contract makes one suggestion a `warn`, so
-  a clean entry's `issueCount` window above zero could not otherwise be met.
-- **`hard: {reason, note}`** — optional; marks a hard fixture. The grader ignores it.
+- **`expectedStatus`** — `pass`, `warn`, `fail`, or `skip`. The value must match the agent's
+  `status`. One exception: an expected `pass` accepts `warn` when every issue is a `suggestion`
+  and the count is within `issueCount` (a window with no `max` is unbounded; an entry with no
+  `issueCount` tolerates nothing). The output contract makes one suggestion a `warn`, so a
+  clean entry's `issueCount` window above zero could not otherwise be met.
+- **`hard: {reason, note}`** — optional; marks a hard fixture. The grader ignores it;
+  `--check-corpus` checks its shape and `scripts/eval_fixture_coverage.py` counts it.
 - **`issueCount: {min, max}`** — the number of reported issues must fall in range.
 - **`severities: {error: {min,max}, ...}`** — the count per severity must fall in range.
 - **`mustMention: [...]`** — every keyword must appear (case-insensitive
   **substring**) in the issue messages and summary. **All-of.**
 - **`mustNotMention: [...]`** — no keyword may appear. **All-of.**
+
+A hard marker sits inside one agent's entry:
+
+```json
+"agents": {
+  "js-fp-review": {
+    "expectedStatus": "pass",
+    "issueCount": {"min": 0, "max": 0},
+    "hard": {
+      "reason": "distractor",
+      "note": "sort() runs only on spread copies, so no input array is mutated"
+    }
+  }
+}
+```
+
+An expected `pass` or `skip` makes the fixture clean for that agent. Whether the agent's Skip
+rule really covers a `skip` fixture is a reviewer judgment: the grader cannot check it.
 
 Grading is intentionally dumb (no judgment). This lets it run as a CI gate and keeps
 variance reproducible.

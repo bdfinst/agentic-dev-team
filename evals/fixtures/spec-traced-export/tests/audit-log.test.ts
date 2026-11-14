@@ -53,11 +53,27 @@ describe("audit log", () => {
     });
   });
 
-  it("refuses an export request from a viewer", () => {
+  it("quotes a cell that holds a comma or a double quote", () => {
     const log = createAuditLog();
-    expect(exportAuditCsv(log, "viewer")).toEqual({
-      ok: false,
-      reason: "forbidden",
+    log.recordRoleChange({ ...earlier, actor: 'ann "ops", lead' });
+    const result = exportAuditCsv(log, "admin");
+    expect(result).toEqual({
+      ok: true,
+      csv: [
+        "time,actor,target,from,to",
+        '2026-03-01T09:00:00Z,"ann ""ops"", lead",bob,viewer,editor',
+      ].join("\n"),
     });
   });
+
+  it.each(["viewer", "editor"] as const)(
+    "refuses an export request from a %s",
+    (role) => {
+      const log = createAuditLog();
+      expect(exportAuditCsv(log, role)).toEqual({
+        ok: false,
+        reason: "forbidden",
+      });
+    },
+  );
 });

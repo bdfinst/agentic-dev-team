@@ -1,6 +1,9 @@
-import type { Pool } from "pg";
+import { Pool } from "pg";
 
 const LOOKUP_TIMEOUT_MS = 3_000;
+const CONNECT_TIMEOUT_MS = 2_000;
+const QUERY_TIMEOUT_MS = 5_000;
+const POOL_SIZE = 10;
 const CACHE_LIMIT = 1_000;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
@@ -40,7 +43,14 @@ class BoundedCache<V> {
 
 const customerCache = new BoundedCache<Customer>(CACHE_LIMIT);
 
-export async function enrichOrders(orders: readonly Order[], pool: Pool) {
+export const pool = new Pool({
+  max: POOL_SIZE,
+  connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
+  statement_timeout: QUERY_TIMEOUT_MS,
+  query_timeout: QUERY_TIMEOUT_MS,
+});
+
+export async function enrichOrders(orders: readonly Order[]) {
   const missing = [...new Set(orders.map((o) => o.customerId))].filter(
     (id) => customerCache.get(id) === undefined,
   );
@@ -67,9 +77,19 @@ export async function fetchProfile(url: string): Promise<unknown> {
   return response.json();
 }
 
-export function startHeartbeat(pool: Pool): () => void {
+export function startHeartbeat(): () => void {
+  let inFlight = false;
   const timer = setInterval(() => {
-    pool.query("SELECT 1").catch(() => undefined);
+    if (inFlight) {
+      return;
+    }
+    inFlight = true;
+    pool
+      .query("SELECT 1")
+      .catch(() => undefined)
+      .finally(() => {
+        inFlight = false;
+      });
   }, HEARTBEAT_INTERVAL_MS);
   return () => clearInterval(timer);
 }

@@ -142,6 +142,34 @@ class TestArmTotals:
 
         assert arm["totals"]["clean_fixture_false_positives"] == 0
 
+    def test_skip_expected_fixture_counts_only_failed_trials_that_reported_issues(
+        self,
+    ):
+        run = _arm_run(
+            CANDIDATE_LABEL,
+            [
+                _trial_result(Outcome.GRADED_FAIL, issue_count=0),
+                _trial_result(Outcome.GRADED_FAIL, issue_count=2),
+            ],
+            expected_clean=True,
+            expected_skip=True,
+        )
+
+        totals = arm_totals.compute_arm_totals(run, _run_estimate())
+
+        assert totals.clean_fixture_false_positives == 1
+
+    def test_pass_expected_fixture_counts_a_failed_trial_with_no_issues(self):
+        run = _arm_run(
+            CANDIDATE_LABEL,
+            [_trial_result(Outcome.GRADED_FAIL, issue_count=0)],
+            expected_clean=True,
+        )
+
+        totals = arm_totals.compute_arm_totals(run, _run_estimate())
+
+        assert totals.clean_fixture_false_positives == 1
+
     def test_model_id_is_reported_when_every_reporting_trial_agrees(self):
         arm = _built_arm(
             [

@@ -1,6 +1,6 @@
 {
   "fixture": "dr-currency-formatting.ts",
-  "description": "Money-formatting module whose comments cite ISO-4217, RFC-3339, ISO-8601 and BCP-47, which look like tracker IDs but name external standards; every JSDoc matches its signature and behavior",
+  "description": "Money-formatting module whose comments cite RFC-5646, RFC-3339 and ISO-8601, which look like tracker IDs but name external standards that doc-review.md's standards-reference list does not name; every JSDoc matches its signature and behavior",
   "applicableAgents": [
     "doc-review"
   ],
@@ -13,7 +13,7 @@
       },
       "hard": {
         "reason": "distractor",
-        "note": "Standards references such as ISO-4217 and RFC-3339 match the tracker-ID pattern the comment-hygiene rule scans for"
+        "note": "Standards references such as RFC-5646 and RFC-3339 are absent from the agent's example list yet match the tracker-ID pattern the comment-hygiene rule scans for"
       },
       "_calibration": {
         "source": "estimated-by-analogy",

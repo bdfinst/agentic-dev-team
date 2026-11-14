@@ -1,6 +1,6 @@
 {
   "fixture": "ang-reactivity-immutable-distractor.ts",
-  "description": "OnPush product list whose surface resembles known pitfalls but handles each correctly: sort() runs on a spread copy inside computed(), signals update with new objects, the resize stream runs outside the zone but re-enters with NgZone.run plus markForCheck, the subscription uses takeUntilDestroyed, and the effect() writes only to localStorage",
+  "description": "OnPush product list whose surface resembles known pitfalls but handles each correctly: sort() runs on a spread copy inside computed(), signals update with new objects, the resize stream runs outside the zone and writes a signal, which schedules the OnPush view without re-entering the zone, the subscription uses takeUntilDestroyed, and the effect() writes only to localStorage",
   "applicableAgents": [
     "angular-reactivity-review"
   ],

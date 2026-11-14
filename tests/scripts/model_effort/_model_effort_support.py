@@ -397,6 +397,7 @@ def _trial_result(
     note=None,
     session_config=None,
     cost_reported=True,
+    issue_count=None,
 ) -> outcome.TrialResult:
     return outcome.TrialResult(
         outcome=outcome_value,
@@ -407,6 +408,7 @@ def _trial_result(
         error=None,
         session_config=session_config,
         cost_reported=cost_reported,
+        reported_issue_count=issue_count,
     )
 
 
@@ -420,13 +422,17 @@ READ_ONLY_PROFILE = tools.ToolProfile(
 
 
 def _arm_run(
-    label: str, results: list[outcome.TrialResult], expected_clean: bool = False
+    label: str,
+    results: list[outcome.TrialResult],
+    expected_clean: bool = False,
+    expected_skip: bool = False,
 ) -> run_types.ArmRun:
     fixture = run_types.FixtureTrials(
         stem="f",
         kind=fixture_resolution.FixtureKind.FILE,
         expected_clean=expected_clean,
         results=results,
+        expected_skip=expected_skip,
     )
     return run_types.ArmRun(
         arm=_arm(label), trials_per_fixture=1, fixture_trials=[fixture]

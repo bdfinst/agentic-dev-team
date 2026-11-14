@@ -35,6 +35,12 @@ const sortNumbers = (values: number[]): number[] =>
 const reverseStrings = (items: string[]): string[] =>
   items.toReversed();
 
+const sortByIdAscending = (employees: Employee[]): Employee[] =>
+  employees.slice().sort((a, b) => a.id - b.id);
+
+const newestFirst = (employees: Employee[]): Employee[] =>
+  [...sortByHireDate(employees)].reverse();
+
 const medianSalary = (employees: Employee[]): number => {
   const sorted = sortBySalaryDesc(employees);
   const mid = Math.floor(sorted.length / 2);
@@ -58,6 +64,8 @@ export {
   sortByDepartmentThenName,
   sortNumbers,
   reverseStrings,
+  sortByIdAscending,
+  newestFirst,
   medianSalary,
   rankEmployees,
 };

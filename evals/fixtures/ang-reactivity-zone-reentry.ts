@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   NgZone,
@@ -18,6 +19,7 @@ const POLL_INTERVAL_MS = 15_000;
   selector: "app-sync-indicator",
   standalone: true,
   imports: [AsyncPipe, DatePipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (status$ | async; as status) {
       <span class="status" [class.status--error]="status.failed">

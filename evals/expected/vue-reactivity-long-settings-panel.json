@@ -22,7 +22,7 @@
       ],
       "hard": {
         "reason": "long-file",
-        "note": "The single invalid watch source sits among four correct watchers in a long single-file component"
+        "note": "The single invalid watch source sits among three correct watchers in a long single-file component"
       },
       "_calibration": {
         "source": "estimated-by-analogy",

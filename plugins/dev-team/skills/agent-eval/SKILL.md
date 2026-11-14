@@ -440,7 +440,8 @@ Compare agent output against expected JSON:
 - Agent status is "skip" and fixture is not in
   `applicableAgents` → PASS (correct skip)
 - Expected `pass`, agent status `warn`, every issue is a `suggestion`, and
-  the count is within `issueCount` → PASS (the window tolerates suggestions)
+  the count is within `issueCount` → PASS (the window tolerates suggestions;
+  a missing `max` is unbounded, a missing `issueCount` tolerates nothing)
 - Mismatch → FAIL
 
 **Issue count:**

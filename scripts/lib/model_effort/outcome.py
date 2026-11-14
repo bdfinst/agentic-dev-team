@@ -48,6 +48,8 @@ class TrialResult:
     session_config: dict | None = None
     # False when the stream reported no usable cost; `reported_cost_usd` is then 0.0, not a measurement.
     cost_reported: bool = True
+    # How many issues the agent's JSON listed; `None` when no JSON was graded.
+    reported_issue_count: int | None = None
 
 
 def resolve_outcome(
@@ -77,7 +79,19 @@ def resolve_outcome(
         ),
         session_config=parsed.session_config,
         cost_reported=parsed.cost_usd is not None,
+        reported_issue_count=(
+            _issue_count(parsed)
+            if outcome in (Outcome.GRADED_FAIL, Outcome.PASS)
+            else None
+        ),
     )
+
+
+def _issue_count(parsed: ParsedTranscript) -> int:
+    """The number of issues in the graded agent JSON; a missing list counts as 0."""
+    agent_json = extract_agent_json(parsed.result_text) or {}
+    issues = agent_json.get("issues")
+    return len(issues) if isinstance(issues, list) else 0
 
 
 def _decide(

@@ -1,6 +1,5 @@
 import {
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
   Component,
   DestroyRef,
   EventEmitter,
@@ -37,14 +36,13 @@ const FILTER_STORAGE_KEY = "product-list.filter";
         <li (click)="select(product)">{{ product.name }}</li>
       }
     </ul>
-    <p>Viewport width: {{ viewportWidth }}</p>
+    <p>Viewport width: {{ viewportWidth() }}</p>
     <p>{{ (recommendations$ | async)?.length ?? 0 }} recommendations</p>
   `,
 })
 export class ProductListComponent {
   private readonly products = inject(ProductService);
   private readonly zone = inject(NgZone);
-  private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
 
   @Input({ required: true }) set items(value: readonly Product[]) {
@@ -72,7 +70,7 @@ export class ProductListComponent {
     switchMap((ids) => this.products.recommendationsFor(ids)),
   );
 
-  viewportWidth = window.innerWidth;
+  readonly viewportWidth = signal(window.innerWidth);
 
   constructor() {
     effect(() => {
@@ -85,12 +83,7 @@ export class ProductListComponent {
           map(() => window.innerWidth),
           takeUntilDestroyed(this.destroyRef),
         )
-        .subscribe((width) => {
-          this.zone.run(() => {
-            this.viewportWidth = width;
-            this.changeDetector.markForCheck();
-          });
-        });
+        .subscribe((width) => this.viewportWidth.set(width));
     });
   }
 

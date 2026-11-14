@@ -151,6 +151,33 @@ class TestRunInputsAreFrozenAtPlanTime:
         assert graded and set(graded) == {Outcome.GRADED_FAIL}
 
 
+    def test_fixture_trials_carry_the_plans_skip_expectation(self, world, scout_plan):
+        canned, _ = _deps_with_canned_trials(world.deps)
+        settings = run_types.TrialSettings(
+            trials=trial_count.TrialCount(1, "test"),
+            trial_timeout_seconds=1,
+            claude_bin="unused",
+        )
+        skipped = tuple(
+            dataclasses.replace(fixture, expected_clean=True, expected_skip=True)
+            for fixture in scout_plan.fixtures
+        )
+        plan = dataclasses.replace(
+            scout_plan,
+            snapshot=dataclasses.replace(scout_plan.snapshot, fixtures=skipped),
+        )
+
+        run = execution.run_trials(
+            plan, settings, _run_estimate(), run_trial=canned.run_trial
+        )
+
+        flags = [
+            fixture.expected_skip
+            for arm_run in run.arm_runs
+            for fixture in arm_run.fixture_trials
+        ]
+        assert flags and all(flags)
+
 class TestSnapshotIsRemoved:
     @pytest.fixture(autouse=True)
     def _private_tmp(self, private_tmp) -> Path:

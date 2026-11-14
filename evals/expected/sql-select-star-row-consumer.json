@@ -1,0 +1,25 @@
+{
+  "fixture": "sql-select-star-row-consumer",
+  "description": "SELECT * whose only consumer, order_page.py, reads rows through sqlite3.Row by column name: the agent dismisses the detector hit and names the consumer in summary",
+  "applicableAgents": [
+    "sql-review"
+  ],
+  "agents": {
+    "sql-review": {
+      "hard": {
+        "reason": "distractor",
+        "note": "SELECT * is a detector hit; dismissing it needs tracing the query file into order_page.py, where row_factory = sqlite3.Row and the rows are read as row[\"id\"] and row[\"status\"]"
+      },
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "expectedFindings": [],
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Spread-out counterpart to sql-select-star-named; 0-0 is not a tuned bound: the output contract defines pass as zero issues"
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "fixture": "cs-parcel-tracker-agents",
-  "description": "Complete, self-consistent Claude setup (every documented path exists, every documented command is a package.json script, rules and a release skill present) whose one project agent declares effort: normal, which is not an allowed effort value",
+  "description": "Claude setup in which every documented path and command resolves (tsconfig.json present, each CLAUDE.md command is a package.json script, rules and a release skill present); the one defect is the project agent carrier-sync declaring effort: normal, which is not an allowed effort value",
   "applicableAgents": [
     "claude-setup-review"
   ],

@@ -31,6 +31,16 @@
         white-space: nowrap;
         border: 0;
       }
+      .skip-link:focus,
+      .skip-link:focus-visible {
+        position: static;
+        width: auto;
+        height: auto;
+        margin: 0;
+        overflow: visible;
+        clip: auto;
+        white-space: normal;
+      }
       .error {
         color: #b00020;
       }
@@ -42,7 +52,7 @@
     </style>
   </head>
   <body>
-    <a class="visually-hidden" href="#content">Skip to main content</a>
+    <a class="visually-hidden skip-link" href="#content">Skip to main content</a>
 
     <header>
       <img src="/img/header-wave.svg" alt="" width="1200" height="40" />

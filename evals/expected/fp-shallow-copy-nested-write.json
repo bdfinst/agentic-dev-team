@@ -1,0 +1,21 @@
+{
+  "fixture": "fp-shallow-copy-nested-write.ts",
+  "description": "Order-pricing helpers that copy with spreads throughout; applyCoupon spreads the order but then writes into next.totals, a nested object the shallow copy still shares with the caller's order, so the input is mutated",
+  "applicableAgents": ["js-fp-review"],
+  "agents": {
+    "js-fp-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 3 },
+      "severities": { "error": { "min": 1, "max": 2 } },
+      "mustMention": ["totals"],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "The writes target a spread copy, which looks safe; only the nested totals object is shared, so the caller's order changes. Every other function copies correctly"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Window allows the two writes to be reported separately plus one incidental suggestion; parameter mutation is error per js-fp-review.md"
+      }
+    }
+  }
+}

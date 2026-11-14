@@ -1,0 +1,14 @@
+{
+  "name": "acme-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "server": "tsx watch server/index.ts",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "lint": "eslint . && prettier --check .",
+    "db:migrate": "prisma migrate dev --schema server/prisma/schema.prisma",
+    "build": "vite build"
+  }
+}

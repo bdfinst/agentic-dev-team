@@ -114,7 +114,8 @@ def hard_problems(label: str, hard) -> list[str]:
             f"{label}.hard.reason must be one of {sorted(HARD_REASONS)}, "
             f"got {hard.get('reason')!r}"
         )
-    if not str(hard.get("note", "")).strip():
+    note = hard.get("note")
+    if not isinstance(note, str) or not note.strip():
         problems.append(f"{label}.hard.note must say what makes it hard")
     return problems
 

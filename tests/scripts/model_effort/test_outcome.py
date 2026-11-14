@@ -122,6 +122,17 @@ class TestTrialOutcomes:
         with pytest.raises(OSError, match="grading disk gone"):
             _resolve(_verdict_stream(PASS_VERDICT), failing_grader)
 
+    def test_graded_trial_records_how_many_issues_the_agent_reported(self):
+        verdict = {"status": "warn", "issues": [{"severity": "warning"}] * 2}
+        result = _resolve(_verdict_stream(verdict), lambda agent_json: (False, ["x"]))
+
+        assert result.reported_issue_count == 2
+
+    def test_ungraded_trial_records_no_issue_count(self):
+        result = _resolve(_stream(_result_event("I found nothing to report.")))
+
+        assert result.reported_issue_count is None
+
     def test_text_with_no_json_object_is_parse_failure(self):
         result = _resolve(_stream(_result_event("I found nothing to report.")))
 

@@ -4,7 +4,6 @@
   "applicableAgents": ["js-fp-review"],
   "agents": {
     "js-fp-review": {
-      "hard": {"reason": "distractor", "note": "console and fetch side effects inside value-returning functions, exempt only because the *.adapter.ts dotted suffix declares an effect boundary"},
       "expectedStatus": "pass",
       "issueCount": { "min": 0, "max": 0 },
       "_calibration": {

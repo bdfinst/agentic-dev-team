@@ -88,16 +88,22 @@ def test_an_expected_skip_counts_as_clean(corpus: Path) -> None:
     assert _run_on(corpus).returncode == 0
 
 
+def _row(stdout: str, agent: str) -> str:
+    (line,) = [ln for ln in stdout.splitlines() if ln.split()[:1] == [agent]]
+    return " ".join(line.split())
+
+
 @pytest.mark.parametrize(
-    ("stem", "status", "hard", "gap"),
+    ("stem", "status", "hard", "row"),
     [
-        ("e", None, False, "4/5 fixtures"),
-        ("b", "fail", False, "1/2 hard"),
-        ("c", "fail", False, "0/1 clean"),
+        ("e", None, False, "demo-review 4 2 1 4/5 fixtures"),
+        ("b", "fail", False, "demo-review 5 1 1 1/2 hard"),
+        ("c", "fail", False, "demo-review 5 2 0 0/1 clean"),
+        ("c", "warn", False, "demo-review 5 2 0 0/1 clean"),
     ],
 )
 def test_an_agent_below_a_minimum_fails_and_names_the_gap(
-    corpus: Path, stem: str, status: str | None, hard: bool, gap: str
+    corpus: Path, stem: str, status: str | None, hard: bool, row: str
 ) -> None:
     _meeting_minimums(corpus)
     if status is None:
@@ -106,13 +112,81 @@ def test_an_agent_below_a_minimum_fails_and_names_the_gap(
         _add(corpus, stem, status, hard)
     res = _run_on(corpus)
     assert res.returncode == 1, res.stdout + res.stderr
-    assert gap in res.stdout
-    assert "demo-review" in res.stderr
+    assert _row(res.stdout, "demo-review") == row
+    assert "1 review agent(s) below the minimum: demo-review" in res.stderr
+
+
+def test_an_expectation_without_a_status_is_not_clean(corpus: Path) -> None:
+    _meeting_minimums(corpus)
+    entry = {"fixture": "c", "agents": {"demo-review": {}}}
+    (corpus / "expected" / "c.json").write_text(json.dumps(entry))
+    res = _run_on(corpus)
+    assert res.returncode == 1
+    assert _row(res.stdout, "demo-review") == "demo-review 5 2 0 0/1 clean"
+
+
+def test_a_hard_null_marker_is_not_hard(corpus: Path) -> None:
+    _meeting_minimums(corpus)
+    entry = _entry("demo-review", "fail", hard=False)
+    entry["agents"]["demo-review"]["hard"] = None
+    (corpus / "expected" / "b.json").write_text(json.dumps(entry))
+    res = _run_on(corpus)
+    assert _row(res.stdout, "demo-review") == "demo-review 5 1 1 1/2 hard"
 
 
 def test_an_expected_entry_without_a_fixture_does_not_count(corpus: Path) -> None:
     _meeting_minimums(corpus)
-    (corpus / "fixtures" / "e.ts").unlink()
+    (corpus / "fixtures" / "a.ts").unlink()  # a hard fixture
     res = _run_on(corpus)
     assert res.returncode == 1
-    assert "4/5 fixtures" in res.stdout
+    assert _row(res.stdout, "demo-review") == (
+        "demo-review 4 1 1 4/5 fixtures, 1/2 hard"
+    )
+
+
+def test_a_directory_fixture_counts_by_its_name(corpus: Path) -> None:
+    _meeting_minimums(corpus)
+    (corpus / "fixtures" / "e.ts").unlink()
+    (corpus / "fixtures" / "e").mkdir()
+    (corpus / "fixtures" / "e" / "index.ts").write_text("export {};\n")
+    res = _run_on(corpus)
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert _row(res.stdout, "demo-review") == "demo-review 5 2 1 -"
+
+
+def test_a_review_agent_with_no_entries_is_named(corpus: Path) -> None:
+    _meeting_minimums(corpus)
+    (corpus / "agents" / "idle-review.md").write_text("---\nname: idle-review\n---\n")
+    res = _run_on(corpus)
+    assert res.returncode == 1
+    assert _row(res.stdout, "idle-review") == (
+        "idle-review 0 0 0 0/5 fixtures, 0/2 hard, 0/1 clean"
+    )
+    assert "1 review agent(s) below the minimum: idle-review" in res.stderr
+
+
+@pytest.mark.parametrize("missing", ["agents", "expected", "fixtures"])
+def test_a_missing_directory_exits_2_naming_it(corpus: Path, missing: str) -> None:
+    (corpus / missing).rename(corpus / f"{missing}-gone")
+    res = _run_on(corpus)
+    assert res.returncode == 2
+    assert f"directory not found: {corpus / missing}" in res.stderr
+
+
+@pytest.mark.parametrize(
+    ("content", "reason"),
+    [
+        ("{not json", "not valid JSON"),
+        ("[1, 2]", "not a JSON object"),
+        ('{"agents": []}', "`agents` is not a JSON object"),
+    ],
+)
+def test_a_malformed_expected_file_exits_2_naming_it(
+    corpus: Path, content: str, reason: str
+) -> None:
+    _meeting_minimums(corpus)
+    (corpus / "expected" / "c.json").write_text(content)
+    res = _run_on(corpus)
+    assert res.returncode == 2
+    assert "Traceback" not in res.stderr
+    assert f"malformed expected file c.json: {reason}" in res.stderr

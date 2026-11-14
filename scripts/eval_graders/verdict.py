@@ -1,7 +1,6 @@
-"""The `verdict` grader (issue #309).
+"""The `verdict` grader.
 
-This is the original `grade_agent` path lifted verbatim out of the monolith: it
-grades a single review agent's recorded verdict (status, issue counts, severity
+It grades a single review agent's recorded verdict (status, issue counts, severity
 buckets, keyword presence/absence) against its expected JSON. It is the default
 grader for entries in an expected file's `agents` block, so existing fixtures
 grade byte-for-byte identically.
@@ -19,13 +18,17 @@ def _tolerated_suggestion_warn(spec: dict, status, issues: list) -> bool:
     error, so an agent that reports one suggestion must say `warn`. A clean
     entry that pairs `expectedStatus: pass` with an `issueCount` window above
     zero tolerates such suggestions; without this rule that window could never
-    be met. The `issueCount` check still bounds how many are tolerated.
+    be met. The `issueCount` check still bounds how many are tolerated. A
+    window with no `max` is unbounded, as in `in_range`; an entry with no
+    `issueCount` at all tolerates nothing.
     """
-    window_max = spec.get("issueCount", {}).get("max", 0)
+    if "issueCount" not in spec:
+        return False
     return (
         spec.get("expectedStatus") == "pass"
         and status == "warn"
-        and 0 < len(issues) <= window_max
+        and len(issues) > 0
+        and in_range(len(issues), spec["issueCount"])
         and all(i.get("severity") == "suggestion" for i in issues)
     )
 

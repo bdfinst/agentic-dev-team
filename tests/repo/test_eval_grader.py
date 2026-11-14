@@ -777,18 +777,23 @@ def test_registry_check_corpus_accepts_registered_grader(case: Path) -> None:
     assert "Eval corpus OK" in out
 
 
-def _clean_corpus(case: Path, max_issues: int) -> None:
+def _clean_corpus(
+    case: Path, max_issues: int | None, expected_status: str = "pass"
+) -> None:
+    """Write an arch-review entry; `max_issues=None` omits `issueCount`."""
+    expectation: dict = {"expectedStatus": expected_status}
+    if max_issues is not None:
+        expectation["issueCount"] = {"min": 0, "max": max_issues}
+    _write_clean_expectation(case, expectation)
+
+
+def _write_clean_expectation(case: Path, expectation: dict) -> None:
     (case / "expected" / "ar-demo.json").write_text(
         json.dumps(
             {
                 "fixture": "ar-demo.ts",
                 "applicableAgents": ["arch-review"],
-                "agents": {
-                    "arch-review": {
-                        "expectedStatus": "pass",
-                        "issueCount": {"min": 0, "max": max_issues},
-                    }
-                },
+                "agents": {"arch-review": expectation},
             }
         )
     )
@@ -811,11 +816,28 @@ def _grade_actual(case: Path, status: str, severities: list[str]):
     )
 
 
+@pytest.mark.parametrize(
+    ("max_issues", "severities"),
+    [
+        (1, ["suggestion"]),
+        (2, ["suggestion", "suggestion"]),
+    ],
+)
 def test_pass_expectation_tolerates_a_suggestion_only_warn_within_the_window(
+    case: Path, max_issues: int, severities: list[str]
+) -> None:
+    _clean_corpus(case, max_issues=max_issues)
+    res = _grade_actual(case, "warn", severities)
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+def test_pass_expectation_with_no_window_max_tolerates_any_suggestion_count(
     case: Path,
 ) -> None:
-    _clean_corpus(case, max_issues=1)
-    res = _grade_actual(case, "warn", ["suggestion"])
+    _write_clean_expectation(
+        case, {"expectedStatus": "pass", "issueCount": {"min": 0}}
+    )
+    res = _grade_actual(case, "warn", ["suggestion"] * 3)
     assert res.returncode == 0, res.stdout + res.stderr
 
 
@@ -823,19 +845,30 @@ def test_pass_expectation_tolerates_a_suggestion_only_warn_within_the_window(
     ("max_issues", "status", "severities"),
     [
         (1, "warn", ["warning"]),  # a warning is a finding, not a tolerated nit
+        (2, "warn", ["suggestion", "warning"]),  # one non-suggestion spoils it
         (1, "warn", ["suggestion", "suggestion"]),  # more than the window allows
         (0, "warn", ["suggestion"]),  # a zero window tolerates nothing
+        (1, "warn", []),  # warn with nothing to tolerate
+        (None, "warn", ["suggestion"]),  # no issueCount, nothing tolerated
         (1, "fail", ["suggestion"]),  # only warn is tolerated, never fail
     ],
 )
 def test_pass_expectation_rejects_warn_outside_the_suggestion_tolerance(
-    case: Path, max_issues: int, status: str, severities: list[str]
+    case: Path, max_issues: int | None, status: str, severities: list[str]
 ) -> None:
     _clean_corpus(case, max_issues=max_issues)
     res = _grade_actual(case, status, severities)
     out = res.stdout + res.stderr
     assert res.returncode == 1, out
     assert f"status: expected 'pass', got '{status}'" in out
+
+
+def test_fail_expectation_never_tolerates_a_suggestion_only_warn(case: Path) -> None:
+    _clean_corpus(case, max_issues=1, expected_status="fail")
+    res = _grade_actual(case, "warn", ["suggestion"])
+    out = res.stdout + res.stderr
+    assert res.returncode == 1, out
+    assert "status: expected 'fail', got 'warn'" in out
 
 
 def _corpus_with_hard(case: Path, hard: object) -> subprocess.CompletedProcess:
@@ -852,10 +885,16 @@ def _corpus_with_hard(case: Path, hard: object) -> subprocess.CompletedProcess:
     )
 
 
-def test_check_corpus_accepts_a_hard_marker_with_a_known_reason(case: Path) -> None:
-    res = _corpus_with_hard(
-        case, {"reason": "subtle-defect", "note": "one import among many"}
-    )
+@pytest.mark.parametrize("reason", ["subtle-defect", "distractor", "long-file"])
+def test_check_corpus_accepts_a_hard_marker_with_a_known_reason(
+    case: Path, reason: str
+) -> None:
+    res = _corpus_with_hard(case, {"reason": reason, "note": "one import among many"})
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+def test_check_corpus_treats_a_null_hard_marker_as_absent(case: Path) -> None:
+    res = _corpus_with_hard(case, None)
     assert res.returncode == 0, res.stdout + res.stderr
 
 
@@ -864,6 +903,8 @@ def test_check_corpus_accepts_a_hard_marker_with_a_known_reason(case: Path) -> N
     [
         ({"reason": "tricky", "note": "x"}, "hard.reason must be one of"),
         ({"reason": "distractor", "note": " "}, "hard.note must say"),
+        ({"reason": "distractor"}, "hard.note must say"),
+        ({"reason": "distractor", "note": None}, "hard.note must say"),
         ("long-file", "hard must be an object"),
     ],
 )

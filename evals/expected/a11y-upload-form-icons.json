@@ -1,6 +1,6 @@
 {
   "fixture": "a11y-upload-form-icons",
-  "description": "Accessible upload form full of patterns that look like defects but are correct: outline:none replaced by a :focus-visible box-shadow, aria-hidden SVG icons next to visible text, an icon-only button named by aria-label, a decorative image with alt=\"\", a visually hidden required label, and an error tied to its input by aria-describedby and aria-invalid. Should pass review.",
+  "description": "Accessible upload form full of patterns that look like defects but are correct: outline:none replaced by a :focus-visible box-shadow, aria-hidden SVG icons next to visible text, an icon-only button named by aria-label, a decorative image with alt=\"\", a skip link hidden until it takes focus, a visually hidden required label, and an error tied to its input by aria-describedby and aria-invalid. Should pass review.",
   "applicableAgents": [
     "a11y-review"
   ],

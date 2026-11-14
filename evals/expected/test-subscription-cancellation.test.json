@@ -1,6 +1,6 @@
 {
   "fixture": "test-subscription-cancellation.test",
-  "description": "Well-structured suite for a subscription cancel service: injected clock, in-memory store rebuilt per test, refund-window boundaries on both sides, and error paths. One test calls expect(...).rejects.toThrow(...) without await or return, so the already-cancelled assertion is never awaited and cannot fail the test.",
+  "description": "Well-structured suite for a subscription cancel service: injected clock, in-memory store rebuilt per test, refund-window boundaries on both sides, and error paths. One test calls expect(...).rejects.toThrow(...) without await or return, so the test does not wait for the already-cancelled assertion. How a runner treats an unawaited assertion varies by runner and version (a warning, an auto-await at test end, or a missed failure), so the test is not a dependable check.",
   "applicableAgents": [
     "test-review"
   ],
@@ -26,7 +26,7 @@
       },
       "_calibration": {
         "source": "estimated-by-analogy",
-        "note": "Modeled on test-no-assertions: an assertion that cannot fail the test is error severity. Window allows one extra coverage-gap remark. Boundary claim checked with node: (Date.parse('2026-03-31') - Date.parse('2026-03-01')) / 864e5 -> 30 and 2026-04-01 -> 31, so the two window tests sit on each side of the 30-day limit."
+        "note": "Modeled on test-no-assertions: an assertion the test does not wait for is error severity. Window allows one extra coverage-gap remark. Boundary claim checked with node: (Date.parse('2026-03-31') - Date.parse('2026-03-01')) / 864e5 -> 30 and 2026-04-01 -> 31, so the two window tests sit on each side of the 30-day limit."
       }
     }
   }

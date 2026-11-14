@@ -9,15 +9,15 @@
       "expectedStatus": "pass",
       "issueCount": {
         "min": 0,
-        "max": 0
+        "max": 1
       },
       "hard": {
         "reason": "distractor",
-        "note": "Short and single-letter identifiers look like unclear names, but each is a mathematical or loop convention the Naming Offender Catalog's What NOT to flag list exempts"
+        "note": "Short and single-letter identifiers look like unclear names. The Naming Offender Catalog's What NOT to flag list exempts only the loop counter i and the single-use lambda parameter p; x, y, dx, dy, cos and sin are standard geometry notation the catalog does not list, so the agent must judge them from context"
       },
       "_calibration": {
         "source": "estimated-by-analogy",
-        "note": "Clean counterpart to nm-clear-names; zero findings once the catalog's loop-counter and single-use-lambda exemptions are applied"
+        "note": "Clean counterpart to nm-clear-names. The window tolerates one suggestion because the catalog does not exempt geometry notation (x, y, dx, dy, cos, sin) by name; an expected pass accepts a suggestion-only warn within the window"
       }
     }
   }

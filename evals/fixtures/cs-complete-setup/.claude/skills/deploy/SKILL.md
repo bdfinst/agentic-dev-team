@@ -30,7 +30,8 @@ Run `docker build -t app:$(git rev-parse --short HEAD) .`
 
 ### 4. Push to registry
 
-Run `docker push $ECR_REPO:$(git rev-parse --short HEAD)`
+Run `docker tag app:$(git rev-parse --short HEAD) $ECR_REPO:$(git rev-parse --short HEAD)`,
+then `docker push $ECR_REPO:$(git rev-parse --short HEAD)`
 
 ### 5. Update service
 
