@@ -38,7 +38,9 @@ STREAMS = frozenset({
 
 
 #: Environment variables that carry the session id to a script run outside a
-#: hook. The Bash tool sets the first; hooks get the second.
+#: hook, first non-blank wins. Claude Code exports the first into the Bash
+#: tool's environment (checked by running a CLI emitter from a live session);
+#: the second is the hook variable in docs/python-hook-contract.md.
 SESSION_ENV_VARS = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
 
 

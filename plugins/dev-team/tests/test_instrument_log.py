@@ -85,13 +85,13 @@ def test_checkpoint_abort_logs_abort_mode_source(tmp_path):
     assert row["source"] == "checkpoint"
 
 
-def _session_env(**ids):
+def _session_env(**session_vars):
     env = {
         k: v
         for k, v in os.environ.items()
-        if k not in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
+        if k not in instrument_log.SESSION_ENV_VARS
     }
-    return {**env, **ids}
+    return {**env, **session_vars}
 
 
 def _run_verdict_scope(root: Path, env: dict):
@@ -154,7 +154,7 @@ def test_checkpoint_row_carries_the_session_id_from_the_environment(tmp_path, mo
     assert row["session_id"] == "sess-ckpt"
 
 
-def test_hook_documented_session_variable_is_the_fallback(tmp_path):
+def test_cli_emitter_falls_back_to_the_hook_session_variable(tmp_path):
     _run_verdict_scope(tmp_path, _session_env(CLAUDE_SESSION_ID="sess-hook-var"))
     (row,) = _rows(tmp_path, "ledger-skips")
     assert row["session_id"] == "sess-hook-var"
@@ -170,3 +170,9 @@ def test_env_session_id_ignores_blank_values(monkeypatch):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "  ")
     monkeypatch.setenv("CLAUDE_SESSION_ID", "sess-b")
     assert instrument_log.env_session_id() == "sess-b"
+
+
+def test_bash_tool_session_variable_wins_over_the_hook_variable(monkeypatch):
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-a")
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "sess-b")
+    assert instrument_log.env_session_id() == "sess-a"

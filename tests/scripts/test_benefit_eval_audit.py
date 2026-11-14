@@ -255,7 +255,9 @@ def test_rows_that_instrument_log_persists_carry_a_session_id_and_are_id_bearing
 def _run_consult_and_checkpoint(project: Path, session_id: str) -> None:
     scripts = REPO_ROOT / "plugins" / "dev-team" / "scripts"
     env = {
-        k: v for k, v in os.environ.items() if k != "CLAUDE_SESSION_ID"
+        k: v
+        for k, v in os.environ.items()
+        if k not in streams.instrument_log.SESSION_ENV_VARS
     }
     env["CLAUDE_CODE_SESSION_ID"] = session_id
     (project / "a.py").write_text("x = 1\n")
@@ -282,14 +284,14 @@ def _run_consult_and_checkpoint(project: Path, session_id: str) -> None:
         )
 
 
-def test_consult_and_checkpoint_rows_from_three_real_sessions_are_confirmed(world):
+@pytest.mark.parametrize("name", ["ledger-skips", "checkpoint-aborts"])
+def test_consult_and_checkpoint_rows_from_three_real_sessions_are_confirmed(world, name):
     for i in range(3):
         session_id = f"sess{i:04d}-real"
         world.session(session_id)
         _run_consult_and_checkpoint(world.project, session_id)
-    for name in ("ledger-skips", "checkpoint-aborts"):
-        result = audit_one(world, name)
-        assert (result.status, result.real_sessions) == ("confirmed", 3)
+    result = audit_one(world, name)
+    assert (result.status, result.real_sessions) == ("confirmed", 3)
 
 
 # --- unreadable instruments --------------------------------------------------
