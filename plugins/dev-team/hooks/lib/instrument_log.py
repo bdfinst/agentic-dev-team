@@ -34,6 +34,7 @@ STREAMS = frozenset({
     "skill-injection",
     "ledger-skips",
     "checkpoint-aborts",
+    "tiered-renders",
 })
 
 

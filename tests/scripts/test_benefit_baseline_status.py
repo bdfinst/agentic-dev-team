@@ -72,7 +72,7 @@ PINNED_STATUS_MAP = {
     "abort-yield": "no-reference",
     "guard-divergence": "no-reference",
     "contradicted-rate": "no-reference",
-    "expand-rate": "unmeasurable",
+    "expand-rate": "no-reference",
     "report-size-cut": "unmeasurable",
 }
 
@@ -278,7 +278,7 @@ def test_a_no_reference_cell_on_a_record_capable_metric_pinned_to_another_status
 @pytest.mark.parametrize(
     ("metric_id", "cell"),
     [
-        ("expand-rate", "by-definition: counted by hand"),
+        ("report-size-cut", "by-definition: counted by hand"),
         ("skip-rate", f"unmeasurable: no instrument (#{ISSUE_CITES['skip-rate']})"),
     ],
     ids=[

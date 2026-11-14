@@ -96,6 +96,13 @@ def _metric_modules():
     return metrics_cost, metrics_hooks, metrics_ledger
 
 
+def _expand_rate(metric: prereg.Metric, ctx: ReportContext) -> ReportLine:
+    """Imported on use, like the other metric modules, so the audit path never loads it."""
+    from benefit_eval import metrics_tiered
+
+    return metrics_tiered.expand_rate(metric, ctx)
+
+
 def _handler_for(metric: prereg.Metric, prereg_path: Path) -> Handler:
     """Hand-entered and unmeasurable metrics need no stream; every other metric needs a registered computation."""
     metrics_cost, metrics_hooks, metrics_ledger = _metric_modules()
@@ -123,6 +130,7 @@ def _handler_for(metric: prereg.Metric, prereg_path: Path) -> Handler:
         "contradicted-rate": Handler(
             metrics_cost.verdict_rate, (metrics_cost.skill_adoption,)
         ),
+        "expand-rate": Handler(_expand_rate),
     }
     if metric.id not in handlers:
         raise streams.InputError(

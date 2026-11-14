@@ -683,7 +683,7 @@ are re-measured every convergence iteration.
 
 ## Benefit-measurement streams (#2201)
 
-**Added by #2201** (epic #2200, slice 0). Four observational JSONL streams that
+**Added by #2201** (epic #2200, slice 0). Observational JSONL streams that
 make post-merge benefit numbers for epics #2164 and #2172 exist. Each row is
 written fail-open by `hooks/lib/instrument_log.py` (never affects stdout, exit
 code, or control flow) and carries `ts`, `plugin_version`, and, when the
@@ -697,6 +697,7 @@ so measurement rows must not share it. Counts, enums and lens/agent names only.
 | `skill-injection.jsonl` | `hooks/subagent_skill_context.py` (when a hint is injected) | `agent_type`, `skills` (list), `added_chars` | Injection overhead (`added_chars`) and the denominator for uptake; uptake itself is read from `Skill` tool calls in the subagent transcripts (`scripts/lib/session_log`). |
 | `ledger-skips.jsonl` | `scripts/verdict_scope.py` (every CLI consult) and `hooks/checkpoint_dispatch_instrument.py` (every scope-marked review-lens dispatch, `source: "dispatch-hook"`) | `candidate_pairs`, `skipped_pairs`, `fully_skipped_lenses` (list) | Realized delta-scoping skip rate = `skipped_pairs / candidate_pairs` over `source: "consult"` rows only. `dispatch-hook` rows are written for every scope-marked dispatch, but the marker already lists only the files the consult left to dispatch, so they count pairs the ledger could still have cleared (consult missed or stale); never use them as the skip rate and never sum across sources. Previously only printed to stdout. |
 | `checkpoint-aborts.jsonl` | `scripts/checkpoint_abort.py`, and `hooks/review_verdict_recorder.py` (one `source: "stop-hook"` row per parsed lens result: whether that result alone trips the abort rule; `deferred_lenses` is always empty there) | `mode: "abort"`: `aborted`, `triggering_agent`, `deferred_lenses`. `mode: "outcome"`: `aborted`, `redispatched`, `findings`, `blocking_findings`, `outcome` | Abort frequency, deferred-lens yield (`outcome` rows with `aborted` and `redispatched`), previously only printed. Filter on `source`: `checkpoint` rows carry the round's real `deferred_lenses`; `stop-hook` rows are per-result with `deferred_lenses` always empty, so use them only for per-result trip frequency. |
+| `tiered-renders.jsonl` | `skills/code-review/scripts/render_tiered_findings.py` (every successful render of a report with at least one finding; `session_id` from `CLAUDE_CODE_SESSION_ID`, falling back to `CLAUDE_SESSION_ID`) | `report` (12-hex digest of the round's finding ids, no paths or text), `findings`, `expand` (`none` \| `one` \| `all`) | Expand rate = reports with any `expand` other than `none` over distinct (`session_id`, `report`) pairs. Renders of one report share its key, so a report counts once however often it is re-rendered. |
 
 ### Instrument audit (#2201)
 
@@ -712,6 +713,7 @@ maintainer's machine after these emitters ship.
 | `checkpoint_abort.py` | Outcomes printed only; the model-run check can silently not happen. | New `checkpoint-aborts.jsonl`, also written per lens result by the recorder hook. |
 | `subagent_skill_context.py` | No signal of injection or of a skill being loaded. | New `skill-injection.jsonl`; "loaded" is derived from subagent transcripts. |
 | `subagent_completion_guard.py` | Emits `empty-final-turn` / `truncated-final-turn` to `boundary-events.jsonl` (`decision: "record"`); `clean`/`unreadable` silent. | New `subagent-stops.jsonl` with every classification. |
+| `render_tiered_findings.py --expand` | Expansions printed only; nothing counted how often a reader expanded a Tier-1 line. | New `tiered-renders.jsonl`, one row per render, so the rate has its denominator. |
 
 Consent gating: none beyond the existing per-project `.claude/metrics/`
 location; rows are local files and are never transmitted.

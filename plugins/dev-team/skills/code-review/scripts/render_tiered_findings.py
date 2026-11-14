@@ -43,7 +43,9 @@ Stdlib-only. See docs/python-hook-contract.md.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import re
 import sys
 from collections import Counter
@@ -64,6 +66,7 @@ if str(_HOOKS_LIB_DIR) not in sys.path:
 
 from finding_signature import finding_agent as _finding_agent
 from finding_signature import finding_category as _finding_category
+from instrument_log import append_row  # type: ignore[import-not-found]
 from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 #: Rendered instead of any per-finding line when a round has zero findings —
@@ -192,6 +195,30 @@ def render_expand_one(findings: list[dict], ids: list[str], finding_id: str) -> 
     return render_tier2_block(findings[index], ids[index])
 
 
+#: Session-id environment variables Claude Code sets for tool commands, in preference order.
+_SESSION_ENV_VARS = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
+
+
+def report_key(ids: list[str]) -> str:
+    """A short digest of this round's finding ids, so renders of one report group
+    together without the row carrying any file path or message text."""
+    return hashlib.sha256("\n".join(ids).encode("utf-8")).hexdigest()[:12]
+
+
+def log_render(ids: list[str], expand: str | None) -> None:
+    """Append one ``tiered-renders`` row for a rendered non-empty report — fail-open,
+    stdout and exit code untouched. ``expand`` is ``none``, ``one`` or ``all``."""
+    if not ids:
+        return
+    scope = "none" if expand is None else "all" if expand == "all" else "one"
+    session_id = next((os.environ[v] for v in _SESSION_ENV_VARS if os.environ.get(v)), None)
+    append_row(
+        "tiered-renders",
+        {"report": report_key(ids), "findings": len(ids), "expand": scope},
+        session_id=session_id,
+    )
+
+
 class UnrecognizedFindingsShape(ValueError):
     """Raised by `_load_findings` when the parsed JSON is neither a bare
     list nor a dict carrying a recognized finding-list key. Regression
@@ -259,12 +286,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.expand is None:
         print(tier1)
+        log_render(ids, args.expand)
         return 0
 
     if args.expand == "all":
         print(tier1)
         print()
         print(render_tier2_report(findings, ids))
+        log_render(ids, args.expand)
         return 0
 
     block = render_expand_one(findings, ids, args.expand)
@@ -276,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
     print(tier1)
     print()
     print(block)
+    log_render(ids, args.expand)
     return 0
 
 
