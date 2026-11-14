@@ -1,0 +1,31 @@
+{
+  "scenarios": [
+    {
+      "slice": "1",
+      "scenario": "Usernames at the accepted length boundaries",
+      "falsifier": "the 201 body omits the new account id"
+    },
+    {
+      "slice": "1",
+      "scenario": "Usernames outside the length boundaries",
+      "falsifier": "the 422 body omits the human-readable message"
+    },
+    {
+      "slice": "1",
+      "scenario": "Disallowed character is rejected",
+      "falsifier": "the charset check runs before the length check"
+    },
+    {
+      "slice": "1",
+      "scenario": "Taken username is rejected",
+      "falsifier": "the comparison of names is case-insensitive"
+    }
+  ],
+  "missing": [],
+  "scanned_slices": [
+    "1"
+  ],
+  "skipped_slices": [],
+  "skipped_with_scenarios": [],
+  "error": null
+}

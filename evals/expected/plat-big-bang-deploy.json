@@ -1,0 +1,31 @@
+{
+  "fixture": "plat-big-bang-deploy",
+  "description": "Deploy script that rebuilds the image per environment, restarts all hosts at once, and runs a destructive migration in-line; a correct answer promotes one immutable artifact, rolls out gradually behind health checks, and makes the migration rollback-safe.",
+  "applicableAgents": [
+    "platform-engineer"
+  ],
+  "agents": {
+    "platform-engineer": {
+      "grader": "rubric",
+      "task": "Design a safer deployment and rollback approach for the service in `{fixture}/` (see `{fixture}/scripts/deploy.sh`, `{fixture}/migrations/`, and `{fixture}/context.md`) before release 2.3 ships. Do not write files; give your recommendation in your final answer.",
+      "rubricPoints": [
+        {
+          "id": "build-once-promote",
+          "requirement": "Identifies that `deploy.sh` rebuilds the image per environment from `git pull` with a mutable tag, and recommends building one immutable image (tagged by commit SHA or version) once and promoting that same image from staging to production."
+        },
+        {
+          "id": "gradual-rollout-health-gate",
+          "requirement": "Replaces the restart-all-hosts-at-once loop with a rolling, canary, or blue-green rollout that checks `/healthz` (or error metrics) before moving to more hosts."
+        },
+        {
+          "id": "rollback-redeploy-previous",
+          "requirement": "Defines rollback as redeploying the previous immutable image tag, without rebuilding from an old commit."
+        },
+        {
+          "id": "migration-blocks-rollback",
+          "requirement": "Identifies that migration 0019 drops the `address` column, so the 2.2 image cannot run after it, and recommends expand/contract: keep `address` in 2.3 and drop it in a later release."
+        }
+      ]
+    }
+  }
+}

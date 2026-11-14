@@ -1,0 +1,18 @@
+stages: [build, test, canary, promote]
+
+build:
+  script: docker build -t registry.example.com/pricing:$CI_COMMIT_SHA .
+
+test:
+  script: docker run registry.example.com/pricing:$CI_COMMIT_SHA pytest -q
+
+canary:
+  script:
+    - ./deploy --image pricing:$CI_COMMIT_SHA --traffic 5
+    - sleep 300
+    - kubectl rollout status deploy/pricing-canary --timeout=60s
+
+promote:
+  script:
+    - ./migrate --to head
+    - ./deploy --image pricing:$CI_COMMIT_SHA --traffic 100

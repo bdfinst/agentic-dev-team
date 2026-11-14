@@ -1,0 +1,31 @@
+{
+  "fixture": "recon-pnpm-monorepo",
+  "description": "pnpm workspace monorepo with an Express API (login route using bcrypt and jsonwebtoken), an SQS-style Lambda worker using axios, and a shared library package; a correct RECON reports pnpm, the workspaces, and classifies each entry point correctly.",
+  "applicableAgents": [
+    "codebase-recon"
+  ],
+  "agents": {
+    "codebase-recon": {
+      "grader": "rubric",
+      "task": "Run reconnaissance on the repository rooted at `{fixture}/` (treat that directory as the repo root and use its name for the slug).  If the schema file or the inventory script your procedure names is not reachable, record that in `notes` and continue. The grader cannot open files: after the `RECON written:` block, include the full JSON envelope you wrote.",
+      "rubricPoints": [
+        {
+          "id": "monorepo-pnpm",
+          "requirement": "Reports `monorepo` true with workspaces covering `packages/api`, `packages/worker`, and `packages/shared` (or `packages/*`), and `pnpm` as the package manager based on `pnpm-lock.yaml`."
+        },
+        {
+          "id": "entry-points-classified",
+          "requirement": "Classifies `packages/api/src/server.ts` as `http-server` (app.listen), `packages/worker/src/handler.js` as `lambda` (exports.handler), and `packages/shared/src/index.ts` as `module-index` (package.json main)."
+        },
+        {
+          "id": "auth-and-crypto",
+          "requirement": "Puts `packages/api/src/routes/login.ts` in `auth_paths` and in `crypto_calls` (bcrypt and/or jwt.sign)."
+        },
+        {
+          "id": "egress-and-secrets",
+          "requirement": "Puts `packages/worker/src/handler.js` in `network_egress` (axios.post), and lists files reading `process.env` (server.ts, login.ts, handler.js) in `secrets_referenced`."
+        }
+      ]
+    }
+  }
+}

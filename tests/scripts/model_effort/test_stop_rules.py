@@ -256,7 +256,8 @@ class TestSpendLimitStop:
     def test_max_cost_help_says_the_run_stops_on_charged_cost(self):
         help_text = " ".join(model_effort_ab._build_parser().format_help().split())
 
-        assert "run once the charged cost (" in help_text
+        assert "run once the charged cost is above this" in help_text
+        assert "each rubric judgement's reported cost" in help_text
         assert "actual cost" not in help_text
 
     def test_charged_cost_equal_to_max_cost_lets_the_run_finish(self, world):

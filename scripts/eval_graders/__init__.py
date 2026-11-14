@@ -22,8 +22,12 @@ byte-for-byte identically without declaring a ``grader`` field.
 
 from __future__ import annotations
 
+from .dispatch_set import grade_dispatch_set
+from .finding_ids import grade_finding_ids
 from .integration import grade_integration
+from .rubric import grade_rubric
 from .skill_gate import grade_skill_gate
+from .tests_pass import grade_tests_pass
 from .verdict import grade_verdict
 
 # grader name -> grading callable. Adding a grader = one module + one entry here.
@@ -31,6 +35,10 @@ REGISTRY = {
     "verdict": grade_verdict,
     "skill_gate": grade_skill_gate,
     "integration": grade_integration,
+    "finding_ids": grade_finding_ids,
+    "dispatch_set": grade_dispatch_set,
+    "tests_pass": grade_tests_pass,
+    "rubric": grade_rubric,
 }
 
 # Default grader per expected-JSON block, preserving pre-registry behaviour.

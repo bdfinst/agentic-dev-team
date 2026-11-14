@@ -29,7 +29,10 @@ class SpendLimit:
     def exceeded_by(self, charged_usd: float) -> bool:
         """True when the cost charged so far is above the limit.
 
-        Charged is each trial's reported cost, or its arm's per-trial estimate when it reported none.
+        Charged is each trial's reported cost, or its arm's per-trial estimate when
+        it reported none, plus, for a rubric-graded run, each judgement's reported
+        cost (failed judgements included), or the per-judgement estimate when it
+        reported none.
         """
         return charged_usd > self.max_cost_usd
 

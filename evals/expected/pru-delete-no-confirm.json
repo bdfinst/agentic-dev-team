@@ -1,0 +1,42 @@
+{
+  "fixture": "pru-delete-no-confirm",
+  "description": "Delete-project plan whose button permanently deletes on a single click with no confirmation or undo, and whose failure path is only 'an error is shown'; a correct review returns needs-revision with a blocker for the unconfirmed destructive action and flags the unspecified error message.",
+  "applicableAgents": [
+    "plan-review-ux"
+  ],
+  "agents": {
+    "plan-review-ux": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the UX Critic. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "needs-revision",
+      "findingFields": [
+        "issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "permanent-delete-without-confirmation",
+          "anyOf": [
+            "confirm",
+            "undo"
+          ],
+          "severityAnyOf": [
+            "blocker"
+          ]
+        },
+        {
+          "id": "unspecified-delete-error-message",
+          "anyOf": [
+            "error message",
+            "error is shown",
+            "what the error says",
+            "show an error",
+            "error text",
+            "recovery"
+          ]
+        }
+      ],
+      "maxFindings": 7
+    }
+  }
+}

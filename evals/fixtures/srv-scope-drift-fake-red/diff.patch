@@ -1,0 +1,65 @@
+diff --git a/src/checkout/discount.ts b/src/checkout/discount.ts
+new file mode 100644
+index 0000000..a1b2c3d
+--- /dev/null
++++ b/src/checkout/discount.ts
+@@ -0,0 +1,18 @@
++import { logger } from "../lib/logger";
++
++export type Cart = { total: number };
++export type DiscountCode = { code: string; percent: number; expires: string };
++export type DiscountResult =
++  | { ok: true; cart: Cart }
++  | { ok: false; message: string; cart: Cart };
++
++const percentOf = (amount: number, percent: number): number =>
++  Math.round(amount * percent) / 100;
++
++export function applyDiscount(cart: Cart, code: DiscountCode, today: string): DiscountResult {
++  if (code.expires < today) {
++    logger.debug("discount rejected", { code: code.code });
++    return { ok: false, message: "Coupon has expired", cart };
++  }
++  return { ok: true, cart: { total: cart.total - percentOf(cart.total, code.percent) } };
++}
+diff --git a/src/lib/logger.ts b/src/lib/logger.ts
+index 77e1f20..5d0c9b3 100644
+--- a/src/lib/logger.ts
++++ b/src/lib/logger.ts
+@@ -1,9 +1,12 @@
+-type Level = "info" | "warn" | "error";
++type Level = "debug" | "info" | "warn" | "error";
+ 
+ const write = (level: Level, msg: string, meta?: object) =>
+   console.log(JSON.stringify({ level, msg, ...meta }));
+ 
+ export const logger = {
++  debug: (msg: string, meta?: object) => {
++    if (process.env.LOG_LEVEL === "debug") write("debug", msg, meta);
++  },
+   info: (msg: string, meta?: object) => write("info", msg, meta),
+   warn: (msg: string, meta?: object) => write("warn", msg, meta),
+   error: (msg: string, meta?: object) => write("error", msg, meta),
+diff --git a/test/discount.test.ts b/test/discount.test.ts
+new file mode 100644
+index 0000000..e4f5a6b
+--- /dev/null
++++ b/test/discount.test.ts
+@@ -0,0 +1,17 @@
++import { describe, expect, it } from "vitest";
++import { applyDiscount } from "../src/checkout/discount";
++
++describe("applyDiscount", () => {
++  it("reduces the total for a valid code", () => {
++    const r = applyDiscount({ total: 80 }, { code: "AUTUMN15", percent: 15, expires: "2026-11-30" }, "2026-11-14");
++    expect(r.ok).toBe(true);
++    expect(r.cart.total).toBe(68);
++  });
++
++  it("rejects an expired code", () => {
++    const r = applyDiscount({ total: 80 }, { code: "SUMMER10", percent: 10, expires: "2026-08-31" }, "2026-11-14");
++    expect(r.ok).toBe(false);
++    expect(r.ok === false && r.message).toBe("Coupon has expired");
++    expect(r.cart.total).toBe(80);
++  });
++});

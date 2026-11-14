@@ -1,0 +1,34 @@
+--- /dev/null
++++ b/app/auth/api_keys.py
+@@ -0,0 +1,8 @@
++import hashlib
++import hmac
++
++
++def verify_api_key(presented: str, stored_sha256_hex: str) -> bool:
++    """True when the presented key hashes to the stored digest."""
++    digest = hashlib.sha256(presented.encode()).hexdigest()
++    return hmac.compare_digest(digest, stored_sha256_hex)
+--- /dev/null
++++ b/tests/test_api_keys.py
+@@ -0,0 +1,13 @@
++import hashlib
++
++from app.auth.api_keys import verify_api_key
++
++
++def test_matching_key_verifies():
++    stored = hashlib.sha256(b"k-123").hexdigest()
++    assert verify_api_key("k-123", stored)
++
++
++def test_other_key_is_rejected():
++    stored = hashlib.sha256(b"k-123").hexdigest()
++    assert not verify_api_key("k-124", stored)
+--- /dev/null
++++ b/docs/authentication.md
+@@ -0,0 +1,4 @@
++# Authentication
++
++Send your API key in the `X-Api-Key` header. Keys are stored only as SHA-256
++digests and compared in constant time.

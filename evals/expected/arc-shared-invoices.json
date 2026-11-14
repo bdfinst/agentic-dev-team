@@ -1,0 +1,31 @@
+{
+  "fixture": "arc-shared-invoices",
+  "description": "Monolith where orders and billing both insert/update the invoices table with different amount rules; a correct answer names the shared-write problem and commits to billing as the single owner before refunds are added.",
+  "applicableAgents": [
+    "architect"
+  ],
+  "agents": {
+    "architect": {
+      "grader": "rubric",
+      "task": "We are about to add refunds to the service in `{fixture}/`, and refunds must adjust invoices. Before we start: is the current module structure sound for that, and what should we change? Do not write files; give your design decision and its rationale in your final answer.",
+      "rubricPoints": [
+        {
+          "id": "both-modules-write-invoices",
+          "requirement": "Identifies that both `app/orders/service.py` and `app/billing/service.py` write the `invoices` table (insert and status update)."
+        },
+        {
+          "id": "divergent-amount-rule",
+          "requirement": "Points out the concrete inconsistency that orders writes the invoice amount without tax while billing applies `TAX_RATE`, so the same order can get different invoice amounts depending on the path."
+        },
+        {
+          "id": "single-owner-billing",
+          "requirement": "Commits to billing as the sole owner of `invoices`, with orders calling a billing interface or emitting an event (for order placed/cancelled) instead of writing the table, and puts refunds in billing."
+        },
+        {
+          "id": "commits-not-menu",
+          "requirement": "Makes one recommendation rather than presenting an unresolved list of options for the human to choose from."
+        }
+      ]
+    }
+  }
+}

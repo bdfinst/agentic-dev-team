@@ -24,6 +24,8 @@ def render_config(
         *arm_lines,
         f"Tools: {', '.join(profile.enabled_tools) or NO_TOOLS_TEXT}",
         f"Withheld tools: {', '.join(profile.withheld_tools) or NONE_TEXT}",
+        f"Grader: {_render_grader(plan)}",
+        *_render_check_jail(plan),
         f"Fixtures: {', '.join(fixture.stem for fixture in plan.fixtures)}",
         f"Trials per arm per fixture: {settings.trials.count} ({settings.trials.reason})",
         f"Trial timeout: {settings.trial_timeout_seconds:g} s",
@@ -31,11 +33,37 @@ def render_config(
     ]
 
 
+def _render_grader(plan: RunPlan) -> str:
+    grading = plan.grading
+    text = grading.kind.value
+    if grading.judge is not None:
+        text += f" (judge {grading.judge.model}, effort {grading.judge.effort})"
+    if grading.sandbox:
+        text += (
+            "; write tools enabled in the trial's temp copy, under Claude Code's "
+            "Bash sandbox (no network, writes confined to the copy)"
+        )
+    return text
+
+
+def _render_check_jail(plan: RunPlan) -> list[str]:
+    if not any(fixture.test_commands for fixture in plan.fixtures):
+        return []
+    if plan.check_jail is None:
+        return ["Test commands: UNJAILED (--allow-unjailed-checks)"]
+    return [f"Test commands: jailed with {plan.check_jail.tool} (no network, writes confined)"]
+
+
 def _render_estimate(run_estimate: RunEstimate) -> str:
     per_arm = ", ".join(
         f"{label} {format_usd(cost_usd)}" for label, cost_usd in run_estimate.by_arm
     )
+    judge = (
+        f", rubric judge {format_usd(run_estimate.judge_usd)}"
+        if run_estimate.judge_usd
+        else ""
+    )
     return (
         "Estimate (rough; real cost can be several times off, high or low): "
-        f"{per_arm}, total {format_usd(run_estimate.estimated_total_usd)}"
+        f"{per_arm}{judge}, total {format_usd(run_estimate.estimated_total_usd)}"
     )

@@ -1,0 +1,43 @@
+{
+  "collisions": [],
+  "schema": "plan-waves/v1",
+  "scope_mismatches": [],
+  "slices": {
+    "1": {
+      "depends_on": [],
+      "files": [
+        "audit_log/format_json.py",
+        "tests/test_format_json.py"
+      ],
+      "wave": 1
+    },
+    "2": {
+      "depends_on": [],
+      "files": [
+        "audit_log/filters.py",
+        "tests/test_filters.py"
+      ],
+      "wave": 1
+    },
+    "3": {
+      "depends_on": [
+        "1",
+        "2"
+      ],
+      "files": [
+        "audit_log/cli.py",
+        "tests/test_cli.py"
+      ],
+      "wave": 2
+    }
+  },
+  "waves": [
+    [
+      "1",
+      "2"
+    ],
+    [
+      "3"
+    ]
+  ]
+}

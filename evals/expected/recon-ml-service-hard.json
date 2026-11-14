@@ -1,0 +1,31 @@
+{
+  "fixture": "recon-ml-service-hard",
+  "description": "FastAPI risk scorer with domain/adapters layering, a pickle-loaded model with a hashlib checksum, an httpx feature client, an extensionless bash CLI in bin/, a CI workflow, and a docs page that mentions login without code; a correct RECON catches the hidden CLI and the pickle model load and does not treat the CI workflow as an entry point.",
+  "applicableAgents": [
+    "codebase-recon"
+  ],
+  "agents": {
+    "codebase-recon": {
+      "grader": "rubric",
+      "task": "Run reconnaissance on the repository rooted at `{fixture}/` (treat that directory as the repo root and use its name for the slug).  If the schema file or the inventory script your procedure names is not reachable, record that in `notes` and continue. The grader cannot open files: after the `RECON written:` block, include the full JSON envelope you wrote.",
+      "rubricPoints": [
+        {
+          "id": "entry-points-incl-bin",
+          "requirement": "Lists `serve.py` (uvicorn.run) and/or `app/api.py` (@api.post) as `http-server`, and the extensionless `bin/retrain` as a `cli` entry point (bash shebang); `.github/workflows/ci.yml` is not listed as an entry point."
+        },
+        {
+          "id": "ml-model-and-crypto",
+          "requirement": "Puts `app/adapters/model_store.py` in `ml_models_loaded` (pickle.loads) and in `crypto_calls` (hashlib.sha256)."
+        },
+        {
+          "id": "egress-secrets",
+          "requirement": "Puts `app/adapters/feature_client.py` in `network_egress` (httpx) and lists `app/adapters/model_store.py` and `app/adapters/feature_client.py` in `secrets_referenced` (os.environ / os.getenv)."
+        },
+        {
+          "id": "layers-and-framework",
+          "requirement": "Reports fastapi as the dominant framework, and describes domain logic in `app/domain/` (pure scoring) with I/O isolated in `app/adapters/`."
+        }
+      ]
+    }
+  }
+}

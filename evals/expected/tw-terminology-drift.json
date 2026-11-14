@@ -1,0 +1,18 @@
+{
+  "fixture": "tw-terminology-drift",
+  "description": "Hard: three docs call the glossary's 'workspace' a 'team space', 'space', 'organization', or 'tenant', while 'project' is a distinct child concept used correctly throughout; a correct answer unifies on 'workspace' and leaves every correct use of 'project' alone.",
+  "applicableAgents": ["tech-writer"],
+  "agents": {
+    "tech-writer": {
+      "grader": "rubric",
+      "task": "The docs in `{fixture}/docs/` use inconsistent terms. `{fixture}/docs/glossary.md` and `{fixture}/src/models.py` are the source of truth. Fix the terminology in the other docs in place. Do not edit the glossary or the code. In your final message, list every change you made as file, old text, and new text, and name any term you deliberately left unchanged and why.",
+      "rubricPoints": [
+        {"id": "billing-space-to-workspace", "requirement": "Reports replacing 'team space' and 'space' with 'workspace' in `billing.md`."},
+        {"id": "members-org-to-workspace", "requirement": "Reports replacing 'organization' with 'workspace' in `members.md`."},
+        {"id": "projects-tenant-to-workspace", "requirement": "Reports replacing 'tenant' with 'workspace' in `projects.md` (the sentence about deleting a tenant deleting its projects)."},
+        {"id": "project-preserved", "requirement": "Does not replace 'project' with 'workspace' (or vice versa) anywhere, treating project as a distinct entity inside a workspace."},
+        {"id": "sources-untouched", "requirement": "The harness's diff of changes shows no edit to `docs/glossary.md` or `src/models.py`."}
+      ]
+    }
+  }
+}

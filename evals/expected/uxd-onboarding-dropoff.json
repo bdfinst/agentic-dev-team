@@ -1,0 +1,17 @@
+{
+  "fixture": "uxd-onboarding-dropoff",
+  "description": "A six-step mandatory onboarding with funnel data showing a 54% drop at the calendar-connect step and interview notes citing IT-blocked OAuth and solo trials; a correct answer makes calendar connect and invites deferrable, adds progress indication, and grounds each change in the data.",
+  "applicableAgents": ["ui-ux-designer"],
+  "agents": {
+    "ui-ux-designer": {
+      "grader": "rubric",
+      "task": "Redesign the onboarding flow in `{fixture}/flow.md` using `{fixture}/funnel.md` and `{fixture}/research-notes.md`. You cannot write files in this run, so put your complete proposed flow and rationale in your final message.",
+      "rubricPoints": [
+        {"id": "calendar-skippable", "requirement": "Makes calendar connection (step 3) skippable or deferred, citing the drop from 7,900 to 3,600 users and/or the IT-blocked OAuth interviews."},
+        {"id": "activation-evidence", "requirement": "Cites the activation data (61% for users who skipped step 3 and connected later vs 64% for finishers) as evidence that deferring the calendar does not hurt activation much."},
+        {"id": "invites-optional", "requirement": "Makes inviting teammates (step 4) optional, citing solo users trying the product alone and/or the drop from 3,600 to 2,300."},
+        {"id": "progress-indicator", "requirement": "Adds a visible progress indicator showing the current step and how many steps remain."}
+      ]
+    }
+  }
+}

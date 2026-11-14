@@ -1,0 +1,26 @@
+[
+  {
+    "id": "upper-removed",
+    "file": "lib/names.py",
+    "find": "word[0].upper()",
+    "replace": "word[0]"
+  },
+  {
+    "id": "dot-removed",
+    "file": "lib/names.py",
+    "find": "word[0].upper() + \".\"",
+    "replace": "word[0].upper() + \"\""
+  },
+  {
+    "id": "empty-returns-dot",
+    "file": "lib/names.py",
+    "find": "if not words:\n        return \"\"",
+    "replace": "if not words:\n        return \".\""
+  },
+  {
+    "id": "first-letter-to-last",
+    "file": "lib/names.py",
+    "find": "word[0]",
+    "replace": "word[-1]"
+  }
+]

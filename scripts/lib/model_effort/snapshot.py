@@ -1,18 +1,21 @@
 """Freeze a run's inputs at plan time, so editing the repo mid-run cannot change later trials.
 
-The fixtures to run, their expected entries and the knowledge directory are copied
-into one run-private temp directory. Trials stage their fixtures from it, the CLI
+The fixtures to run and the knowledge directory are copied into one run-private
+temp directory, the expected entries into a second one. Trials stage their fixtures from it, the CLI
 reads knowledge from it, and grading reads expected entries from it. The agent file
 is read once at plan time, so it is not copied.
 
 Layout under the snapshot root:
   fixtures/             the fixtures to run, under their own names
-  expected/             `<stem>.json` for each of those fixtures
   plugin/knowledge/     the knowledge directory; `plugin` stands in for the plugin
                         root, so `${CLAUDE_PLUGIN_ROOT}/knowledge/...` in an agent's
                         prompt still resolves inside the one directory the CLI may read
 
-Only `plugin/knowledge` is given to the CLI, so the expected entries stay out of
+Under the answer root (a separate temp dir):
+  expected/             `<stem>.json` for each of those fixtures
+
+No prompt or CLI flag names the answer root, apart from the Bash sandbox's
+deny-read list for a write-capable trial, so the expected entries stay out of
 the agent's reach.
 """
 
@@ -32,6 +35,7 @@ from .paths import EvalPaths
 from .temp_tree import remove_tree
 
 SNAPSHOT_DIR_PREFIX = "model-effort-inputs-"
+ANSWER_DIR_PREFIX = "model-effort-grading-"
 FIXTURES_SUBDIR = "fixtures"
 EXPECTED_SUBDIR = "expected"
 PLUGIN_SUBDIR = "plugin"
@@ -48,9 +52,13 @@ class InputSnapshot:
     root: Path
     eval_paths: EvalPaths
     fixtures: tuple[ResolvedFixture, ...]
+    # Where the expected entries are, apart from everything a trial reads.
+    answer_root: Path | None = None
 
     def remove(self) -> None:
         remove_tree(self.root)
+        if self.answer_root is not None:
+            remove_tree(self.answer_root)
 
     def __enter__(self) -> Self:
         return self
@@ -76,18 +84,25 @@ def take_snapshot(
         OSError: a source file cannot be read or the copy cannot be written.
     """
     root = Path(tempfile.mkdtemp(prefix=SNAPSHOT_DIR_PREFIX))
+    answer_root: Path | None = None
     try:
-        return _copy_inputs(root, source, fixtures)
+        answer_root = Path(tempfile.mkdtemp(prefix=ANSWER_DIR_PREFIX))
+        return _copy_inputs(root, answer_root, source, fixtures)
     except BaseException:
         remove_tree(root)
+        if answer_root is not None:
+            remove_tree(answer_root)
         raise
 
 
 def _copy_inputs(
-    root: Path, source: EvalPaths, fixtures: Sequence[ResolvedFixture]
+    root: Path,
+    answer_root: Path,
+    source: EvalPaths,
+    fixtures: Sequence[ResolvedFixture],
 ) -> InputSnapshot:
     fixtures_dir = root / FIXTURES_SUBDIR
-    expected_dir = root / EXPECTED_SUBDIR
+    expected_dir = answer_root / EXPECTED_SUBDIR
     plugin_root = root / PLUGIN_SUBDIR
     knowledge_dir = plugin_root / KNOWLEDGE_SUBDIR
     for directory in (fixtures_dir, expected_dir):
@@ -109,4 +124,5 @@ def _copy_inputs(
             knowledge_dir=knowledge_dir,
         ),
         fixtures=tuple(copied),
+        answer_root=answer_root,
     )

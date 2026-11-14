@@ -40,6 +40,7 @@ class TestComputeArmTotals:
                 Outcome.CLI_ERROR: 0,
                 Outcome.TOOL_VIOLATION: 0,
                 Outcome.PARSE_FAILURE: 0,
+                Outcome.JUDGE_ERROR: 0,
                 Outcome.GRADED_FAIL: 1,
                 Outcome.PASS: 1,
             },
@@ -73,6 +74,7 @@ class TestComputeArmTotals:
             "clean_fixture_false_positives": totals.clean_fixture_false_positives,
             "actual_cost_usd": totals.actual_cost_usd,
             "unreported_trials_estimate_usd": totals.unreported_trials_estimate_usd,
+            "judge_cost_usd": totals.judge_cost_usd,
         }
         assert built["arms"][0]["estimated_cost_usd"] == totals.estimated_cost_usd
 
@@ -87,12 +89,14 @@ class TestArmTotals:
             "pass": 1,
             "graded_fail": 0,
             "parse_failure": 1,
+            "judge_error": 0,
             "tool_violation": 0,
             "cli_error": 0,
             "timeout": 0,
             "clean_fixture_false_positives": 0,
             "actual_cost_usd": pytest.approx(0.02),
             "unreported_trials_estimate_usd": 0.0,
+            "judge_cost_usd": 0.0,
         }
 
     def test_trial_without_a_reported_cost_is_flagged_and_charged_the_arms_per_trial_estimate(

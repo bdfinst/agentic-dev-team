@@ -1,0 +1,17 @@
+{
+  "fixture": "tw-jargon-quickstart",
+  "description": "A three-paragraph quickstart written in long, passive, Latinate sentences; a correct answer rewrites it in plain, short, active sentences as ordered steps while keeping every command, port, URL and count exact.",
+  "applicableAgents": ["tech-writer"],
+  "agents": {
+    "tech-writer": {
+      "grader": "rubric",
+      "task": "Rewrite `{fixture}/QUICKSTART.md` in place so a new developer can follow it easily, following your writing standards. Keep every fact. In your final message, paste the complete final content of the file.",
+      "rubricPoints": [
+        {"id": "quickstart-facts-kept", "requirement": "The pasted file still contains `make deps`, `make seed`, `make run`, port 5433 (with the note that it avoids clashing with the default 5432), about 200 synthetic customer records, http://localhost:8000, and `/healthz` returning 200."},
+        {"id": "ordered-steps", "requirement": "Presents the setup as an ordered (numbered) list of steps in the order deps, seed, run."},
+        {"id": "plain-words", "requirement": "The pasted file does not contain 'utilization', 'effectuated', 'obviate', 'deleterious', or 'requisite', and either drops 'idempotent' and 'heuristic' or explains them in plain words where they first appear."},
+        {"id": "short-active-sentences", "requirement": "No sentence in the pasted file exceeds 25 words, and most sentences use active voice or the imperative (for example, 'Run `make seed`')."}
+      ]
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "fixture": "prp-clean-independent-waves",
+  "description": "CLI plan with two genuinely independent pure-function slices in wave 1 (disjoint files, no shared contract) and a wiring slice in wave 2; a correct review approves with no blockers.",
+  "applicableAgents": [
+    "plan-review-parallelization"
+  ],
+  "agents": {
+    "plan-review-parallelization": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Parallelization Critic. The dispatcher already ran `scripts/plan_waves.py` on this plan; its JSON output (including `collisions`) is in `{fixture}/plan_waves.json`. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "approve",
+      "findingFields": [
+        "issues"
+      ],
+      "clean": true,
+      "expectedFindingIds": [],
+      "maxFindings": 2,
+      "maxBySeverity": {
+        "blocker": 0
+      }
+    }
+  }
+}

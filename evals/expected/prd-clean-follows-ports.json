@@ -1,0 +1,24 @@
+{
+  "fixture": "prd-clean-follows-ports",
+  "description": "Stock-release plan that adds a model method and a service method through the existing injected StockRepository port, mirroring reserve(); a correct review approves with no blockers.",
+  "applicableAgents": [
+    "plan-review-design"
+  ],
+  "agents": {
+    "plan-review-design": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Design & Architecture Critic. The existing code it builds on is under `{fixture}/` (`inventory/ports.py`, `inventory/model.py`, `inventory/services/reservations.py`, `inventory/adapters/pg_stock_repo.py`). No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "approve",
+      "findingFields": [
+        "issues"
+      ],
+      "clean": true,
+      "expectedFindingIds": [],
+      "maxFindings": 3,
+      "maxBySeverity": {
+        "blocker": 0
+      }
+    }
+  }
+}

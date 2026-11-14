@@ -1,0 +1,23 @@
+{
+  "scenarios": [
+    {
+      "slice": "1",
+      "scenario": "Owner downloads all orders",
+      "falsifier": "the status column is written in upper case"
+    },
+    {
+      "slice": "1",
+      "scenario": "Non-owner is refused",
+      "falsifier": "the 403 response carries a JSON error body"
+    }
+  ],
+  "missing": [],
+  "scanned_slices": [
+    "1"
+  ],
+  "skipped_slices": [
+    "2"
+  ],
+  "skipped_with_scenarios": [],
+  "error": null
+}

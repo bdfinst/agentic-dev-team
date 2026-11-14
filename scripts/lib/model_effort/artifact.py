@@ -8,17 +8,21 @@ contract defines.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from itertools import product
 
 from .arm import BASELINE_LABEL
 from .arm_totals import ArmTotals, compute_arm_totals
 from .estimate import RunEstimate
-from .outcome import TrialResult
+from .grader_config import DEFAULT_GRADING, AgentGrading
+from .outcome import GRADED_OUTCOMES, TrialResult
+from .paths import REPO_ROOT
 from .run_status import AbortReason, RunStatus
 from .run_types import ArmRun, FixtureTrials, RunMetadata
 from .tools import ToolProfile
+from .trial_count import can_justify_tier_change
 
 FIDELITY = "read-only-profile"
-GRADER = "expected-findings"
+SANDBOX_FIDELITY = "sandboxed-write-profile"
 
 CREATED_TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -29,6 +33,8 @@ def build_artifact(
     run_estimate: RunEstimate,
     profile: ToolProfile,
     abort_reason: AbortReason | None,
+    grading: AgentGrading = DEFAULT_GRADING,
+    fixture_stems: Sequence[str] = (),
 ) -> dict:
     """Build the artifact dict, joining each arm's results with its pre-run estimate.
 
@@ -38,6 +44,12 @@ def build_artifact(
 
     The run-level `session_config` is the baseline arm's, because the baseline
     is the reference configuration; each arm also carries its own.
+
+    `grader` is the agent's grader from the grader map, so a decision row can cite
+    it; `judge` names the pinned rubric judge, or is null.
+
+    `tier_change_eligible` says whether the graded trials may move a tier (see
+    `tier_change_eligible`).
     """
     arms = [_arm_dict(arm_run, run_estimate, profile) for arm_run in arm_runs]
     return {
@@ -47,12 +59,59 @@ def build_artifact(
         "created": metadata.created.strftime(CREATED_TIME_FORMAT),
         "git_sha": metadata.git_sha,
         "agent": metadata.agent,
-        "grader": GRADER,
-        "fidelity": FIDELITY,
+        "grader": grading.kind.value,
+        "judge": _judge_dict(grading),
+        "tier_change_eligible": tier_change_eligible(arm_runs, grading, fixture_stems),
+        "fidelity": SANDBOX_FIDELITY if grading.sandbox else FIDELITY,
         "knowledge_dir": metadata.knowledge_dir,
         "session_config": _baseline_session_config(arms),
         "arms": arms,
     }
+
+
+def tier_change_eligible(
+    arm_runs: Sequence[ArmRun], grading: AgentGrading, fixture_stems: Sequence[str] = ()
+) -> bool:
+    """Whether the graded trials meet the grader's per-arm, per-fixture floor.
+
+    Only a trial whose answer was graded (`pass` or `graded_fail`) counts: a
+    timeout, CLI error, tool violation, parse failure or judge error says
+    nothing about the answer. The fewest graded trials of any arm on any planned
+    fixture (`fixture_stems`, or every fixture a trial completed on) must be at
+    least one and meet the grader's floor (`can_justify_tier_change`).
+    """
+    completed = {
+        (arm_run.arm.label, fixture.stem): sum(
+            1 for result in fixture.results if result.outcome in GRADED_OUTCOMES
+        )
+        for arm_run in arm_runs
+        for fixture in arm_run.fixture_trials
+    }
+    stems = list(fixture_stems) or sorted({stem for _, stem in completed})
+    labels = [arm_run.arm.label for arm_run in arm_runs]
+    fewest = min(
+        (completed.get(key, 0) for key in product(labels, stems)), default=0
+    )
+    return fewest > 0 and can_justify_tier_change(grading.kind, fewest)
+
+
+def _judge_dict(grading: AgentGrading) -> dict | None:
+    judge = grading.judge
+    if judge is None:
+        return None
+    return {
+        "model": judge.model,
+        "effort": judge.effort,
+        "rubric": _repo_relative(judge.rubric_path),
+        "criteria": list(judge.criterion_ids),
+    }
+
+
+def _repo_relative(path) -> str:
+    try:
+        return path.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def _baseline_session_config(arms: Sequence[dict]) -> dict | None:
@@ -76,6 +135,7 @@ def _arm_dict(arm_run: ArmRun, run_estimate: RunEstimate, profile: ToolProfile) 
         "tools_withheld": list(profile.withheld_tools),
         "trials_per_fixture": arm_run.trials_per_fixture,
         "estimated_cost_usd": totals.estimated_cost_usd,
+        "estimated_judge_cost_usd": totals.estimated_judge_cost_usd,
         "session_config": _first_session_config(arm_run),
         "fixtures": [_fixture_dict(fixture) for fixture in arm_run.fixture_trials],
         "totals": _totals_dict(totals),
@@ -98,6 +158,7 @@ def _trial_dict(result: TrialResult) -> dict:
         "cost_reported": result.cost_reported,
         "grader_messages": list(result.grader_messages),
         "error": result.error,
+        "judge_cost_usd": result.judge_cost_usd,
     }
 
 
@@ -107,6 +168,7 @@ def _totals_dict(totals: ArmTotals) -> dict:
         "clean_fixture_false_positives": totals.clean_fixture_false_positives,
         "actual_cost_usd": totals.actual_cost_usd,
         "unreported_trials_estimate_usd": totals.unreported_trials_estimate_usd,
+        "judge_cost_usd": totals.judge_cost_usd,
     }
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from .arm_totals import ArmTotals
@@ -101,38 +102,58 @@ def render_interrupted_while_finishing(artifact_path: Path) -> str:
 
 
 def render_summary(arms: Sequence[ArmTotals]) -> list[str]:
-    """Per-arm outcome totals, then actual against estimated cost per arm and in total."""
+    """Per-arm outcome totals, then actual against estimated cost per arm and in total.
+
+    When a rubric judge ran or was estimated, each cost names the judge's part
+    (`cost X + judge Y`), and the estimate the judge's share, so the total
+    matches the echoed estimate and the artifact.
+    """
     lines = ["Summary:"]
     for arm in arms:
         counts = ", ".join(
             f"{outcome.value} {count}" for outcome, count in arm.outcome_counts.items()
         )
-        cost_text = _render_cost(
-            arm.actual_cost_usd,
-            arm.unreported_trials_estimate_usd,
-            arm.estimated_cost_usd,
-        )
-        lines.append(f"  {arm.label}: {counts}; {cost_text}")
-    total = _render_cost(
-        total_cost_usd(arm.actual_cost_usd for arm in arms),
-        total_cost_usd(arm.unreported_trials_estimate_usd for arm in arms),
-        total_cost_usd(arm.estimated_cost_usd for arm in arms),
-    )
-    lines.append(f"  total: {total}")
+        lines.append(f"  {arm.label}: {counts}; {_render_cost(_CostFigures.of([arm]))}")
+    lines.append(f"  total: {_render_cost(_CostFigures.of(arms))}")
     return lines
 
 
-def _render_cost(
-    actual_usd: float, unreported_trials_estimate_usd: float, estimated_usd: float
-) -> str:
+@dataclass(frozen=True)
+class _CostFigures:
+    actual_usd: float
+    judge_usd: float
+    unreported_estimate_usd: float
+    estimated_usd: float
+    estimated_judge_usd: float
+
+    @classmethod
+    def of(cls, arms: Sequence[ArmTotals]) -> _CostFigures:
+        return cls(
+            actual_usd=total_cost_usd(arm.actual_cost_usd for arm in arms),
+            judge_usd=total_cost_usd(arm.judge_cost_usd for arm in arms),
+            unreported_estimate_usd=total_cost_usd(
+                arm.unreported_trials_estimate_usd for arm in arms
+            ),
+            estimated_usd=total_cost_usd(arm.estimated_cost_usd for arm in arms),
+            estimated_judge_usd=total_cost_usd(
+                arm.estimated_judge_cost_usd for arm in arms
+            ),
+        )
+
+
+def _render_cost(figures: _CostFigures) -> str:
     """Show the actual cost; flag it as a lower bound when trials reported no cost."""
     lower_bound = (
-        f" (lower bound; {format_usd(unreported_trials_estimate_usd)} charged as estimate for trials "
-        "with no reported cost)"
-        if unreported_trials_estimate_usd > 0
+        f" (lower bound; {format_usd(figures.unreported_estimate_usd)} charged as estimate "
+        "for trials and judgements with no reported cost)"
+        if figures.unreported_estimate_usd > 0
         else ""
     )
-    return (
-        f"cost {format_usd(actual_usd)}{lower_bound}, "
-        f"estimated {format_usd(estimated_usd)}"
+    has_judge = figures.judge_usd > 0 or figures.estimated_judge_usd > 0
+    actual = format_usd(figures.actual_usd) + (
+        f" + judge {format_usd(figures.judge_usd)}" if has_judge else ""
     )
+    estimated = format_usd(figures.estimated_usd) + (
+        f" + judge {format_usd(figures.estimated_judge_usd)}" if has_judge else ""
+    )
+    return f"cost {actual}{lower_bound}, estimated {estimated}"

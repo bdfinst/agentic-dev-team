@@ -1,0 +1,9 @@
+--- a/src/format.js
++++ b/src/format.js
+@@ -1,4 +1,4 @@
+ export function formatPrice(cents) {
+-  const x = (cents / 100).toFixed(2);
+-  return `$${x}`;
++  const dollars = (cents / 100).toFixed(2);
++  return `$${dollars}`;
+ }

@@ -1,0 +1,41 @@
+{
+  "fixture": "prd-domain-imports-db",
+  "description": "Dunning plan whose domain service opens its own psycopg connection and sends mail with smtplib, bypassing the existing InvoiceRepository/Notifier ports that late_fees.py uses; a correct review returns needs-revision with a blocker for the database coupling and flags the inline SMTP side effect.",
+  "applicableAgents": [
+    "plan-review-design"
+  ],
+  "agents": {
+    "plan-review-design": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Design & Architecture Critic. The existing code it builds on is under `{fixture}/` (`billing/ports.py`, `billing/model.py`, `billing/services/late_fees.py`, `billing/adapters/pg_invoice_repo.py`). No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "needs-revision",
+      "findingFields": [
+        "issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "service-opens-db-connection",
+          "anyOf": [
+            "psycopg",
+            "DATABASE_URL",
+            "database",
+            "InvoiceRepository"
+          ],
+          "severityAnyOf": [
+            "blocker"
+          ]
+        },
+        {
+          "id": "service-sends-smtp-directly",
+          "anyOf": [
+            "smtplib",
+            "SMTP",
+            "Notifier"
+          ]
+        }
+      ],
+      "maxFindings": 8
+    }
+  }
+}

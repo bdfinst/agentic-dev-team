@@ -1,0 +1,28 @@
+{
+  "fixture": "qr-standard-ts-pricing",
+  "description": "A standard TS business-rule change plus its test: dispatch the JS/TS, test, domain and baseline structure reviewers; the complex-tier security/arch reviewers, UI and doc reviewers are out of scope for a standard non-auth, non-UI, non-doc change.",
+  "applicableAgents": [
+    "quality-reviewer"
+  ],
+  "agents": {
+    "quality-reviewer": {
+      "grader": "dispatch_set",
+      "task": "Run the Stage 2 code-quality review for the unit of work in `{fixture}/UNIT.md` (the diff is `{fixture}/diff.patch`; the changed files are under `{fixture}/`). Dispatch the review agents by name with the Agent tool as `subagent_type`, act on what they return, and respond with only the JSON object defined by your output contract.",
+      "dispatch": {
+        "include": [
+          "naming-review",
+          "js-fp-review",
+          "test-review",
+          "domain-review",
+          "structure-review"
+        ],
+        "exclude": [
+          "a11y-review",
+          "security-review",
+          "arch-review",
+          "doc-review"
+        ]
+      }
+    }
+  }
+}

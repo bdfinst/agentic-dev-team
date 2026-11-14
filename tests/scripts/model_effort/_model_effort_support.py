@@ -187,7 +187,7 @@ cwd = Path(os.getcwd())
 files_before = {
     str(p.relative_to(cwd)): p.read_text()
     for p in sorted(cwd.rglob("*"))
-    if p.is_file()
+    if p.is_file() and ".git" not in p.parts
 }
 symlinks = [str(p.relative_to(cwd)) for p in sorted(cwd.rglob("*")) if p.is_symlink()]
 observed = None
@@ -209,11 +209,15 @@ calls.append({
         s.name for s in signal.pthread_sigmask(signal.SIG_BLOCK, [])
     ),
     "observed": observed,
+    "git_dirs": sorted(str(p.relative_to(cwd)) for p in cwd.rglob(".git")),
+    "tmpdir": os.environ.get("TMPDIR"),
+    "home": os.environ.get("HOME"),
+    "stdin": "" if sys.stdin is None or sys.stdin.isatty() else sys.stdin.read(),
 })
 RECORD.write_text(json.dumps(calls))
 if BEHAVIOR.get("tamper"):
     for p in cwd.rglob("*"):
-        if p.is_file():
+        if p.is_file() and ".git" not in p.parts:
             p.write_text(p.read_text() + "TAMPERED")
 if BEHAVIOR.get("touch"):
     Path(BEHAVIOR["touch"]).write_text("created during the run")
@@ -234,6 +238,16 @@ if BEHAVIOR.get("grandchild_marker"):
         BEHAVIOR["grandchild_marker"],
     )
     subprocess.Popen([sys.executable, "-c", code])
+if BEHAVIOR.get("detached_sleep"):
+    # Stays in the CLI's process group but lets go of its pipes, so the CLI's exit
+    # ends the wait at once and only an explicit group kill stops it.
+    detached = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(%s)" % BEHAVIOR["detached_sleep"]],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    Path(BEHAVIOR["detached_pid_file"]).write_text(str(detached.pid))
 if BEHAVIOR.get("holder_sleep"):
     # Inherits stdout and stderr, so it keeps both pipes open after this process exits.
     holder = subprocess.Popen(

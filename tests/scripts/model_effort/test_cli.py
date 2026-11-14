@@ -54,6 +54,9 @@ from _model_effort_support import (
 )
 from model_effort import external, grading, paths, runner, trial_count
 from model_effort.arm import BASELINE_LABEL, CANDIDATE_LABEL
+from model_effort.grader_config import GraderKind
+
+EXPECTED_FINDINGS = GraderKind.EXPECTED_FINDINGS
 
 FAIL_VERDICT = {"status": "fail", "issues": [], "summary": "Layer violation."}
 
@@ -104,6 +107,7 @@ def _trial(outcome_name: str, error: str | None = None) -> dict:
         "cost_reported": True,
         "grader_messages": [],
         "error": error,
+        "judge_cost_usd": None,
     }
 
 
@@ -199,6 +203,8 @@ class TestTwoArmRun:
             "git_sha": "abc123",
             "agent": "scout",
             "grader": "expected-findings",
+            "judge": None,
+            "tier_change_eligible": True,
             "fidelity": "read-only-profile",
             "knowledge_dir": str(world.deps.eval_paths.knowledge_dir),
             "session_config": _expected_session_config(SONNET_MODEL_ID),
@@ -231,6 +237,7 @@ class TestTwoArmRun:
             "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
             "trials_per_fixture": SCOUT_TRIALS,
             "estimated_cost_usd": pytest.approx(BASELINE_TWO_ARM_ESTIMATE),
+            "estimated_judge_cost_usd": 0.0,
             "session_config": _expected_session_config(SONNET_MODEL_ID),
             "fixtures": [
                 _fixture_block("clean-form", "file", True, [_trial("pass")] * 3),
@@ -241,11 +248,13 @@ class TestTwoArmRun:
                 "cli_error": 0,
                 "tool_violation": 0,
                 "parse_failure": 0,
+                "judge_error": 0,
                 "graded_fail": 0,
                 "pass": 6,
                 "clean_fixture_false_positives": 0,
                 "actual_cost_usd": pytest.approx(0.06),
                 "unreported_trials_estimate_usd": 0.0,
+                "judge_cost_usd": 0.0,
             },
         }
 
@@ -262,6 +271,7 @@ class TestTwoArmRun:
             "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
             "trials_per_fixture": SCOUT_TRIALS,
             "estimated_cost_usd": pytest.approx(CANDIDATE_TWO_ARM_ESTIMATE),
+            "estimated_judge_cost_usd": 0.0,
             "session_config": _expected_session_config(HAIKU_MODEL_ID),
             "fixtures": [
                 _fixture_block(
@@ -292,11 +302,13 @@ class TestTwoArmRun:
                 "cli_error": 0,
                 "tool_violation": 1,
                 "parse_failure": 1,
+                "judge_error": 0,
                 "graded_fail": 0,
                 "pass": 4,
                 "clean_fixture_false_positives": 0,
                 "actual_cost_usd": pytest.approx(0.06),
                 "unreported_trials_estimate_usd": 0.0,
+                "judge_cost_usd": 0.0,
             },
         }
 
@@ -513,7 +525,7 @@ class TestPreRunRefusals:
         code = _cli(world, stub, "write-capable")
 
         assert code == 2
-        assert "write-capable agents are not supported yet" in capsys.readouterr().err
+        assert "marks it `sandbox: true`" in capsys.readouterr().err
         assert_nothing_ran(stub, world)
 
     def test_missing_runs_directory_exits_2_before_any_trial(self, world, capsys):
@@ -616,17 +628,17 @@ class TestTrialDefaults:
         ["security-review", "correctness-review", "architect", "security-engineer"],
     )
     def test_resolver_gives_every_high_stakes_agent_ten_trials(self, agent):
-        assert trial_count.resolve_trials(None, agent) == trial_count.TrialCount(
+        assert trial_count.resolve_trials(None, agent, EXPECTED_FINDINGS) == trial_count.TrialCount(
             10, "high-stakes default"
         )
 
     def test_resolver_gives_other_agents_five_trials(self):
-        assert trial_count.resolve_trials(None, "security-reviewer") == (
+        assert trial_count.resolve_trials(None, "security-reviewer", EXPECTED_FINDINGS) == (
             trial_count.TrialCount(5, "default")
         )
 
     def test_resolver_prefers_the_flag_over_the_high_stakes_default(self):
-        assert trial_count.resolve_trials(2, "architect") == trial_count.TrialCount(
+        assert trial_count.resolve_trials(2, "architect", EXPECTED_FINDINGS) == trial_count.TrialCount(
             2, "--trials"
         )
 
@@ -716,40 +728,6 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
         self._assert_refused(
             world, stub, capsys, excinfo.value.code, "a whole number of 1 or more"
         )
-
-    def test_rubric_grader_is_refused_as_not_implemented(self, world, capsys):
-        stub = StubClaude(world.stub_dir)
-
-        code = _cli(world, stub, *SCOUT_HAIKU_ARGS, "--grader", "rubric")
-
-        self._assert_refused(
-            world, stub, capsys, code, "not implemented yet; rubric grading is planned"
-        )
-
-    def test_unknown_grader_is_refused_listing_the_valid_ones(self, world, capsys):
-        stub = StubClaude(world.stub_dir)
-
-        with pytest.raises(SystemExit) as excinfo:
-            _cli(world, stub, *SCOUT_HAIKU_ARGS, "--grader", "vibes")
-
-        self._assert_refused(
-            world, stub, capsys, excinfo.value.code, "expected-findings"
-        )
-
-    def test_the_default_grader_is_accepted(self, world):
-        stub = _passing_stub(world)
-
-        code = _cli(
-            world,
-            stub,
-            *SCOUT_HAIKU_ARGS,
-            "--grader",
-            "expected-findings",
-            "--trials",
-            "1",
-        )
-
-        assert code == 0
 
     @pytest.mark.parametrize(
         "overrides",

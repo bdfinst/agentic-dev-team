@@ -1,0 +1,6 @@
+{
+  "name": "acme-shop",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "packageManager": "pnpm@9.1.0"
+}

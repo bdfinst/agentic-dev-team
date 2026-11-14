@@ -94,7 +94,7 @@ class TestResolveToolProfile:
         message = str(excinfo.value)
         assert "editor" in message
         assert "Edit" in message and "Write" in message
-        assert "write-capable agents are not supported yet" in message
+        assert "marks it `sandbox: true`" in message
 
     def test_tools_given_as_a_yaml_list_raises_clear_error(self):
         with pytest.raises(agent_file.AgentFrontmatterError) as excinfo:

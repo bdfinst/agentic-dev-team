@@ -6,16 +6,17 @@ the whole baseline arm has been paid for.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
-from functools import partial
 from pathlib import Path
 
-from . import interrupts, invocation, stop_rules, transcript
+from . import interrupts, invocation, paths, rubric_judge, stop_rules, transcript
 from .arm import Arm
 from .cost import total_cost_usd
 from .estimate import RunEstimate
 from .fixtures import ResolvedFixture
+from .grader_config import GraderKind
 from .grading import grade_trial
 from .outcome import MAX_MESSAGE_CHARS, Outcome, TrialResult, resolve_outcome
 from .plan import RunPlan
@@ -32,6 +33,10 @@ from .stop_rules import SpendLimit
 
 # Runs one trial of a config against a fixture; `runner.run_trial` in production.
 TrialRunner = Callable[[Path, invocation.TrialConfig, float], TrialProcessRecord]
+# Graders that need the agent's JSON answer; the others grade the transcript's
+# dispatches, the sandbox's test results or the answer's prose, so an answer with
+# no JSON is still graded (a dispatch-set entry that expects a verdict fails it).
+JSON_GRADED_KINDS = frozenset({GraderKind.EXPECTED_FINDINGS})
 
 
 @dataclass(frozen=True)
@@ -58,7 +63,9 @@ class _Ledger:
         key = (slot.arm.label, slot.fixture.stem)
         self._results_by_arm_and_fixture.setdefault(key, []).append(result)
         self._outcomes_by_arm[slot.arm.label].append(result.outcome)
-        self._charged_usd.append(self._run_estimate.charged_usd(slot.arm.label, result))
+        self._charged_usd.append(
+            self._run_estimate.total_charged_usd(slot.arm.label, result)
+        )
 
     @property
     def outcomes_by_arm(self) -> Mapping[str, list[Outcome]]:
@@ -99,10 +106,14 @@ def run_trials(
     run_trial: TrialRunner,
     spend_limit: SpendLimit | None = None,
     on_trial: Callable[[TrialProgress], None] | None = None,
+    run_judge_process: rubric_judge.ProcessRunner | None = None,
 ) -> RunResult:
     """Run trials in order until the plan is done, a stop rule fires or the run is cut short.
 
-    `run_estimate` prices a trial that reports no cost, so the spend limit still sees it.
+    `run_estimate` prices a trial or a rubric judgement that reports no cost, so the
+    spend limit still sees it; a judge's reported cost is charged, failed judgements included. `run_judge_process` runs the
+    judge's CLI process (`runner.run_cli_process` in production); a rubric-graded
+    plan needs it.
     `on_trial` is called after each completed trial, before the stop rules run.
     A stop on the last planned trial skips nothing, so the stop rules ignore it. An
     operator interrupt or an unexpected error keeps the completed trials.
@@ -111,7 +122,7 @@ def run_trials(
     drops a trial that finished. One that arrived while a trial was being resolved,
     graded or recorded is found before the next trial starts and ends the run.
     """
-    executor = _TrialExecutor(plan, settings, run_trial)
+    executor = _TrialExecutor(plan, settings, run_trial, run_judge_process)
     ledger = _Ledger(plan, run_estimate)
     slots = list(executor.slots())
     started_trials = 0
@@ -160,6 +171,7 @@ class _TrialExecutor:
     plan: RunPlan
     settings: TrialSettings
     run_trial: TrialRunner
+    run_judge_process: rubric_judge.ProcessRunner | None = None
 
     def slots(self) -> Iterator[_TrialSlot]:
         """Every planned trial in run order: arms alternate, round by round, fixture by fixture."""
@@ -176,22 +188,46 @@ class _TrialExecutor:
             profile=self.plan.profile,
             eval_paths=self.plan.snapshot.eval_paths,
             claude_bin=self.settings.claude_bin,
+            task=slot.fixture.task,
+            stub_agents=self.plan.stub_agents,
+            sandbox=self.plan.grading.sandbox,
+            test_commands=slot.fixture.test_commands,
+            protected_paths=slot.fixture.protected_paths,
+            deny_read=self._answer_dirs(),
+            deny_write=(self.plan.snapshot.root, *self._answer_dirs()),
+            check_jail=self.plan.check_jail,
         )
         record = self.run_trial(
             slot.fixture.path, config, self.settings.trial_timeout_seconds
         )
-        grader = partial(
-            grade_trial,
-            self.plan.agent,
-            slot.fixture.stem,
-            eval_paths=self.plan.snapshot.eval_paths,
-        )
-        return resolve_outcome(
+        parsed = transcript.parse_stream(record.stdout)
+        grader = _KindGrader(self, slot.fixture, record, parsed)
+        result = resolve_outcome(
             record,
-            transcript.parse_stream(record.stdout),
+            parsed,
             self.plan.profile.enabled_tools,
             grader,
             snapshot_dir=self.plan.snapshot.root,
+            requires_agent_json=self.plan.grading.kind in JSON_GRADED_KINDS,
+            fail_on_permission_denials=self.plan.grading.sandbox,
+        )
+        if not grader.judged:
+            return result
+        return dataclasses.replace(
+            result, judge_cost_usd=grader.judge_cost_usd, judged=True
+        )
+
+    def _answer_dirs(self) -> tuple[Path, ...]:
+        """Where the answer key lives: the run's frozen copy, the repo's `evals/expected`,
+        and the plan's other repo copies (git directory, every checkout's expected dir)."""
+        return tuple(
+            dict.fromkeys(
+                (
+                    self.plan.snapshot.eval_paths.expected_dir,
+                    paths.EXPECTED_DIR,
+                    *self.plan.answer_key_paths,
+                )
+            )
         )
 
     def progress(self, slot: _TrialSlot, result: TrialResult) -> TrialProgress:
@@ -204,3 +240,82 @@ class _TrialExecutor:
             trials_per_fixture=self.settings.trials.count,
             result=result,
         )
+
+
+class _KindGrader:
+    """Grades one trial the way the plan's grader kind says; called with the agent's JSON.
+
+    Every kind ends in `scripts/eval_grade.py`: the expected-findings kind grades
+    the JSON itself, the others grade what they record in its place (the
+    dispatched agents, the sandbox's test results, the rubric judge's verdicts).
+    Records what the rubric judge reported it cost, for the trial result.
+    """
+
+    def __init__(
+        self,
+        executor: _TrialExecutor,
+        fixture: ResolvedFixture,
+        record: TrialProcessRecord,
+        parsed: transcript.ParsedTranscript,
+    ) -> None:
+        self._executor = executor
+        self._fixture = fixture
+        self._record = record
+        self._parsed = parsed
+        self.judge_cost_usd: float | None = None
+        self.judged = False
+
+    def __call__(self, agent_json: dict) -> tuple[bool, list[str]]:
+        plan = self._executor.plan
+        kind = plan.grading.kind
+        if kind is GraderKind.DISPATCH_SET:
+            actual = {
+                "dispatched": list(self._parsed.dispatched_agents),
+                "output": transcript.extract_agent_json(self._parsed.result_text),
+            }
+        elif kind is GraderKind.TESTS_PASS:
+            actual = {"results": list(self._record.check_results)}
+        elif kind is GraderKind.RUBRIC:
+            judgement = self._judged()
+            if judgement.failure is not None:
+                return False, [f"rubric: {judgement.failure}"]
+            actual = rubric_judge.judgement_actual(plan.grading.judge, judgement)
+        else:
+            actual = agent_json
+        return grade_trial(
+            plan.agent,
+            self._fixture.stem,
+            actual,
+            eval_paths=plan.snapshot.eval_paths,
+        )
+
+    def _judged(self) -> rubric_judge.Judgement:
+        """Run the judge on this trial's answer, recording what it reported it cost."""
+        plan = self._executor.plan
+        judge = plan.grading.judge
+        run_process = self._executor.run_judge_process
+        if judge is None or run_process is None:
+            raise RuntimeError("a rubric-graded run needs a judge and a process runner")
+        self.judged = True
+        try:
+            judgement = rubric_judge.run_judge(
+                judge,
+                [
+                    {"id": point_id, "requirement": requirement}
+                    for point_id, requirement in self._fixture.rubric_points
+                ],
+                invocation.build_user_prompt(
+                    self._fixture.path.name, self._fixture.task
+                ),
+                self._parsed.result_text or "",
+                material=rubric_judge.fixture_material(self._fixture.path),
+                changes=self._record.work_diff,
+                claude_bin=self._executor.settings.claude_bin,
+                timeout_seconds=self._executor.settings.trial_timeout_seconds,
+                run_process=run_process,
+            )
+        except rubric_judge.JudgeError as error:
+            self.judge_cost_usd = error.cost_usd
+            raise
+        self.judge_cost_usd = judgement.cost_usd
+        return judgement

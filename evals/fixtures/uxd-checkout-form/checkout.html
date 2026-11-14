@@ -1,0 +1,26 @@
+<!-- Checkout page, step 1 of 1. Shown after "Proceed to checkout". -->
+<h1>Create your account to continue</h1>
+<div id="errors" style="color:#d00"></div>
+<form id="checkout" novalidate>
+  <input name="email" placeholder="Email*">
+  <input name="password" type="password" placeholder="Password*">
+  <input name="password2" type="password" placeholder="Confirm password*">
+  <input name="first" placeholder="First name*">
+  <input name="last" placeholder="Last name*">
+  <input name="company" placeholder="Company">
+  <input name="phone" placeholder="Phone*">
+  <input name="fax" placeholder="Fax">
+  <input name="addr1" placeholder="Address*">
+  <input name="city" placeholder="City*">
+  <input name="zip" placeholder="ZIP*">
+  <input name="bill_addr1" placeholder="Billing address*">
+  <input name="bill_city" placeholder="Billing city*">
+  <input name="bill_zip" placeholder="Billing ZIP*">
+  <input name="card" placeholder="Card number*">
+  <input name="dob" placeholder="Date of birth (MM/DD/YYYY)*">
+  <button>Place order</button>
+</form>
+<script>
+  // On submit: validate all fields; if any fail, turn their border red and put
+  // "Please fix the errors below" into #errors. The page does not scroll.
+</script>

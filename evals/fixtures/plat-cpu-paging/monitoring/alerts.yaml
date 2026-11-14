@@ -1,0 +1,14 @@
+groups:
+  - name: checkout-api
+    rules:
+      - alert: HighCPU
+        expr: avg(rate(process_cpu_seconds_total{job="checkout-api"}[5m])) > 0.7
+        for: 2m
+        labels: {severity: page}
+      - alert: HighMemory
+        expr: process_resident_memory_bytes{job="checkout-api"} > 1.5e9
+        for: 5m
+        labels: {severity: page}
+      - alert: Any5xx
+        expr: increase(http_requests_total{job="checkout-api",code=~"5.."}[1m]) > 0
+        labels: {severity: page}

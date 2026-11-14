@@ -1,0 +1,41 @@
+{
+  "fixture": "prd-cycle-premature-abstraction",
+  "description": "Order-digest plan (hard: the cycle spans three files) where digest.ts imports orders/service.ts, which already imports notifications/dispatcher.ts, which the plan makes import digest.ts; plus a strategy factory and abstract class for a single email channel. A correct review returns needs-revision, flags the import cycle as a blocker, and flags the premature abstraction.",
+  "applicableAgents": [
+    "plan-review-design"
+  ],
+  "agents": {
+    "plan-review-design": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Design & Architecture Critic. The existing code it builds on is under `{fixture}/` (`src/orders/service.ts`, `src/notifications/dispatcher.ts`, `src/notifications/email.ts`). No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "needs-revision",
+      "findingFields": [
+        "issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "orders-dispatcher-digest-import-cycle",
+          "anyOf": [
+            "cycle",
+            "circular"
+          ],
+          "severityAnyOf": [
+            "blocker"
+          ]
+        },
+        {
+          "id": "single-channel-strategy-factory",
+          "anyOf": [
+            "DigestStrategyFactory",
+            "AbstractDigestStrategy",
+            "premature",
+            "YAGNI",
+            "strategy"
+          ]
+        }
+      ],
+      "maxFindings": 8
+    }
+  }
+}

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Retrain the risk model from the latest feature snapshot and write models/risk.pkl.
+set -euo pipefail
+python3 -m app.training.retrain --snapshot "${1:?snapshot path required}" --out models/risk.pkl

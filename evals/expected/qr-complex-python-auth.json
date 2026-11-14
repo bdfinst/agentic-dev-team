@@ -1,0 +1,28 @@
+{
+  "fixture": "qr-complex-python-auth",
+  "description": "Hard: a complex Python authentication change with docs: security, domain and arch reviewers (complex tier), test-review, doc-review and structure-review; JS-only and UI reviewers must not run on Python and markdown files.",
+  "applicableAgents": [
+    "quality-reviewer"
+  ],
+  "agents": {
+    "quality-reviewer": {
+      "grader": "dispatch_set",
+      "task": "Run the Stage 2 code-quality review for the unit of work in `{fixture}/UNIT.md` (the diff is `{fixture}/diff.patch`; the changed files are under `{fixture}/`). Dispatch the review agents by name with the Agent tool as `subagent_type`, act on what they return, and respond with only the JSON object defined by your output contract.",
+      "dispatch": {
+        "include": [
+          "security-review",
+          "domain-review",
+          "arch-review",
+          "test-review",
+          "doc-review",
+          "structure-review"
+        ],
+        "exclude": [
+          "js-fp-review",
+          "a11y-review",
+          "react-reactivity-review"
+        ]
+      }
+    }
+  }
+}

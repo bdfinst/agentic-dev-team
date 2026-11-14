@@ -1,0 +1,31 @@
+{
+  "fixture": "adr-supersede-sessions",
+  "description": "Repo whose ADR 0002 chose server-side sessions; notes record replacing them with short-lived JWT access tokens plus rotating refresh tokens; a correct answer writes ADR 0003 that supersedes 0002 and marks 0002 superseded without deleting it.",
+  "applicableAgents": [
+    "adr-author"
+  ],
+  "agents": {
+    "adr-author": {
+      "grader": "rubric",
+      "task": "The project in `{fixture}/` keeps ADRs in `{fixture}/docs/adr/`. Record the authentication decision described in `{fixture}/decision-notes.md` as an ADR, handling its relationship to the existing ADRs, and update the ADR index. If the `adr` CLI is unavailable, follow the existing numbering, file naming, and format by hand. Nobody will review this interactively, so leave the status for a human to accept. The grader cannot open files: end your answer with the full text of every file you created or changed under `{fixture}/docs/adr/`, each preceded by its path.",
+      "rubricPoints": [
+        {
+          "id": "new-adr-0003",
+          "requirement": "A new ADR `docs/adr/0003-<kebab-title>.md` records JWT access tokens with a 15-minute lifetime plus rotating refresh tokens in a `refresh_tokens` table, for all clients including web."
+        },
+        {
+          "id": "supersedes-0002-bidirectional",
+          "requirement": "ADR 0003 states it supersedes ADR 0002, and ADR 0002's status is changed to Superseded with a link to 0003; ADR 0002 is kept, not deleted."
+        },
+        {
+          "id": "revocation-tradeoff",
+          "requirement": "The Consequences state the trade-off that a locked account's already-issued access token stays valid for up to 15 minutes (loss of instant revocation)."
+        },
+        {
+          "id": "rejected-alternatives",
+          "requirement": "The ADR names at least one rejected alternative from the notes (a mobile-only token path alongside cookies, or long-lived JWTs with a deny-list) with its reason."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "fixture": "pra-clean-username-rules",
+  "description": "Single-slice username-validation plan with binary criteria, boundary and error scenarios, valid falsifiers, and traced steps; a correct review approves with no blockers.",
+  "applicableAgents": [
+    "plan-review-acceptance"
+  ],
+  "agents": {
+    "plan-review-acceptance": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Acceptance Test Critic. The dispatcher already ran `plan_falsifiers.py` on this plan; its JSON output is in `{fixture}/plan_falsifiers.json`. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "approve",
+      "findingFields": [
+        "criteria_issues",
+        "scenario_issues",
+        "missing_scenarios",
+        "step_issues"
+      ],
+      "clean": true,
+      "expectedFindingIds": [],
+      "maxFindings": 4,
+      "maxBySeverity": {
+        "blocker": 0
+      }
+    }
+  }
+}

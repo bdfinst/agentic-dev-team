@@ -2,8 +2,10 @@
 
 Precedence when several conditions hold is the declaration order of `Outcome`.
 Grading runs only when every earlier check passed. A grader reports the agent's
-answer being wrong as a failed verdict; an error it raises is a harness fault and
-propagates.
+answer being wrong as a failed verdict. A grader that cannot reach its verdict
+for a reason outside the answer (the rubric judge failed) raises
+`GraderUnavailableError`, recorded as a judge error; any other error it raises
+is a harness fault and propagates.
 """
 
 from __future__ import annotations
@@ -29,12 +31,19 @@ class Outcome(StrEnum):
     CLI_ERROR = "cli_error"
     TOOL_VIOLATION = "tool_violation"
     PARSE_FAILURE = "parse_failure"
+    JUDGE_ERROR = "judge_error"
     GRADED_FAIL = "graded_fail"
     PASS = "pass"
 
 
 # Infrastructure failures, as opposed to the agent's answer being wrong.
-INFRA_OUTCOMES = frozenset({Outcome.CLI_ERROR, Outcome.TIMEOUT})
+INFRA_OUTCOMES = frozenset({Outcome.CLI_ERROR, Outcome.TIMEOUT, Outcome.JUDGE_ERROR})
+# Outcomes in which the grader reached a verdict on the answer.
+GRADED_OUTCOMES = frozenset({Outcome.PASS, Outcome.GRADED_FAIL})
+
+
+class GraderUnavailableError(RuntimeError):
+    """The grader could not judge the answer for a reason outside the answer."""
 
 
 @dataclass(frozen=True)
@@ -48,6 +57,10 @@ class TrialResult:
     session_config: dict | None = None
     # False when the stream reported no usable cost; `reported_cost_usd` is then 0.0, not a measurement.
     cost_reported: bool = True
+    # What the rubric judge reported for grading this trial; None when no judge ran or it reported none.
+    judge_cost_usd: float | None = None
+    # True when a rubric judge ran for this trial, whether or not it reported a cost or a verdict.
+    judged: bool = False
     # How many issues the agent's JSON listed; `None` when no JSON was graded.
     reported_issue_count: int | None = None
 
@@ -59,13 +72,29 @@ def resolve_outcome(
     grader: Grader,
     *,
     snapshot_dir: Path | None = None,
+    requires_agent_json: bool = True,
+    fail_on_permission_denials: bool = False,
 ) -> TrialResult:
     """Apply the outcome precedence; `grader` is called only if all else passed.
 
     `snapshot_dir`, the run's frozen-inputs directory, is replaced by a placeholder
-    in the recorded error, as the trial's staging directory is.
+    in the recorded error, as the trial's staging directory is. With
+    `requires_agent_json` false, an answer with no JSON object is still graded
+    (the grader gets an empty dict), for graders that judge the sandbox or the
+    answer's prose instead of its JSON. A record with a `workspace_error` (the
+    agent swapped or locked its working copy) is a tool violation. With
+    `fail_on_permission_denials`, a
+    trial the CLI denied any tool call is a tool violation, so a sandboxed
+    trial's denials surface instead of passing unnoticed.
     """
-    outcome, error, messages = _decide(record, parsed, enabled_tools, grader)
+    outcome, error, messages = _decide(
+        record,
+        parsed,
+        enabled_tools,
+        grader,
+        requires_agent_json,
+        fail_on_permission_denials,
+    )
     return TrialResult(
         outcome=outcome,
         reported_cost_usd=parsed.cost_usd or 0.0,
@@ -99,6 +128,8 @@ def _decide(
     parsed: ParsedTranscript,
     enabled_tools: Collection[str],
     grader: Grader,
+    requires_agent_json: bool,
+    fail_on_permission_denials: bool = False,
 ) -> tuple[Outcome, str | None, list[str]]:
     if record.timed_out:
         return Outcome.TIMEOUT, _timeout_error(record), []
@@ -112,14 +143,25 @@ def _decide(
             f"tools outside the enabled set: {', '.join(violations)}",
             [],
         )
+    if record.workspace_error is not None:
+        return Outcome.TOOL_VIOLATION, record.workspace_error, []
+    if fail_on_permission_denials and parsed.permission_denial_count:
+        return (
+            Outcome.TOOL_VIOLATION,
+            f"the CLI denied {parsed.permission_denial_count} tool call(s) in the sandbox",
+            [],
+        )
     agent_json = extract_agent_json(parsed.result_text)
-    if agent_json is None:
+    if agent_json is None and requires_agent_json:
         return Outcome.PARSE_FAILURE, "no JSON object in the result text", []
-    return _grade(agent_json, grader)
+    return _grade(agent_json or {}, grader)
 
 
 def _grade(agent_json: dict, grader: Grader) -> tuple[Outcome, str | None, list[str]]:
-    passed, messages = grader(agent_json)
+    try:
+        passed, messages = grader(agent_json)
+    except GraderUnavailableError as error:
+        return Outcome.JUDGE_ERROR, str(error), []
     if not passed:
         return Outcome.GRADED_FAIL, None, messages
     return Outcome.PASS, None, []

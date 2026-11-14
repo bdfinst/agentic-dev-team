@@ -1,0 +1,35 @@
+{
+  "fixture": "adr-job-queue",
+  "description": "Repo with two Nygard-format ADRs and meeting notes choosing a PostgreSQL SKIP LOCKED job table over RabbitMQ/Redis; a correct answer writes ADR 0003 in the same format, links ADR 0002, and updates the index.",
+  "applicableAgents": [
+    "adr-author"
+  ],
+  "agents": {
+    "adr-author": {
+      "grader": "rubric",
+      "task": "The project in `{fixture}/` keeps ADRs in `{fixture}/docs/adr/`. Record the background-jobs decision described in `{fixture}/decision-notes.md` as a new ADR and update the ADR index. If the `adr` CLI is unavailable, follow the existing numbering, file naming, and format by hand. Nobody will review this interactively, so leave the status for a human to accept. The grader cannot open files: end your answer with the full text of every file you created or changed under `{fixture}/docs/adr/`, each preceded by its path.",
+      "rubricPoints": [
+        {
+          "id": "numbered-0003-same-format",
+          "requirement": "The new ADR is file `docs/adr/0003-<kebab-title>.md` with an H1 of the form `# 3. <Title>`, a `Date:` line, and `## Status`, `## Context`, `## Decision`, `## Consequences` sections like ADRs 0001 and 0002."
+        },
+        {
+          "id": "decision-and-rejected-options",
+          "requirement": "The ADR records the decision to use a PostgreSQL job table claimed with `SELECT ... FOR UPDATE SKIP LOCKED`, and names RabbitMQ and Redis as rejected alternatives with the reason (a new stateful system to operate)."
+        },
+        {
+          "id": "context-forces",
+          "requirement": "The Context states the forcing problem: duplicate emails from two cron hosts picking the same row and/or the month-end backlog of the polling cron script."
+        },
+        {
+          "id": "links-adr-0002",
+          "requirement": "The ADR references ADR 0002 (PostgreSQL as the only datastore) as the decision it builds on."
+        },
+        {
+          "id": "index-updated",
+          "requirement": "`docs/adr/README.md` gains an entry linking `0003-...md`, and the ADR's status is Proposed (not Accepted)."
+        }
+      ]
+    }
+  }
+}

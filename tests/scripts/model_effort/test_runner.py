@@ -4,6 +4,7 @@ A stub executable stands in for `claude` and records its argv, cwd and the files
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import shutil
 import signal
@@ -11,6 +12,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 from _model_effort_support import (
@@ -264,30 +266,67 @@ class TestSignalsAroundSpawn:
 
 
 class TestTrialEnvironment:
-    def test_parent_session_identity_variables_are_removed_and_the_rest_kept(self):
-        parent = {
-            "CLAUDE_CODE_SESSION_ID": "parent-session",
-            "CLAUDE_CODE_ENTRYPOINT": "cli",
+    PARENT: ClassVar[dict[str, str]] = {
+        "CLAUDE_CODE_SESSION_ID": "parent-session",
+        "CLAUDE_CODE_ENTRYPOINT": "cli",
+        "HOME": "/home/me",
+        "PATH": "/bin",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C",
+        "AWS_SECRET_ACCESS_KEY": "secret",
+        "GITHUB_TOKEN": "token",
+        "ANTHROPIC_API_KEY": "key",
+        "CLAUDE_CODE_OAUTH_TOKEN": "oauth",
+    }
+
+    def test_the_env_is_built_from_the_allowlist_plus_the_one_credential_the_cli_uses(
+        self,
+    ):
+        env = invocation.build_trial_env(self.PARENT)
+
+        assert env == {
             "HOME": "/home/me",
+            "PATH": "/bin",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C",
             "ANTHROPIC_API_KEY": "key",
         }
 
-        env = invocation.build_trial_env(parent)
+    def test_with_a_credential_variable_home_is_the_empty_temp_home(self, tmp_path):
+        env = invocation.build_trial_env(self.PARENT, tmp_path)
 
-        assert env == {"HOME": "/home/me", "ANTHROPIC_API_KEY": "key"}
+        assert env["HOME"] == str(tmp_path)
 
-    def test_the_cli_process_receives_the_scrubbed_environment(
+    def test_without_a_credential_variable_home_is_kept_for_the_keychain_login(
+        self, tmp_path
+    ):
+        parent = {"HOME": "/home/me", "PATH": "/bin"}
+
+        assert invocation.build_trial_env(parent, tmp_path) == parent
+
+    def test_test_commands_get_no_credential_and_a_temp_home(self, tmp_path):
+        env = invocation.build_check_env(self.PARENT, tmp_path)
+
+        assert env == {
+            "HOME": str(tmp_path),
+            "PATH": "/bin",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C",
+        }
+
+    def test_the_cli_process_receives_only_allowlisted_variables(
         self, stub_dir, fixture_root, monkeypatch
     ):
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "parent-session")
-        monkeypatch.setenv("KEEP_ME", "1")
+        monkeypatch.setenv("DROP_ME", "1")
         stub = StubClaude(stub_dir)
 
         runner.run_trial(_make_file_fixture(fixture_root), _config(stub))
 
         env_names = stub.calls[0]["env_names"]
         assert "CLAUDE_CODE_SESSION_ID" not in env_names
-        assert "KEEP_ME" in env_names and "HOME" in env_names
+        assert "DROP_ME" not in env_names
+        assert "PATH" in env_names and "HOME" in env_names
 
 
 def _wait_until_marker_due(spawned: Path, delay: float) -> None:
@@ -603,3 +642,63 @@ class TestExecution:
 
         assert record.exit_code == 127
         assert record.stderr != ""
+
+
+class TestAfterTheCliExits:
+    """Nothing the CLI started in its group survives it, and each trial has its own TMPDIR."""
+
+    def test_a_grandchild_that_let_go_of_the_pipes_is_killed_when_the_cli_exits(
+        self, stub_dir, fixture_root
+    ):
+        pid_file = stub_dir / "detached.pid"
+        stub = StubClaude(
+            stub_dir, detached_sleep=STUB_RUN_SECONDS, detached_pid_file=str(pid_file)
+        )
+
+        record = runner.run_trial(
+            _make_file_fixture(fixture_root, "a.txt", "a"),
+            _config(stub),
+            trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS,
+        )
+
+        assert record.exit_code == 0 and not record.timed_out
+        assert _process_gone_within(int(pid_file.read_text()), TRIAL_DEADLINE_SECONDS)
+
+    def test_the_group_is_killed_before_the_protected_paths_are_restored(
+        self, stub_dir, fixture_root, monkeypatch
+    ):
+        events: list[str] = []
+        real_kill = runner._kill_process_group
+        monkeypatch.setattr(
+            runner,
+            "_kill_process_group",
+            lambda process: (events.append("kill"), real_kill(process))[1],
+        )
+        monkeypatch.setattr(
+            runner, "restore_protected_paths", lambda *_args: events.append("restore")
+        )
+        fixture = _make_directory_fixture(fixture_root)
+        config = dataclasses.replace(
+            _config(StubClaude(stub_dir)), test_commands=("{python} -c pass",)
+        )
+
+        runner.run_trial(fixture, config)
+
+        assert events[:2] == ["kill", "restore"]
+
+    def test_each_trial_gets_its_own_tmpdir_outside_the_copy_removed_afterwards(
+        self, stub_dir, fixture_root, monkeypatch
+    ):
+        monkeypatch.setenv("TMPDIR", str(stub_dir))
+        stub = StubClaude(stub_dir)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, _config(stub))
+
+        first, second = (Path(call["tmpdir"]) for call in stub.calls)
+        assert first != second
+        assert first != stub_dir and second != stub_dir
+        for call, tmpdir in zip(stub.calls, (first, second), strict=True):
+            assert not tmpdir.is_relative_to(Path(call["cwd"]))
+            assert not tmpdir.exists()

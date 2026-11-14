@@ -23,7 +23,7 @@ from _model_effort_support import (
     _stderr_lines,
     _trial_result,
 )
-from model_effort import outcome, report, run_types
+from model_effort import arm_totals, outcome, report, run_types
 from model_effort.arm import BASELINE_LABEL
 from model_effort.formatting import format_usd
 from model_effort.outcome import Outcome
@@ -129,10 +129,10 @@ class TestProgressAndSummary:
         arm_cost = format_usd(ARM_RUN_CALLS * TRIAL_COST)
         assert (
             "Summary:\n"
-            "  baseline: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, "
+            "  baseline: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, judge_error 0, "
             f"graded_fail {SCOUT_TRIALS}, pass {SCOUT_TRIALS}; cost {arm_cost}, "
             f"estimated {format_usd(BASELINE_TWO_ARM_ESTIMATE)}\n"
-            "  candidate: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, "
+            "  candidate: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, judge_error 0, "
             f"graded_fail {SCOUT_TRIALS}, pass {SCOUT_TRIALS}; cost {arm_cost}, "
             f"estimated {format_usd(CANDIDATE_TWO_ARM_ESTIMATE)}\n"
             f"  total: cost {format_usd(FULL_RUN_COST)}, "
@@ -157,7 +157,7 @@ class TestProgressAndSummary:
             line for line in lines if line.startswith("  candidate: timeout")
         )
         assert "(lower bound; $" in baseline
-        assert "charged as estimate for trials with no reported cost)" in baseline
+        assert "charged as estimate for trials and judgements with no reported cost)" in baseline
         assert "lower bound" not in candidate
 
     def test_incomplete_run_summary_counts_only_completed_trials(self, world, capsys):
@@ -178,3 +178,31 @@ class TestProgressAndSummary:
             f"  total: cost {format_usd(TRIALS_BEFORE_STOP * TRIAL_COST)}, estimated "
             in err
         )
+
+
+class TestSummaryJudgeCost:
+    def _arm(self, label: str, judge: float, estimated_judge: float) -> arm_totals.ArmTotals:
+        return arm_totals.ArmTotals(
+            label=label,
+            outcome_counts={outcome: 0 for outcome in Outcome},
+            clean_fixture_false_positives=0,
+            actual_cost_usd=1.0,
+            unreported_trials_estimate_usd=0.0,
+            estimated_cost_usd=2.0,
+            judge_cost_usd=judge,
+            estimated_judge_cost_usd=estimated_judge,
+        )
+
+    def test_judge_cost_and_estimate_are_shown_per_arm_and_in_total(self):
+        lines = report.render_summary(
+            [self._arm("baseline", 0.25, 0.5), self._arm("candidate", 0.5, 0.5)]
+        )
+
+        assert lines[1].endswith("cost $1.0000 + judge $0.2500, estimated $2.0000 + judge $0.5000")
+        assert lines[2].endswith("cost $1.0000 + judge $0.5000, estimated $2.0000 + judge $0.5000")
+        assert lines[3] == "  total: cost $2.0000 + judge $0.7500, estimated $4.0000 + judge $1.0000"
+
+    def test_a_run_with_no_judge_shows_no_judge_figures(self):
+        lines = report.render_summary([self._arm("baseline", 0.0, 0.0)])
+
+        assert "judge $" not in "\n".join(lines)

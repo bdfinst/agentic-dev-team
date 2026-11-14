@@ -1,0 +1,21 @@
+{
+  "fixture": "mk-shipping-boundary",
+  "description": "Three boundary/arithmetic survivors in a shipping-fee function with two weak tests; passes when the tests pass and check_mutants.py reports every listed mutant killed, with the source and checker restored first.",
+  "applicableAgents": [
+    "mutation-kill"
+  ],
+  "agents": {
+    "mutation-kill": {
+      "grader": "tests_pass",
+      "task": "Drive the surviving mutants of `shop/shipping.py` down in the Python project `{fixture}/` in the current working directory. `{fixture}/SURVIVORS.md` is the survivor report from the last mutmut run; mutmut is not installed, so do not run it. Add targeted pytest tests to `tests/test_shipping.py` that kill the listed survivors. Do not change `shop/shipping.py` or anything under `mutants/`. Verify from `{fixture}/` with `python3 -m pytest -q tests` and `python3 mutants/check_mutants.py`, commit on green, and end with one sentence giving the survivors killed.",
+      "testCommands": [
+        "{python} -m pytest -q -p no:cacheprovider tests",
+        "{python} mutants/check_mutants.py"
+      ],
+      "protectedPaths": [
+        "mutants",
+        "shop/shipping.py"
+      ]
+    }
+  }
+}

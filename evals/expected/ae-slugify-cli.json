@@ -1,0 +1,31 @@
+{
+  "fixture": "ae-slugify-cli",
+  "description": "Slug CLI where whitespace and empty-input criteria pass but punctuation stripping fails; a correct examination reports AC1 met, AC2 not-met, AC3 met, AC4 met from command output.",
+  "applicableAgents": [
+    "acceptance-examiner"
+  ],
+  "agents": {
+    "acceptance-examiner": {
+      "grader": "rubric",
+      "task": "Examine the delivered change against these acceptance criteria.\n\nAC1: `python3 slugify.py \"Hello World\"` prints `hello-world`.\nAC2: `python3 slugify.py \"Hi, there!\"` prints `hi-there` (punctuation removed).\nAC3: `python3 slugify.py \"\"` exits with code 2 and prints `error: empty title` on stderr.\nAC4: `python3 slugify.py \"a   b\"` prints `a-b` (repeated spaces collapse to one hyphen).\n\nGherkin scenarios: `features/slugify.feature` (read it with `cat`).\n\nRun commands:\n- python3 slugify.py \"Hello World\"\n- python3 slugify.py \"Hi, there!\"\n- python3 slugify.py \"\"\n- python3 slugify.py \"a   b\"\n\nWorking directory: `{fixture}` (run every command from there, e.g. `cd {fixture} && <command>`).\nAcceptance-examination plan: model-effort-eval\n\nRespond with only the fenced json block defined by your output format.",
+      "rubricPoints": [
+        {
+          "id": "ac1-met",
+          "requirement": "AC1 is reported `met`, citing the output `hello-world`."
+        },
+        {
+          "id": "ac2-not-met",
+          "requirement": "AC2 is reported `not-met`, quoting the actual output `hi,-there!` (punctuation not removed)."
+        },
+        {
+          "id": "ac3-met",
+          "requirement": "AC3 is reported `met`, citing exit code 2 and the stderr text `error: empty title`."
+        },
+        {
+          "id": "ac4-met",
+          "requirement": "AC4 is reported `met`, citing the output `a-b`."
+        }
+      ]
+    }
+  }
+}

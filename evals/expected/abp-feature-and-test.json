@@ -1,0 +1,27 @@
+{
+  "fixture": "abp-feature-and-test",
+  "description": "Four ungrouped issues where one feature and its test task belong together and two are unrelated; a correct answer proposes exactly [101, 102].",
+  "applicableAgents": [
+    "autoship-batch-proposer"
+  ],
+  "agents": {
+    "autoship-batch-proposer": {
+      "grader": "rubric",
+      "task": "Step 2b of /dev-team:autoship: the deterministic grouping pass left these issues ungrouped. Their titles and bodies follow (the same text is in `{fixture}/issues.md`).\n\n### #101: Add CSV export to the reports page\n\nUsers want to download the monthly report table as CSV. Add an \"Export CSV\" button next to \"Print\" that downloads the currently filtered rows.\n\n### #102: Tests for reports CSV export\n\nOnce the CSV export button on the reports page exists, cover it: header row, filtered rows only, commas and quotes escaped in cell values.\n\n### #103: Fix typo in README install section\n\n\"pyhton3\" should be \"python3\" in the install command.\n\n### #104: Dark mode toggle flickers on page load\n\nThe page renders light for ~100 ms before switching to dark when dark mode is saved in preferences.\n\nRespond with only the JSON object defined by your output contract.",
+      "rubricPoints": [
+        {
+          "id": "groups-101-102",
+          "requirement": "Proposes one group containing exactly issues 101 and 102 (CSV export feature and its tests)."
+        },
+        {
+          "id": "no-other-groups",
+          "requirement": "Proposes no other group: 103 and 104 are not grouped with anything."
+        },
+        {
+          "id": "rationale-same-work",
+          "requirement": "The rationale for the 101/102 group says they are the same piece of work (the feature and the tests for that feature), not merely the same area."
+        }
+      ]
+    }
+  }
+}

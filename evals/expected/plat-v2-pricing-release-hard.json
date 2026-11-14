@@ -1,0 +1,35 @@
+{
+  "fixture": "plat-v2-pricing-release-hard",
+  "description": "Release plan claiming rollback is safe while the canary gate checks only pod liveness, the migration runs after the canary and drops the column the previous image reads, and the flag is on by default and read only at process start; a correct answer finds each gap.",
+  "applicableAgents": [
+    "platform-engineer"
+  ],
+  "agents": {
+    "platform-engineer": {
+      "grader": "rubric",
+      "task": "Review the pricing v2 release in `{fixture}/` (`release-plan.md`, `.ci/release.yml`, `migrations/`, `config/`). Is the rollback plan sound, and what must change before this ships? Do not write files; give your recommendation in your final answer.",
+      "rubricPoints": [
+        {
+          "id": "rollback-not-sound",
+          "requirement": "Concludes that the rollback plan is not sound as written."
+        },
+        {
+          "id": "drop-column-breaks-rollback",
+          "requirement": "Identifies that migration 0031 drops `legacy_discount_pct`, which the previous image reads, so redeploying the previous image fails after promotion; recommends deferring the drop to a later release (expand/contract)."
+        },
+        {
+          "id": "canary-gate-liveness-only",
+          "requirement": "Identifies that the canary gate (`kubectl rollout status` after `sleep 300`) checks only that pods are alive, and recommends gating on canary error rate and latency compared with the baseline."
+        },
+        {
+          "id": "migration-after-canary",
+          "requirement": "Identifies that the migration runs in the promote stage, after the canary, so the canary runs v2 code against the pre-migration schema and does not test what ships; recommends applying the additive migration before the canary."
+        },
+        {
+          "id": "flag-on-at-start",
+          "requirement": "Identifies that `pricing_v2_enabled` is already `true` in production config and is read only at process start, so the deploy is also the release and flipping the flag needs a restart; recommends shipping it off and toggling at runtime."
+        }
+      ]
+    }
+  }
+}

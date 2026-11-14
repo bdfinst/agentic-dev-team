@@ -1,0 +1,18 @@
+{
+  "fixture": "pm-export-underspecified",
+  "description": "An underspecified 'add export to reports' request alongside code (three report types, a 500-row display cap, an existing streaming CSV invoice export) and support tickets; a correct answer investigates first, answers what the material answers, and batches the remaining questions each with a recommended default.",
+  "applicableAgents": ["product-manager"],
+  "agents": {
+    "product-manager": {
+      "grader": "rubric",
+      "task": "Dana's request is in `{fixture}/request.md`. The relevant code is under `{fixture}/src/` and recent tickets are in `{fixture}/support-tickets.md`. Run your discovery step for this request: investigate the material, then produce the single batch of clarifying questions you would send to Dana, plus a proposed scope. You cannot write files in this run, so put your complete answer in your final message.",
+      "rubricPoints": [
+        {"id": "investigates-report-types", "requirement": "States from the material (not as a question to Dana) that three report types exist (sales summary, inventory levels, churn cohorts) and that tickets ask only for sales summary and inventory levels, never churn cohorts."},
+        {"id": "reuses-csv-pattern", "requirement": "Proposes CSV as the default format, citing the existing invoice CSV export as the pattern to reuse, rather than asking Dana an open 'which format?' question with no default."},
+        {"id": "full-dataset-not-capped", "requirement": "Identifies that the export must include all rows, not the 500-row on-screen cap (ticket T-1131 has about 4,000 SKUs), either as a stated requirement or as a question with that recommended default."},
+        {"id": "every-question-has-default", "requirement": "Every clarifying question addressed to Dana carries a recommended default answer with a short rationale; no question is a bare menu of options."},
+        {"id": "one-batch", "requirement": "Presents all questions for Dana together in one batch rather than saying it will ask follow-ups one at a time."}
+      ]
+    }
+  }
+}

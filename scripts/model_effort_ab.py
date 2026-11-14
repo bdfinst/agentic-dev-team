@@ -2,7 +2,9 @@
 """Compare an agent's frontmatter model/effort (baseline) with a candidate.
 
 Runs each trial through `claude -p` with the agent's read-only built-in tools
-against a fresh copy of a fixture, grades it against `evals/expected`, and
+(plus its write tools under Claude Code's Bash sandbox, for an agent
+evals/model-effort/graders.json marks `sandbox: true`) against a fresh copy of a
+fixture, grades it with the agent's grader from that map, and
 writes one JSON artifact per run to the runs directory. The fixtures, their
 expected entries and the knowledge directory are copied once when the run is
 planned, so editing them mid-run changes nothing. Trials alternate
@@ -45,12 +47,14 @@ if str(_PACKAGE_PARENT) not in sys.path:
     sys.path.insert(0, str(_PACKAGE_PARENT))
 
 from model_effort import (
-    artifact,
+    answer_key,
+    check_jail,
     external,
     interrupts,
     invocation,
     paths,
     report,
+    rubric_judge,
     runner,
     session,
 )
@@ -64,13 +68,8 @@ from model_effort.trial_count import (
     DEFAULT_TRIALS,
     HIGH_STAKES_AGENTS,
     HIGH_STAKES_TRIALS,
+    RUBRIC_TRIALS,
     resolve_trials,
-)
-
-RUBRIC_GRADER = "rubric"
-RUBRIC_GRADER_REFUSAL = (
-    "--grader rubric is not implemented yet; rubric grading is planned: "
-    f"omit --grader to use {artifact.GRADER}"
 )
 
 
@@ -106,6 +105,13 @@ class Deps:
     stdin: TextIO = field(default_factory=lambda: sys.stdin)
     stdin_is_tty: Callable[[], bool] = _stdin_is_tty
     run_trial: TrialRunner = runner.run_trial
+    run_judge_process: rubric_judge.ProcessRunner = runner.run_cli_process
+    find_check_jail: Callable[[], check_jail.CheckJail | None] = (
+        check_jail.find_working_jail
+    )
+    find_answer_key_paths: Callable[[], tuple[Path, ...]] = (
+        answer_key.repo_answer_key_paths
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -136,14 +142,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--trials",
         type=_positive_int,
         help=f"trials per arm per fixture (default: {HIGH_STAKES_TRIALS} for "
-        f"{', '.join(sorted(HIGH_STAKES_AGENTS))}; otherwise {DEFAULT_TRIALS})",
-    )
-    parser.add_argument(
-        "--grader",
-        choices=(artifact.GRADER, RUBRIC_GRADER),
-        default=artifact.GRADER,
-        help=f"how trials are graded (default: {artifact.GRADER}, the deterministic "
-        f"grader over evals/expected; {RUBRIC_GRADER} is not implemented yet)",
+        f"{', '.join(sorted(HIGH_STAKES_AGENTS))}; {RUBRIC_TRIALS} for rubric-judged "
+        f"agents; otherwise {DEFAULT_TRIALS}). The grader per agent comes from "
+        "evals/model-effort/graders.json",
     )
     parser.add_argument(
         "--trial-timeout",
@@ -157,14 +158,22 @@ def _build_parser() -> argparse.ArgumentParser:
         "--max-cost",
         type=_positive_float,
         dest="max_cost_usd",
-        help="dollars; refuse to run when the estimate is above this, and stop the "
-        "run once the charged cost (reported cost, or the estimate for a trial that "
-        "reported none) is above this (no default)",
+        help="dollars; refuse to run when the estimate (rubric judge included) is "
+        "above this, and stop the run once the charged cost is above this: each "
+        "trial's and each rubric judgement's reported cost, or its estimate when it "
+        "reported none (no default)",
     )
     parser.add_argument(
         "--yes",
         action="store_true",
         help="start without the confirmation prompt (required when stdin is not a TTY)",
+    )
+    parser.add_argument(
+        "--allow-unjailed-checks",
+        action="store_true",
+        help="run a fixture's test commands (agent-written code) without a jail when "
+        "no working sandbox-exec (macOS) or bwrap (Linux) is found; use only on a "
+        "disposable machine",
     )
     parser.add_argument(
         "--claude-bin",
@@ -227,12 +236,14 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
 
 
 def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> int:
-    if args.grader == RUBRIC_GRADER:
-        return _report_usage_error(UsageError(RUBRIC_GRADER_REFUSAL))
     try:
         with _plan_from(args, deps) as plan:
             settings = TrialSettings(
-                trials=resolve_trials(args.trials, args.agent),
+                trials=resolve_trials(
+                    args.trials,
+                    args.agent,
+                    plan.grading.kind,
+                ),
                 trial_timeout_seconds=args.trial_timeout_seconds,
                 claude_bin=args.claude_bin,
             )
@@ -250,6 +261,7 @@ def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> in
                 assume_yes=args.yes,
                 pricing_table=deps.pricing_table,
                 run_trial=deps.run_trial,
+                run_judge_process=deps.run_judge_process,
                 guard=guard,
             )
     except UsageError as error:
@@ -267,6 +279,9 @@ def _plan_from(args: argparse.Namespace, deps: Deps) -> AbstractContextManager[R
         rng=deps.rng,
         git_sha=deps.read_git_sha(),
         eval_paths=deps.eval_paths,
+        allow_unjailed_checks=args.allow_unjailed_checks,
+        find_check_jail=deps.find_check_jail,
+        find_answer_key_paths=deps.find_answer_key_paths,
     )
 
 

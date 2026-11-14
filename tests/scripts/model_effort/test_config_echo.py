@@ -32,13 +32,14 @@ class TestConfigurationEcho:
 
         _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", str(SCOUT_TRIALS))
 
-        assert _stderr_lines(capsys)[:9] == [
+        assert _stderr_lines(capsys)[:10] == [
             "Agent: scout",
             "Arms:",
             "  baseline: model sonnet, effort high",
             "  candidate: model haiku, effort high",
             "Tools: Read, Grep",
             "Withheld tools: mcp__x__y, Bash(graphify *)",
+            "Grader: expected-findings",
             "Fixtures: clean-form, layered-svc",
             "Trials per arm per fixture: 3 (--trials)",
             "Trial timeout: 600 s",

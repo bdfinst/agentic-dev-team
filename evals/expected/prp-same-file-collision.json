@@ -1,0 +1,30 @@
+{
+  "fixture": "prp-same-file-collision",
+  "description": "Settings-pages plan where same-wave slices 1 and 2 both declare src/routes.tsx and plan_waves.json reports that collision; a correct review returns needs-revision with a blocker naming the file.",
+  "applicableAgents": [
+    "plan-review-parallelization"
+  ],
+  "agents": {
+    "plan-review-parallelization": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Parallelization Critic. The dispatcher already ran `scripts/plan_waves.py` on this plan; its JSON output (including `collisions`) is in `{fixture}/plan_waves.json`. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "needs-revision",
+      "findingFields": [
+        "issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "routes-tsx-same-wave-collision",
+          "anyOf": [
+            "routes.tsx"
+          ],
+          "severityAnyOf": [
+            "blocker"
+          ]
+        }
+      ],
+      "maxFindings": 4
+    }
+  }
+}

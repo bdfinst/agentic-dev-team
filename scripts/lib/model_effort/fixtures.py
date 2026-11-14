@@ -11,9 +11,10 @@ import json
 import shutil
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from .errors import UsageError
+from .grader_config import AGENT_BLOCK_DEFAULT_GRADER, entry_grader
 
 # A clean fixture has no expected finding: the agent passes it, or skips it when
 # its own Skip rule covers the target. scripts/eval_fixture_coverage.py uses
@@ -29,10 +30,24 @@ class FixtureKind(StrEnum):
 
 @dataclass(frozen=True)
 class ResolvedFixture:
+    """A fixture to run and what its expected entry tells the trial beyond grading.
+
+    `task` replaces the default review prompt; `{fixture}` in it is the staged
+    fixture's name. `test_commands` run in the sandbox after the agent finishes,
+    once `protected_paths` are restored from the pristine fixture. `rubric_points`
+    are the fixture's (id, requirement) pairs for the rubric judge. `grader` is
+    the `scripts/eval_graders` grader the expected entry names, default included.
+    """
+
     stem: str
     path: Path
     kind: FixtureKind
     expected_clean: bool
+    task: str | None = None
+    test_commands: tuple[str, ...] = ()
+    protected_paths: tuple[str, ...] = ()
+    rubric_points: tuple[tuple[str, str], ...] = ()
+    grader: str = AGENT_BLOCK_DEFAULT_GRADER
     # True when the agent is expected to skip the fixture, a subset of clean.
     expected_skip: bool = False
 
@@ -42,7 +57,7 @@ def is_clean_expectation(expectation: dict) -> bool:
     return expectation.get("expectedStatus") in EXPECTED_STATUSES_CLEAN
 
 
-def _expectation(expected_entry: dict, agent: str) -> dict:
+def agent_expectation(expected_entry: dict, agent: str) -> dict:
     """`agent`'s expectation in the entry, or {} when it is missing or not an object."""
     agents = expected_entry.get("agents")
     expectation = agents.get(agent) if isinstance(agents, dict) else None
@@ -51,12 +66,13 @@ def _expectation(expected_entry: dict, agent: str) -> dict:
 
 def is_expected_clean(expected_entry: dict, agent: str) -> bool:
     """True when the expected entry says `agent` should report no problems."""
-    return is_clean_expectation(_expectation(expected_entry, agent))
+    expectation = agent_expectation(expected_entry, agent)
+    return is_clean_expectation(expectation) or expectation.get("clean") is True
 
 
 def is_expected_skip(expected_entry: dict, agent: str) -> bool:
     """True when the expected entry says `agent` should skip the fixture."""
-    expectation = _expectation(expected_entry, agent)
+    expectation = agent_expectation(expected_entry, agent)
     return expectation.get("expectedStatus") == EXPECTED_STATUS_SKIP
 
 
@@ -130,15 +146,71 @@ def resolve_fixtures(
     runnable = sorted(stem for stem in entries if stem in index)
     stems = _choose_stems(agent, requested, entries, runnable)
     return [
-        ResolvedFixture(
-            stem=stem,
-            path=index[stem][0],
-            kind=index[stem][1],
-            expected_clean=is_expected_clean(entries[stem], agent),
-            expected_skip=is_expected_skip(entries[stem], agent),
-        )
-        for stem in stems
+        _resolved(stem, index[stem], entries[stem], agent) for stem in stems
     ]
+
+
+def checked_protected_paths(
+    stem: str, kind: FixtureKind, declared: object
+) -> tuple[str, ...]:
+    """The fixture's `protectedPaths`, each a relative path that stays inside the fixture.
+
+    Raises:
+        UsageError: the value is not a list of strings; an entry is empty,
+            absolute or climbs out with `..`; or a file fixture declares any.
+    """
+    if declared is None:
+        return ()
+    if not isinstance(declared, list) or not all(
+        isinstance(item, str) for item in declared
+    ):
+        raise UsageError(
+            f"fixture {stem}: `protectedPaths` must be a list of relative path strings"
+        )
+    if declared and kind is FixtureKind.FILE:
+        raise UsageError(
+            f"fixture {stem} is a single file, so it has nothing to protect: "
+            "drop `protectedPaths` or make the fixture a directory"
+        )
+    for relative in declared:
+        posix = PurePosixPath(relative)
+        if (
+            not relative.strip()
+            or posix.is_absolute()
+            or PureWindowsPath(relative).is_absolute()
+            or "\\" in relative
+            or ".." in posix.parts
+            or posix.parts in ((), (".",))
+        ):
+            raise UsageError(
+                f"fixture {stem}: protected path {relative!r} must be a relative "
+                "path inside the fixture, with no `..`"
+            )
+    return tuple(declared)
+
+
+def _resolved(
+    stem: str, located: tuple[Path, FixtureKind], entry: dict, agent: str
+) -> ResolvedFixture:
+    expectation = agent_expectation(entry, agent)
+    task = expectation.get("task")
+    return ResolvedFixture(
+        stem=stem,
+        path=located[0],
+        kind=located[1],
+        expected_clean=is_expected_clean(entry, agent),
+        expected_skip=is_expected_skip(entry, agent),
+        task=task if isinstance(task, str) and task.strip() else None,
+        test_commands=tuple(expectation.get("testCommands", ())),
+        protected_paths=checked_protected_paths(
+            stem, located[1], expectation.get("protectedPaths")
+        ),
+        rubric_points=tuple(
+            (point["id"], point["requirement"])
+            for point in expectation.get("rubricPoints", ())
+        ),
+        grader=entry_grader(expectation),
+    )
 
 
 def _choose_stems(

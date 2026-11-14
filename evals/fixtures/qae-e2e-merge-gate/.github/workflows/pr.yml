@@ -1,0 +1,13 @@
+name: pr
+on: pull_request
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test            # unit tests, ~40s
+      - run: docker compose -f compose.full.yml up -d   # starts all 7 services + shared staging DB
+      - run: npx playwright test tests/e2e --retries=3
+      - run: docker compose -f compose.full.yml down

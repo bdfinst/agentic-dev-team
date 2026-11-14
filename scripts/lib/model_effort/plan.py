@@ -6,18 +6,34 @@ driven from tests and from other callers.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import json
+from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 from . import artifact_store, external, interrupts, paths
-from .agent_file import AgentFrontmatterError, UnknownAgentError, load_agent_file
+from .agent_file import (
+    AgentFrontmatterError,
+    UnknownAgentError,
+    list_agent_names,
+    load_agent_file,
+)
 from .agent_spec import AgentSpec, build_agent_spec
+from .answer_key import repo_answer_key_paths
 from .arm import BASELINE_LABEL, CANDIDATE_LABEL, Arm
+from .check_jail import CheckJail, find_working_jail
 from .errors import UsageError
 from .fixtures import ResolvedFixture, resolve_fixtures
+from .grader_config import (
+    DEFAULT_GRADING,
+    REGISTRY_GRADERS,
+    AgentGrading,
+    GraderKind,
+    resolve_agent_grading,
+)
+from .judge_tier import check_judge_tier
 from .paths import EvalPaths
 from .run_id import make_run_id
 from .run_types import RunMetadata
@@ -25,7 +41,8 @@ from .snapshot import InputSnapshot, take_snapshot
 from .tools import ToolProfile, WriteCapableAgentError, resolve_tool_profile
 
 AGENT_ERROR_FIX_HINTS = {
-    WriteCapableAgentError: " Choose an agent whose tools are limited to Read, Grep and Glob.",
+    WriteCapableAgentError: " Choose an agent whose tools are limited to Read, Grep and Glob, "
+    "or mark it `sandbox: true` in evals/model-effort/graders.json.",
     AgentFrontmatterError: " Fix the agent file's frontmatter; the baseline arm needs `model:` and `effort:`.",
 }
 
@@ -39,6 +56,15 @@ class RunPlan:
     snapshot: InputSnapshot
     metadata: RunMetadata
     artifact_path: Path
+    grading: AgentGrading = DEFAULT_GRADING
+    # The `--agents` JSON that answers a dispatch-graded agent's dispatches.
+    stub_agents: str | None = None
+    # How the fixtures' test commands are jailed; None with test commands means
+    # the operator allowed them to run unjailed.
+    check_jail: CheckJail | None = None
+    # The repo's own copies of the answer key (git directory, every checkout's
+    # `evals/expected`), denied to a sandboxed trial; empty for other runs.
+    answer_key_paths: tuple[Path, ...] = ()
 
     @property
     def fixtures(self) -> tuple[ResolvedFixture, ...]:
@@ -58,6 +84,9 @@ def plan_run(
     rng,
     git_sha: str | None,
     eval_paths: EvalPaths,
+    allow_unjailed_checks: bool = False,
+    find_check_jail: Callable[[], CheckJail | None] = find_working_jail,
+    find_answer_key_paths: Callable[[], tuple[Path, ...]] = repo_answer_key_paths,
 ) -> Iterator[RunPlan]:
     """Yield the plan, with the artifact path reserved; the reservation is the last step.
 
@@ -86,7 +115,8 @@ def plan_run(
             path is unavailable.
     """
     _load_external_scripts()
-    agent_spec, profile = _load_agent(agent, eval_paths.agents_dir)
+    grading = resolve_agent_grading(agent, eval_paths.grader_map)
+    agent_spec, profile = _load_agent(agent, eval_paths.agents_dir, grading)
     _refuse_invalid_values(
         agent_spec.model,
         agent_spec.effort,
@@ -97,6 +127,7 @@ def plan_run(
     fixtures = resolve_fixtures(
         agent, fixture_stems, eval_paths.expected_dir, eval_paths.fixtures_dir
     )
+    _refuse_fixtures_the_grader_cannot_use(agent, grading, fixtures)
     baseline = Arm(BASELINE_LABEL, agent_spec.model, agent_spec.effort)
     candidate = Arm(
         CANDIDATE_LABEL,
@@ -104,6 +135,15 @@ def plan_run(
         candidate_effort or baseline.effort,
     )
     _refuse_identical_arms(baseline, candidate)
+    if grading.judge is not None:
+        check_judge_tier(grading.judge, [baseline.model, candidate.model])
+    stub_agents = (
+        build_stub_agents(list_agent_names(eval_paths.agents_dir))
+        if grading.kind is GraderKind.DISPATCH_SET
+        else None
+    )
+    jail = _check_jail_for(fixtures, allow_unjailed_checks, find_check_jail)
+    answer_key_paths = find_answer_key_paths() if grading.sandbox else ()
     run_id = make_run_id(now, agent, candidate.model, candidate.effort, rng)
     owned = ExitStack()
     try:
@@ -132,11 +172,59 @@ def plan_run(
                     knowledge_dir=_relative_to_repo(eval_paths.knowledge_dir),
                 ),
                 artifact_path=artifact_path,
+                grading=grading,
+                stub_agents=stub_agents,
+                check_jail=jail,
+                answer_key_paths=answer_key_paths,
             )
         yield planned
     finally:
         with interrupts.held_signals():
             owned.close()
+
+
+def _refuse_fixtures_the_grader_cannot_use(
+    agent: str, grading: AgentGrading, fixtures: list[ResolvedFixture]
+) -> None:
+    accepted = REGISTRY_GRADERS[grading.kind]
+    mismatched = [
+        f"{fixture.stem} ({fixture.grader})"
+        for fixture in fixtures
+        if fixture.grader not in accepted
+    ]
+    if mismatched:
+        raise UsageError(
+            f"agent {agent!r} is graded {grading.kind.value} by "
+            "evals/model-effort/graders.json, but fixture "
+            f"{', '.join(mismatched)} names a different grader in its expected entry: "
+            f"use one of {', '.join(sorted(accepted))}, or fix the grader map"
+        )
+    if grading.kind is not GraderKind.TESTS_PASS:
+        return
+    untested = [fixture.stem for fixture in fixtures if not fixture.test_commands]
+    if untested:
+        raise UsageError(
+            f"agent {agent!r} is graded by tests passing, but fixture "
+            f"{', '.join(untested)} declares no testCommands in its expected entry: add them"
+        )
+
+
+def _check_jail_for(
+    fixtures: list[ResolvedFixture],
+    allow_unjailed: bool,
+    find_check_jail: Callable[[], CheckJail | None],
+) -> CheckJail | None:
+    """The jail for the fixtures' test commands; None when none run or the operator allowed it."""
+    if not any(fixture.test_commands for fixture in fixtures):
+        return None
+    jail = find_check_jail()
+    if jail is None and not allow_unjailed:
+        raise UsageError(
+            "the fixtures' test commands run code the agent wrote, and no working jail "
+            "(sandbox-exec on macOS, bwrap on Linux) was found: install bubblewrap, or "
+            "pass --allow-unjailed-checks to run them unjailed on a disposable machine"
+        )
+    return jail
 
 
 def _load_external_scripts() -> None:
@@ -200,10 +288,47 @@ def _refuse_invalid_values(
         )
 
 
-def _load_agent(agent: str, agents_dir: Path) -> tuple[AgentSpec, ToolProfile]:
+STUB_AGENT_MODEL = "haiku"
+# A stub needs no tool to answer; naming one keeps it from inheriting every tool.
+STUB_AGENT_TOOLS = ("Read",)
+STUB_AGENT_REPLY = '{"status": "pass", "issues": [], "summary": "No findings."}'
+
+
+def build_stub_agents(agent_names: list[str]) -> str:
+    """`--agents` JSON defining a stub for every agent, each replying with a fixed clean verdict.
+
+    Each stub names an explicit minimal tool list; an agent definition without
+    `tools` inherits every tool of the session.
+
+    A dispatch-graded agent's dispatches then succeed cheaply and the same way
+    every trial, so only its choice of agents varies.
+    """
+    stubs = {
+        name: {
+            "description": f"Stand-in for the {name} agent.",
+            "prompt": (
+                "Do not use any tool. Reply with exactly this JSON and nothing else: "
+                f"{STUB_AGENT_REPLY}"
+            ),
+            "model": STUB_AGENT_MODEL,
+            "tools": list(STUB_AGENT_TOOLS),
+        }
+        for name in agent_names
+    }
+    return json.dumps(stubs, sort_keys=True)
+
+
+def _load_agent(
+    agent: str, agents_dir: Path, grading: AgentGrading
+) -> tuple[AgentSpec, ToolProfile]:
     try:
         loaded = load_agent_file(agent, agents_dir)
-        profile = resolve_tool_profile(agent, loaded.frontmatter)
+        profile = resolve_tool_profile(
+            agent,
+            loaded.frontmatter,
+            sandbox=grading.sandbox,
+            dispatch=grading.kind is GraderKind.DISPATCH_SET,
+        )
         return build_agent_spec(agent, loaded), profile
     except (
         UnknownAgentError,

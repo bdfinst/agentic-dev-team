@@ -1,0 +1,31 @@
+{
+  "fixture": "adr-two-decisions-hard",
+  "description": "Repo with three ADRs and notes holding two decisions, a trivial reversible logging-helper refactor and the irreversible retirement of API v1; a correct answer writes ADR 0004 only for the v1 retirement and declines an ADR for the refactor.",
+  "applicableAgents": [
+    "adr-author"
+  ],
+  "agents": {
+    "adr-author": {
+      "grader": "rubric",
+      "task": "The project in `{fixture}/` keeps ADRs in `{fixture}/docs/adr/`. Read `{fixture}/decision-notes.md` and record ADRs for the decisions in it that warrant one, and update the ADR index. State briefly which decisions you did not record and why. If the `adr` CLI is unavailable, follow the existing numbering, file naming, and format by hand. Nobody will review this interactively, so leave the status for a human to accept. The grader cannot open files: end your answer with the full text of every file you created or changed under `{fixture}/docs/adr/`, each preceded by its path.",
+      "rubricPoints": [
+        {
+          "id": "no-adr-for-logging-refactor",
+          "requirement": "No ADR is written for the logging-helper cleanup (dict literal / sorted keys), and the answer says it does not warrant one because it is easily reversible and/or obvious from the code."
+        },
+        {
+          "id": "adr-0004-retire-v1",
+          "requirement": "Exactly one new ADR is written, numbered 0004 (`docs/adr/0004-<kebab-title>.md`, H1 `# 4. ...`), recording the retirement of API v1 on 2026-03-31 with 410 Gone responses."
+        },
+        {
+          "id": "why-and-alternative",
+          "requirement": "The v1 ADR's Context gives the reason (the duplicate v1 pricing path caused billing incidents / every pricing change made twice) and names the rejected alternative of freezing v1 and keeping it running."
+        },
+        {
+          "id": "relates-to-adr-0002",
+          "requirement": "The v1 ADR references ADR 0002 (version the public API in the URL path), and `docs/adr/README.md` gains an entry for 0004."
+        }
+      ]
+    }
+  }
+}

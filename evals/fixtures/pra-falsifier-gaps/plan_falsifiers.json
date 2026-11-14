@@ -1,0 +1,37 @@
+{
+  "scenarios": [
+    {
+      "slice": "1",
+      "scenario": "Last available use is accepted",
+      "falsifier": "the discount amount is computed from the pre-tax total"
+    },
+    {
+      "slice": "1",
+      "scenario": "Exhausted coupon is rejected",
+      "falsifier": null
+    },
+    {
+      "slice": "1",
+      "scenario": "Uncapped coupon",
+      "falsifier": "the coupon lookup returns any non-null result"
+    },
+    {
+      "slice": "2",
+      "scenario": "Second use by the same customer is rejected",
+      "falsifier": "the first redemption is not recorded at all"
+    }
+  ],
+  "missing": [
+    {
+      "slice": "1",
+      "scenario": "Exhausted coupon is rejected"
+    }
+  ],
+  "scanned_slices": [
+    "1",
+    "2"
+  ],
+  "skipped_slices": [],
+  "skipped_with_scenarios": [],
+  "error": null
+}
