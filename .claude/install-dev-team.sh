@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# SessionStart hook (registered in .claude/settings.json): make the dev-team
+# SessionStart hook (registered in .claude/settings.json with "matcher": "startup",
+# so it never re-runs on resume, clear or compaction): make the dev-team
 # plugin available in CLOUD sessions only.
 #
 # FALLBACK PATH, NOT THE PRIMARY ONE. This hook runs AFTER Claude has booted and

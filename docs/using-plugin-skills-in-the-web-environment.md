@@ -162,7 +162,7 @@ script. For same-session availability, use the Setup script (Option A).
 
 To adapt the hook for your own plugin, copy `.claude/install-dev-team.sh` and
 `.claude/settings.json`. Rename the env-var gate and the
-`marketplace add`/`install` targets. Keep the no-CLI fallback message.
+`marketplace add`/`install` targets. Keep the no-CLI fallback message. Keep the hook's `"matcher": "startup"` too: without it, the hook also re-runs on resume, clear and every compaction, where an install check is never needed.
 
 ---
 

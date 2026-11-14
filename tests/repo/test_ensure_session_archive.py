@@ -214,6 +214,8 @@ def test_hook_is_registered_in_settings_json() -> None:
     practice -- it never runs. Pin the registration alongside its siblings."""
     settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text())
     commands = [
-        h["command"] for h in settings["hooks"]["SessionStart"][0]["hooks"]
+        h["command"]
+        for group in settings["hooks"]["SessionStart"]
+        for h in group["hooks"]
     ]
     assert any("ensure_session_archive.py" in c for c in commands)
