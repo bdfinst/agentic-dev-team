@@ -72,6 +72,20 @@ SECOND_FLAG_FILE_CASES = [
         id="review_context_pack-name-status-from",
     ),
     pytest.param(
+        "select_lenses.py",
+        "--added-from",
+        ("--added-from", "{file}"),
+        "a.py\n",
+        id="select_lenses-added-from",
+    ),
+    pytest.param(
+        "review_round_log.py",
+        "--fix-diff",
+        ("--fix-diff", "{file}"),
+        "--- a/x\n+++ b/x\n",
+        id="review_round_log-fix-diff",
+    ),
+    pytest.param(
         "checkpoint_abort.py",
         "--from",
         ("--mode", "outcome", "--from", "{file}"),
@@ -96,7 +110,13 @@ def _run(
     text_in: str | None = None,
     leading_argv: tuple[str, ...] = (),
 ) -> subprocess.CompletedProcess:
-    argv = [sys.executable, str(PLUGIN_DIR / row.script), *leading_argv, *row.argv]
+    # A subcommand (first word not a flag) stays first; an input flag goes after it.
+    lead_at = 1 if row.argv and not row.argv[0].startswith("-") else 0
+    row_argv = list(row.argv)
+    row_argv[lead_at:lead_at] = leading_argv
+    if not leading_argv:
+        row_argv += row.stdin_argv
+    argv = [sys.executable, str(PLUGIN_DIR / row.script), *row_argv]
     try:
         return subprocess.run(
             argv,
@@ -124,9 +144,8 @@ def _assert_matches(result: subprocess.CompletedProcess, golden: Golden) -> None
         assert {key: actual.get(key) for key in golden.json_keys} == json.loads(
             golden.stdout
         )
-    if golden.stderr_fragment is None:
-        assert REFUSAL not in result.stderr
-    else:
+    assert REFUSAL not in result.stderr
+    if golden.stderr_fragment is not None:
         assert golden.stderr_fragment in result.stderr
 
 
@@ -258,3 +277,29 @@ def test_orchestrator_falls_back_and_says_so_on_an_endless_socket_stdin(tmp_path
     assert len(fallback) == 1
     assert "default request" in fallback[0]
     assert ORCHESTRATOR_RUNS_STDERR in result.stderr
+
+
+@NO_SOCKETS_ON_WINDOWS
+@pytest.mark.parametrize(
+    "row",
+    [pytest.param(r, id=_name(r)) for r in FLAG_ROWS if r.stdin_argv],
+)
+def test_dash_only_script_without_its_flag_never_reads_an_endless_socket_stdin(
+    row, tmp_path
+):
+    argv = [sys.executable, str(PLUGIN_DIR / row.script), *row.argv]
+    with endless_socket() as reader:
+        try:
+            result = subprocess.run(
+                argv,
+                stdin=reader,
+                capture_output=True,
+                text=True,
+                cwd=tmp_path,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            pytest.fail(f"{row.script}: read stdin without its flag")
+
+    assert REFUSAL not in result.stderr

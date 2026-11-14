@@ -71,6 +71,8 @@ _HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+
 try:
     import xunit_v3_operator_gate as _operator_gate  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
@@ -366,7 +368,7 @@ def _load_v3_findings(source: str | None) -> tuple:
     """
     if not source:
         return ()
-    raw = sys.stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+    raw = read_stdin_or_exit("--v3-findings-json") if source == "-" else Path(source).read_text(encoding="utf-8")
     data = json.loads(raw)
     if isinstance(data, dict):
         findings = data.get("findings")

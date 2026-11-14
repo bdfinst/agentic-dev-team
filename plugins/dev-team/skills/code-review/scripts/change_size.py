@@ -50,7 +50,14 @@ import argparse
 import json
 import sys
 from collections.abc import Iterable
+from pathlib import Path
 from typing import NamedTuple
+
+_HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
+
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 # Thresholds calibrated against two real commits cited in spec #1345:
 # issue #1331's fix (2 files, ~1 added line — should qualify) and issue
@@ -186,7 +193,7 @@ def main(argv=None) -> int:
     lines = list(args.numstat)
     if args.numstat_from:
         if args.numstat_from == "-":
-            text = sys.stdin.read()
+            text = read_stdin_or_exit("--numstat-from")
         else:
             with open(args.numstat_from) as handle:
                 text = handle.read()

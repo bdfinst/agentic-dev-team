@@ -1000,6 +1000,49 @@ def check_no_live_ceiling_refs(changed_files=None) -> list[dict]:
     return findings
 
 
+_STDIN_GUARD_IMPORT_RE = re.compile(
+    r"^\s*(from\s+stdin_guard\s+import|import\s+stdin_guard)\b", re.MULTILINE
+)
+_BARE_STDIN_READ_RE = re.compile(r"^[^#\n]*\bsys\.stdin\.read\(\)", re.MULTILINE)
+
+
+def check_no_bare_stdin_read_in_shipped_scripts(changed_files=None) -> list[dict]:
+    """A shipped script outside `hooks/` must not call a bare
+    `sys.stdin.read()` unless it also uses `stdin_guard`.
+
+    A socket or terminal stdin never reaches EOF, so a bare read blocks until
+    the tool times out. `hooks/` is exempt: the harness always pipes a hook's
+    stdin. Corpus-wide by design: `changed_files` is ignored.
+    """
+    findings = []
+    self_rel = _repo_relative(Path(__file__).resolve())
+    for path in sorted(_PLUGIN_ROOT.rglob("*.py")):
+        rel = _repo_relative(path)
+        parts = path.relative_to(_PLUGIN_ROOT).parts
+        if (
+            parts[0] in ("hooks", "tests")
+            or "__pycache__" in parts
+            or path.name.startswith("test_")
+            or rel == self_rel
+        ):
+            continue
+        text = _read_text(path)
+        if _BARE_STDIN_READ_RE.search(text) and not _STDIN_GUARD_IMPORT_RE.search(text):
+            findings.append(
+                {
+                    "invariant": "no-bare-stdin-read-in-shipped-scripts",
+                    "file": rel,
+                    "message": (
+                        f"{rel} calls sys.stdin.read() without stdin_guard. A "
+                        "socket or terminal stdin never reaches EOF. Read it "
+                        "through hooks/lib/stdin_guard.read_stdin_or_exit(flag), "
+                        "naming the flag that avoids stdin."
+                    ),
+                }
+            )
+    return findings
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -1013,6 +1056,7 @@ CHECKS = [
     check_normative_content_single_sourced,
     check_ledger_filename_single_sourced,
     check_no_live_ceiling_refs,
+    check_no_bare_stdin_read_in_shipped_scripts,
 ]
 
 

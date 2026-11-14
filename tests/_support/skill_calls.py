@@ -67,6 +67,10 @@ class InputFlag:
     mode_option: str | None = None
     modes: tuple[str, ...] = ()
     default_mode: str | None = None
+    #: The script reads stdin only when the flag's value is ``-``; a call that
+    #: omits the flag cannot hang, and one that passes ``-`` needs a pipe or
+    #: redirect.
+    stdin_only_on_dash: bool = False
 
 
 class Command(NamedTuple):
@@ -273,10 +277,15 @@ def judge_calls(
             index == 0 and command.preceding_line.rstrip().endswith("|")
         )
         redirected = any(token in _REDIRECT_OPS for token in segment)
+        rules = rules_by_script[name]
         flagged = any(
             _applies(rule, segment) and has_file_valued_flag(segment, rule.flag)
-            for rule in rules_by_script[name]
+            for rule in rules
         )
+        if all(rule.stdin_only_on_dash for rule in rules):
+            flagged = not any(
+                option_value(segment, rule.flag) == "-" for rule in rules
+            )
         call = CallSite(command.file, command.line, name, command.command_text)
         judged.append((call, piped or redirected or flagged))
     return judged

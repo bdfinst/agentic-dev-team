@@ -55,7 +55,14 @@ import argparse
 import json
 import re
 import sys
+from pathlib import Path
 from typing import Any
+
+_HOOKS_LIB_DIR = Path(__file__).resolve().parent.parent / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
+
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 #: Step 2c's issue-number validation regex — see `is_valid_issue_number`.
 _ISSUE_NUMBER_RE = re.compile(r"^[0-9]+$")
@@ -432,9 +439,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _read_file_or_stdin(path: str) -> str:
+def _read_file_or_stdin(path: str, flag: str) -> str:
     if path == "-":
-        return sys.stdin.read()
+        return read_stdin_or_exit(flag)
     with open(path, encoding="utf-8") as fh:
         return fh.read()
 
@@ -452,7 +459,7 @@ def _read_json_file(path: str) -> Any:
 
 
 def _run_validate_proposals(args: argparse.Namespace) -> dict[str, Any]:
-    raw = _read_file_or_stdin(args.agent_response_file)
+    raw = _read_file_or_stdin(args.agent_response_file, "--agent-response-file")
     proposals = _load_agent_response(raw)
     ungrouped = _load_ungrouped(_read_json_file(args.ungrouped_file))
     return validate_proposals(proposals, ungrouped, args.max_batch_size)
