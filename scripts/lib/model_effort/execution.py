@@ -184,7 +184,7 @@ class _TrialExecutor:
             arm=slot.arm,
             system_prompt=self.plan.system_prompt,
             profile=self.plan.profile,
-            eval_paths=self.plan.snapshot.eval_paths,
+            snapshot_paths=self.plan.snapshot.paths,
             claude_bin=self.settings.claude_bin,
             task=slot.fixture.task,
             stub_agents=self.plan.stub_agents,
@@ -221,7 +221,7 @@ class _TrialExecutor:
         return tuple(
             dict.fromkeys(
                 (
-                    self.plan.snapshot.eval_paths.expected_dir,
+                    self.plan.snapshot.paths.expected_dir,
                     paths.EXPECTED_DIR,
                     *self.plan.answer_key_paths,
                 )
@@ -284,7 +284,7 @@ class _KindGrader:
             plan.agent,
             self._fixture.stem,
             actual,
-            eval_paths=plan.snapshot.eval_paths,
+            plan.snapshot.paths.expected_dir,
         )
 
     def _judged(self) -> rubric_judge.Judgement:

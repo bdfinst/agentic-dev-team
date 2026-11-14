@@ -419,14 +419,11 @@ def _new_real_dir(path: Path) -> Path:
 def _with_own_knowledge(
     config: invocation.TrialConfig, plugin_root: Path
 ) -> invocation.TrialConfig:
-    knowledge_dir = plugin_root / config.eval_paths.knowledge_dir.name
-    shutil.copytree(config.eval_paths.knowledge_dir, knowledge_dir, symlinks=True)
-    return dataclasses.replace(
-        config,
-        eval_paths=dataclasses.replace(
-            config.eval_paths, plugin_root=plugin_root, knowledge_dir=knowledge_dir
-        ),
+    own = dataclasses.replace(config.snapshot_paths, plugin_root=plugin_root)
+    shutil.copytree(
+        config.snapshot_paths.knowledge_dir, own.knowledge_dir, symlinks=True
     )
+    return dataclasses.replace(config, snapshot_paths=own)
 
 
 SANDBOX_GIT_IDENTITY = ("-c", "user.name=model-effort-ab", "-c", "user.email=ab@example.com")

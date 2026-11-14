@@ -25,6 +25,7 @@ from _model_effort_support import (
     _flag_value,
     _init_event,
     _result_event,
+    _snapshot_paths,
     _stream,
     _write_agent,
 )
@@ -180,7 +181,6 @@ def gworld(tmp_path: Path) -> GraderWorld:
             expected_dir=expected,
             fixtures_dir=fixtures,
             plugin_root=knowledge.parent,
-            knowledge_dir=knowledge,
             grader_map=graders / "graders.json",
         ),
         pricing_table=PRICING,
@@ -826,7 +826,7 @@ class TestTestsPassRun:
                 arm=Arm("candidate", "haiku", "low"),
                 system_prompt="p",
                 profile=tools.ToolProfile(("Read",), (), ()),
-                eval_paths=_eval_paths(),
+                snapshot_paths=_snapshot_paths(),
                 claude_bin=str(stub.path),
             ),
             test_commands=("{python} marker.py",),
@@ -1078,7 +1078,7 @@ class TestBashSandbox:
                 arm=Arm("candidate", "haiku", "low"),
                 system_prompt="p",
                 profile=tools.ToolProfile(("Read", "Bash"), (), ()),
-                eval_paths=_eval_paths(),
+                snapshot_paths=_snapshot_paths(),
             ),
             **overrides,
         )
@@ -1296,7 +1296,7 @@ class TestWorkDiff:
             arm=Arm("candidate", "haiku", "low"),
             system_prompt="p",
             profile=tools.ToolProfile(("Read",), (), ()),
-            eval_paths=_eval_paths(),
+            snapshot_paths=_snapshot_paths(),
             claude_bin=str(stub.path),
         )
 

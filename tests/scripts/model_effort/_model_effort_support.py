@@ -305,6 +305,19 @@ def _eval_paths(**overrides: Path) -> paths.EvalPaths:
     return dataclasses.replace(paths.EvalPaths.default(), **overrides)
 
 
+def _snapshot_paths(**overrides: Path) -> paths.SnapshotPaths:
+    """The shipped expected, fixtures and plugin directories, with the named ones redirected."""
+    shipped = paths.EvalPaths.default()
+    return dataclasses.replace(
+        paths.SnapshotPaths(
+            expected_dir=shipped.expected_dir,
+            fixtures_dir=shipped.fixtures_dir,
+            plugin_root=shipped.plugin_root,
+        ),
+        **overrides,
+    )
+
+
 def _config(
     stub: StubClaude | None = None,
     *,
@@ -313,7 +326,7 @@ def _config(
     enabled_tools: tuple[str, ...] = ENABLED,
     system_prompt: str = "You are a reviewer.",
     claude_bin: str | None = None,
-    eval_paths: paths.EvalPaths | None = None,
+    snapshot_paths: paths.SnapshotPaths | None = None,
 ) -> invocation.TrialConfig:
     profile = tools.ToolProfile(
         enabled_tools=tuple(enabled_tools), withheld_tools=(), refused_tools=()
@@ -322,7 +335,7 @@ def _config(
         arm=Arm(label=CANDIDATE_LABEL, model=model, effort=effort),
         system_prompt=system_prompt,
         profile=profile,
-        eval_paths=eval_paths or paths.EvalPaths.default(),
+        snapshot_paths=snapshot_paths or _snapshot_paths(),
         claude_bin=claude_bin if claude_bin is not None else str(stub.path),
     )
 

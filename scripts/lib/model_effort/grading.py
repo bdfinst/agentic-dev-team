@@ -14,7 +14,6 @@ from pathlib import Path
 
 from . import external
 from .errors import UsageError
-from .paths import EvalPaths
 
 TEMP_DIR_PREFIX = "model-effort-grade-"
 # What the grader raises on agent JSON of an unexpected shape. Any other error is a
@@ -69,9 +68,11 @@ def grade_trial(
     agent: str,
     stem: str,
     actual: dict,
-    eval_paths: EvalPaths,
+    expected_dir: Path,
 ) -> tuple[bool, list[str]]:
     """Grade the recorded output `actual` for `agent` on fixture `stem`; return (passed, failure messages).
+
+    `expected_dir` holds the fixture's expected entry, `<stem>.json`.
 
     Only the one expected file is copied into the grading dir, so the grader
     never sees other fixtures' entries. Agent JSON the grader cannot handle fails
@@ -81,7 +82,7 @@ def grade_trial(
         MalformedExpectedEntryError: the grader raised, and raises on a well-formed
             answer too, so the expected entry is at fault, not the agent.
     """
-    with _staged_entry(eval_paths.expected_dir, stem) as grading_dir:
+    with _staged_entry(expected_dir, stem) as grading_dir:
         try:
             results = external.grade_against_expected(grading_dir, stem, agent, actual)
         except AGENT_ANSWER_ERRORS as error:
@@ -89,7 +90,7 @@ def grade_trial(
         else:
             answer_error = None
     if answer_error is not None:
-        fault = _entry_fault(agent, stem, eval_paths.expected_dir)
+        fault = _entry_fault(agent, stem, expected_dir)
         if fault is not None:
             raise MalformedExpectedEntryError(
                 f"{stem}.json: the {agent!r} entry cannot be graded ({fault})"

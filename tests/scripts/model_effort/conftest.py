@@ -109,7 +109,6 @@ def world(tmp_path: Path, monkeypatch) -> World:
             expected_dir=expected,
             fixtures_dir=fixtures,
             plugin_root=knowledge.parent,
-            knowledge_dir=knowledge,
         ),
         pricing_table=TEST_PRICING,
     )

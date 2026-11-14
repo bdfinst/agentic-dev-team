@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import ClassVar
 
 import pytest
-from _model_effort_support import GRADED_AGENT, GRADED_STEM, PASS_VERDICT, _eval_paths
+from _model_effort_support import GRADED_AGENT, GRADED_STEM, PASS_VERDICT
 from model_effort import external, grading, paths
 from model_effort.errors import UsageError
 
@@ -18,7 +18,7 @@ class TestGradeTrial:
             GRADED_AGENT,
             GRADED_STEM,
             PASS_VERDICT,
-            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+            expected_dir=graded_expected_dir,
         )
 
         assert (passed, messages) == (True, [])
@@ -32,7 +32,7 @@ class TestGradeTrial:
             GRADED_AGENT,
             GRADED_STEM,
             wrong,
-            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+            expected_dir=graded_expected_dir,
         )
 
         assert passed is False
@@ -46,7 +46,7 @@ class TestGradeTrial:
             GRADED_AGENT,
             GRADED_STEM,
             PASS_VERDICT,
-            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+            expected_dir=graded_expected_dir,
         )
 
         assert passed is True
@@ -58,7 +58,7 @@ class TestGradeTrial:
             "no-such-agent",
             GRADED_STEM,
             {},
-            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+            expected_dir=graded_expected_dir,
         )
 
         assert passed is False
@@ -86,7 +86,7 @@ class TestGradeTrial:
             GRADED_AGENT,
             GRADED_STEM,
             answer,
-            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+            expected_dir=graded_expected_dir,
         )
 
         assert passed is False
@@ -105,7 +105,7 @@ class TestGradeTrial:
                 GRADED_AGENT,
                 GRADED_STEM,
                 {},
-                eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+                expected_dir=graded_expected_dir,
             )
 
     @pytest.mark.parametrize("error", [OSError, ValueError], ids=lambda e: e.__name__)
@@ -122,7 +122,7 @@ class TestGradeTrial:
                 GRADED_AGENT,
                 GRADED_STEM,
                 PASS_VERDICT,
-                eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+                expected_dir=graded_expected_dir,
             )
 
     def test_grading_leaves_no_temp_dir_behind(
@@ -136,7 +136,7 @@ class TestGradeTrial:
             GRADED_AGENT,
             GRADED_STEM,
             PASS_VERDICT,
-            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+            expected_dir=graded_expected_dir,
         )
 
         assert list(scratch.iterdir()) == []
@@ -158,7 +158,7 @@ class TestUpstreamGraderDrift:
                 GRADED_AGENT,
                 GRADED_STEM,
                 PASS_VERDICT,
-                eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+                expected_dir=graded_expected_dir,
             )
 
     @pytest.mark.parametrize(
@@ -178,7 +178,7 @@ class TestUpstreamGraderDrift:
                 GRADED_AGENT,
                 GRADED_STEM,
                 PASS_VERDICT,
-                eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+                expected_dir=graded_expected_dir,
             )
 
 
@@ -188,7 +188,7 @@ class TestShippedExpectedEntrySmoke:
             "a11y-review",
             "a11y-clean-form",
             PASS_VERDICT,
-            paths.EvalPaths.default(),
+            paths.EXPECTED_DIR,
         )
 
         assert (passed, messages) == (True, [])
@@ -239,7 +239,7 @@ class TestMalformedExpectedEntry:
                 GRADED_AGENT,
                 GRADED_STEM,
                 PASS_VERDICT,
-                eval_paths=_eval_paths(expected_dir=expected_dir),
+                expected_dir=expected_dir,
             )
 
     def test_an_answer_the_grader_cannot_read_still_fails_the_trial(
@@ -253,7 +253,7 @@ class TestMalformedExpectedEntry:
             GRADED_AGENT,
             GRADED_STEM,
             {"status": "pass", "issues": 7},
-            eval_paths=_eval_paths(expected_dir=expected_dir),
+            expected_dir=expected_dir,
         )
 
         assert passed is False

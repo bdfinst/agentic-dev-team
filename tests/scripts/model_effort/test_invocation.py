@@ -7,9 +7,9 @@ from pathlib import Path
 from _model_effort_support import (
     StubClaude,
     _config,
-    _eval_paths,
     _flag_value,
     _make_file_fixture,
+    _snapshot_paths,
 )
 from model_effort import invocation, paths, runner
 
@@ -80,11 +80,13 @@ class TestTrialArgv:
     def test_add_dir_follows_a_redirected_knowledge_dir(
         self, stub_dir, fixture_root, tmp_path
     ):
-        knowledge = tmp_path / "other-knowledge"
-        knowledge.mkdir()
+        knowledge = tmp_path / "other-plugin" / "knowledge"
+        knowledge.mkdir(parents=True)
 
         call = self._run(
-            stub_dir, fixture_root, eval_paths=_eval_paths(knowledge_dir=knowledge)
+            stub_dir,
+            fixture_root,
+            snapshot_paths=_snapshot_paths(plugin_root=knowledge.parent),
         )
 
         assert _flag_value(call["argv"], "--add-dir") == str(knowledge)
@@ -104,7 +106,7 @@ class TestTrialArgv:
             stub_dir,
             fixture_root,
             system_prompt="Read ${CLAUDE_PLUGIN_ROOT}/knowledge/x.md then ${CLAUDE_PLUGIN_ROOT}/y.md",
-            eval_paths=_eval_paths(plugin_root=plugin_root),
+            snapshot_paths=_snapshot_paths(plugin_root=plugin_root),
         )
 
         assert _flag_value(call["argv"], "--system-prompt") == (

@@ -18,7 +18,6 @@ from _model_effort_support import (
     TRUNCATED_OUTER_OBJECT,
     StubClaude,
     _config,
-    _eval_paths,
     _expected_session_config,
     _fixture_text,
     _init_event,
@@ -57,7 +56,7 @@ def real_grader(graded_expected_dir):
             GRADED_AGENT,
             GRADED_STEM,
             agent_json,
-            eval_paths=_eval_paths(expected_dir=graded_expected_dir),
+            expected_dir=graded_expected_dir,
         )
 
     return grade

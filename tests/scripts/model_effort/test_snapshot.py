@@ -57,7 +57,7 @@ class TestRunInputsAreFrozenAtPlanTime:
         seen: list[tuple[str, str]] = []
 
         def run_trial(fixture, config, timeout):
-            note = config.eval_paths.knowledge_dir / "note.md"
+            note = config.snapshot_paths.knowledge_dir / "note.md"
             seen.append((fixture.read_text(encoding="utf-8"), note.read_text("utf-8")))
             if len(seen) == 1:
                 self._edit_the_sources(world)
@@ -85,13 +85,13 @@ class TestRunInputsAreFrozenAtPlanTime:
         seen = []
 
         def run_trial(fixture, config, timeout):
-            knowledge = config.eval_paths.knowledge_dir
+            knowledge = config.snapshot_paths.knowledge_dir
             seen.append(
                 (
                     fixture.parent,
                     knowledge,
                     sorted(path.name for path in knowledge.iterdir()),
-                    config.eval_paths.expected_dir,
+                    config.snapshot_paths.expected_dir,
                 )
             )
             return canned.run_trial(fixture, config, timeout)
@@ -131,15 +131,15 @@ class TestRunInputsAreFrozenAtPlanTime:
             claude_bin="unused",
         )
         # The live entry says a pass is right; only the snapshot's copy says fail.
-        frozen_expected = scout_plan.snapshot.eval_paths.expected_dir
+        frozen_expected = scout_plan.snapshot.paths.expected_dir
         _write_expected(frozen_expected, "clean-form", "scout", "fail")
 
         run = execution.run_trials(
             scout_plan, settings, _run_estimate(), run_trial=canned.run_trial
         )
 
-        assert {config.eval_paths for _, config, _ in calls} == {
-            scout_plan.snapshot.eval_paths
+        assert {config.snapshot_paths for _, config, _ in calls} == {
+            scout_plan.snapshot.paths
         }
         graded = [
             result.outcome
@@ -329,7 +329,7 @@ class TestSnapshotPathsAreScrubbed:
             return process_record.TrialProcessRecord(
                 exit_code=1,
                 stdout="",
-                stderr=f"cannot read {config.eval_paths.knowledge_dir}/missing.md",
+                stderr=f"cannot read {config.snapshot_paths.knowledge_dir}/missing.md",
                 timed_out=False,
             )
 
@@ -346,7 +346,7 @@ class TestSnapshotPathsAreScrubbed:
 class TestTakeSnapshot:
     def _source(self, tmp_path: Path) -> tuple[paths.EvalPaths, list]:
         fixtures_dir, expected_dir = tmp_path / "fx", tmp_path / "ex"
-        knowledge = tmp_path / "kn"
+        knowledge = tmp_path / "plugin" / "knowledge"
         for directory in (fixtures_dir, expected_dir, knowledge / "sub"):
             directory.mkdir(parents=True)
         (knowledge / "sub" / "deep.md").write_text("deep", encoding="utf-8")
@@ -369,8 +369,7 @@ class TestTakeSnapshot:
             agents_dir=tmp_path / "agents-elsewhere",
             expected_dir=expected_dir,
             fixtures_dir=fixtures_dir,
-            plugin_root=tmp_path / "plugin-elsewhere",
-            knowledge_dir=knowledge,
+            plugin_root=knowledge.parent,
         )
         return source, fixtures
 
@@ -385,10 +384,10 @@ class TestTakeSnapshot:
                 sorted(_snapshot(fixture.path).values()) for fixture in taken.fixtures
             ]
             expected_names = sorted(
-                path.name for path in taken.eval_paths.expected_dir.iterdir()
+                path.name for path in taken.paths.expected_dir.iterdir()
             )
             knowledge_contents = list(
-                _snapshot(taken.eval_paths.knowledge_dir).values()
+                _snapshot(taken.paths.knowledge_dir).values()
             )
 
         assert fixture_names == ["a.html", "service"]
@@ -408,16 +407,16 @@ class TestTakeSnapshot:
             root = taken.root
             answer_root = taken.answer_root
             inside = [
-                taken.eval_paths.fixtures_dir,
-                taken.eval_paths.plugin_root,
-                taken.eval_paths.knowledge_dir,
+                taken.paths.fixtures_dir,
+                taken.paths.plugin_root,
+                taken.paths.knowledge_dir,
                 *(fixture.path for fixture in taken.fixtures),
             ]
             assert all(root in directory.parents for directory in inside)
-            assert taken.eval_paths.expected_dir.parent == answer_root
+            assert taken.paths.expected_dir.parent == answer_root
             assert root not in answer_root.parents and answer_root not in root.parents
-            assert taken.eval_paths.knowledge_dir.parent == taken.eval_paths.plugin_root
-            assert taken.eval_paths.agents_dir == source.agents_dir
+            assert taken.paths.knowledge_dir.parent == taken.paths.plugin_root
+            assert not hasattr(taken.paths, "agents_dir")
             assert [fixture.stem for fixture in taken.fixtures] == ["a", "service"]
 
         assert not root.exists()
@@ -436,7 +435,7 @@ class TestTakeSnapshot:
 
         with snapshot.take_snapshot(source, fixtures) as taken:
             copied_links = [
-                taken.eval_paths.knowledge_dir / "link.md",
+                taken.paths.knowledge_dir / "link.md",
                 taken.fixtures[1].path / "link.py",
             ]
             kept = [(link.is_symlink(), os.readlink(link)) for link in copied_links]
