@@ -74,7 +74,7 @@ _HOOKS_LIB_DIR = _HERE.parent / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
-from instrument_log import append_row  # type: ignore[import-not-found]
+from instrument_log import append_row, env_session_id  # type: ignore[import-not-found]
 
 # No `except ImportError` fallback (matches `select_lenses.py`'s own rule,
 # #1968): `hooks/lib/` ships inside this same plugin, always present
@@ -256,6 +256,7 @@ def _log_skips(lens_files: dict[str, list[str]], result: dict, root: Path) -> No
             "fully_skipped_lenses": result["fullySkippedLenses"],
         },
         cwd=root,
+        session_id=env_session_id(),
     )
 
 
