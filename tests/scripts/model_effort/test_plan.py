@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import AbstractContextManager
 
 import pytest
@@ -177,3 +178,61 @@ class TestPlanLoadsTheScriptsTrialsUse:
 
         assert list(private_tmp.iterdir()) == []
         assert world.artifacts == []
+
+
+class TestPlanChecksExpectedEntries:
+    def test_an_entry_the_grader_cannot_use_is_refused_before_anything_is_copied(
+        self, world, private_tmp
+    ):
+        entry = {
+            "fixture": "clean-form",
+            "applicableAgents": ["scout"],
+            "agents": {"scout": {"expectedStatus": "pass", "issueCount": 0}},
+        }
+        (world.expected_dir / "clean-form.json").write_text(
+            json.dumps(entry), encoding="utf-8"
+        )
+
+        with (
+            pytest.raises(UsageError, match=r"clean-form\.json.*'scout'"),
+            plan.plan_run(
+                "scout",
+                candidate_model="haiku",
+                candidate_effort=None,
+                fixture_stems=None,
+                runs_dir=world.runs_dir,
+                now=NOW,
+                rng=FixedRng(),
+                git_sha=None,
+                eval_paths=world.deps.eval_paths,
+            ),
+        ):
+            pass
+
+        assert list(private_tmp.iterdir()) == []
+        assert world.artifacts == []
+
+    def test_a_grader_whose_return_shape_changed_is_refused_at_plan_time(
+        self, world, monkeypatch, private_tmp
+    ):
+        monkeypatch.setattr(
+            external.eval_grade(), "run_grading", lambda **_kwargs: "drifted"
+        )
+
+        with (
+            pytest.raises(UsageError, match="run_grading no longer returns"),
+            plan.plan_run(
+                "scout",
+                candidate_model="haiku",
+                candidate_effort=None,
+                fixture_stems=None,
+                runs_dir=world.runs_dir,
+                now=NOW,
+                rng=FixedRng(),
+                git_sha=None,
+                eval_paths=world.deps.eval_paths,
+            ),
+        ):
+            pass
+
+        assert list(private_tmp.iterdir()) == []

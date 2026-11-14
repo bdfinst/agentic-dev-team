@@ -33,6 +33,7 @@ from .grader_config import (
     GraderKind,
     resolve_agent_grading,
 )
+from .grading import check_expected_entries
 from .judge_tier import check_judge_tier
 from .paths import EvalPaths
 from .run_id import make_run_id
@@ -117,7 +118,8 @@ def plan_run(
             the agent is unknown, write-capable or has unusable
             frontmatter (a missing or invalid `model:` or `effort:` included); a
             candidate value is invalid or leaves the candidate identical to the
-            baseline; fixtures cannot be resolved or copied; or the artifact
+            baseline; fixtures cannot be resolved or copied; an expected entry
+            makes the grader raise on a well-formed answer; or the artifact
             path is unavailable.
     """
     _load_external_scripts()
@@ -139,6 +141,7 @@ def plan_run(
         agent, fixture_stems, eval_paths.expected_dir, eval_paths.fixtures_dir
     )
     _refuse_fixtures_the_grader_cannot_use(agent, grading, fixtures)
+    _check_expected_entries(agent, fixtures, eval_paths)
     arms = _arms_for(agent, agent_spec, candidate_model, candidate_effort, stress_axis)
     named = arms[0] if stress_axis is not None else arms[-1]
     if grading.judge is not None:
@@ -239,6 +242,20 @@ def _refuse_fixtures_the_grader_cannot_use(
             f"agent {agent!r} is graded by tests passing, but fixture "
             f"{', '.join(untested)} declares no testCommands in its expected entry: add them"
         )
+
+
+def _check_expected_entries(
+    agent: str, fixtures: list[ResolvedFixture], eval_paths: EvalPaths
+) -> None:
+    try:
+        check_expected_entries(
+            agent, [fixture.stem for fixture in fixtures], eval_paths.expected_dir
+        )
+    except (ImportError, OSError) as error:
+        raise UsageError(
+            f"cannot check the fixtures' expected entries with the grader: {error}. "
+            "Restore the grader or the entries, or update the harness to match"
+        ) from error
 
 
 def _check_jail_for(

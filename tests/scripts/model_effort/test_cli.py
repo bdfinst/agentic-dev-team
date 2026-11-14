@@ -52,7 +52,7 @@ from _model_effort_support import (
     assert_cut_at_limit,
     assert_nothing_ran,
 )
-from model_effort import external, grading, paths, runner, trial_count
+from model_effort import external, grading, paths, plan, runner, trial_count
 from model_effort.arm import BASELINE_LABEL, CANDIDATE_LABEL
 from model_effort.grader_config import GraderKind
 
@@ -899,6 +899,7 @@ class TestUnexpectedTrialError:
         def failing_copy(*_args, **_kwargs):
             raise OSError("no space left")
 
+        monkeypatch.setattr(plan, "check_expected_entries", lambda *_args: None)
         monkeypatch.setattr(grading, "shutil", SimpleNamespace(copy2=failing_copy))
 
         code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "2")
@@ -912,6 +913,7 @@ class TestUnexpectedTrialError:
     def test_grader_whose_return_shape_changed_is_a_harness_error_not_a_graded_fail(
         self, world, capsys, monkeypatch
     ):
+        monkeypatch.setattr(plan, "check_expected_entries", lambda *_args: None)
         monkeypatch.setattr(
             external.eval_grade(), "run_grading", lambda **_kwargs: "drifted"
         )

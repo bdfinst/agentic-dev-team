@@ -731,7 +731,11 @@ deterministic grader in `scripts/eval_graders/`, selected by the expected entry'
 An expected entry's `task` replaces the default review prompt; `{fixture}` in it
 is the staged fixture's name. The harness refuses a fixture whose expected entry
 names a grader (default `verdict`) that the agent's `graders.json` kind does not
-accept. It refuses a rubric run whose judge is
+accept. It also refuses an expected entry the grader raises on when given a
+well-formed answer (for example, an `issueCount` that is a number, not a
+`{min, max}` window), before anything is paid for. If a grader still raises
+during a trial, the run stops with a harness error when the entry is at fault;
+the trial is `graded_fail` only when the agent's answer caused it. It refuses a rubric run whose judge is
 not at least one tier above both arms (capped at opus). Rubric-judged agents
 default to 10 trials, and rubric evidence can justify a tier change only with 10
 graded trials per arm (`trial_count.can_justify_tier_change`); the artifact's
