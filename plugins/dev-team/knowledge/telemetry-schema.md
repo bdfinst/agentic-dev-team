@@ -688,7 +688,7 @@ make post-merge benefit numbers for epics #2164 and #2172 exist. Each row is
 written fail-open by `hooks/lib/instrument_log.py` (never affects stdout, exit
 code, or control flow) and carries `ts`, `plugin_version`, and, when the
 emitter has one, `session_id`. Hook emitters read `session_id` from the hook
-payload. The CLI emitters (`verdict_scope.py`, `checkpoint_abort.py`) read it
+payload. The CLI emitters (`verdict_scope.py`, `checkpoint_abort.py`, `render_tiered_findings.py`) read it
 from `CLAUDE_CODE_SESSION_ID`, then `CLAUDE_SESSION_ID`, and omit the field when
 neither is set. They are **separate from `boundary-events.jsonl`**
 on purpose: a `record` row there is read by the review-gate corroboration path,
