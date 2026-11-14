@@ -112,7 +112,6 @@ def store_with_failing_replace(monkeypatch) -> None:
     monkeypatch.setattr(artifact_store.os, "replace", _failing_replace)
 
 
-CLI_FAILURE = {"exit_code": 1, "stdout": "", "stderr": "boom: auth failed"}
 CLI_FAILURE_RECORD = process_record.TrialProcessRecord(
     exit_code=1, stdout="", stderr="boom: auth failed", timed_out=False
 )

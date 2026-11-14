@@ -235,13 +235,17 @@ class TestInterruptsAreHeldForTheRun:
         guard = interrupts.RunGuard()
         with guard.held():
             record = runner.run_trial(
-                    fixture, trial_config(stub), trial_timeout_seconds=holder_seconds
-                )
+                fixture, trial_config(stub), trial_timeout_seconds=holder_seconds
+            )
         still_pending = guard.arrived
 
         assert grace_started, "the process never reached the output grace"
         assert time.monotonic() - grace_started[0] < holder_seconds / 2
-        assert (record.exit_code, record.stdout, record.timed_out) == (0, "result", False)
+        assert (record.exit_code, record.stdout, record.timed_out) == (
+            0,
+            "result",
+            False,
+        )
         assert still_pending, "the signal was dropped instead of left for the run"
 
     def test_signal_while_the_timeout_is_handled_still_kills_the_group(
@@ -263,7 +267,9 @@ class TestInterruptsAreHeldForTheRun:
         monkeypatch.setattr(runner, "_kill_process_group", signal_then_kill)
         guard = interrupts.RunGuard()
         with guard.held():
-            record = runner.run_trial(fixture, trial_config(stub), trial_timeout_seconds=1)
+            record = runner.run_trial(
+                fixture, trial_config(stub), trial_timeout_seconds=1
+            )
         still_pending = guard.arrived
 
         assert record.timed_out is True
