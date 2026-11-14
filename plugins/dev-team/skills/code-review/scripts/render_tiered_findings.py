@@ -84,12 +84,12 @@ from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 #: there is nothing to list and nothing to expand.
 CLEAN_PASS_SUMMARY = "Clean pass: 0 findings this round — nothing to expand."
 
-#: Rendered once, after the Tier-1 lines, when the round has at least one
-#: finding. Omitted entirely on a zero-finding round (see CLEAN_PASS_SUMMARY)
-#: because there is nothing an --expand call could act on.
 #: Label that introduces a finding's suggested fix on its own line.
 SUGGESTED_FIX_LABEL = "Suggested fix: "
 
+#: Rendered once, after the Tier-1 lines, when the round has at least one
+#: finding. Omitted entirely on a zero-finding round (see CLEAN_PASS_SUMMARY)
+#: because there is nothing an --expand call could act on.
 EXPAND_HINT = "Expand a finding with --expand <finding-id>, or --expand all for every finding."
 
 #: First-sentence split: a `.`/`!`/`?` followed by whitespace or end-of-string.

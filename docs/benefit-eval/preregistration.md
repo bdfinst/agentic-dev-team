@@ -154,9 +154,9 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "parity_cap": "none",
       "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
       "confounds": [
-        "no instrument: render_tiered_findings.py persists no row"
+        "no instrument: the review-report-sizes row that render_tiered_findings.py writes carries no expand flag"
       ],
-      "computation": "unmeasurable: no persisted instrument; follow-up issue to file (one row per render with the expand flag)",
+      "computation": "unmeasurable: no persisted expand flag; follow-up issue to file (one row per render with the expand flag)",
       "rationale": "Expanding in over a fifth of reports means the Tier-1 lines are too thin; above half the tiering saves no reading."
     },
     {
@@ -178,9 +178,10 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
       "confounds": [
         "one hand-measured round before the store existed, by a method that is not recoverable",
-        "two rounds in one session with identical findings and sizes count once, because re-renders of one round write identical rows"
+        "two rounds in one session with identical findings and sizes count once, because re-renders of one round write identical rows",
+        "the clean-pass count includes re-renders of a clean-pass round, because every clean-pass row is identical"
       ],
-      "computation": "metrics_hooks.report_size_cut: mean per-round percent cut, (untiered_bytes - tiered_bytes) / untiered_bytes in UTF-8 bytes, over review-report-sizes rows of real sessions with at least one finding, rows equal in session, findings and both sizes counted once; clean-pass rounds are counted and left out",
+      "computation": "metrics_hooks.report_size_cut: mean per-round percent cut, (untiered_bytes - tiered_bytes) / untiered_bytes in UTF-8 bytes, over review-report-sizes rows of real sessions with at least one finding, rows equal in session, findings and both sizes counted once; every clean-pass row is counted and left out",
       "rationale": "Keeping two thirds of the one-round cut over many rounds shows the saving holds beyond one example."
     },
     {

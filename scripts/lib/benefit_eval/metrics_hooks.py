@@ -163,28 +163,29 @@ def injection_uptake(metric: Metric, ctx: ReportContext) -> ReportLine:
 def report_size_cut(metric: Metric, ctx: ReportContext) -> ReportLine:
     """Mean per-round percent by which the Tier-1 report is smaller than the untiered one.
 
-    A clean-pass round renders the same summary either way, so it is counted and left out. Re-renders
-    of one round write identical rows, so rows equal in session, findings and both sizes count once.
+    A clean-pass round renders the same summary either way, so every clean-pass row is counted and
+    left out. Re-renders of one round write identical rows, so rows with findings that are equal in
+    session, findings and both sizes count once.
     Raises ``InputError`` for a row with findings but an empty untiered report."""
     part = ctx.partition(metric.instrument)
     cuts, sessions, clean_pass_rounds = [], [], 0
     seen: set[tuple[str, int, int, int]] = set()
     for row in part.real:
-        findings = streams.row_field(row, "findings", int, minimum=0)
+        finding_count = streams.row_field(row, "findings", int, minimum=0)
         untiered_bytes = streams.row_field(row, "untiered_bytes", int, minimum=0)
         tiered_bytes = streams.row_field(row, "tiered_bytes", int, minimum=0)
-        round_key = (row.data["session_id"], findings, untiered_bytes, tiered_bytes)
+        if finding_count == 0:
+            clean_pass_rounds += 1
+            continue
+        round_key = (row.data["session_id"], finding_count, untiered_bytes, tiered_bytes)
         if round_key in seen:
             continue
         seen.add(round_key)
-        if findings == 0:
-            clean_pass_rounds += 1
-            continue
         if untiered_bytes == 0:
             raise streams.InputError(
                 row.file,
                 row.line,
-                f"row field 'untiered_bytes' is 0 although 'findings' is {findings}",
+                f"row field 'untiered_bytes' is 0 although 'findings' is {finding_count}",
                 streams.REPAIR_ROW,
             )
         cuts.append(formatting.percent(untiered_bytes - tiered_bytes, untiered_bytes))

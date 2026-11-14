@@ -450,6 +450,20 @@ def test_report_size_cut_counts_identical_rows_of_one_session_once(world, tmp_pa
     assert "N=2 rounds" in line_of(out, "report-size-cut:")
 
 
+def test_report_size_cut_keeps_rows_of_one_session_that_differ_only_in_findings(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 1000, 400, findings=1), sizes("sess-a", 1000, 400, findings=2)])
+    _, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    assert "N=2 rounds" in line_of(out, "report-size-cut:")
+
+
+def test_report_size_cut_counts_every_clean_pass_row_of_one_session(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 60, 60, findings=0), sizes("sess-a", 60, 60, findings=0)])
+    _, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    assert "clean-pass rounds left out: 2" in block_of(out, "report-size-cut:")
+
+
 def test_report_size_cut_below_the_keep_floor_is_a_breach(world, tmp_path, capsys):
     world.session("sess-a")
     world.stream("review-report-sizes", [sizes("sess-a", 1000, 900)])
