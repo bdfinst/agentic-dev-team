@@ -138,10 +138,9 @@ This document fixes, before any data is read, how each mechanism shipped by epic
     {
       "id": "expand-rate",
       "metric": "Tiered findings expand rate: share of rendered reports where --expand was used",
-      "instrument": "none",
-      "identity_class": "id-less",
-      "id_less_handling": "unmeasurable",
-      "baseline": "unmeasurable: nothing is counted today; the instrument is tracked in #2307",
+      "instrument": "tiered-renders",
+      "identity_class": "id-bearing",
+      "baseline": "no-reference: first measurement; render_tiered_findings.py has recorded each render of a non-empty report since #2307",
       "unit": "percent",
       "keep": "<= 20",
       "tune": "> 20",
@@ -150,13 +149,14 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "inclusivity": "inclusive",
       "minimum_n": 10,
       "n_unit": "rendered reports",
-      "null_rule": "No instrument: record unmeasurable with its follow-up issue. No verdict.",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
       "parity_cap": "none",
       "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
       "confounds": [
-        "no instrument: the review-report-sizes row that render_tiered_findings.py writes carries no expand flag"
+        "a cold /code-review --expand run re-renders the panel, so its report key can differ from the report the reader saw",
+        "the report key hashes only finding ids, so two rounds in one session with identical finding sets count as one report"
       ],
-      "computation": "unmeasurable: no persisted expand flag; follow-up issue to file (one row per render with the expand flag)",
+      "computation": "metrics_tiered.expand_rate: tiered-renders rows of real sessions grouped by session and report key; a report is expanded when any of its renders has expand other than none",
       "rationale": "Expanding in over a fifth of reports means the Tier-1 lines are too thin; above half the tiering saves no reading."
     },
     {

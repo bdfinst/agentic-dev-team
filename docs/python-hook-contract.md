@@ -99,6 +99,9 @@ plugin's own settings.json sets them:
 - `CLAUDE_TOOL_NAME` — name of the tool being invoked (`Bash`, `Edit`, …).
 - `CLAUDE_SESSION_ID` — current session UUID. The UUID is also on stdin, but
   Claude Code sets this env var for hooks that do not parse stdin.
+- `CLAUDE_CODE_SESSION_ID` — current session UUID that Claude Code sets for
+  tool commands. A script that a skill runs (not a hook) reads it first, then
+  `CLAUDE_SESSION_ID`, to put a `session_id` on a metrics row.
 - `MUTATION_SMOKE_GATE_SKIP` — hook-specific escape hatch (see the
   smoke-gate hook).
 - `DEV_TEAM_FEATURE_RECORD_GUARD` — escape hatch for `feature_record_guard.py`.

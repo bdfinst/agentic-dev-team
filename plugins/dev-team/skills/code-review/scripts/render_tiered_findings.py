@@ -8,9 +8,9 @@ routine. This module renders a compact Tier-1 line per finding by default,
 and defers the full message/suggestedFix narrative (Tier-2) to an explicit
 `--expand <finding-id>|all`, using the SAME in-memory finding list already
 aggregated for the report — no re-dispatch, no I/O beyond the finding JSON
-already on hand and one measurement row.
+already on hand and the two measurement rows below.
 
-## Report-size row
+## Measurement rows
 
 Every successful render, with or without `--expand`, appends one row to
 `.claude/metrics/review-report-sizes.jsonl` through `instrument_log`:
@@ -20,8 +20,10 @@ bytes of the Tier-1 report), plus `session_id` from `--session`, else
 `$CLAUDE_CODE_SESSION_ID`, else `$CLAUDE_SESSION_ID`. The sizes do not depend
 on `--expand`, so re-renders of one round write identical rows, which the
 metric counts once when the round has findings; every clean-pass row is
-counted. An unknown `--expand` id writes no row. Measuring and
-writing are fail-open and never change stdout or the exit code.
+counted. Each successful render of a non-empty report also appends one
+`tiered-renders` row for the expand-rate metric. An unknown `--expand` id
+writes no row. Both writes are fail-open and never change stdout or the exit
+code.
 
 This script is prose-path only. `--json` (step 7's other branch) and
 `./corrections/*.json` (step 8) read/write the full finding objects
@@ -56,6 +58,7 @@ Stdlib-only. See docs/python-hook-contract.md.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -257,6 +260,40 @@ def render_expand_one(findings: list[dict], ids: list[str], finding_id: str) -> 
     return render_tier2_block(findings[index], ids[index])
 
 
+#: The ``expand`` values a ``tiered-renders`` row records.
+EXPAND_NONE = "none"
+EXPAND_ONE = "one"
+EXPAND_ALL = "all"
+
+
+def expand_mode(expand: str | None) -> str:
+    """The row's ``expand`` value for an ``--expand`` argument: none, all, or one finding."""
+    if expand is None:
+        return EXPAND_NONE
+    if expand == EXPAND_ALL:
+        return EXPAND_ALL
+    return EXPAND_ONE
+
+
+def report_key(ids: list[str]) -> str:
+    """A short digest of this round's finding ids, so renders of one report group
+    together without the row carrying any file path or message text."""
+    return hashlib.sha256("\n".join(ids).encode("utf-8")).hexdigest()[:12]
+
+
+def log_render(ids: list[str], expand: str | None) -> None:
+    """Append one ``tiered-renders`` row for a rendered non-empty report — fail-open,
+    stdout and exit code untouched. ``expand`` is the raw ``--expand`` argument."""
+    if not ids:
+        return
+    session_id = env_session_id()
+    append_row(
+        "tiered-renders",
+        {"report": report_key(ids), "findings": len(ids), "expand": expand_mode(expand)},
+        session_id=session_id,
+    )
+
+
 class UnrecognizedFindingsShape(ValueError):
     """Raised by `_load_findings` when the parsed JSON is neither a bare
     list nor a dict carrying a recognized finding-list key. Regression
@@ -329,26 +366,22 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.expand is None:
         print(tier1)
-        _record_sizes(findings, ids, args.session)
-        return 0
-
-    if args.expand == "all":
+    elif args.expand == EXPAND_ALL:
         print(tier1)
         print()
         print(render_tier2_report(findings, ids))
-        _record_sizes(findings, ids, args.session)
-        return 0
-
-    block = render_expand_one(findings, ids, args.expand)
-    if block is None:
-        sys.stderr.write(
-            f"render_tiered_findings: finding-id not found in this round's findings: {args.expand!r}\n"
-        )
-        return 1
-    print(tier1)
-    print()
-    print(block)
+    else:
+        block = render_expand_one(findings, ids, args.expand)
+        if block is None:
+            sys.stderr.write(
+                f"render_tiered_findings: finding-id not found in this round's findings: {args.expand!r}\n"
+            )
+            return 1
+        print(tier1)
+        print()
+        print(block)
     _record_sizes(findings, ids, args.session)
+    log_render(ids, args.expand)
     return 0
 
 

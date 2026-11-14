@@ -35,6 +35,7 @@ STREAMS = frozenset({
     "ledger-skips",
     "checkpoint-aborts",
     "review-report-sizes",
+    "tiered-renders",
 })
 
 

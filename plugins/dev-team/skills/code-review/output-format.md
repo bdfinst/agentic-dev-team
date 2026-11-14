@@ -416,7 +416,9 @@ After the summary, render remaining issues (those not auto-fixed — no
 confidence, auto-fix failed, or suggestion-only) with
 `scripts/render_tiered_findings.py` (#2170) against this round's aggregated
 finding list — the same in-memory list already assembled for the `--json`
-branch and for step 8, no re-dispatch, no I/O beyond that list. By default
+branch and for step 8, no re-dispatch. Its only write is one fail-open
+`tiered-renders` metrics row per non-empty render; stdout and the exit code
+are unaffected by it. By default
 this renders **Tier-1 only**: one line per finding (file, line, agent,
 severity/confidence, first sentence of the message, finding-id), followed by
 a trailing expansion hint. This is the canonical example for this template,
