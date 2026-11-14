@@ -15,7 +15,7 @@
     "plugins/dev-team/scripts/build_slice_scope.py",
     "plugins/dev-team/scripts/autoship_group.py"
   ],
-  "commit": "ea4f202f26f423a24c8b3e0e6709e2af8e6ebc74",
+  "commit": "44b1fef12cc3d85e4a5bae77f8d474d5bc7f7bbf",
   "date": "2026-11-13",
   "value": 66.25,
   "n": 12,
