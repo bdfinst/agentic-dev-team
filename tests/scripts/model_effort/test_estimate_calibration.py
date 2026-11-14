@@ -4,7 +4,9 @@ Each committed artifact under `evals/model-effort/runs/` records what every arm
 cost. Re-estimating each arm with today's constants, agent files, fixtures and
 pricing must land at or above what the arm cost, because the estimate feeds the
 approval prompt and prices unreported trials toward the spend limit, and must not
-land so far above that the estimate stops meaning anything.
+land so far above that the estimate stops meaning anything. Each arm is priced by
+the model ID its artifact recorded, so a tier alias moved to a newer model does
+not reprice an old run.
 """
 
 from __future__ import annotations
@@ -37,7 +39,7 @@ def _arm_estimate_usd(
     agent: str, system_prompt: str, arm: dict, pricing: dict
 ) -> float:
     """Today's estimate for the trials the arm actually ran, fixture by fixture."""
-    model_arm = Arm(arm["label"], arm["model"], arm["effort"])
+    model_arm = Arm(arm["label"], arm["model_id"], arm["effort"])
     total = 0.0
     for fixture_block in arm["fixtures"]:
         (fixture,) = resolve_fixtures(
@@ -54,28 +56,38 @@ def _arm_estimate_usd(
     return total
 
 
+def _artifact_ratios(artifact: Path, pricing: dict) -> list[tuple[str, float]]:
+    written = json.loads(artifact.read_text(encoding="utf-8"))
+    agent = written["agent"]
+    system_prompt = build_agent_spec(
+        agent, load_agent_file(agent, paths.AGENTS_DIR)
+    ).system_prompt
+    ratios = []
+    for arm in written["arms"]:
+        totals = arm["totals"]
+        if totals["unreported_trials_estimate_usd"] or not totals["actual_cost_usd"]:
+            continue
+        ratio = (
+            _arm_estimate_usd(agent, system_prompt, arm, pricing)
+            / totals["actual_cost_usd"]
+        )
+        ratios.append((f"{artifact.name}:{arm['label']}", ratio))
+    return ratios
+
+
 def _ratios() -> list[tuple[str, float]]:
     external.load_for_run()
     pricing = json.loads(paths.PRICING_PATH.read_text(encoding="utf-8"))
     ratios = []
     for artifact in _artifacts():
-        written = json.loads(artifact.read_text(encoding="utf-8"))
-        agent = written["agent"]
-        system_prompt = build_agent_spec(
-            agent, load_agent_file(agent, paths.AGENTS_DIR)
-        ).system_prompt
-        for arm in written["arms"]:
-            totals = arm["totals"]
-            if (
-                totals["unreported_trials_estimate_usd"]
-                or not totals["actual_cost_usd"]
-            ):
-                continue
-            ratio = (
-                _arm_estimate_usd(agent, system_prompt, arm, pricing)
-                / totals["actual_cost_usd"]
+        try:
+            ratios.extend(_artifact_ratios(artifact, pricing))
+        except Exception as error:  # noqa: BLE001  (any failure names the artifact)
+            pytest.fail(
+                f"cannot re-estimate {artifact.name}: {type(error).__name__}: "
+                f"{error}. Its agent, fixtures or model may no longer exist: "
+                "recalibrate against a new run, or retire the artifact"
             )
-            ratios.append((f"{artifact.name}:{arm['label']}", ratio))
     return ratios
 
 
