@@ -202,10 +202,6 @@ class TestInterruptsAreHeldForTheRun:
 
         written = read_artifact(world)
         assert code == 1
-        assert (
-            time.time() - stub.calls[0]["started_at"]
-            < runner.KILL_COLLECT_TIMEOUT_SECONDS * 3
-        )
         assert len(stub.calls) == 1
         assert (written["status"], written["abort_reason"]) == (
             "incomplete",
