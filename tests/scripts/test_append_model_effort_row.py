@@ -6,12 +6,13 @@ model/effort decision log, and does nothing in a repo without that log.
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+from _model_effort_gate import check_row, parse_log
 
 from _repo_root import REPO_ROOT
 
@@ -186,35 +187,26 @@ def test_agent_missing_model_or_effort_is_an_error(tmp_path):
     assert log_text(root) == before
 
 
-def load_gate():
-    path = REPO_ROOT / "tests" / "docs" / "_model_effort_gate.py"
-    spec = importlib.util.spec_from_file_location("model_effort_gate_under_test", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def no_committed_artifact(_run_id):
     """Appended rows are keep rows, so the gate never resolves an evidence run."""
     return
 
 
 def test_appended_rows_pass_the_decision_log_gate(tmp_path):
-    gate = load_gate()
     root = make_repo(tmp_path)
     write_fixture(root, "g1", "gamma")
     for stem in ("d1", "d2", "d3"):
         write_fixture(root, stem, "delta")
     for name in ("beta", "gamma", "delta"):
         run_script(root, write_agent(root, name))
-    _, rows, parse_errors = gate.parse_log(log_text(root))
+    _, rows, parse_errors = parse_log(log_text(root))
     assert parse_errors == []
     new_rows = [r for r in rows if r["Agent"] in {"beta", "gamma", "delta"}]
     assert len(new_rows) == 3
     for row in new_rows:
         frontmatter = (root / row["Source"]).read_text(encoding="utf-8")
         assert (
-            gate.check_row(row, lambda _source, fm=frontmatter: fm, no_committed_artifact)
+            check_row(row, lambda _source, fm=frontmatter: fm, no_committed_artifact)
             == []
         )
 

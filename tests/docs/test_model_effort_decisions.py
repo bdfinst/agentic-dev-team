@@ -379,7 +379,7 @@ def test_upgrade_without_evidence_fails():
 # An upgrade costs more, so a saving on it is either a sign error or a
 # mislabelled row; the gate rejects it rather than check its value.
 def test_upgrade_reporting_a_saving_is_rejected():
-    assert errors_for(make_upgrade_row(saving="0.380")) == [
+    assert errors_for(make_upgrade_row(saving=GOOD_SAVING)) == [
         "b: upgrade row must not report a cost saving"
     ]
 
@@ -584,9 +584,10 @@ def test_unknown_decision_is_rejected():
     ]
 
 
-@pytest.mark.parametrize("final_effort", ["ultra", ""])
-def test_effort_outside_allowed_set_is_rejected(final_effort):
-    assert errors_for(make_row(final_effort=final_effort)) == [
+@pytest.mark.parametrize("column", ["baseline_effort", "final_effort"])
+@pytest.mark.parametrize("effort", ["ultra", ""])
+def test_effort_outside_allowed_set_is_rejected(column, effort):
+    assert errors_for(make_row(**{column: effort})) == [
         "b: effort outside the allowed set"
     ]
 
