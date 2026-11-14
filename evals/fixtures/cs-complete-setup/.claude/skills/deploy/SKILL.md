@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: Deploy the application to staging or production.
+description: Deploy the application to staging or production on Fly.io.
 argument-hint: "[staging | production]"
 user-invocable: true
 disable-model-invocation: true
@@ -12,52 +12,20 @@ disable-model-invocation: true
 
 Arguments: $ARGUMENTS
 
-- `staging` (default): deploy to staging environment
-- `production`: deploy to production (requires staging green)
+- `staging` (default): deploy with `fly.staging.toml`
+- `production`: deploy with `fly.production.toml`, only after staging is healthy
 
-## Environment
+Refuse any other argument.
 
-Each environment has its own values for these variables, set in the shell before the skill runs:
+## Prerequisites
 
-- `ECR_REPO`: the ECR repository URI for the image
-- `CLUSTER`: the ECS cluster name
-- `SERVICE`: the ECS service name
-- `STAGING_URL`: the staging base URL, used by the production gate
-- `APP_URL`: the base URL of the target environment, used by the smoke test
+The `fly` CLI is installed and logged in (`fly auth whoami` succeeds).
 
 ## Steps
 
-### 1. Run pre-deploy checks
+Stop and report the failing command if any step exits non-zero.
 
-Run `npm test` and `npm run lint`. Abort if either fails.
-
-For `production` only: run `curl -fsS $STAGING_URL/health`. Abort if it does not return 200, because production requires a green staging deployment.
-
-### 2. Build artifacts
-
-Run `npm run build`. Verify the `dist/` directory is created.
-
-### 3. Build Docker image
-
-Run `docker build -t app:$(git rev-parse --short HEAD) .`
-
-### 4. Push to registry
-
-Run `docker tag app:$(git rev-parse --short HEAD) $ECR_REPO:$(git rev-parse --short HEAD)`,
-then `docker push $ECR_REPO:$(git rev-parse --short HEAD)`
-
-### 5. Update service
-
-Record the live task definition for rollback: `PREVIOUS_TASK_DEFINITION=$(aws ecs describe-services --cluster $CLUSTER --services $SERVICE --query 'services[0].taskDefinition' --output text)`.
-
-Register a task definition for the new image: `NEW_TASK_DEFINITION=$(scripts/register-task-definition.sh $ECR_REPO:$(git rev-parse --short HEAD))`.
-
-Run `aws ecs update-service --cluster $CLUSTER --service $SERVICE --task-definition $NEW_TASK_DEFINITION`.
-
-### 6. Smoke test
-
-Request `$APP_URL/health`. If it does not return 200 within 60 seconds, roll back: run `aws ecs update-service --cluster $CLUSTER --service $SERVICE --task-definition $PREVIOUS_TASK_DEFINITION`, then report the deployment as failed.
-
-### 7. Report
-
-Print deployment status: image tag, environment, timestamp, health check result.
+1. Run the `test` skill.
+2. For `production` only: run `fly status --config fly.staging.toml` and stop unless every staging machine reports its health check as passing.
+3. Run `fly deploy --config fly.<environment>.toml`. Fly builds the image from `Dockerfile`, waits for the `/health` check on each new machine, and keeps the previous release running if a check fails.
+4. Report the environment, the released version from `fly releases --config fly.<environment>.toml`, and the deploy result.

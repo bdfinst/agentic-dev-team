@@ -2,6 +2,7 @@
 name: commit
 description: Commit staged changes with a conventional commit message after the checks pass.
 user-invocable: true
+disable-model-invocation: true
 ---
 
 # Commit

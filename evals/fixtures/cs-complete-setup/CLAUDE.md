@@ -20,7 +20,7 @@ A React + TypeScript internal dashboard for managing customer accounts.
   - `server/routes/` — API route handlers
   - `server/middleware/` — Express middleware (JWT auth)
   - `server/prisma/` — Prisma schema
-- `scripts/` — Deploy helpers (`register-task-definition.sh`, needs the AWS CLI and `jq`)
+- `fly.staging.toml`, `fly.production.toml` — Fly.io app config per environment
 
 ## Commands
 
@@ -33,10 +33,10 @@ A React + TypeScript internal dashboard for managing customer accounts.
 
 ## Environment
 
-`npm run server` and `npm run db:migrate` read these variables; the server refuses to start without them:
+- `DATABASE_URL` — Postgres connection string; required by `npm run db:migrate`
+- `JWT_SECRET` — secret that verifies API tokens; `npm run server` refuses to start without it
 
-- `DATABASE_URL` — Postgres connection string for Prisma
-- `JWT_SECRET` — secret that signs and verifies API tokens
+In Fly.io, set both with `fly secrets set --config fly.<environment>.toml`.
 
 ## Coding Conventions
 
