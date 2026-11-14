@@ -21,6 +21,7 @@ from model_effort.verdict import (
     FixtureTally,
     decide,
     stress_verdict,
+    tally,
     verdict_dict,
 )
 
@@ -152,25 +153,30 @@ def test_no_arm_either_way_keeps_and_names_both_missing_arms():
     )
 
 
-def test_recall_compares_rates_not_counts():
-    current = ArmTally(
-        BASELINE_LABEL,
-        "sonnet",
-        "high",
-        (FixtureTally(FINDING, False, trials=4, passes=2),),
-        0,
-        {},
-    )
-    lower = ArmTally(
-        STEP_DOWN_LABEL,
-        "haiku",
-        "high",
-        (FixtureTally(FINDING, False, trials=2, passes=1),),
-        0,
-        {},
+def _single_fixture(label: str, model: str, passes: int, trials: int) -> ArmTally:
+    return ArmTally(
+        label, model, "high", (FixtureTally(FINDING, False, trials, passes),), 0, {}
     )
 
-    assert decide(current, lower, None).decision == DECISION_DOWNGRADE
+
+@pytest.mark.parametrize(
+    ("lower", "current", "decision"),
+    [
+        # 1/2 is a higher rate than 2/5 although it is fewer passes.
+        ((1, 2), (2, 5), DECISION_DOWNGRADE),
+        # 2/5 is a lower rate than 1/2 although it is more passes.
+        ((2, 5), (1, 2), DECISION_KEEP),
+        ((1, 2), (2, 4), DECISION_DOWNGRADE),
+    ],
+)
+def test_recall_compares_rates_not_counts(lower, current, decision):
+    verdict = decide(
+        _single_fixture(BASELINE_LABEL, "sonnet", *current),
+        _single_fixture(STEP_DOWN_LABEL, "haiku", *lower),
+        None,
+    )
+
+    assert verdict.decision == decision
 
 
 # --- upgrade (higher tier catches what the current tier always misses) ----------
@@ -223,6 +229,26 @@ def test_a_clean_fixture_is_never_an_upgrade_finding():
     )
 
     assert decide(current, None, up).decision == DECISION_KEEP
+
+
+@pytest.mark.parametrize(
+    "current_fixtures",
+    [
+        # The current arm never ran the fixture.
+        (),
+        # The current arm has the fixture with no trial on it.
+        (FixtureTally(FINDING, False, 0, 0),),
+    ],
+)
+def test_a_finding_the_current_tier_has_no_trial_on_is_never_an_upgrade(
+    current_fixtures,
+):
+    current = ArmTally(BASELINE_LABEL, "sonnet", "high", current_fixtures, 0, {})
+
+    verdict = decide(current, None, _up(TRIALS))
+
+    assert verdict.decision == DECISION_KEEP
+    assert verdict.upgrade_findings == ()
 
 
 def test_upgrade_wins_over_a_passing_downgrade():
@@ -376,23 +402,116 @@ def test_correctness_review_results_never_move_a_tier():
     assert "recall gap" in verdict.reason
 
 
+def test_tally_counts_passes_false_positives_and_every_ungraded_outcome():
+    arm_run = _arm_run(
+        STEP_DOWN_LABEL,
+        "haiku",
+        {
+            FINDING: [Outcome.PASS, Outcome.PARSE_FAILURE, Outcome.GRADED_FAIL],
+            CLEAN: [Outcome.PASS, Outcome.GRADED_FAIL, Outcome.JUDGE_ERROR],
+        },
+        (CLEAN,),
+    )
+
+    assert tally(arm_run) == ArmTally(
+        label=STEP_DOWN_LABEL,
+        model="haiku",
+        effort="high",
+        fixtures=(
+            FixtureTally(FINDING, expected_clean=False, trials=3, passes=1),
+            FixtureTally(CLEAN, expected_clean=True, trials=3, passes=1),
+        ),
+        clean_false_positives=1,
+        ungraded={Outcome.PARSE_FAILURE.value: 1, Outcome.JUDGE_ERROR.value: 1},
+    )
+
+
+def test_a_parse_failure_in_the_lower_arm_keeps_through_the_full_run():
+    current = _arm_run(BASELINE_LABEL, "sonnet", {FINDING: [Outcome.PASS] * 3})
+    lower = _arm_run(
+        STEP_DOWN_LABEL,
+        "haiku",
+        {FINDING: [Outcome.PASS, Outcome.PASS, Outcome.PARSE_FAILURE]},
+    )
+
+    verdict = stress_verdict(
+        "scout", [current, lower], DEFAULT_GRADING, [FINDING], None
+    )
+
+    assert verdict.decision == DECISION_KEEP
+    assert "1 trial(s) with no gradeable output (parse_failure 1)" in verdict.reason
+
+
+def test_a_fixture_whose_every_trial_failed_to_parse_blocks_the_run():
+    current = _arm_run(BASELINE_LABEL, "sonnet", {FINDING: [Outcome.PASS] * 3})
+    lower = _arm_run(
+        STEP_DOWN_LABEL, "haiku", {FINDING: [Outcome.PARSE_FAILURE] * 3}
+    )
+
+    verdict = stress_verdict(
+        "scout", [current, lower], DEFAULT_GRADING, [FINDING], None
+    )
+
+    assert verdict.decision == DECISION_KEEP
+    assert verdict.reason == "some arm has no graded trial on some fixture"
+    assert verdict.downgrade_passes is None
+
+
+def test_a_judge_error_in_a_ten_trial_rubric_run_leaves_too_few_graded_trials():
+    runs = _runs(10)
+    runs[1].fixture_trials[0].results[0] = _trial_result(Outcome.JUDGE_ERROR)
+
+    verdict = stress_verdict("scout", runs, RUBRIC, [FINDING], None)
+
+    assert verdict.decision == DECISION_KEEP
+    assert "rubric-judged evidence needs 10 graded trials" in verdict.reason
+
+
+def test_one_rubric_arm_at_nine_trials_keeps_though_the_other_has_ten():
+    runs = [
+        _arm_run(BASELINE_LABEL, "sonnet", {FINDING: [Outcome.PASS] * 10}),
+        _arm_run(STEP_DOWN_LABEL, "haiku", {FINDING: [Outcome.PASS] * 9}),
+    ]
+
+    verdict = stress_verdict("scout", runs, RUBRIC, [FINDING], None)
+
+    assert verdict.decision == DECISION_KEEP
+    assert "rubric-judged evidence needs 10 graded trials" in verdict.reason
+
+
+def test_a_run_with_no_current_tier_arm_keeps():
+    runs = [
+        _arm_run(STEP_DOWN_LABEL, "haiku", {FINDING: [Outcome.PASS] * 3}),
+        _arm_run(STEP_UP_LABEL, "opus", {FINDING: [Outcome.PASS] * 3}),
+    ]
+
+    verdict = stress_verdict("scout", runs, DEFAULT_GRADING, [FINDING], None)
+
+    assert verdict.decision == DECISION_KEEP
+    assert verdict.reason == "the run has no current-tier arm to compare against"
+
+
 def test_verdict_dict_records_the_decision_the_arm_and_both_directions():
     data = verdict_dict(decide(_current(0), _down(0), _up(TRIALS)))
 
+    reasons = (data.pop("reason"), data["downgrade"].pop("reason"))
+    upgrade_reason = data["upgrade"].pop("reason")
     assert data == {
         "decision": DECISION_UPGRADE,
-        "reason": data["reason"],
         "arm": STEP_UP_LABEL,
         "model": "opus",
         "effort": "high",
-        "downgrade": {"passes": True, "reason": data["downgrade"]["reason"]},
-        "upgrade": {"findings": [FINDING], "reason": data["upgrade"]["reason"]},
+        "downgrade": {"passes": True},
+        "upgrade": {"findings": [FINDING]},
         "recall": {
             BASELINE_LABEL: {"passes": 0, "trials": TRIALS},
             STEP_DOWN_LABEL: {"passes": 0, "trials": TRIALS},
             STEP_UP_LABEL: {"passes": TRIALS, "trials": TRIALS},
         },
     }
+    assert f"step-up catches {FINDING} in at least half its trials" in reasons[0]
+    assert reasons[0] == upgrade_reason
+    assert reasons[1] == "recall, clean-fixture false positives and parse all hold"
 
 
 def test_verdict_dict_for_a_blocked_keep_has_no_arm():
