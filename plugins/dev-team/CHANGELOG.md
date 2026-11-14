@@ -1,5 +1,15 @@
 # Changelog
 
+## [14.2.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.2.0...dev-team-v14.2.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* relocate verify-log.jsonl under .claude/metrics/ ([#2301](https://github.com/bdfinst/agentic-dev-team/issues/2301)) ([5752593](https://github.com/bdfinst/agentic-dev-team/commit/575259370065e460704e263d6115902c56aad1d5))
+* **scripts:** fail fast when stdin never reaches EOF ([#2312](https://github.com/bdfinst/agentic-dev-team/issues/2312)) ([3512bb3](https://github.com/bdfinst/agentic-dev-team/commit/3512bb39b25bb7fbe757de2b790f2bc247d13564))
+* **scripts:** guard ten more stdin readers against non-EOF stdin ([#2314](https://github.com/bdfinst/agentic-dev-team/issues/2314)) ([f8b3506](https://github.com/bdfinst/agentic-dev-team/commit/f8b3506d775240913fc286de2fab50e3d08cb3e5))
+* **sql-review:** placeholder table names and column-less INSERT ... SELECT ([#2310](https://github.com/bdfinst/agentic-dev-team/issues/2310)) ([891c364](https://github.com/bdfinst/agentic-dev-team/commit/891c364494882daad6d84885dbad140847db3a28))
+
 ## [14.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.1.0...dev-team-v14.2.0) (2026-11-06)
 
 
