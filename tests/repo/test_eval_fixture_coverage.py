@@ -208,3 +208,33 @@ def test_a_non_utf8_expected_file_exits_2(corpus: Path) -> None:
     res = _run_on(corpus)
     assert res.returncode == 2
     assert "malformed expected file latin.json: not valid JSON" in res.stderr
+
+
+def test_an_agent_without_a_review_agent_file_is_ignored(corpus: Path) -> None:
+    _meeting_minimums(corpus)
+    entry = _entry("demo-review", "fail", hard=True)
+    entry["agents"]["helper"] = {"expectedStatus": "pass"}
+    entry["agents"]["ghost-review"] = {"expectedStatus": "pass"}
+    (corpus / "expected" / "a.json").write_text(json.dumps(entry))
+    res = _run_on(corpus)
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "Traceback" not in res.stderr
+    assert _row(res.stdout, "demo-review") == "demo-review 5 2 1 -"
+
+
+@pytest.mark.parametrize("expectation", [None, "pass", ["pass"]])
+def test_a_non_object_expectation_is_not_counted(corpus: Path, expectation: object) -> None:
+    _meeting_minimums(corpus)
+    entry = {"fixture": "e", "agents": {"demo-review": expectation}}
+    (corpus / "expected" / "e.json").write_text(json.dumps(entry))
+    res = _run_on(corpus)
+    assert "Traceback" not in res.stderr
+    assert _row(res.stdout, "demo-review") == "demo-review 4 2 1 4/5 fixtures"
+
+
+def test_an_entry_without_an_agents_block_is_not_counted(corpus: Path) -> None:
+    _meeting_minimums(corpus)
+    (corpus / "expected" / "e.json").write_text(json.dumps({"fixture": "e"}))
+    res = _run_on(corpus)
+    assert "Traceback" not in res.stderr
+    assert _row(res.stdout, "demo-review") == "demo-review 4 2 1 4/5 fixtures"
