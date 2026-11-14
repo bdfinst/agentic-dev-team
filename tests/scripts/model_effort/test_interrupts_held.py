@@ -199,12 +199,14 @@ class TestInterruptsAreHeldForTheRun:
         threading.Thread(
             target=signal_once_the_first_process_exited, daemon=True
         ).start()
-        started = time.monotonic()
         code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
 
         written = _written(world)
         assert code == 1
-        assert time.monotonic() - started < runner.KILL_COLLECT_TIMEOUT_SECONDS * 3
+        assert (
+            time.time() - stub.calls[0]["started_at"]
+            < runner.KILL_COLLECT_TIMEOUT_SECONDS * 3
+        )
         assert len(stub.calls) == 1
         assert (written["status"], written["abort_reason"]) == (
             "incomplete",
@@ -212,6 +214,7 @@ class TestInterruptsAreHeldForTheRun:
         )
         assert _outcomes(written, BASELINE_LABEL) == ["pass"]
 
+    @pytest.mark.slow
     def test_signal_during_the_output_grace_ends_the_wait_early_and_stays_pending(
         self, stub_dir, fixture_root, monkeypatch
     ):

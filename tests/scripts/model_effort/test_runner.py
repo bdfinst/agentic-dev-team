@@ -107,6 +107,7 @@ class TestStagingFixtures:
 
         assert not Path(stub.calls[0]["cwd"]).exists()
 
+    @pytest.mark.slow
     def test_temp_dir_is_removed_after_a_timeout(self, stub_dir, fixture_root):
         stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
@@ -397,6 +398,7 @@ class TestExecution:
 
         assert (record.exit_code, record.stdout) == (0, "ok�")
 
+    @pytest.mark.slow
     def test_run_exceeding_the_time_limit_is_marked_timed_out(
         self, stub_dir, fixture_root
     ):
@@ -418,14 +420,13 @@ class TestExecution:
             stub_dir, stdout="result", exit_code=0, holder_sleep=STUB_RUN_SECONDS
         )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
-        started = time.monotonic()
 
         record = runner.run_trial(
             fixture, _config(stub), trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS
         )
 
         # Well short of the holder's sleep: the run did not wait for it.
-        assert time.monotonic() - started < MAX_ELAPSED_WITHOUT_WAITING_SECONDS
+        assert time.time() - stub.calls[0]["started_at"] < MAX_ELAPSED_WITHOUT_WAITING_SECONDS
         assert (record.exit_code, record.stdout, record.timed_out) == (
             0,
             "result",
@@ -452,6 +453,7 @@ class TestExecution:
         assert (record.exit_code, record.timed_out) == (0, False)
         assert _process_gone_within(holder_pid, TRIAL_DEADLINE_SECONDS)
 
+    @pytest.mark.slow
     def test_a_timed_out_trial_keeps_the_output_written_before_the_kill(
         self, stub_dir, fixture_root
     ):
@@ -482,6 +484,7 @@ class TestExecution:
 
         assert (record.exit_code, record.stderr, record.timed_out) == (3, "boom", False)
 
+    @pytest.mark.slow
     def test_output_is_kept_when_a_descendant_in_another_session_holds_the_pipes(
         self, stub_dir, fixture_root, short_output_grace
     ):
@@ -494,7 +497,6 @@ class TestExecution:
             holder_pid_file=str(pid_file),
         )
         fixture = _make_file_fixture(fixture_root, "a.txt", "a")
-        started = time.monotonic()
 
         try:
             record = runner.run_trial(
@@ -511,13 +513,14 @@ class TestExecution:
                     pass
 
         # Well short of the holder's sleep: the run did not wait for it.
-        assert time.monotonic() - started < MAX_ELAPSED_WITHOUT_WAITING_SECONDS
+        assert time.time() - stub.calls[0]["started_at"] < MAX_ELAPSED_WITHOUT_WAITING_SECONDS
         assert (record.exit_code, record.stdout, record.timed_out) == (
             0,
             "result",
             False,
         )
 
+    @pytest.mark.slow
     def test_child_that_outlives_the_deadline_is_still_a_timeout_with_a_descendant_holding_the_pipes(
         self, stub_dir, fixture_root
     ):
@@ -555,6 +558,7 @@ class TestExecution:
         assert output == ("", "")
         assert waits == [runner.KILL_COLLECT_TIMEOUT_SECONDS]
 
+    @pytest.mark.slow
     def test_timeout_kills_the_whole_process_group_not_just_the_child(
         self, stub_dir, fixture_root
     ):
@@ -581,6 +585,7 @@ class TestExecution:
         _wait_until_marker_due(spawned, grandchild_delay)
         assert not marker.exists()
 
+    @pytest.mark.slow
     def test_interrupt_kills_the_whole_process_group_before_propagating(
         self, stub_dir, fixture_root
     ):

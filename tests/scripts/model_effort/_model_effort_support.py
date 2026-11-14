@@ -200,6 +200,9 @@ if BEHAVIOR.get("observe"):
 calls = json.loads(RECORD.read_text()) if RECORD.exists() else []
 calls.append({
     "pid": os.getpid(),
+    # Wall-clock seconds, comparable with the test's own clock: a timing bound
+    # counts from here, not from before a slow interpreter start.
+    "started_at": time.time(),
     "argv": sys.argv[1:],
     "cwd": str(cwd),
     "files_before": files_before,
