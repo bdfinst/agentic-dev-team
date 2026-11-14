@@ -10,6 +10,12 @@ expected entries and the knowledge directory are copied once when the run is
 planned, so editing them mid-run changes nothing. Trials alternate
 baseline, candidate, baseline, ... so a broken candidate fails on its first trial.
 
+With --stress the arms are the frontmatter tier, one step down and one step up,
+and the artifact records a downgrade/upgrade/keep verdict. --batch <tier> runs
+--stress for every agent at that frontmatter model tier, after one combined
+estimate (rubric judge included) and one approval; it stops at the first run
+that does not complete.
+
 Ctrl-C, SIGTERM and SIGHUP are held from the first trial until the artifact is saved:
 one that arrives while a trial runs kills that trial and ends the run, keeping the
 completed trials; one that arrives later starts no further trial and keeps every
