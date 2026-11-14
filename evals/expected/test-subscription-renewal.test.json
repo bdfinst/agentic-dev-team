@@ -1,0 +1,33 @@
+{
+  "fixture": "test-subscription-renewal.test",
+  "description": "Renewal-service tests that inject a fixed clock everywhere except one: the annual-plan test builds RenewalService() on the real clock and asserts a plan ending 2026-12-31 is active, so it starts failing once that date passes (Erratic Test, nondeterministic timing)",
+  "applicableAgents": [
+    "test-smell-review"
+  ],
+  "agents": {
+    "test-smell-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 3
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "Erratic"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "One of eight otherwise clean tests omits the injected clock; the only signal is a missing constructor argument next to a future literal date"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Modeled on test-assertion-roulette (fail on a behavior smell): one error for the real-clock time bomb, room for up to two minor duplication suggestions"
+      }
+    }
+  }
+}

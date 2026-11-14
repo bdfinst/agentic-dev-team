@@ -1,0 +1,33 @@
+{
+  "fixture": "ap-telemetry-frame-encoder",
+  "description": "190-line telemetry frame encoder where every wire-format constant and the header and sample field order cite the ICD or ADR 0042, except CRC_INITIAL = 0x1D0F, a load-bearing CRC seed with no rationale",
+  "applicableAgents": [
+    "ai-provenance-review"
+  ],
+  "agents": {
+    "ai-provenance-review": {
+      "expectedStatus": "warn",
+      "issueCount": {
+        "min": 1,
+        "max": 2
+      },
+      "severities": {
+        "warning": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "1D0F"
+      ],
+      "hard": {
+        "reason": "long-file",
+        "note": "The one unexplained load-bearing constant sits among a dozen documented ones in a 190-line module"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "One regeneration-risk warning, by analogy to ap-regeneration-risk"
+      }
+    }
+  }
+}

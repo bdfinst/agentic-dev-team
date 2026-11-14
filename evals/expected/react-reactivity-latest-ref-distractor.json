@@ -1,0 +1,24 @@
+{
+  "fixture": "react-reactivity-latest-ref-distractor.tsx",
+  "description": "Search provider using the latest-ref useInterval pattern (ref written in useLayoutEffect, interval effect keyed only on the delay), an aborted fetch keyed on a useCallback, a keydown listener with cleanup, functional state updaters, and a useMemo context value",
+  "applicableAgents": [
+    "react-reactivity-review"
+  ],
+  "agents": {
+    "react-reactivity-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "An interval effect without the callback in its deps and a ref holding a callback look like stale-closure bugs but are the documented latest-ref pattern; flagging them is a false positive"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean control: pass means zero issues under the review-agent output contract, so the window is 0-0."
+      }
+    }
+  }
+}

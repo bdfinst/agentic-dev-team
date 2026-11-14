@@ -1,0 +1,24 @@
+{
+  "fixture": "dr-currency-formatting.ts",
+  "description": "Money-formatting module whose comments cite RFC-5646, RFC-3339 and ISO-8601, which look like tracker IDs but name external standards that doc-review.md's standards-reference list does not name; every JSDoc matches its signature and behavior",
+  "applicableAgents": [
+    "doc-review"
+  ],
+  "agents": {
+    "doc-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "Standards references such as RFC-5646 and RFC-3339 are absent from the agent's example list yet match the tracker-ID pattern the comment-hygiene rule scans for"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean counterpart to dr-tracker-ids-in-comments. Example outputs verified with node 2026-11-14: Intl.NumberFormat en-US USD 19.99 -> $19.99, de-DE EUR 19.99 -> 19,99 \u20ac (no-break space), new Date('2026-03-01T12:00:00Z').toISOString() -> 2026-03-01T12:00:00.000Z"
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "fixture": "ap-mixed-evidence.test",
+  "description": "mutation-kill-generated shipping tests: five assertions cite a spec rule with worked arithmetic, but the zone-3 assertion expects 2137 with no rule citation or derivation",
+  "applicableAgents": [
+    "ai-provenance-review"
+  ],
+  "agents": {
+    "ai-provenance-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 2
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "mustMention": [
+        "2137"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "One uncited magic assertion among five that carry spec evidence; the file header suggests the whole file was derived from the spec"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Exactly one unverified assertion, by analogy to ap-verification-debt's per-assertion errors"
+      }
+    }
+  }
+}

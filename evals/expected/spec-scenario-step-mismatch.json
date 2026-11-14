@@ -1,0 +1,33 @@
+{
+  "fixture": "spec-scenario-step-mismatch",
+  "description": "Login lockout implemented correctly, but the test for 'Locked account refuses the correct password' submits a wrong password, so neither that scenario nor criterion 3 ('even with the correct password') is validated; the test passes because the locked check runs first",
+  "applicableAgents": [
+    "spec-compliance-review"
+  ],
+  "agents": {
+    "spec-compliance-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 3
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "correct password"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "Every criterion has a test that passes; only reading the locked-account test's password argument against the scenario step shows the scenario is uncovered"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "One uncovered scenario that is also criterion 3's missing test; the agent may report it as one or two errors, by analogy to spec-unmet-criterion"
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "fixture": "cc-profile-request-coalescing.ts",
+  "description": "Request coalescing: concurrent load() calls for one user share a single in-flight promise. The map check and set run synchronously with no await between them, the entry is removed when the request settles, and the shared promise is returned to every caller, so rejections reach the callers",
+  "applicableAgents": [
+    "concurrency-review"
+  ],
+  "agents": {
+    "concurrency-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "hard": {
+        "reason": "distractor",
+        "note": "A shared mutable Map with check-then-set looks like a check-then-act race, but load() is synchronous, so no other caller can run between get and set"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean, like cc-mutex-guarded: zero findings"
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 - Use `const` by default. Only use `let` when reassignment is required.
 - Prefer `interface` over `type` for object shapes.
-- Use named exports. No default exports.
+- Use named exports. No default exports, except in tool config files (`vite.config.ts`, `eslint.config.js`) that require one.
 - One component per file. File name matches export name.
 - Prefer early returns over nested conditionals.
 - Use template literals over string concatenation.

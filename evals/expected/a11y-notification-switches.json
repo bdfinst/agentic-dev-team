@@ -1,0 +1,33 @@
+{
+  "fixture": "a11y-notification-switches",
+  "description": "Notification settings page that is accessible except for one defect: the custom role=\"switch\" toggles have tabindex, an accessible name, a description and aria-checked, but only a click handler, so keyboard users can focus a switch and never change it.",
+  "applicableAgents": [
+    "a11y-review"
+  ],
+  "agents": {
+    "a11y-review": {
+      "expectedStatus": "fail",
+      "issueCount": {
+        "min": 1,
+        "max": 3
+      },
+      "severities": {
+        "error": {
+          "min": 1,
+          "max": 2
+        }
+      },
+      "mustMention": [
+        "keyboard"
+      ],
+      "hard": {
+        "reason": "subtle-defect",
+        "note": "The switches carry every ARIA attribute a reviewer checks first; the only defect is the missing Space/Enter handler in the script block"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Window modeled on a11y-color-only-signaling: one focused error-level pattern repeated on two controls"
+      }
+    }
+  }
+}

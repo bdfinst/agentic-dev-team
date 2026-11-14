@@ -12,8 +12,8 @@ from dataclasses import dataclass
 
 from .cost import total_cost_usd
 from .estimate import RunEstimate
-from .outcome import Outcome
-from .run_types import ArmRun
+from .outcome import Outcome, TrialResult
+from .run_types import ArmRun, FixtureTrials
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,9 @@ class ArmTotals:
 
     `outcome_counts` has every `Outcome`, zeros included, in precedence order.
     `clean_fixture_false_positives` counts `graded_fail` trials on fixtures that
-    expect no findings; a timeout or CLI error says nothing about the answer.
+    expect no findings; a timeout or CLI error says nothing about the answer. On
+    a fixture the agent should skip, a failed trial counts only when it reported
+    issues: a 0-issue `pass` instead of `skip` is a wrong status, not a finding.
     `actual_cost_usd` sums the reported costs, so it is a lower bound when any
     trial reported none; `unreported_trials_estimate_usd` is what the spend limit
     charged for those trials in their place, and for rubric judgements that
@@ -53,9 +55,8 @@ def compute_arm_totals(arm_run: ArmRun, run_estimate: RunEstimate) -> ArmTotals:
         clean_fixture_false_positives=sum(
             1
             for fixture in arm_run.fixture_trials
-            if fixture.expected_clean
             for result in fixture.results
-            if result.outcome == Outcome.GRADED_FAIL
+            if _is_clean_fixture_false_positive(fixture, result)
         ),
         actual_cost_usd=total_cost_usd(
             result.reported_cost_usd for result in arm_run.results
@@ -80,3 +81,13 @@ def compute_arm_totals(arm_run: ArmRun, run_estimate: RunEstimate) -> ArmTotals:
         ),
         estimated_judge_cost_usd=run_estimate.judge_usd / run_estimate.arm_count,
     )
+
+
+def _is_clean_fixture_false_positive(
+    fixture: FixtureTrials, result: TrialResult
+) -> bool:
+    if not fixture.expected_clean or result.outcome != Outcome.GRADED_FAIL:
+        return False
+    if fixture.expected_skip:
+        return (result.reported_issue_count or 0) > 0
+    return True

@@ -1,0 +1,25 @@
+{
+  "fixture": "sql-not-in-not-null-migration",
+  "description": "A fulfilment report file whose NOT IN subquery reads shipments.order_id, declared NOT NULL in a separate migration file: the detector hit is a false positive and the agent dismisses it",
+  "applicableAgents": [
+    "sql-review"
+  ],
+  "agents": {
+    "sql-review": {
+      "hard": {
+        "reason": "distractor",
+        "note": "NOT IN over a subquery is the classic NULL trap. The query file never states nullability; the agent must find shipments.order_id NOT NULL in the migration, past a nullable tracking_no and a nullable refunds.order_id"
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Spread-out counterpart to sql-correctness-not-in-not-null; 0-0 is not a tuned bound: the output contract defines pass as zero issues"
+      },
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "expectedFindings": []
+    }
+  }
+}

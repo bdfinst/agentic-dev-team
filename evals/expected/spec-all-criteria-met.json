@@ -1,0 +1,20 @@
+{
+  "fixture": "spec-all-criteria-met",
+  "description": "Login lockout: all four acceptance criteria and both Gherkin scenarios are implemented and each has a matching test; the only files changed are the two the plan lists",
+  "applicableAgents": [
+    "spec-compliance-review"
+  ],
+  "agents": {
+    "spec-compliance-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 0
+      },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Clean counterpart to spec-unmet-criterion; zero findings because every criterion, scenario and planned file is matched"
+      }
+    }
+  }
+}

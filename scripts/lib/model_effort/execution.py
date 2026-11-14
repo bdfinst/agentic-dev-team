@@ -85,6 +85,7 @@ class _Ledger:
                         stem=fixture.stem,
                         kind=fixture.kind,
                         expected_clean=fixture.expected_clean,
+                        expected_skip=fixture.expected_skip,
                         results=self._results_by_arm_and_fixture[
                             (arm.label, fixture.stem)
                         ],

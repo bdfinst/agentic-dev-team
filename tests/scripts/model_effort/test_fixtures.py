@@ -18,6 +18,11 @@ class TestIsExpectedClean:
 
         assert fixture_resolution.is_expected_clean(entry, "a") is True
 
+    def test_expected_status_skip_is_clean(self):
+        entry = {"agents": {"a": {"expectedStatus": "skip"}}}
+
+        assert fixture_resolution.is_expected_clean(entry, "a") is True
+
     def test_expected_status_fail_is_not_clean(self):
         entry = {"agents": {"a": {"expectedStatus": "fail"}}}
 
@@ -25,6 +30,26 @@ class TestIsExpectedClean:
 
     def test_agent_missing_from_entry_is_not_clean(self):
         assert fixture_resolution.is_expected_clean({"agents": {}}, "a") is False
+
+    @pytest.mark.parametrize("expectation", [{"expectedStatus": "warn"}, {}])
+    def test_warn_or_missing_expected_status_is_not_clean(self, expectation):
+        entry = {"agents": {"a": expectation}}
+
+        assert fixture_resolution.is_expected_clean(entry, "a") is False
+
+    def test_null_agent_expectation_is_not_clean(self):
+        assert fixture_resolution.is_expected_clean({"agents": {"a": None}}, "a") is False
+
+
+class TestIsExpectedSkip:
+    @pytest.mark.parametrize(("status", "skip"), [("skip", True), ("pass", False)])
+    def test_only_expected_status_skip_is_a_skip(self, status, skip):
+        entry = {"agents": {"a": {"expectedStatus": status}}}
+
+        assert fixture_resolution.is_expected_skip(entry, "a") is skip
+
+    def test_null_agent_expectation_is_not_a_skip(self):
+        assert fixture_resolution.is_expected_skip({"agents": {"a": None}}, "a") is False
 
 
 class TestDescribeFixture:
@@ -101,6 +126,18 @@ class TestResolveFixtures:
                 expected_clean=False,
             ),
         ]
+
+    def test_a_skip_expected_fixture_resolves_as_clean_and_skip(
+        self, expected_dir, fixture_root
+    ):
+        _write_expected(expected_dir, "out-of-scope", "scout", "skip")
+        _make_file_fixture(fixture_root, "out-of-scope.md")
+
+        (resolved,) = fixture_resolution.resolve_fixtures(
+            "scout", None, expected_dir, fixture_root
+        )
+
+        assert (resolved.expected_clean, resolved.expected_skip) == (True, True)
 
     def test_missing_fixtures_directory_is_refused_naming_it(
         self, expected_dir, tmp_path

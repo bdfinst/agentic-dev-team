@@ -27,8 +27,3 @@ A small HTTP service for managing orders, with a dev-team-style command registry
 | Command | File | What It Does |
 |---------|------|--------------|
 | `/explore` | `commands/explore.md` | Charter-driven exploratory testing of a running endpoint |
-
-<!--
-Note: the registry above points at `commands/explore.md`, but that file does not
-exist in this fixture — a broken path claude-setup-review should flag.
--->

@@ -16,7 +16,11 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from .errors import UsageError
 from .grader_config import AGENT_BLOCK_DEFAULT_GRADER, entry_grader
 
-EXPECTED_STATUS_CLEAN = "pass"
+# A clean fixture has no expected finding: the agent passes it, or skips it when
+# its own Skip rule covers the target. scripts/eval_fixture_coverage.py uses
+# this rule too, through `is_clean_expectation`.
+EXPECTED_STATUSES_CLEAN = frozenset({"pass", "skip"})
+EXPECTED_STATUS_SKIP = "skip"
 
 
 class FixtureKind(StrEnum):
@@ -44,20 +48,32 @@ class ResolvedFixture:
     protected_paths: tuple[str, ...] = ()
     rubric_points: tuple[tuple[str, str], ...] = ()
     grader: str = AGENT_BLOCK_DEFAULT_GRADER
+    # True when the agent is expected to skip the fixture, a subset of clean.
+    expected_skip: bool = False
+
+
+def is_clean_expectation(expectation: dict) -> bool:
+    """True when one agent's expectation has no expected finding."""
+    return expectation.get("expectedStatus") in EXPECTED_STATUSES_CLEAN
 
 
 def agent_expectation(expected_entry: dict, agent: str) -> dict:
-    """The entry's block for `agent`, or an empty dict."""
-    return expected_entry.get("agents", {}).get(agent, {})
+    """`agent`'s expectation in the entry, or {} when it is missing or not an object."""
+    agents = expected_entry.get("agents")
+    expectation = agents.get(agent) if isinstance(agents, dict) else None
+    return expectation if isinstance(expectation, dict) else {}
 
 
 def is_expected_clean(expected_entry: dict, agent: str) -> bool:
     """True when the expected entry says `agent` should report no problems."""
     expectation = agent_expectation(expected_entry, agent)
-    return (
-        expectation.get("expectedStatus") == EXPECTED_STATUS_CLEAN
-        or expectation.get("clean") is True
-    )
+    return is_clean_expectation(expectation) or expectation.get("clean") is True
+
+
+def is_expected_skip(expected_entry: dict, agent: str) -> bool:
+    """True when the expected entry says `agent` should skip the fixture."""
+    expectation = agent_expectation(expected_entry, agent)
+    return expectation.get("expectedStatus") == EXPECTED_STATUS_SKIP
 
 
 def describe_fixture(path: Path) -> tuple[str, FixtureKind]:
@@ -183,6 +199,7 @@ def _resolved(
         path=located[0],
         kind=located[1],
         expected_clean=is_expected_clean(entry, agent),
+        expected_skip=is_expected_skip(entry, agent),
         task=task if isinstance(task, str) and task.strip() else None,
         test_commands=tuple(expectation.get("testCommands", ())),
         protected_paths=checked_protected_paths(

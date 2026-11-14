@@ -4,6 +4,8 @@
   "applicableAgents": ["js-fp-review"],
   "agents": {
     "js-fp-review": {
+      "hard": {"reason": "distractor", "note": "sort() and reverse() appear throughout, but only on spread copies, slice() copies, toSorted() or toReversed(), so no input array is mutated"},
+      "_calibration": {"source": "estimated-by-analogy", "note": "0-0 is not a tuned bound: the output contract defines pass as zero issues"},
       "expectedStatus": "pass",
       "issueCount": { "min": 0, "max": 0 }
     }

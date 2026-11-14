@@ -224,7 +224,7 @@ deliberately not relocated under `.claude/`) the record was appended to.
 definition + the **transitive closure** of files it reaches (knowledge/,
 skills/, and any bare `scripts/<n>.py` it names — e.g. `test-review.md`'s
 pointer to `test_review_mechanics.py`, #2169) + the fixture + expected JSON
-+ grader version. An unchanged SHA with a stored PASS replays at zero token
+- grader version. An unchanged SHA with a stored PASS replays at zero token
 cost; any changed input busts the cache — including an edit to
 `test_review_mechanics.py` itself, so a Phase 0 detection-logic change
 correctly busts cached `test-review` pairs instead of silently replaying a
@@ -372,11 +372,19 @@ For each fixture/agent pair (agent fixtures):
    (`mechanicalFail` gating). Skip this sub-step entirely for every other
    agent.
 1b. **SQL detector pre-phase (#2283).** When `<agent-name>` is `sql-review`,
-   compute the detector gate for the fixture file — the same invocation
+   compute the detector gate for the fixture — the same invocation
    `/code-review` Step 3 uses — and append its JSON to the dispatch prompt:
 
    ```bash
    python3 "$CLAUDE_PLUGIN_ROOT/scripts/sql_anti_patterns.py" --gate <fixture-path>
+   ```
+
+   For a directory fixture, pass its files, not the directory: the detector
+   reports a directory path as an error or ignores it, so the agent would get
+   no hits to triage.
+
+   ```bash
+   find <fixture-path> -type f | sort | python3 "$CLAUDE_PLUGIN_ROOT/scripts/sql_anti_patterns.py" --gate --files-from -
    ```
 
    Frame it as "Detector hits for this file (computed by
@@ -439,6 +447,9 @@ Compare agent output against expected JSON:
 - Agent status matches `expectedStatus` → PASS
 - Agent status is "skip" and fixture is not in
   `applicableAgents` → PASS (correct skip)
+- Expected `pass`, agent status `warn`, every issue is a `suggestion`, and
+  the count is within `issueCount` → PASS (the window tolerates suggestions;
+  a missing `max` is unbounded, a missing `issueCount` tolerates nothing)
 - Mismatch → FAIL
 
 **Issue count:**
