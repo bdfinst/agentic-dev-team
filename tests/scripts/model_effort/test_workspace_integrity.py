@@ -264,15 +264,23 @@ class TestPlantedCheckDirs:
     def test_a_planted_symlink_does_not_become_the_checks_temp_or_home(
         self, tmp_path, fixture, outside
     ):
-        fake = _fake_cli(tmp_path, f"OUTSIDE = pathlib.Path({str(outside)!r})\n{self.PLANT}")
+        fake = _fake_cli(
+            tmp_path, f"OUTSIDE = pathlib.Path({str(outside)!r})\n{self.PLANT}"
+        )
 
-        runner.run_trial(fixture, self._config(fake, tmp_path / "unused", fixture, None))
+        runner.run_trial(
+            fixture, self._config(fake, tmp_path / "unused", fixture, None)
+        )
 
         assert not (outside / "marker").exists()
 
-    def test_a_planted_symlink_does_not_widen_the_jail(self, tmp_path, fixture, outside):
+    def test_a_planted_symlink_does_not_widen_the_jail(
+        self, tmp_path, fixture, outside
+    ):
         jail = _jail()
-        fake = _fake_cli(tmp_path, f"OUTSIDE = pathlib.Path({str(outside)!r})\n{self.PLANT}")
+        fake = _fake_cli(
+            tmp_path, f"OUTSIDE = pathlib.Path({str(outside)!r})\n{self.PLANT}"
+        )
 
         runner.run_trial(fixture, self._config(fake, outside, fixture, jail))
 
@@ -303,8 +311,7 @@ class TestSwapBetweenChecks:
     ):
         jail = _jail()
         (fixture / "swap.py").write_text(
-            "import os, pathlib\n"
-            f"OUTSIDE = pathlib.Path({str(outside)!r})\n{swap}"
+            f"import os, pathlib\nOUTSIDE = pathlib.Path({str(outside)!r})\n{swap}"
         )
         (fixture / "escape.py").write_text(_escape_script(outside))
         fake = _fake_cli(tmp_path, "pass")
@@ -317,8 +324,16 @@ class TestSwapBetweenChecks:
         record = runner.run_trial(fixture, config)
 
         assert not (outside / "marker").exists()
-        assert record.workspace_error is not None
-        assert len(record.check_results) == 1
+        swap_result = record.check_results[0]
+        if swap_result["exit_code"] != 0:
+            # bwrap: the jail's bind mounts refuse the rename, so there is no
+            # swap to detect and the next check runs in the original dirs.
+            assert record.workspace_error is None
+            assert len(record.check_results) == 2
+        else:
+            # sandbox-exec: the swap succeeds and the identity check stops the run.
+            assert record.workspace_error is not None
+            assert len(record.check_results) == 1
 
 
 DEEP_NESTING = 1100
