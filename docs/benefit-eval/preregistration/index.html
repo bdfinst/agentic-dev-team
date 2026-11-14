@@ -1,0 +1,5566 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://devteam.bryanfinster.com/docs/benefit-eval/preregistration/">
+      
+      
+        <link rel="prev" href="../../adr/0043-replace-the-context-ceiling-guard-with-harness-autocompact/">
+      
+      
+        <link rel="next" href="../../experiments/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Benefit pre-registration - Agentic Dev Team</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../stylesheets/sidebar.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#benefit-pre-registration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Agentic Dev Team" class="md-header__button md-logo" aria-label="Agentic Dev Team" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Agentic Dev Team
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Benefit pre-registration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bdfinst/agentic-dev-team" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bdfinst/agentic-dev-team
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../GETTING-STARTED/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../CONTRIBUTING/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../cloud-setup/" class="md-tabs__link">
+          
+  
+  
+  Guides & Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../plugins/dev-team/" class="md-tabs__link">
+          
+  
+  
+  Plugins
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../CHANGELOG/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Agentic Dev Team" class="md-nav__button md-logo" aria-label="Agentic Dev Team" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Agentic Dev Team
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bdfinst/agentic-dev-team" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bdfinst/agentic-dev-team
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../GETTING-STARTED/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides & Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides & Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cloud-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cloud setup: loading the dev-team plugin into a web session
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cloud-startup-prompt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cloud startup prompt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../command-graph-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Command taxonomy — what each user-invocable command is for
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../complexity-refactor-regression/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Complexity regression check — AC2 of Epic #362
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../context-and-session-economy-playbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session economy playbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../continuous-delivery-coverage-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous delivery coverage review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../enforce-prefer-python-over-bash/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Record: mechanically enforcing "prefer Python over bash"
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiment-install-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment install harness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketplace-builder-plugin-playbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Playbook: building a plugin that builds plugin marketplaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../model-effort-decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model and effort decision log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python-hook-contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python hook contract
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../using-plugin-skills-in-the-web-environment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using a plugin's skills in the Claude Code web environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_13" id="__nav_4_13_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decision Records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0001-record-architecture-decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Record architecture decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0002-use-sentinel-file-and-argument-shape-heuristic-for-codegraph-nudge-hook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Use sentinel file and argument-shape heuristic for CodeGraph nudge hook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-document-adr-tooling-workflow-as-a-skill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Document ADR tooling workflow as a skill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-pre-dispatch-model-resolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    4. Pre-dispatch model tier resolution enforced by a PreToolUse hook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-on-demand-knowledge-indexing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    5. On-demand knowledge indexing with four freshness gates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0006-per-increment-trunk-integration-topology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    6. Per-increment trunk integration topology for agent work
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0007-eval-confidence-pyramid-tier-vocabulary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    7. Eval confidence-pyramid tier vocabulary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    8. Use effort bands instead of model names in agent frontmatter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0009-human-consent-gate-for-learning-loop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    9. Human Consent Gate for Learning Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0010-per-session-analysis-granularity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10. Per-Session Analysis Granularity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11. Enforce the context ceiling with a transcript-measured PreToolUse hook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0012-auto-bootstrap-codegraph-index-per-clone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12. Auto-bootstrap the CodeGraph index per clone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0013-llm-driven-orchestration-over-deterministic-workflow-scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13. LLM-driven orchestration over deterministic workflow scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0014-python-for-cross-os-scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14. Python for cross-OS scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0015-bash-removal-complete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15. Bash removal complete — plugins/dev-team is Python-native
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0016-rely-on-harness-native-compaction-the-plugin-performs-structured-summarization-only/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16. Rely on harness-native compaction; the plugin performs structured summarization only
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0017-single-build-cadence-remove-classic-tdd-opt-in/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17. Single build cadence — remove the Classic TDD opt-in
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0018-native-sub-issues-determine-the-epic-label/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18. Native sub-issues determine the epic label
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0019-orchestrate-the-phase-pipeline-choreograph-the-safety-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19. Orchestrate the phase pipeline, choreograph the safety layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0020-fold-mutation-pipeline-into-the-plugin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20. Fold the ACI mutation pipeline into the plugin as scripted mechanics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0021-claude-only-model-routing-no-multimodal-tier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21. Claude-only model routing — no multimodal or cross-provider tier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0022-reject-delegation-only-sweep-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22. Reject the delegation-only sweep — delegation must earn its measured overhead
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0023-calibrate-effort-bands-from-the-1184-eval-baseline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23. Calibrate agent effort bands from the #1184 eval baseline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0024-keep-single-model-routing-map-keyed-by-canonical-model-ids/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24. Keep the single model-routing map keyed by canonical model IDs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0025-allow-versioned-model-ids-in-routing-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25. Allow versioned (dated-snapshot) model IDs in the routing map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26. Adopt native model:/effort: agent frontmatter, retire the band resolver
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0027-require-and-mechanically-derive-color-on-every-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27. Require and mechanically derive color on every agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0028-require-skills-preload-and-memory-project-on-matching-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28. Require skills: preload and memory: project on matching agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0029-code-modifying-agent-personas-remain-separate-from-software-engineer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    29. Code-modifying agent personas remain separate from software-engineer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0030-use-ancestor-check-instead-of-exact-sha-comparison-for-mutation-baseline-reuse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    30. Use ancestor-check instead of exact-SHA comparison for mutation baseline reuse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0031-raise-shipped-python-floor-to-3-10/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    31. Raise the shipped Python floor from 3.8 to 3.10
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0032-shipped-script-path-resolution-taxonomy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    32. Shipped-script path-resolution taxonomy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0033-quote-claude-plugin-root-expansions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    33. Quote every ${CLAUDE_PLUGIN_ROOT} expansion in a shell fence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0034-do-not-build-shared-context-pre-pass-for-duplicate-full-file-reads-1611/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    34. Do not build a shared-context pre-pass for duplicate full-file reads (#1611)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0035-defer-two-lane-generation-validation-concurrency-in-mutation-kill-all-1909/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    35. Defer two-lane generation/validation concurrency in mutation-kill --all (#1909)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0036-the-two-session-extractors-stay-forked-1994/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    36. The two session extractors stay forked, for now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0037-block-by-default-at-the-context-ceiling-2000/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    37. Block by default at the context ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0038-raise-the-absolute-context-ceiling-to-350k/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    38. Raise the absolute context ceiling from 150K to 350K
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0039-only-skill-loads-are-worth-blocking-at-the-context-ceiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    39. Only Skill loads are worth blocking at the context ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0040-evaluate-splitting-orchestrator-py-no-go/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    40. Evaluate splitting orchestrator.py: no-go
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0041-autoship-step-2b-dispatch-is-not-the-rejected-sweep/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    41. Autoship's per-round agent dispatch is not ADR 0022's rejected sweep
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0042-unify-the-session-extractors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    42. Unify the session extractors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0043-replace-the-context-ceiling-guard-with-harness-autocompact/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    43. Replace the context ceiling guard with harness autocompact
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_14" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_14" id="__nav_4_14_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benefit eval
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_14_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_14">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Benefit eval
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benefit pre-registration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benefit pre-registration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pre-registration-block" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-registration block
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fields
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#baseline-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baseline status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metric-to-computation-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metric-to-computation map
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glossary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Glossary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operator-runbook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator runbook
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_15" id="__nav_4_15_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_15">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Experiments
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Agentic Workflow Experiments — Narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/FAQ/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TDD Experiment — FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/RECOMMENDATIONS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recommendations — The End-to-End Agentic Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/01-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Consolidated Report: Build-Pipeline vs. TDD vs. Non-TDD across Small / Medium / Large Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/02-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When Does TDD Actually Pay Off?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/04-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Refactoring cadence &amp; authorship — results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/04-power-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Refactoring cadence &amp; authorship — pre-run power analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/05-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Final Results — Which Agentic Workflow Yields Maintainable, Well-Tested Code at Minimum Cost
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/test-cadence-validation-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validating an alternative test cadence locally
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_15_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_15_10" id="__nav_4_15_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agentic workflow evidence
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_15_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_15_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agentic workflow evidence
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/agentic-workflow-evidence/01-experiment-prompt-3sizes-3arms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: Build-Pipeline vs. TDD vs. Non-TDD across Small / Medium / Large Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/agentic-workflow-evidence/02-experiment-prompt-when-tdd-pays/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: When Does TDD Actually Pay Off?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/agentic-workflow-evidence/04-experiment-prompt-refactor-granularity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: Refactoring Granularity, the Test Safety Net, and Code/Test Authorship
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/agentic-workflow-evidence/05-experiment-prompt-workflow-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: Which agentic workflow yields maintainable, well-tested code at minimum cost
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_16" id="__nav_4_16_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spikes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_16">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spikes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spikes/build-token-cost-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spike — /build token cost: per-agent overhead &amp; review-value no-op rates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spikes/review-cost-optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spike: Economizing the Review Panel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spikes/worktree-baseref-head-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spike: verify worktree.baseRef=head changes Agent-tool worktree base ref
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugins
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plugins
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    dev-team Plugin
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    dev-team Plugin
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    dev-team
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_3" id="__nav_5_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/agent-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/agent_info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/artifact-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Artifact migration guide (upgrading an existing project)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/code-intelligence-nudge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    code-intelligence-nudge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/code-review-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code review process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/concurrent-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concurrent use — multiple agents or people on one repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/context-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/developer-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer notes — extending and maintaining the plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/eval-maintenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How eval testing works &amp; keeping it current
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/eval-running-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running a full eval of everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/eval-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Eval system for code review agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/session-review-oss-complements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session-review: OSS complements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/session-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session-review harness (#131)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/team-structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Team organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/telemetry-ci-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Giving CI read access to the telemetry repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/telemetry-repo-security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telemetry repository — security &amp; setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/test-evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test evaluation and architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/test-improve/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    /test-improve
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/triage-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Triage workflow: discovery to applied fix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/dev-team/docs/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    marketplace-dev Plugin
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    marketplace-dev Plugin
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/marketplace-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    marketplace-dev
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/marketplace-dev/CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_3" id="__nav_5_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/marketplace-dev/docs/agent_info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/marketplace-dev/docs/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/marketplace-dev/docs/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_4" id="__nav_5_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Knowledge
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Knowledge
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/marketplace-dev/knowledge/agent-type-decision-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Type Decision Rules — markdown vs script
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    security-assessment Plugin
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    security-assessment Plugin
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    security-assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3_3" id="__nav_5_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/accepted-risks-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ACCEPTED-RISKS.md format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/agent_info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/comparative-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparative testing: our plugin vs. opus_repo_scan_test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/user-guide-security-assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide: security assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3_3_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3_3_7" id="__nav_5_3_3_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_3_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3_3_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/agents/authorization-logic-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    authorization-logic-review — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/agents/business-logic-domain-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    business-logic-domain-review — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/agents/cross-repo-synthesizer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cross-repo-synthesizer — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/agents/deep-code-reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    deep-code-reasoning — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/agents/exec-report-generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    exec-report-generator — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/agents/fp-reduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    fp-reduction — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../plugins/security-assessment/docs/agents/recon-driven-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    recon-driven-scan — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pre-registration-block" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-registration block
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fields
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#baseline-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baseline status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metric-to-computation-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metric-to-computation map
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glossary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Glossary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operator-runbook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator runbook
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bdfinst/agentic-dev-team/edit/main/docs/benefit-eval/preregistration.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="benefit-pre-registration">Benefit pre-registration<a class="headerlink" href="#benefit-pre-registration" title="Permanent link">&para;</a></h1>
+<p>This document fixes, before any data is read, how each mechanism shipped by epics #2164 and #2172 is judged keep, tune, or retire. <code>scripts/benefit_eval_cli.py</code> reads the fenced block below and nothing else for thresholds. The prose around the block holds no second copy of its values.</p>
+<p><strong>Status: proposal.</strong> The maintainer confirms or edits every threshold, commits the result, and posts the document to #2200 before the first report run. A threshold changed after the post voids the post. Each entry carries a one-line <code>rationale</code> for its thresholds.</p>
+<h2 id="pre-registration-block">Pre-registration block<a class="headerlink" href="#pre-registration-block" title="Permanent link">&para;</a></h2>
+<p><code>json prereg
+{
+  "version": 1,
+  "metrics": [
+    {
+      "id": "skip-rate",
+      "metric": "Delta-scoping skip rate: skipped (lens, file) pairs over candidate pairs",
+      "instrument": "ledger-skips",
+      "identity_class": "id-bearing",
+      "baseline": "by-definition: 20.69% theoretical ceiling, an estimate from #2165 with no committed source; a measured rate above it signals a counting defect; real-session data waits on #2306 (session id on consult and checkpoint rows)",
+      "unit": "percent",
+      "keep": "&gt;= 10",
+      "tune": "&lt; 10",
+      "retire": "&lt; 3",
+      "direction": "&gt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "candidate pairs",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "tune",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "share of repeat runs versus first runs",
+        "files that changed between runs, which the ledger must re-review",
+        "dispatch-hook rows are excluded: they count only pairs the consult left to dispatch"
+      ],
+      "computation": "metrics_ledger.skip_rate over ledger-skips rows with source=consult; prints the first-run and repeat-run rates, where a first run is a session's earliest consult inside the window (the rows do not record the backstop, so no per-backstop split is computed); the missing-scope-marker count is split by whether the session has a real consult row in the window, a heuristic because the event carries no dispatch source",
+      "ceiling": 20.69,
+      "rationale": "About half the ceiling is the smallest saving that pays for the ledger; under 3% the mechanism is not skipping in practice."
+    },
+    {
+      "id": "findings-parity",
+      "metric": "Findings parity: ledger-off actionable signatures missing from the ledger-on set",
+      "instrument": "manual-input",
+      "identity_class": "id-bearing",
+      "baseline": "by-definition: 0 misses: the ledger-off run is the reference set",
+      "unit": "missing signatures",
+      "keep": "&lt;= 0",
+      "tune": "&lt;= 2",
+      "retire": "&gt;= 3",
+      "direction": "&lt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 3,
+      "n_unit": "diffs",
+      "null_rule": "Fewer than 3 hand-run diffs prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "tune",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "only 3 diffs: a rare finding can be missed by chance in either run",
+        "model nondeterminism between the ledger-on and ledger-off runs"
+      ],
+      "computation": "manual-input: hand-run on 3 or more copies of past diffs; count ledger-off actionable signatures (finding_signature.is_actionable) absent from the ledger-on set; list the diff ids",
+      "rationale": "Any miss is a regression and caps the delta-scoping verdict at tune; three misses across the diffs mean the ledger drops findings routinely."
+    },
+    {
+      "id": "abort-yield",
+      "metric": "Abort deferred-lens yield: share of lenses deferred by an abort that found something new",
+      "instrument": "checkpoint-aborts",
+      "identity_class": "id-bearing",
+      "baseline": "no-reference: first measurement; the question is whether deferred lenses mostly return clean; real-session data waits on #2306 (session id on consult and checkpoint rows)",
+      "unit": "percent",
+      "keep": "&lt;= 25",
+      "tune": "&gt; 25",
+      "retire": "&gt; 60",
+      "direction": "&lt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "deferred lenses",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "few aborts in the window",
+        "the fix loop changes the code the deferred lenses review"
+      ],
+      "computation": "metrics_ledger.abort_yield over checkpoint-aborts rows from aborted checkpoints; lenses deferred after a completed checkpoint are excluded; a deferred lens found something new when a stop-hook row at or after the abort in the same session names it as the lens that tripped the abort rule; prints abort frequency beside it, aborted rows over abort-mode rows for each source on its own",
+      "rationale": "At most a quarter finding something new means the abort mostly saves work; above 60% it only reorders the work."
+    },
+    {
+      "id": "test-review-tp-change",
+      "metric": "test-review true-positive change on the agent-eval fixtures, after minus before",
+      "instrument": "manual-input",
+      "identity_class": "id-bearing",
+      "baseline": "no-reference: fixture-missing; only 4 tr-* fixtures exist, below minimum_n 10, so no live run was made; the pre-phase change was introduced by ee2bc429f (#2197, marker 'Mechanical pre-phase')",
+      "unit": "percentage points",
+      "keep": "&gt;= 0",
+      "tune": "&lt; 0",
+      "retire": "&lt; -10",
+      "direction": "&gt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "fixtures",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "small, fixed fixture set",
+        "model version change between before and after",
+        "eval run-to-run variance"
+      ],
+      "computation": "manual-input: /agent-eval true-positive rate before and after the pre-phase change; enter the difference and the run ids",
+      "rationale": "A drop in true positives fails the mechanism whatever the token savings; a drop past 10 points is beyond tuning."
+    },
+    {
+      "id": "test-review-token-delta",
+      "metric": "test-review mean dispatch tokens, percent change after versus before the boundary",
+      "instrument": "subagent-transcripts",
+      "identity_class": "id-bearing",
+      "baseline": "forward-captured: mean test-review dispatch tokens for dispatches that end before the boundary timestamp",
+      "unit": "percent",
+      "keep": "&lt;= -15",
+      "tune": "&gt; -15",
+      "retire": "&gt; 0",
+      "direction": "&lt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "dispatches",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict. A DIRECTIONAL line never feeds a verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "task mix differs before and after",
+        "model or pricing change at the boundary",
+        "a dispatch sits at its transcript's last record time, so a dispatch that straddles the boundary lands on one side",
+        "tokens are the sum of every usage record in the transcript, the way the cost log counts them"
+      ],
+      "computation": "metrics_hooks.test_review_token_delta over the subagent transcripts of real sessions whose agent type is test-review (session_log): one dispatch per transcript, tokens summed over its usage records, split at the boundary timestamp; the cost-metering log is not used because its rows are cumulative snapshots per transcript, not dispatches; a before mean of 0 has no percent change, so the line prints insufficient with no delta",
+      "rationale": "A 15% cut is the smallest change that stands out from dispatch-to-dispatch noise; an increase means the pre-phase costs more than it saves."
+    },
+    {
+      "id": "expand-rate",
+      "metric": "Tiered findings expand rate: share of rendered reports where --expand was used",
+      "instrument": "tiered-renders",
+      "identity_class": "id-bearing",
+      "baseline": "no-reference: first measurement; render_tiered_findings.py has recorded each render of a non-empty report since #2307",
+      "unit": "percent",
+      "keep": "&lt;= 20",
+      "tune": "&gt; 20",
+      "retire": "&gt; 50",
+      "direction": "&lt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "rendered reports",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "a cold /code-review --expand run re-renders the panel, so its report key can differ from the report the reader saw",
+        "the report key hashes only finding ids, so two rounds in one session with identical finding sets count as one report"
+      ],
+      "computation": "metrics_tiered.expand_rate: tiered-renders rows of real sessions grouped by session and report key; a report is expanded when any of its renders has expand other than none",
+      "rationale": "Expanding in over a fifth of reports means the Tier-1 lines are too thin; above half the tiering saves no reading."
+    },
+    {
+      "id": "report-size-cut",
+      "metric": "Tiered findings report-size cut: percent smaller than the untiered report",
+      "instrument": "review-report-sizes",
+      "identity_class": "id-bearing",
+      "baseline": "no-reference: the 59.0% on the one round measured so far stays a single hand-measured round (n=1) with no committed source, and its measuring method is not recoverable; the comparison rests on the UTF-8 byte rule in the computation cell; render_tiered_findings.py has recorded each round's sizes since #2308",
+      "unit": "percent",
+      "keep": "&gt;= 40",
+      "tune": "&lt; 40",
+      "retire": "&lt; 15",
+      "direction": "&gt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "rounds",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "one hand-measured round before the store existed, by a method that is not recoverable",
+        "two rounds in one session with identical findings and sizes count once, because re-renders of one round write identical rows",
+        "the clean-pass count includes re-renders of a clean-pass round, because every clean-pass row is identical"
+      ],
+      "computation": "metrics_hooks.report_size_cut: mean per-round percent cut, (untiered_bytes - tiered_bytes) / untiered_bytes in UTF-8 bytes, over review-report-sizes rows of real sessions with at least one finding, rows equal in session, findings and both sizes counted once; every clean-pass row is counted and left out",
+      "rationale": "Keeping two thirds of the one-round cut over many rounds shows the saving holds beyond one example."
+    },
+    {
+      "id": "injection-overhead",
+      "metric": "Skill-context injection overhead: mean characters added per injection",
+      "instrument": "skill-injection",
+      "identity_class": "id-bearing",
+      "baseline": "by-definition: 0 characters: a dispatch without injection",
+      "unit": "characters",
+      "keep": "&lt;= 400",
+      "tune": "&gt; 400",
+      "retire": "&gt; 1200",
+      "direction": "&lt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "injections",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "skills per injection vary with the agent-type mix"
+      ],
+      "computation": "metrics_hooks.injection_overhead: mean added_chars over skill-injection rows",
+      "rationale": "About 100 tokens is near zero against a subagent prompt; above about 300 tokens a skill hint costs more than it should."
+    },
+    {
+      "id": "injection-uptake",
+      "metric": "Skill-context injection uptake: share of injections whose injected skill the subagent loaded",
+      "instrument": "skill-injection",
+      "identity_class": "id-bearing",
+      "baseline": "forward-captured: Skill-call rate of the same agent types in transcripts before the boundary timestamp",
+      "unit": "percent",
+      "keep": "&gt;= 50",
+      "tune": "&lt; 50",
+      "retire": "&lt; 10",
+      "direction": "&gt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "injections",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "agents can load a skill unprompted, so uptake can overstate the injection's effect",
+        "agent-type mix shifts across the boundary",
+        "the stream carries no agent id, so the join is by session and agent type"
+      ],
+      "computation": "metrics_hooks.injection_uptake: per skill-injection row, a Skill call for an injected skill in that session's subagent transcript (session_log)",
+      "rationale": "A skill loaded in half the dispatches earns its characters; under 10% the skills are not used and the hook is a retire candidate."
+    },
+    {
+      "id": "guard-divergence",
+      "metric": "Completion-guard divergence rate: share of subagent stops classified empty-final-turn or truncated-final-turn",
+      "instrument": "subagent-stops",
+      "identity_class": "id-bearing",
+      "baseline": "no-reference: first measurement; the earlier study was never run",
+      "unit": "percent",
+      "keep": "&gt;= 2",
+      "tune": "&lt; 2",
+      "retire": "&lt; 0.5",
+      "direction": "&gt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "subagent stops",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "agent-type mix",
+        "unreadable stops are left out of the numerator and the denominator"
+      ],
+      "computation": "metrics_hooks.completion_guard_divergence: flagged rows over clean plus flagged rows in subagent-stops",
+      "rationale": "Two percent flagged means the guard sees real divergence; under 0.5% it rarely fires, and a no-divergence result is a success that recommends keep-observational or retire."
+    },
+    {
+      "id": "guard-false-positive",
+      "metric": "Completion-guard false-positive rate in the hand-checked sample; gates blocking behavior",
+      "instrument": "manual-input",
+      "identity_class": "id-bearing",
+      "baseline": "by-definition: 0%: a flagged dispatch whose final turn is complete is a false positive",
+      "unit": "percent",
+      "keep": "&lt;= 5",
+      "tune": "&gt; 5",
+      "retire": "&gt; 30",
+      "direction": "&lt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "flagged dispatches hand-checked",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "the hand-check is one person's judgment",
+        "the sample is seeded, not spread across the window"
+      ],
+      "computation": "manual-input: false positives over the sample from metrics_hooks.completion_guard_sample (20 flagged dispatches, or all if fewer); list the session ids as 8-character prefixes in the #2200 comment, then enter the full ids in the manual-input file",
+      "rationale": "One false positive in a 20-dispatch sample (5%) is the loosest rate that still allows blocking; above 30% the classifier is not worth keeping."
+    },
+    {
+      "id": "contradicted-rate",
+      "metric": "source-verification contradicted verdicts per invocation",
+      "instrument": "artifact-usage",
+      "identity_class": "id-less",
+      "id_less_handling": "UNVERIFIED",
+      "baseline": "no-reference: new skill; first measurement",
+      "unit": "contradicted verdicts per invocation",
+      "keep": "&gt;= 0.2",
+      "tune": "&lt; 0.2",
+      "retire": "&lt; 0.05",
+      "direction": "&gt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "invocations",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict. An UNVERIFIED line never feeds a verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "verdict tallies are entered by hand",
+        "the wired consumers decide what gets invoked",
+        "artifact-usage keeps cumulative counts with no session ids and no direct-versus-consumer split"
+      ],
+      "computation": "metrics_cost.verdict_rate: invocations from artifact-usage; contradicted verdict tallies from the manual-input file",
+      "rationale": "At 10 invocations, 0.2 means two caught wrong claims; one catch over the whole window is not enough to keep the skill."
+    },
+    {
+      "id": "pbt-mutants-killed",
+      "metric": "property-based-testing mutants killed beyond the target's existing tests, mean per target",
+      "instrument": "manual-input",
+      "identity_class": "id-bearing",
+      "baseline": "measured: mutants killed by the same target's existing tests, mean per target; the value is existing-test kills per target, not comparable to the generated-minus-existing delta this metric reports; record at .dev-team-reports/baselines/benefit-pbt-mutants-killed.json",
+      "unit": "mutants per target",
+      "keep": "&gt;= 1",
+      "tune": "&lt; 1",
+      "retire": "&lt;= 0",
+      "direction": "&gt;=",
+      "inclusivity": "inclusive",
+      "minimum_n": 10,
+      "n_unit": "targets",
+      "null_rule": "N below minimum N prints NULL (N=n) without the value and records no verdict.",
+      "parity_cap": "none",
+      "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
+      "confounds": [
+        "the operator chooses the targets",
+        "mutation tool version"
+      ],
+      "computation": "manual-input: /mutation-testing kills by the generated properties minus kills by the existing tests, per target; list the session ids",
+      "rationale": "One extra kill per target is a concrete gain over existing tests; none across 10 targets means the skill adds nothing."
+    }
+  ]
+}</code></p>
+<h2 id="fields">Fields<a class="headerlink" href="#fields" title="Permanent link">&para;</a></h2>
+<p>The parser requires every field except <code>id_less_handling</code>, <code>ceiling</code>, and <code>rationale</code>. An empty required cell fails the parser (exit 2) and names the metric and the column.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code>, <code>metric</code></td>
+<td>Short name and the full metric statement</td>
+</tr>
+<tr>
+<td><code>instrument</code></td>
+<td>A stream name, <code>subagent-transcripts</code> (the subagent transcripts of real sessions), <code>manual-input</code> (a number you enter by hand), or <code>none</code> (nothing persists it); any other value fails the parser</td>
+</tr>
+<tr>
+<td><code>identity_class</code></td>
+<td><code>id-bearing</code> if rows carry a session id you can check against a transcript; <code>id-less</code> if not</td>
+</tr>
+<tr>
+<td><code>id_less_handling</code></td>
+<td>For <code>id-less</code> only, exactly one of <code>UNVERIFIED</code> (print the number on an <code>UNVERIFIED (no session ids)</code> line that never feeds a verdict or the exit code) or <code>unmeasurable</code> (print <code>unmeasurable</code> and no number; file a follow-up issue). The report prints <code>unmeasurable</code> for any metric with that handling, whatever its stream</td>
+</tr>
+<tr>
+<td><code>baseline</code></td>
+<td>The reference for the person reading the report, in the form <code>&lt;token&gt;: &lt;text&gt;</code>. The token is one status from the table under <a href="#baseline-status">Baseline status</a>, lowercase and followed by a colon and a space; the text is non-empty and gives the reason or a pointer. The CLI requires a non-empty cell and never prints or interprets its token; <code>tests/scripts/test_benefit_baseline_status.py</code> enforces the form</td>
+</tr>
+<tr>
+<td><code>unit</code></td>
+<td>The unit of the number and of the thresholds</td>
+</tr>
+<tr>
+<td><code>keep</code>, <code>tune</code>, <code>retire</code></td>
+<td>Threshold as a direction (<code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>) and a number, in the unit named by <code>unit</code></td>
+</tr>
+<tr>
+<td><code>direction</code>, <code>inclusivity</code></td>
+<td>The within-condition for the keep threshold, so <code>keep</code> must use the <code>direction</code> operator; <code>&lt;=</code> and <code>&gt;=</code> are <code>inclusive</code>, <code>&lt;</code> and <code>&gt;</code> are <code>exclusive</code></td>
+</tr>
+<tr>
+<td><code>minimum_n</code>, <code>n_unit</code></td>
+<td>Smallest N that counts as data, and what N counts</td>
+</tr>
+<tr>
+<td><code>null_rule</code></td>
+<td>What happens below minimum N</td>
+</tr>
+<tr>
+<td><code>parity_cap</code></td>
+<td><code>tune</code> if a parity regression caps the verdict at tune; <code>none</code> otherwise. You apply the cap by hand</td>
+</tr>
+<tr>
+<td><code>window</code></td>
+<td>When the data counts</td>
+</tr>
+<tr>
+<td><code>confounds</code></td>
+<td>The list printed after <code>DIRECTIONAL</code> on a before-and-after comparison</td>
+</tr>
+<tr>
+<td><code>computation</code></td>
+<td>Where the number comes from (see the metric-to-computation map)</td>
+</tr>
+<tr>
+<td><code>ceiling</code></td>
+<td>Optional theoretical maximum. The report prints it for skip rate only, and flags <code>counting defect</code> when the measured rate is above it</td>
+</tr>
+<tr>
+<td><code>rationale</code></td>
+<td>One line on why the thresholds sit where they do</td>
+</tr>
+</tbody>
+</table>
+<h2 id="baseline-status">Baseline status<a class="headerlink" href="#baseline-status" title="Permanent link">&para;</a></h2>
+<p>The first word of each <code>baseline</code> cell states where its reference comes from. The status describes provenance only. It does not change whether a number counts: the <code>NULL (N=n)</code> rule and the <code>DIRECTIONAL</code> rule still decide that.</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>by-definition</code></td>
+<td>The reference is true by construction, for example 0 characters of injection</td>
+</tr>
+<tr>
+<td><code>measured</code></td>
+<td>A committed record under <code>.dev-team-reports/baselines/</code> holds a replayed reference value</td>
+</tr>
+<tr>
+<td><code>forward-captured</code></td>
+<td>Taken from the first real sessions after the instrument emits, split at the boundary</td>
+</tr>
+<tr>
+<td><code>no-reference</code></td>
+<td>First measurement, so no reference exists. A metric whose replayed record could back it, but which has no record yet, uses <code>no-reference</code> with a reason from the list (<code>not-yet-run</code>, <code>tool-unavailable</code>, <code>fixture-missing</code>, <code>cost-declined</code>, <code>commit-unreproducible</code>), written as <code>no-reference: &lt;reason&gt;; &lt;text&gt;</code>. Other <code>no-reference</code> cells need no reason</td>
+</tr>
+<tr>
+<td><code>unmeasurable</code></td>
+<td>No instrument exists. Holds exactly when the entry's <code>id_less_handling</code> is <code>unmeasurable</code>; the cell names its follow-up issue</td>
+</tr>
+</tbody>
+</table>
+<p>The cell of each metric holds its own status. A <code>measured</code> cell cites its record path. The report does not print the status, so a verdict on a <code>no-reference</code> or <code>unmeasurable</code> metric is not guarded by the tool; the rule under Verdict order covers it by hand.</p>
+<h2 id="rules">Rules<a class="headerlink" href="#rules" title="Permanent link">&para;</a></h2>
+<p><strong>Verdict order.</strong> The report prints <code>within</code> or <code>breach</code> against <code>keep</code> only. You apply <code>retire</code>, <code>keep</code> and <code>tune</code> by hand when you post the verdict: evaluate <code>retire</code> first; if it does not apply, evaluate <code>keep</code>; otherwise the verdict is <code>tune</code>. Each threshold's own operator decides its boundary: <code>&gt;=</code> includes the limit and <code>&lt;</code> excludes it. No keep, tune, or retire verdict is posted for a metric whose baseline status is <code>no-reference</code> or <code>unmeasurable</code>. These metrics are: <code>abort-yield</code>, <code>contradicted-rate</code>, <code>expand-rate</code>, <code>guard-divergence</code>, <code>report-size-cut</code>, <code>test-review-tp-change</code>.</p>
+<p><strong>Within and breach.</strong> The report prints <code>within</code> when the value meets the keep threshold using <code>direction</code>, and <code>breach</code> when it does not. A value exactly on the keep threshold is <code>within</code> when <code>inclusivity</code> is <code>inclusive</code> and <code>breach</code> when it is <code>exclusive</code>. <code>breach</code> is a threshold finding, not a verdict.</p>
+<p><strong>Minimum N.</strong> One rule for every metric: below <code>minimum_n</code>, the metric prints <code>NULL (N=n)</code> and no value. Findings parity counts diffs, so its <code>minimum_n</code> is lower than the rest, because you hand-run it. Every other metric uses the shared value in the block.</p>
+<p><strong>Parity cap.</strong> Any ledger-off actionable signature missing from the ledger-on set is a regression. File it as a bug. It caps the delta-scoping skip rate verdict at <code>tune</code>, whatever the skip rate. The cap applies to the verdicts of the entries whose <code>parity_cap</code> is <code>tune</code>: the delta-scoping skip rate and findings parity. Findings parity keeps its own <code>parity_cap</code> of <code>tune</code>; its thresholds are unchanged.</p>
+<p><strong>Id-less instruments.</strong> <code>artifact-usage.json</code> carries no session ids. The report prints its numbers on an <code>UNVERIFIED (no session ids)</code> line. Such a line prints its status, but it never feeds a verdict and never changes the exit code. A metric with <code>unmeasurable</code> handling gets no number and a follow-up issue. The block declares no handling for <code>cost-metering.jsonl</code>, because no metric reads it.</p>
+<p><strong>Directional comparisons.</strong> A before-and-after number prints as <code>DIRECTIONAL (confounds: &lt;the confounds list&gt;)</code>. It prints its status, but it never feeds a verdict and never changes the exit code. The boundary is an ISO 8601 UTC timestamp ending in <code>Z</code>. Before is <code>ts &lt; boundary</code> and after is <code>ts &gt;= boundary</code>. An empty side prints <code>insufficient</code> and no delta, and so does a before mean of 0, unless the other side is below minimum N: then the line prints <code>NULL (N=n)</code> for that side.</p>
+<p><strong>Statuses and exit codes.</strong> The report evaluates each metric top to bottom and stops at the first match.</p>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Token</th>
+<th>Exit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>N is 0</td>
+<td><code>no rows in window</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td>N is below minimum N</td>
+<td><code>NULL (N=n)</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td>One directional side is empty</td>
+<td><code>insufficient</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td>The tally-based metric has invocations but no entered tally</td>
+<td><code>not entered</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td>Value fails the keep threshold</td>
+<td><code>breach</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>Otherwise</td>
+<td><code>within</code></td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p>A hand-entered metric with no entry has N of 0 and prints <code>no rows in window</code>.</p>
+<p>The exit code of a report comes from the lines that feed a verdict. A line on an id-less instrument and a <code>DIRECTIONAL</code> line print their own status; the JSON output also carries their exit code. They do not change the run's code. Malformed input is always 2. An <code>unmeasurable</code> line adds exit 0.</p>
+<p>The audit exits 1 for a <code>gap</code> or a <code>no instrument</code> metric, 2 for malformed input or a missing argument, and 0 otherwise. A parity regression is a manual finding in the #2200 comment, not an exit code.</p>
+<h2 id="metric-to-computation-map">Metric-to-computation map<a class="headerlink" href="#metric-to-computation-map" title="Permanent link">&para;</a></h2>
+<p>The <code>computation</code> cell of each entry is the map. It names one of three sources:</p>
+<ul>
+<li><strong>Stream and function.</strong> A <code>metrics_*</code> module function in <code>scripts/lib/benefit_eval/</code> that reads the instrument.</li>
+<li><strong>Manual-input file.</strong> <code>.claude/metrics/benefit-manual-input.json</code> is a JSON object keyed by metric <code>id</code>. Each value is <code>{"value": &lt;number&gt;, "n": &lt;integer&gt;, "sessions": ["&lt;session id&gt;"], "note": "&lt;text&gt;"}</code>. <code>value</code> and <code>n</code> are required; <code>sessions</code> and <code>note</code> are optional. Enter each session id in full; the report checks it against the transcripts, counts one with no real transcript as <code>unverified</code>, and prints the first 8 characters of the others. A malformed file exits 2. The <code>test-review</code> true-positive change comes from <code>/agent-eval</code> output and the completion-guard false-positive rate from the hand-check of the seeded sample. Both go in this file, as do findings parity, the <code>contradicted</code> tallies, and the PBT mutant kills. For the <code>contradicted</code> tally, <code>value</code> is the count of contradicted verdicts and <code>n</code> is the verdicts reviewed; the rate divides <code>value</code> by invocations.</li>
+<li><strong>Unmeasurable.</strong> No instrument persists the number. The audit reports <code>no instrument</code>, and you file a follow-up issue instead of adding an emitter.</li>
+</ul>
+<p>Transcript-derived numbers join at the grain of session and agent type, because the <code>skill-injection</code> stream carries no agent id. The <code>test-review</code> token change reads one dispatch per subagent transcript, so it needs no stream.</p>
+<h2 id="glossary">Glossary<a class="headerlink" href="#glossary" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Instrument:</strong> a persisted stream or file that carries the rows a metric reads.</li>
+<li><strong>Metric:</strong> one number computed from an instrument, with thresholds in the block.</li>
+<li><strong>Gap:</strong> an instrument with no rows or fewer than 3 real sessions. A short gap waits for more sessions.</li>
+<li><strong>Manual:</strong> the audit status of an instrument you enter by hand. It is not a finding.</li>
+<li><strong>No instrument:</strong> a metric whose <code>instrument</code> is <code>none</code>. Record it as <code>unmeasurable</code> and file a follow-up issue.</li>
+<li><strong>Real session:</strong> a session id with a transcript that <code>session_log</code> finds and that parses. Subagent transcripts do not count. Rows that fail this test are <code>unverified</code>, counted, and contribute zero to any number. An unparseable transcript is a counted skip. An empty transcript is not real and its rows are <code>unverified</code>, but it is not counted as a skip.</li>
+<li><strong>Insufficient:</strong> one side of a before-and-after comparison has no rows. No delta exists.</li>
+<li><strong>Not entered:</strong> the tally-based metric (the <code>contradicted</code> verdict rate) has invocations but the manual-input file has no tally for it. A hand-entered metric with no entry prints <code>no rows in window</code> instead.</li>
+<li><strong>Null:</strong> the metric has rows but fewer than minimum N. The number is not trustworthy and gets no verdict.</li>
+<li><strong>Parity:</strong> the check that delta-scoped review finds everything a full review finds.</li>
+<li><strong>Window:</strong> the period whose rows count. For a before-and-after metric it bounds the after side.</li>
+</ul>
+<h2 id="operator-runbook">Operator runbook<a class="headerlink" href="#operator-runbook" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Review each threshold in the block. Edit it if you disagree, then commit.</li>
+<li>Run the audit: <code>python3 scripts/benefit_eval_cli.py audit</code>. Add <code>--json</code> for records. Exit 1 means a gap or a metric with no instrument.</li>
+<li>Record each <code>no instrument</code> metric as <code>unmeasurable</code> with a follow-up issue. Wait for more sessions on a short gap. Record a gap still open when the window closes as <code>unmeasurable</code> too. If the audit finds neither, say so.</li>
+<li>Post to #2200 as one comment: the block, the audit output, the window end date. Show session ids as their first 8 characters only. List the baseline status of every metric in the comment, so your confirmation covers the statuses, and link the comment in the pull request description. Note the comment's UTC creation time.</li>
+<li>Wait for the window in each entry to close. An unmet minimum N at the null date stays <code>NULL</code>.</li>
+<li>Hand-run parity on copies of past diffs, once with the ledger on and once with it moved aside. Use at least the parity minimum N from the block. Compare actionable signatures. Record the diff ids in the #2200 comment.</li>
+<li>Run the report with <code>--prereg-posted &lt;timestamp&gt;</code>. Use the comment time from step 4, as an ISO 8601 UTC timestamp ending in <code>Z</code>. Add <code>--boundary &lt;timestamp&gt;</code>, the same format, for the before-and-after metric. Add <code>--window-start &lt;timestamp&gt;</code> with the time #2199 merged, and <code>--window-end &lt;timestamp&gt;</code> at the close of the window, in the same format; a row counts from the start up to but not including the end, and without them every row counts. Expect exit 2 without <code>--prereg-posted</code>, and without <code>--boundary</code> when the before-and-after metric is pre-registered; the report prints the post time beside its own run time. Run <code>report --help</code> for the other options. Attest that the comment came first; the tool does not check it.</li>
+<li>Hand-post one verdict comment on #2164 and one on #2172. For each metric give the value, N, the threshold, the verdict, and the confounds on directional numbers.</li>
+<li>Delete or archive the tooling after both verdicts post. If no verdict posts by the null date, delete it anyway.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.share", "content.action.edit", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
