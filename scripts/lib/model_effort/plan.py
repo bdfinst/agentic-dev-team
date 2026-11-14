@@ -97,7 +97,9 @@ def plan_run(
     The candidate arm takes `candidate_model`/`candidate_effort`, each defaulting
     to the baseline (frontmatter) value. With `stress_axis`, there is no
     candidate: the arms are the frontmatter tier, one step down and one step up
-    on that axis (`stress_arms`), and the run ID names the frontmatter tier. The baseline's frontmatter values and any
+    on that axis, or on the other ladder when that axis has no rung left
+    (`stress_arms`), and the run ID names the frontmatter tier. The baseline's
+    frontmatter values and any
     explicit candidate values are checked against the agent contract before the
     run ID, which names the artifact file, is built from them. `rng` needs
     `getrandbits`. `eval_paths` names the directories the agent file, expected
