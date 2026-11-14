@@ -37,9 +37,15 @@ Capture the agent name/spec or URL from `$ARGUMENTS`.
 
 Invoke the agent-create skill with the arguments.
 
-### 3. Report
+### 3. Record the decision-log row
 
-Output the created file path.
+agent-create Step 15 appends a `keep` row to `docs/model-effort-decisions.md`
+when the target repo has that file. Do not skip it. In a repo without the
+file, nothing happens.
+
+### 4. Report
+
+Output the created file path, and the decision-log row when one was added.
 
 Apply the guidelines defined in skills/agent-create/SKILL.md to the current
 task. Read the skill file and follow its steps exactly.

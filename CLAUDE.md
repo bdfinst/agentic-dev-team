@@ -105,7 +105,7 @@ claude plugin install --scope project dev-team@bfinster
 
 ### Adding agents, skills, or hooks
 
-- **Agent**: `.md` file in `plugins/dev-team/agents/`
+- **Agent**: `.md` file in `plugins/dev-team/agents/`, plus a `keep` row in [`docs/model-effort-decisions.md`](docs/model-effort-decisions.md) ([ADR 0026](docs/adr/0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md#amendment-2026-11-14)). `/agent-add` adds the row.
 - **Agent-loaded skill**: `SKILL.md` under `plugins/dev-team/skills/<name>/`
 - **User-invocable skill**: same, with `user-invocable: true` in frontmatter
 - **Hook**: `.py` file in `plugins/dev-team/hooks/`, registered in `plugins/dev-team/settings.json`
