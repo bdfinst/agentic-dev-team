@@ -30,7 +30,7 @@ Scaffolds `evals/<name>/{fixtures,expected}/` and a grading-contract README. An 
 
 ### `/agent-create`
 
-Creates new Claude Code sub-agent files following the official schema and token-efficiency budgets. Handles both review agents (JSON output, read-only tools, ≤ 40-line body) and team agents (prose output, action tools, ≤ 75-line body). Validates against the `plugin-audit` skill before writing. Updates the agent registry and plugin `CLAUDE.md` after success.
+Creates new Claude Code sub-agent files following the official schema and token-efficiency budgets. Handles both review agents (JSON output, read-only tools, ≤ 40-line body) and team agents (prose output, action tools, ≤ 75-line body). Validates against the `plugin-audit` skill before writing. Updates the agent registry and plugin `CLAUDE.md` after success. When the repo has `docs/model-effort-decisions.md`, appends a `keep` row for the agent with `scripts/append_model_effort_row.py`; otherwise skips that step.
 
 ### `/agent-add`
 

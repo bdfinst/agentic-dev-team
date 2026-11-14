@@ -56,6 +56,7 @@ Use `/agent-add` — it invokes the `agent-create` skill, which handles all regi
 - Validates against `/plugin-audit`
 - Appends a row to the matching table in `$PLUGIN/knowledge/agent-registry.md` (if the file exists)
 - Updates the Quick Reference list in `$PLUGIN/CLAUDE.md` (if the section exists)
+- Appends a `keep` row to `docs/model-effort-decisions.md` at the repo root (if the file exists)
 
 For review agents specifically, also add eval fixtures to `evals/$NAME/fixtures/` and expected results to `evals/$NAME/expected/` at the repo root (these are not auto-generated; eval fixtures live outside the plugin directory).
 

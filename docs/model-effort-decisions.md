@@ -1,6 +1,6 @@
 # Model and effort decision log
 
-Per-agent record of the Haiku 5.5 re-evaluation (issues #2250, #2251). Agent frontmatter stays the single source of truth for current values ([ADR 0026](adr/0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md)); this log records the decision and evidence for each assignment.
+Per-agent record of the Haiku 5.5 re-evaluation (issues #2250, #2251). Agent frontmatter stays the single source of truth for current values ([ADR 0026](adr/0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md)); this log records the decision and evidence for each assignment. It is a deliberate, gate-checked sync surface that covers every agent and effort-setting skill ([ADR 0026 amendment](adr/0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver.md#amendment-2026-11-14)); `/agent-add` appends the row for a new agent.
 
 ## Feasibility findings (2026-10-08)
 
