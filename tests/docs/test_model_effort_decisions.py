@@ -3,12 +3,14 @@
 The log records the per-agent model/effort decision and its eval evidence.
 Agent frontmatter stays authoritative; this gate checks that the log's Final
 columns equal it, that every tier change carries well-formed evidence tied to
-the row, and that agent_info.md's Model column agrees with frontmatter.
+the row, and that each evidence run ID resolves to a committed run artifact
+whose model, effort, fixtures, trials and cost agree with the row.
 Baseline is historical text: nothing here reads git.
 """
 
 from __future__ import annotations
 
+import json
 import re
 
 import pytest
@@ -17,12 +19,9 @@ from _plugin_dirs import frontmatter_block, frontmatter_field
 from _repo_root import REPO_ROOT
 
 DECISION_LOG_PATH = REPO_ROOT / "docs" / "model-effort-decisions.md"
-AGENT_INFO_PATH = REPO_ROOT / "plugins" / "dev-team" / "docs" / "agent_info.md"
 AGENTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "agents"
-SKILL_SOURCES = [
-    "plugins/dev-team/skills/co-evolution-audit/SKILL.md",
-    "plugins/dev-team/skills/autoship/SKILL.md",
-]
+SKILLS_DIR = REPO_ROOT / "plugins" / "dev-team" / "skills"
+RUNS_DIR = REPO_ROOT / "evals" / "model-effort" / "runs"
 
 EVIDENCE_COLUMN = "Evidence or reason"
 COLUMNS = [
@@ -51,10 +50,8 @@ MIN_FIXTURES = 3
 SAVING_TOLERANCE = 0.001
 HEADER_AND_SEPARATOR_LINES = 2
 ERROR_EXCERPT_WIDTH = 60
-AGENT_INFO_AGENT_COLUMN = "Agent"
-AGENT_INFO_MODEL_COLUMN = "Model"
 UNVERSIONED_MODEL_IDS = {"claude-haiku", "claude-sonnet", "claude-opus"}
-REASON_NONE = ""
+REASON_BLANK = ""
 REASON_NO_FIXTURE = "no fixture"
 REASON_INSUFFICIENT_FIXTURES = "insufficient fixtures"
 REASON_DIRECTORY_FIXTURES_ONLY = "directory fixtures only"
@@ -67,7 +64,7 @@ REASON_TOOLS_WITHHELD = "weak evidence: tools withheld"
 # Other reasons ("not selected" included) mean no evaluation ran.
 EVALUATED_KEEP_REASONS = {REASON_FAILED_EVAL, REASON_TOOLS_WITHHELD}
 KEEP_REASONS = {
-    REASON_NONE,
+    REASON_BLANK,
     REASON_NO_FIXTURE,
     REASON_INSUFFICIENT_FIXTURES,
     REASON_DIRECTORY_FIXTURES_ONLY,
@@ -84,9 +81,10 @@ RECALL_GAP_SENTENCE = (
 # proposed tier lost no recall relative to the current tier; it does not mean
 # every trial passed.
 EVIDENCE_RE = re.compile(
-    r"^eval:\S+; model:(?P<model>claude-[a-z0-9-]+); "
+    r"^eval:(?P<run_id>[A-Za-z0-9][A-Za-z0-9-]*); "
+    r"model:(?P<model>claude-[a-z0-9-]+); "
     r"effort:(?P<effort>low|medium|high|xhigh|max); fixtures:(?P<fixtures>\d+); "
-    r"trials:\d+; delta:0; "
+    r"trials:(?P<trials>\d+); delta:0; "
     r"cost:(?P<baseline_cost>\d+(?:\.\d+)?)->(?P<candidate_cost>\d+(?:\.\d+)?)$"
 )
 CONCRETE_MODEL_ID_RE = re.compile(r"^claude-[a-z0-9-]+$")
@@ -98,6 +96,12 @@ HEADER_FIELD_RE = re.compile(
 
 def violations_for(name: str, message: str) -> list[str]:
     return [f"{name}: {message}"]
+
+
+def load_repo_artifact(run_id: str):
+    """The committed run artifact for run_id, or None when no file exists."""
+    path = RUNS_DIR / f"{run_id}.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 
 def parse_log(text: str) -> tuple[dict[str, str], list[dict[str, str]], list[str]]:
@@ -122,7 +126,9 @@ def parse_log(text: str) -> tuple[dict[str, str], list[dict[str, str]], list[str
     return headers, rows, errors
 
 
-def check_log(text: str, frontmatter_for_source) -> list[str]:
+def check_log(
+    text: str, frontmatter_for_source, artifact_for_run=load_repo_artifact
+) -> list[str]:
     """Return one error string per violation; empty means the log passes."""
     headers, rows, errors = parse_log(text)
     if RECALL_GAP_SENTENCE not in text:
@@ -132,7 +138,7 @@ def check_log(text: str, frontmatter_for_source) -> list[str]:
     for dup in sorted({s for s in sources if sources.count(s) > 1}):
         errors.append(f"{dup}: listed more than once")
     for row in rows:
-        errors += check_row(row, frontmatter_for_source)
+        errors += check_row(row, frontmatter_for_source, artifact_for_run)
     evaluated = sum(1 for r in rows if is_evaluated(r))
     if headers.get("Candidates evaluated") != str(evaluated):
         errors.append(
@@ -161,7 +167,9 @@ def check_header_fields(headers: dict[str, str]) -> list[str]:
     return errors
 
 
-def check_row(row: dict[str, str], frontmatter_for_source) -> list[str]:
+def check_row(
+    row: dict[str, str], frontmatter_for_source, artifact_for_run=load_repo_artifact
+) -> list[str]:
     name = row["Agent"]
     frontmatter = frontmatter_for_source(row["Source"])
     if frontmatter is None:
@@ -187,14 +195,11 @@ def check_row(row: dict[str, str], frontmatter_for_source) -> list[str]:
         problems += violations_for(name, "Final model differs from frontmatter")
     if frontmatter_field(frontmatter, "effort") != final_effort:
         problems += violations_for(name, "Final effort differs from frontmatter")
-    is_unchanged = (row["Baseline model"], row["Baseline effort"]) == (
-        final_model,
-        final_effort,
-    )
-    if is_unchanged:
+    direction = tier_direction(row)
+    if direction == DIRECTION_UNCHANGED:
         problems += check_keep_row(name, row)
     else:
-        problems += check_tier_change(name, row)
+        problems += check_tier_change(name, row, direction, artifact_for_run)
     return problems
 
 
@@ -203,38 +208,38 @@ def has_minimum_fixtures(row: dict[str, str]) -> bool:
 
 
 def check_keep_row(name: str, row: dict[str, str]) -> list[str]:
-    evidence = row[EVIDENCE_COLUMN]
+    reason = row[EVIDENCE_COLUMN]
     if row["Decision"] != DECISION_KEEP:
         return violations_for(
             name, "decision contradicts the baseline-to-final movement"
         )
     if row["Eval cost saving (USD)"]:
         return violations_for(name, "keep row must not report a cost saving")
-    if evidence == REASON_NO_FIXTURE and row["Fixtures"] != "0":
+    if reason == REASON_NO_FIXTURE and row["Fixtures"] != "0":
         return violations_for(name, f"'{REASON_NO_FIXTURE}' requires Fixtures of 0")
-    if evidence == REASON_INSUFFICIENT_FIXTURES and (
+    if reason == REASON_INSUFFICIENT_FIXTURES and (
         not row["Fixtures"].isdigit() or has_minimum_fixtures(row)
     ):
         return violations_for(
             name,
             f"'{REASON_INSUFFICIENT_FIXTURES}' requires Fixtures below {MIN_FIXTURES}",
         )
-    if evidence == REASON_NOT_SELECTED and not has_minimum_fixtures(row):
+    if reason == REASON_NOT_SELECTED and not has_minimum_fixtures(row):
         return violations_for(
             name,
             f"'{REASON_NOT_SELECTED}' requires Fixtures of at least {MIN_FIXTURES}",
         )
-    if evidence == REASON_NONE and (
+    if reason == REASON_BLANK and (
         not row["Fixtures"].isdigit() or has_minimum_fixtures(row)
     ):
         return violations_for(
             name, f"a blank reason requires Fixtures below {MIN_FIXTURES}"
         )
-    if evidence == REASON_OPUS_NOT_RUN and row["Final model"] != OPUS:
+    if reason == REASON_OPUS_NOT_RUN and row["Final model"] != OPUS:
         return violations_for(
             name, f"'{REASON_OPUS_NOT_RUN}' requires Final model {OPUS}"
         )
-    if evidence not in KEEP_REASONS:
+    if reason not in KEEP_REASONS:
         return violations_for(
             name, "keep-row evidence must be one of the known reasons"
         )
@@ -255,9 +260,10 @@ def tier_direction(row: dict[str, str]) -> str:
     return DECISION_DOWNGRADE if any(f < b for b, f in pairs) else DIRECTION_UNCHANGED
 
 
-def check_tier_change(name: str, row: dict[str, str]) -> list[str]:
-    """Direction, then evidence format, tie to the row, and cost."""
-    direction = tier_direction(row)
+def check_tier_change(
+    name: str, row: dict[str, str], direction: str, artifact_for_run
+) -> list[str]:
+    """Direction, then evidence format, tie to the row, cost, and run artifact."""
     if row["Decision"] != direction:
         return violations_for(
             name, f"decision '{row['Decision']}' contradicts the {direction} movement"
@@ -279,8 +285,14 @@ def check_tier_change(name: str, row: dict[str, str]) -> list[str]:
         return violations_for(
             name, f"evidence fixtures must equal Fixtures and be >= {MIN_FIXTURES}"
         )
-    if direction == DECISION_UPGRADE:
-        return []
+    if direction == DECISION_DOWNGRADE:
+        problems = check_saving(name, row, match)
+        if problems:
+            return problems
+    return check_artifact(name, row, match, artifact_for_run)
+
+
+def check_saving(name: str, row: dict[str, str], match: re.Match) -> list[str]:
     baseline, candidate = float(match["baseline_cost"]), float(match["candidate_cost"])
     if not candidate < baseline:
         return violations_for(name, "candidate cost is not lower than baseline")
@@ -290,62 +302,77 @@ def check_tier_change(name: str, row: dict[str, str]) -> list[str]:
     return []
 
 
-class AgentInfoRowError(ValueError):
-    """A row of the agent_info.md model table has fewer cells than its header."""
-
-
-def agent_info_model_pairs(text: str) -> list[tuple[str, str]]:
-    """(agent, model) per row of the table whose header has Agent and Model columns.
-
-    Raises:
-        AgentInfoRowError: a row has too few cells to reach the Agent or Model column.
-    """
-    pairs, columns = [], None
-    for line in text.splitlines():
-        if not line.startswith("|"):
-            columns = None
-            continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
-        if columns is None:
-            if AGENT_INFO_AGENT_COLUMN in cells and AGENT_INFO_MODEL_COLUMN in cells:
-                columns = (
-                    cells.index(AGENT_INFO_AGENT_COLUMN),
-                    cells.index(AGENT_INFO_MODEL_COLUMN),
-                )
-            continue
-        if set("".join(cells)) <= {"-", ":", " "}:
-            continue
-        agent_index, model_index = columns
-        if len(cells) <= max(agent_index, model_index):
-            raise AgentInfoRowError(
-                f"row has {len(cells)} cells, needs {max(agent_index, model_index) + 1}: "
-                f"{line[:ERROR_EXCERPT_WIDTH]}"
-            )
-        pairs.append((cells[agent_index].strip("`"), cells[model_index]))
-    return pairs
-
-
-def agent_info_mismatches(pairs, declared_model_for) -> list[str]:
-    """One error per pair whose table model differs from the declared one."""
-    errors = []
-    for agent, table_model in pairs:
-        declared = declared_model_for(agent)
-        if declared is None:
-            errors.append(f"{agent}: no agent file")
-        elif declared != table_model:
-            errors.append(
-                f"{agent}: table says {table_model}, frontmatter says {declared}"
-            )
-    return errors
-
-
-def repo_declared_model(agent: str):
-    source = AGENTS_DIR / f"{agent}.md"
-    return (
-        frontmatter_field(frontmatter_block(source), "model")
-        if source.is_file()
-        else None
+def arm_at_baseline_tier(arm: dict, row: dict[str, str]) -> bool:
+    """True when the arm ran the row's Baseline tier; a skill row has no model to match."""
+    return arm["effort"] == row["Baseline effort"] and (
+        row["Baseline model"] == NOT_APPLICABLE or arm["model"] == row["Baseline model"]
     )
+
+
+def cost_matches(written: str, reported_usd: float) -> bool:
+    """True when the CLI-reported cost rounds to the evidence cost at its written precision."""
+    decimals = len(written.partition(".")[2])
+    return f"{reported_usd:.{decimals}f}" == written
+
+
+def check_artifact(
+    name: str, row: dict[str, str], match: re.Match, artifact_for_run
+) -> list[str]:
+    """The evidence run resolves to an artifact that ran this agent at both tiers with the row's numbers.
+
+    Arms are matched by tier, not by label: a re-run may record the proposed
+    tier as its baseline arm.
+    """
+    run_id = match["run_id"]
+    artifact = artifact_for_run(run_id)
+    if artifact is None:
+        return violations_for(name, f"evidence run {run_id} has no committed artifact")
+    if artifact["agent"] != name:
+        return violations_for(
+            name, f"artifact {run_id} ran agent '{artifact['agent']}', not this row's"
+        )
+    arms = artifact["arms"]
+    model_arms = [a for a in arms if a["model_id"] == match["model"]]
+    if not model_arms:
+        return violations_for(
+            name, f"artifact {run_id} has no arm with model {match['model']}"
+        )
+    final_arm = next((a for a in model_arms if a["effort"] == match["effort"]), None)
+    if final_arm is None:
+        return violations_for(
+            name,
+            f"artifact {run_id} has no {match['model']} arm at effort {match['effort']}",
+        )
+    baseline_arm = next(
+        (a for a in arms if a is not final_arm and arm_at_baseline_tier(a, row)), None
+    )
+    if baseline_arm is None:
+        return violations_for(
+            name, f"artifact {run_id} has no arm at the Baseline model and effort"
+        )
+    problems = []
+    for arm in (baseline_arm, final_arm):
+        if len(arm["fixtures"]) != int(match["fixtures"]):
+            problems += violations_for(
+                name,
+                f"evidence fixtures differ from artifact {run_id} "
+                f"{arm['effort']} arm ({len(arm['fixtures'])})",
+            )
+        if arm["trials_per_fixture"] != int(match["trials"]):
+            problems += violations_for(
+                name,
+                f"evidence trials differ from artifact {run_id} "
+                f"{arm['effort']} arm ({arm['trials_per_fixture']})",
+            )
+    for column, arm in (("baseline", baseline_arm), ("candidate", final_arm)):
+        reported = arm["totals"]["actual_cost_usd"]
+        if not cost_matches(match[f"{column}_cost"], reported):
+            problems += violations_for(
+                name,
+                f"evidence {column} cost {match[f'{column}_cost']} differs from "
+                f"artifact {run_id} ({reported})",
+            )
+    return problems
 
 
 def load_repo_frontmatter(source: str):
@@ -353,9 +380,18 @@ def load_repo_frontmatter(source: str):
     return frontmatter_block(path) if path.is_file() else None
 
 
+def effort_setting_skill_sources() -> set[str]:
+    """Every skill whose SKILL.md frontmatter declares effort:."""
+    return {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in SKILLS_DIR.glob("*/SKILL.md")
+        if frontmatter_field(frontmatter_block(path), "effort")
+    }
+
+
 def expected_sources() -> set[str]:
-    agents = {str(p.relative_to(REPO_ROOT)) for p in AGENTS_DIR.glob("*.md")}
-    return agents | set(SKILL_SOURCES)
+    agents = {p.relative_to(REPO_ROOT).as_posix() for p in AGENTS_DIR.glob("*.md")}
+    return agents | effort_setting_skill_sources()
 
 
 # --- real repository ---------------------------------------------------------
@@ -368,7 +404,7 @@ def test_log_passes_gate():
     assert errors == []
 
 
-def test_log_covers_every_agent_and_named_skill():
+def test_log_covers_every_agent_and_effort_setting_skill():
     _, rows, parse_errors = parse_log(DECISION_LOG_PATH.read_text(encoding="utf-8"))
     assert parse_errors == []
     actual = {r["Source"] for r in rows}
@@ -376,17 +412,17 @@ def test_log_covers_every_agent_and_named_skill():
     assert (expected - actual, actual - expected) == (set(), set())
 
 
-def test_agent_info_model_column_matches_frontmatter():
-    pairs = agent_info_model_pairs(AGENT_INFO_PATH.read_text(encoding="utf-8"))
-    assert pairs, "no agent rows found under a Model column"
-    assert agent_info_mismatches(pairs, repo_declared_model) == []
-
-
 # --- synthetic fixtures ------------------------------------------------------
 
+GOOD_RUN_ID = "run-1"
+UPGRADE_RUN_ID = "run-up"
 GOOD_EVIDENCE = (
-    f"eval:run-1; model:claude-haiku-5-5; effort:medium; fixtures:{MIN_FIXTURES}; "
-    "trials:3; delta:0; cost:0.40->0.02"
+    f"eval:{GOOD_RUN_ID}; model:claude-haiku-5-5; effort:medium; "
+    f"fixtures:{MIN_FIXTURES}; trials:3; delta:0; cost:0.40->0.02"
+)
+UPGRADE_EVIDENCE = (
+    f"eval:{UPGRADE_RUN_ID}; model:claude-haiku-5-5; effort:medium; "
+    f"fixtures:{MIN_FIXTURES}; trials:3; delta:0; cost:0.02->0.40"
 )
 FRONTMATTER_BY_SOURCE = {
     "a.md": "model: sonnet\neffort: high",
@@ -409,25 +445,59 @@ ROW_FIELDS = [
 FIXTURES_AT_MINIMUM = str(MIN_FIXTURES)
 FIXTURES_BELOW_MINIMUM = str(MIN_FIXTURES - 1)
 FIXTURES_ABOVE_MINIMUM = str(MIN_FIXTURES + 1)
+NO_CANDIDATES = "0"
+ONE_CANDIDATE = "1"
+
+
+def make_arm(label, model, effort, cost_usd, fixtures=MIN_FIXTURES, trials=3):
+    """One arm in the shape scripts/model_effort_ab.py writes; only gate-read fields."""
+    return {
+        "label": label,
+        "model": model,
+        "model_id": f"claude-{model}-5-5",
+        "effort": effort,
+        "trials_per_fixture": trials,
+        "fixtures": [{"stem": f"f{i}"} for i in range(fixtures)],
+        "totals": {"actual_cost_usd": cost_usd},
+    }
+
+
+ARTIFACTS_BY_RUN_ID = {
+    GOOD_RUN_ID: {
+        "run_id": GOOD_RUN_ID,
+        "agent": "b",
+        "arms": [
+            make_arm("baseline", "sonnet", "high", 0.4012),
+            make_arm("candidate", "haiku", "medium", 0.0198),
+        ],
+    },
+    UPGRADE_RUN_ID: {
+        "run_id": UPGRADE_RUN_ID,
+        "agent": "b",
+        "arms": [
+            make_arm("baseline", "haiku", "low", 0.02),
+            make_arm("candidate", "haiku", "medium", 0.40),
+        ],
+    },
+}
 
 
 def fake_frontmatter_for_source(source):
     return FRONTMATTER_BY_SOURCE.get(source)
 
 
+def fake_artifact_for_run(run_id):
+    return ARTIFACTS_BY_RUN_ID.get(run_id)
+
+
 def make_log(
     rows,
-    candidates=None,
+    candidates,
     include_recall_gap=True,
     alias="claude-haiku-5-5",
     effort_variable="yes",
 ):
-    evaluated = (
-        candidates
-        if candidates is not None
-        else str(sum(1 for r in rows if is_evaluated(r)))
-    )
-    head = f"- Candidates evaluated: {evaluated}\n"
+    head = f"- Candidates evaluated: {candidates}\n"
     head += f"- Alias resolved: {alias}\n- Effort variable: {effort_variable}\n"
     head += (RECALL_GAP_SENTENCE + "\n") if include_recall_gap else ""
     table = "| " + " | ".join(COLUMNS) + " |\n|" + "---|" * len(COLUMNS) + "\n"
@@ -447,7 +517,7 @@ def make_row(**overrides):
         "final_model": "haiku",
         "final_effort": "medium",
         "decision": DECISION_KEEP,
-        "evidence": REASON_NONE,
+        "evidence": REASON_BLANK,
         "fixtures": FIXTURES_BELOW_MINIMUM,
         "saving": "",
         **overrides,
@@ -467,8 +537,23 @@ def make_tier_change_row(**overrides):
     return make_row(**{**defaults, **overrides})
 
 
+def make_upgrade_row(**overrides):
+    defaults = {
+        "baseline_model": "haiku",
+        "baseline_effort": "low",
+        "decision": DECISION_UPGRADE,
+        "evidence": UPGRADE_EVIDENCE,
+        "saving": "",
+    }
+    return make_tier_change_row(**{**defaults, **overrides})
+
+
 def errors_for(row):
-    return check_log(make_log([row]), fake_frontmatter_for_source)
+    return check_row(row, fake_frontmatter_for_source, fake_artifact_for_run)
+
+
+def check_synthetic_log(text):
+    return check_log(text, fake_frontmatter_for_source, fake_artifact_for_run)
 
 
 def test_valid_log_passes():
@@ -484,11 +569,11 @@ def test_valid_log_passes():
         make_row(),
         make_row(agent="s", source="s.md", baseline_model="n/a", final_model="n/a"),
     ]
-    assert check_log(make_log(rows), fake_frontmatter_for_source) == []
+    assert check_synthetic_log(make_log(rows, NO_CANDIDATES)) == []
 
 
-def test_valid_downgrade_passes():
-    assert errors_for(make_tier_change_row()) == []
+def test_valid_downgrade_log_passes():
+    assert check_synthetic_log(make_log([make_tier_change_row()], ONE_CANDIDATE)) == []
 
 
 def test_final_model_drift_from_frontmatter_fails():
@@ -526,6 +611,7 @@ def test_keep_decision_with_moved_tier_fails():
         "n/a",
         "ran it, fine",
         GOOD_EVIDENCE.replace("model:claude-haiku-5-5", "model:haiku"),
+        GOOD_EVIDENCE.replace(f"eval:{GOOD_RUN_ID}", "eval:../run-1"),
     ],
 )
 def test_malformed_downgrade_evidence_fails(evidence):
@@ -608,32 +694,124 @@ def test_mixed_movement_is_rejected():
 
 
 def test_upgrade_with_evidence_passes_without_lower_cost():
-    row = make_tier_change_row(
-        baseline_model="haiku",
-        baseline_effort="low",
-        decision=DECISION_UPGRADE,
-        evidence=GOOD_EVIDENCE.replace("cost:0.40->0.02", "cost:0.02->0.40"),
-        saving="",
-    )
-    assert errors_for(row) == []
+    assert errors_for(make_upgrade_row()) == []
 
 
 def test_upgrade_without_evidence_fails():
-    row = make_tier_change_row(
-        baseline_model="haiku",
-        baseline_effort="low",
-        decision=DECISION_UPGRADE,
-        evidence="",
+    assert any(
+        "missing or malformed" in e for e in errors_for(make_upgrade_row(evidence=""))
     )
-    assert any("missing or malformed" in e for e in errors_for(row))
+
+
+# --- evidence resolves to a committed run artifact ---------------------------
+
+
+def test_evidence_run_without_an_artifact_is_rejected():
+    evidence = GOOD_EVIDENCE.replace(f"eval:{GOOD_RUN_ID}", "eval:run-uncommitted")
+    assert errors_for(make_tier_change_row(evidence=evidence)) == [
+        "b: evidence run run-uncommitted has no committed artifact"
+    ]
+
+
+def test_evidence_run_for_another_agent_is_rejected():
+    row = make_tier_change_row(agent="other")
+    assert errors_for(row) == [
+        f"other: artifact {GOOD_RUN_ID} ran agent 'b', not this row's"
+    ]
+
+
+def test_evidence_model_absent_from_the_artifact_is_rejected():
+    evidence = GOOD_EVIDENCE.replace("claude-haiku-5-5", "claude-haiku-9-9")
+    assert errors_for(make_tier_change_row(evidence=evidence)) == [
+        f"b: artifact {GOOD_RUN_ID} has no arm with model claude-haiku-9-9"
+    ]
+
+
+def test_evidence_effort_absent_from_the_artifact_is_rejected():
+    row = make_tier_change_row(
+        final_effort="low",
+        evidence=GOOD_EVIDENCE.replace("effort:medium", "effort:low"),
+    )
+    assert (
+        f"b: artifact {GOOD_RUN_ID} has no claude-haiku-5-5 arm at effort low"
+        in errors_for(row)
+    )
+
+
+def test_baseline_tier_absent_from_the_artifact_is_rejected():
+    row = make_tier_change_row(baseline_effort="xhigh")
+    assert errors_for(row) == [
+        f"b: artifact {GOOD_RUN_ID} has no arm at the Baseline model and effort"
+    ]
+
+
+def test_evidence_fixtures_differing_from_the_artifact_are_rejected():
+    evidence = GOOD_EVIDENCE.replace(
+        f"fixtures:{MIN_FIXTURES}", f"fixtures:{FIXTURES_ABOVE_MINIMUM}"
+    )
+    row = make_tier_change_row(evidence=evidence, fixtures=FIXTURES_ABOVE_MINIMUM)
+    assert errors_for(row) == [
+        f"b: evidence fixtures differ from artifact {GOOD_RUN_ID} high arm (3)",
+        f"b: evidence fixtures differ from artifact {GOOD_RUN_ID} medium arm (3)",
+    ]
+
+
+def test_evidence_trials_differing_from_the_artifact_are_rejected():
+    evidence = GOOD_EVIDENCE.replace("trials:3", "trials:5")
+    assert errors_for(make_tier_change_row(evidence=evidence)) == [
+        f"b: evidence trials differ from artifact {GOOD_RUN_ID} high arm (3)",
+        f"b: evidence trials differ from artifact {GOOD_RUN_ID} medium arm (3)",
+    ]
+
+
+def test_evidence_baseline_cost_differing_from_the_artifact_is_rejected():
+    evidence = GOOD_EVIDENCE.replace("cost:0.40->0.02", "cost:0.41->0.02")
+    row = make_tier_change_row(evidence=evidence, saving="0.390")
+    assert errors_for(row) == [
+        f"b: evidence baseline cost 0.41 differs from artifact {GOOD_RUN_ID} (0.4012)"
+    ]
+
+
+def test_evidence_candidate_cost_differing_from_the_artifact_is_rejected():
+    evidence = GOOD_EVIDENCE.replace("cost:0.40->0.02", "cost:0.40->0.03")
+    row = make_tier_change_row(evidence=evidence, saving="0.370")
+    assert errors_for(row) == [
+        f"b: evidence candidate cost 0.03 differs from artifact {GOOD_RUN_ID} (0.0198)"
+    ]
+
+
+def test_artifact_arms_are_matched_by_tier_not_label():
+    reversed_labels = {
+        **ARTIFACTS_BY_RUN_ID[GOOD_RUN_ID],
+        "arms": [
+            make_arm("baseline", "haiku", "medium", 0.0198),
+            make_arm("candidate", "sonnet", "high", 0.4012),
+        ],
+    }
+    errors = check_row(
+        make_tier_change_row(),
+        fake_frontmatter_for_source,
+        {GOOD_RUN_ID: reversed_labels}.get,
+    )
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    ("written", "reported", "matches"),
+    [
+        ("0.146", 0.14634233, True),
+        ("0.15", 0.14634233, True),
+        ("0.147", 0.14634233, False),
+    ],
+)
+def test_cost_matches_at_the_written_precision(written, reported, matches):
+    assert cost_matches(written, reported) is matches
 
 
 def test_duplicate_source_is_rejected():
     assert any(
         "more than once" in e
-        for e in check_log(
-            make_log([make_row(), make_row()]), fake_frontmatter_for_source
-        )
+        for e in check_synthetic_log(make_log([make_row(), make_row()], NO_CANDIDATES))
     )
 
 
@@ -646,16 +824,12 @@ def test_row_for_missing_source_is_rejected():
 
 def test_table_missing_column_is_rejected():
     text = "| Agent | Source |\n|---|---|\n| a | a.md |\n"
-    assert any(
-        "missing column" in e for e in check_log(text, fake_frontmatter_for_source)
-    )
+    assert any("missing column" in e for e in check_synthetic_log(text))
 
 
 def test_short_row_is_a_named_parse_error():
-    text = make_log([make_row()]) + "| b | b.md | haiku |\n"
-    assert any(
-        "cells, expected" in e for e in check_log(text, fake_frontmatter_for_source)
-    )
+    text = make_log([make_row()], NO_CANDIDATES) + "| b | b.md | haiku |\n"
+    assert any("cells, expected" in e for e in check_synthetic_log(text))
 
 
 def test_unknown_decision_is_rejected():
@@ -683,14 +857,14 @@ def test_effort_outside_allowed_set_is_rejected(final_effort):
     ],
 )
 def test_alias_resolved_must_be_a_concrete_model_id(alias):
-    errors = check_log(make_log([make_row()], alias=alias), fake_frontmatter_for_source)
+    errors = check_synthetic_log(make_log([make_row()], NO_CANDIDATES, alias=alias))
     assert any("Alias resolved must be a concrete model ID" in e for e in errors)
 
 
 @pytest.mark.parametrize("value", ["maybe", "yes (low and high)", "Yes", ""])
 def test_effort_variable_must_be_yes_or_no(value):
-    errors = check_log(
-        make_log([make_row()], effort_variable=value), fake_frontmatter_for_source
+    errors = check_synthetic_log(
+        make_log([make_row()], NO_CANDIDATES, effort_variable=value)
     )
     assert any("Effort variable must be yes or no" in e for e in errors)
 
@@ -698,8 +872,8 @@ def test_effort_variable_must_be_yes_or_no(value):
 @pytest.mark.parametrize("value", ["yes", "no"])
 def test_effort_variable_accepts_yes_and_no(value):
     assert (
-        check_log(
-            make_log([make_row()], effort_variable=value), fake_frontmatter_for_source
+        check_synthetic_log(
+            make_log([make_row()], NO_CANDIDATES, effort_variable=value)
         )
         == []
     )
@@ -707,63 +881,18 @@ def test_effort_variable_accepts_yes_and_no(value):
 
 def test_missing_header_fields_are_reported():
     text = (
-        make_log([make_row()])
+        make_log([make_row()], NO_CANDIDATES)
         .replace("- Alias resolved: claude-haiku-5-5\n", "")
         .replace("- Effort variable: yes\n", "")
     )
-    errors = check_log(text, fake_frontmatter_for_source)
+    errors = check_synthetic_log(text)
     assert any("Alias resolved must be a concrete model ID" in e for e in errors)
     assert any("Effort variable must be yes or no" in e for e in errors)
 
 
-AGENT_INFO_TABLE = """\
-| Agent | File | Purpose |
-| --- | --- | --- |
-| `team` | t.md | not a model table |
-
-| Agent | File | Model | What It Checks |
-| --- | --- | --- | --- |
-| `a` | a.md | sonnet | x |
-| `b` | b.md | haiku | y |
-"""
-
-
-def test_agent_info_pairs_come_from_the_model_column_only():
-    assert agent_info_model_pairs(AGENT_INFO_TABLE) == [("a", "sonnet"), ("b", "haiku")]
-
-
-def test_agent_info_row_shorter_than_the_header_is_a_named_error():
-    text = AGENT_INFO_TABLE + "| `c` | c.md |\n"
-    with pytest.raises(AgentInfoRowError, match="row has 2 cells, needs 3"):
-        agent_info_model_pairs(text)
-
-
-def test_agent_info_table_without_a_model_column_yields_no_pairs():
-    assert (
-        agent_info_model_pairs("| Agent | File |\n| --- | --- |\n| `a` | a.md |\n")
-        == []
-    )
-
-
-def test_agent_info_model_mismatch_is_reported():
-    declared = {"a": "sonnet", "b": "sonnet"}.get
-    assert agent_info_mismatches(
-        agent_info_model_pairs(AGENT_INFO_TABLE), declared
-    ) == ["b: table says haiku, frontmatter says sonnet"]
-
-
-def test_agent_info_row_without_an_agent_file_is_reported():
-    assert agent_info_mismatches([("ghost", "haiku")], {}.get) == [
-        "ghost: no agent file"
-    ]
-
-
 def test_recall_gap_sentence_is_required():
-    text = make_log([make_row()], include_recall_gap=False)
-    assert any(
-        "recall-gap sentence missing" in e
-        for e in check_log(text, fake_frontmatter_for_source)
-    )
+    text = make_log([make_row()], NO_CANDIDATES, include_recall_gap=False)
+    assert any("recall-gap sentence missing" in e for e in check_synthetic_log(text))
 
 
 def test_candidates_evaluated_counts_tier_changes_and_failed_evals_only():
@@ -787,24 +916,18 @@ def test_candidates_evaluated_counts_tier_changes_and_failed_evals_only():
             fixtures="0",
         ),
     ]
-    assert check_log(make_log(rows, candidates="2"), fake_frontmatter_for_source) == []
-    assert any(
-        "rows show 2" in e
-        for e in check_log(make_log(rows, candidates="3"), fake_frontmatter_for_source)
-    )
+    assert check_synthetic_log(make_log(rows, "2")) == []
+    assert any("rows show 2" in e for e in check_synthetic_log(make_log(rows, "3")))
 
 
 def test_candidates_evaluated_must_match_rows():
-    text = make_log([make_row()], candidates="9")
-    assert any(
-        "Candidates evaluated is '9'" in e
-        for e in check_log(text, fake_frontmatter_for_source)
-    )
+    text = make_log([make_row()], "9")
+    assert any("Candidates evaluated is '9'" in e for e in check_synthetic_log(text))
 
 
 # A valid Fixtures value for each keep reason; a new reason fails the parametrized test until added.
 KEEP_REASON_FIXTURES = {
-    REASON_NONE: FIXTURES_BELOW_MINIMUM,
+    REASON_BLANK: FIXTURES_BELOW_MINIMUM,
     REASON_NO_FIXTURE: "0",
     REASON_INSUFFICIENT_FIXTURES: FIXTURES_BELOW_MINIMUM,
     REASON_DIRECTORY_FIXTURES_ONLY: FIXTURES_AT_MINIMUM,
@@ -870,7 +993,7 @@ def test_not_selected_reason_requires_the_minimum_fixtures():
 
 @pytest.mark.parametrize("fixtures", [FIXTURES_AT_MINIMUM, "TBD", ""])
 def test_blank_reason_is_rejected_unless_fixtures_are_below_minimum(fixtures):
-    row = make_row(evidence=REASON_NONE, fixtures=fixtures)
+    row = make_row(evidence=REASON_BLANK, fixtures=fixtures)
     assert any(
         f"blank reason requires Fixtures below {MIN_FIXTURES}" in e
         for e in errors_for(row)
@@ -890,9 +1013,10 @@ def test_skill_row_with_a_baseline_model_is_rejected():
     assert any("Baseline model must be n/a" in e for e in errors_for(row))
 
 
-def test_unmoved_tier_is_not_reported_as_a_downgrade():
-    row = make_row(agent="s", source="s.md", baseline_model="haiku", final_model="n/a")
+def test_unmoved_tier_routes_to_the_keep_row_checks():
+    row = make_row(decision=DECISION_DOWNGRADE)
     assert tier_direction(row) == DIRECTION_UNCHANGED
+    assert errors_for(row) == ["b: decision contradicts the baseline-to-final movement"]
 
 
 def test_keep_row_with_saving_is_rejected():
