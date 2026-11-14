@@ -23,6 +23,8 @@ from .tools import ToolProfile
 FIDELITY = "read-only-profile"
 SANDBOX_FIDELITY = "sandboxed-write-profile"
 
+STRESS_MODE = "stress"
+
 CREATED_TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 
@@ -34,6 +36,7 @@ def build_artifact(
     abort_reason: AbortReason | None,
     grading: AgentGrading = DEFAULT_GRADING,
     fixture_stems: Sequence[str] = (),
+    verdict: dict | None = None,
 ) -> dict:
     """Build the artifact dict, joining each arm's results with its pre-run estimate.
 
@@ -49,6 +52,10 @@ def build_artifact(
 
     `tier_change_eligible` says whether the graded trials may move a tier (see
     `tier_change_eligible`).
+
+    A stress-matrix run passes its `verdict` (`verdict.verdict_dict`); the
+    artifact then records `mode: stress` and the verdict, for the decision
+    log's gate to check a row against. An A/B run records neither key.
     """
     arms = [_arm_dict(arm_run, run_estimate, profile) for arm_run in arm_runs]
     return {
@@ -65,6 +72,7 @@ def build_artifact(
         "knowledge_dir": metadata.knowledge_dir,
         "session_config": _baseline_session_config(arms),
         "arms": arms,
+        **({"mode": STRESS_MODE, "verdict": verdict} if verdict is not None else {}),
     }
 
 

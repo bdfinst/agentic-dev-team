@@ -64,6 +64,7 @@ from model_effort.plan import RunPlan, plan_run
 from model_effort.run_types import TrialSettings
 from model_effort.session import EXIT_FAILED, EXIT_USAGE
 from model_effort.stop_rules import SpendLimit
+from model_effort.stress_arms import Axis
 from model_effort.trial_count import (
     DEFAULT_TRIALS,
     HIGH_STAKES_AGENTS,
@@ -131,6 +132,21 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--effort",
         help="candidate effort level (default: the agent's frontmatter `effort:`)",
+    )
+    parser.add_argument(
+        "--stress",
+        action="store_true",
+        help="stress-matrix run: the frontmatter tier, one step down and one step up "
+        "(see --axis), with a downgrade/upgrade/keep verdict in the artifact; "
+        "cannot be combined with --model or --effort",
+    )
+    parser.add_argument(
+        "--axis",
+        type=Axis,
+        choices=list(Axis),
+        default=Axis.MODEL,
+        help="ladder a --stress step moves on: model (haiku, sonnet, opus; effort "
+        "when no model rung is left) or effort (default: model)",
     )
     parser.add_argument(
         "--fixtures",
@@ -282,6 +298,7 @@ def _plan_from(args: argparse.Namespace, deps: Deps) -> AbstractContextManager[R
         allow_unjailed_checks=args.allow_unjailed_checks,
         find_check_jail=deps.find_check_jail,
         find_answer_key_paths=deps.find_answer_key_paths,
+        stress_axis=args.axis if args.stress else None,
     )
 
 

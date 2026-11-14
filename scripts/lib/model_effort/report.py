@@ -11,6 +11,7 @@ from .cost import total_cost_usd
 from .formatting import escape_unprintable, format_usd
 from .run_status import AbortReason
 from .run_types import RunResult, TrialProgress
+from .verdict import DECISION_KEEP, Verdict
 
 NO_ERROR_TEXT = "no error text was recorded"
 # An interrupt that reaches the CLI is outside the run's hold on the signals: before
@@ -157,3 +158,13 @@ def _render_cost(figures: _CostFigures) -> str:
         f" + judge {format_usd(figures.estimated_judge_usd)}" if has_judge else ""
     )
     return f"cost {actual}{lower_bound}, estimated {estimated}"
+
+
+def render_verdict(verdict: Verdict) -> str:
+    """One line: the stress verdict, the tier it moves to, and why."""
+    if verdict.decision == DECISION_KEEP:
+        return f"Verdict: keep: {verdict.reason}"
+    return (
+        f"Verdict: {verdict.decision} to {verdict.model}/{verdict.effort} "
+        f"({verdict.arm_label} arm): {verdict.reason}"
+    )
