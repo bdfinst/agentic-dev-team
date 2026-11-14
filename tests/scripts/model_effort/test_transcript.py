@@ -231,12 +231,13 @@ class TestSessionConfig:
         assert parsed.session_config == expected_session_config(HAIKU_MODEL_ID)
 
 
-# The unclosed-fence text below took about 3 s while either fence could match the
-# newlines around it, and well under 0.1 s once neither does.
+# Each input is sized so a quadratic scan takes at least ten times the budget, and
+# the linear scan well under a tenth of it. Blank lines: a closing fence that can
+# match the newlines before it takes about 18 s. Unclosed openers: rescanning the
+# rest of the text after each one takes about 24 s.
 FENCE_SCAN_BUDGET_SECONDS = 1.5
-BLANK_LINES_AFTER_FENCE = 20_000
-# Enough openers with no closer to take tens of seconds if each one rescans the rest.
-UNCLOSED_FENCES = 20_000
+BLANK_LINES_AFTER_FENCE = 80_000
+UNCLOSED_FENCES = 40_000
 
 
 class TestExtractAgentJson:
