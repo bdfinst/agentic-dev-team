@@ -150,6 +150,7 @@ Manual process:
 3. Add eval fixtures to `evals/fixtures/` and expected results to `evals/expected/`.
 4. Run `/agent-eval --agent {name}-review` to validate accuracy.
 5. Add a row to the Review Agents table in `CLAUDE.md`.
+6. In this repo, add a `keep` row to [`docs/model-effort-decisions.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/docs/model-effort-decisions.md): `python3 plugins/marketplace-dev/scripts/append_model_effort_row.py plugins/dev-team/agents/{name}-review.md`.
 
 ## Add a project-specific custom agent
 

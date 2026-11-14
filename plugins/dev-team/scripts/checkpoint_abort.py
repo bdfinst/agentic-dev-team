@@ -53,7 +53,7 @@ _HOOKS_LIB_DIR = Path(__file__).resolve().parents[1] / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
-from instrument_log import append_row  # type: ignore[import-not-found]
+from instrument_log import append_row, env_session_id  # type: ignore[import-not-found]
 from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 # The bar this script's abort decision applies. Deliberately STRICTER than
@@ -393,6 +393,7 @@ def _run_abort_mode(args) -> int:
             "triggering_agent": result["triggeringAgent"],
             "deferred_lenses": result["deferredLenses"],
         },
+        session_id=env_session_id(),
     )
     print(json.dumps(result))
     return 0
@@ -427,6 +428,7 @@ def _run_outcome_mode(args) -> int:
             "blocking_findings": sum(1 for f in data["findings"] if _is_blocking_finding(f)),
             "outcome": result["outcome"],
         },
+        session_id=env_session_id(),
     )
     print(json.dumps(result))
     return 0

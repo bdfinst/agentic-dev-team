@@ -7,7 +7,7 @@ description: >-
   body). Use when the user says "add an agent", "create a reviewer for X",
   "new team agent for Y", or when /agent-add is invoked. Validates against
   /plugin-audit before writing. Updates the agent registry and plugin CLAUDE.md after
-  success.
+  success, and the repo's model/effort decision log when it has one.
 role: worker
 user-invocable: true
 ---
@@ -51,7 +51,7 @@ Read `$PLUGIN/.claude-plugin/plugin.json` and extract the `name` field as
 Accept these inputs (from arguments or interactive prompts):
 
 | Input | Required | Notes |
-|-------|----------|-------|
+| ------- | ---------- | ------- |
 | `name` | yes | file stem of the new agent |
 | `type` | yes | `review` or `team` |
 | `description` | yes | one-line summary for frontmatter |
@@ -535,6 +535,26 @@ Confirm both updates (or skips) in the completion report.
 
 ---
 
+## Step 15 — Record the Model/Effort Decision (conditional)
+
+Run this step only if the repo root contains `docs/model-effort-decisions.md`.
+If that file does not exist, skip this step silently and omit its line from
+the completion report.
+
+Run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/append_model_effort_row.py" "$PLUGIN/agents/<name>.md" --repo-root <repo-root>
+```
+
+The script appends one `keep` row with the agent's `model:` and `effort:`
+values, the count of `evals/expected` fixtures that name the agent, and the
+matching reason. It skips an agent that is already listed or whose directory
+has no rows in the log. Do not edit the row by hand. On a non-zero exit, show
+the script's error output and stop.
+
+---
+
 ## Completion Report
 
 ```
@@ -546,4 +566,5 @@ Body: <N> lines
 Validation: PASS (/plugin-audit)
 Registry updated: $PLUGIN/knowledge/agent-registry.md (<type> Agents table) [or: skipped — file not found]
 CLAUDE.md updated: <type> agents Quick Reference list (count <N>→<N+1>) [or: skipped — section not found]
+Decision log: <the script's output line>   (only when docs/model-effort-decisions.md exists)
 ```

@@ -57,7 +57,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from collections import Counter
@@ -78,7 +77,7 @@ if str(_HOOKS_LIB_DIR) not in sys.path:
 
 from finding_signature import finding_agent as _finding_agent
 from finding_signature import finding_category as _finding_category
-from instrument_log import append_row  # type: ignore[import-not-found]
+from instrument_log import append_row, env_session_id  # type: ignore[import-not-found]
 from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 #: Rendered instead of any per-finding line when a round has zero findings —
@@ -210,14 +209,11 @@ def measure_report_sizes(findings: list[dict], ids: list[str]) -> dict:
     }
 
 
-#: Environment variables that may carry the running Claude Code session id, in preference order.
-_SESSION_ENV = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
-
 
 def _resolve_session_id(session_flag: str | None) -> str | None:
     if session_flag:
         return session_flag
-    return next((os.environ[name] for name in _SESSION_ENV if os.environ.get(name)), None)
+    return env_session_id()
 
 
 def _record_sizes(findings: list[dict], ids: list[str], session_flag: str | None) -> None:

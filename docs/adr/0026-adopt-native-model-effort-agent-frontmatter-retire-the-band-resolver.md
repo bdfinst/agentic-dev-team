@@ -170,3 +170,26 @@ replaces.** Concretely, sequenced across sub-issues of epic #1284:
   longer uses its expected vocabulary — mitigated by shipping each sub-issue
   as its own reviewed PR in the dependency order recorded above, not by
   attempting one atomic change across 70+ files.
+
+## Amendment (2026-11-14)
+
+Agent and skill frontmatter stays the single source of truth for `model:` and
+`effort:` values. [`docs/model-effort-decisions.md`](../model-effort-decisions.md)
+is a second, deliberate record of those values: it holds the decision and the
+eval evidence behind each assignment, and it must cover every agent and every
+effort-setting skill. `tests/docs/test_model_effort_decisions.py` gates it. The
+gate checks full-roster coverage, and it checks that each row's Final columns
+equal the frontmatter.
+
+This accepts a sync surface that the Decision above set out to remove. The
+cost is small: since the gate shipped, adding an agent has needed one
+mechanical `keep` row (PRs #2288 and #2276). Narrowing the gate to rows that
+change a tier would also contradict epic #2252, whose slice #2258 is done only
+when every agent and both effort-setting skills have a row.
+
+To keep the cost mechanical, `marketplace-dev:agent-create` (and
+`agent-add`, which delegates to it) runs
+`plugins/marketplace-dev/scripts/append_model_effort_row.py` after it writes a
+new agent. The script appends a `keep` row with the agent's frontmatter values
+and its `evals/expected` fixture count and reason. It runs only in a repo that
+has `docs/model-effort-decisions.md`; in other repos the step does nothing.
