@@ -32,8 +32,15 @@ def repo(tmp_path, monkeypatch):
     root = tmp_path / "repo"
     root.mkdir()
     subprocess.run(["git", "init", "-q", str(root)], check=True)
-    subprocess.run(["git", "-C", str(root), "config", "user.email", "t@e.st"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "config", "user.email", "t@e.st"], check=True
+    )
     subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+    # A developer's global commit.gpgsign would otherwise sign every fixture
+    # commit, which fails intermittently under parallel test load.
+    subprocess.run(
+        ["git", "-C", str(root), "config", "commit.gpgsign", "false"], check=True
+    )
     (root / "a.py").write_text("print(1)\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
     subprocess.run(["git", "-C", str(root), "commit", "-qm", "init"], check=True)
