@@ -1367,7 +1367,7 @@ def test_expand_rate_exactly_on_its_ceiling_is_within(world, tmp_path, capsys):
 
 def test_expand_rate_leaves_rows_without_a_real_session_out_of_the_rate(world, tmp_path, capsys):
     world.session("sess-a")
-    world.stream("tiered-renders", [render("sess-a", "r1"), render("ghost", "r2", "all"), {**render("", "r3", "one")}])
+    world.stream("tiered-renders", [render("sess-a", "r1"), render("ghost", "r2", "all"), render("", "r3", "one")])
     _, out, _ = run_report(world, tmp_path, capsys, ["expand-rate"])
     block = block_of(out, "expand-rate:")
     assert "0.00% (0/1)" in block
@@ -1380,6 +1380,28 @@ def test_expand_rate_rejects_an_unknown_expand_value(world, tmp_path, capsys):
     code, _, err = run_report(world, tmp_path, capsys, ["expand-rate"])
     assert code == 2
     assert_input_error(err, path, 1, "row field 'expand'")
+
+
+def test_expand_rate_validates_every_row_of_an_already_expanded_report(world, tmp_path, capsys):
+    world.session("sess-a")
+    path = world.stream("tiered-renders", [render("sess-a", "r1", "one"), render("sess-a", "r1", "some")])
+    code, _, err = run_report(world, tmp_path, capsys, ["expand-rate"])
+    assert code == 2
+    assert_input_error(err, path, 2, "row field 'expand'")
+
+
+@pytest.mark.parametrize("report", [None, 5], ids=["missing", "not-a-string"])
+def test_expand_rate_rejects_a_missing_or_non_string_report_key(world, tmp_path, capsys, report):
+    world.session("sess-a")
+    row = render("sess-a", "r1")
+    if report is None:
+        del row["report"]
+    else:
+        row["report"] = report
+    path = world.stream("tiered-renders", [row])
+    code, _, err = run_report(world, tmp_path, capsys, ["expand-rate"])
+    assert code == 2
+    assert_input_error(err, path, 1, "row field 'report'")
 
 
 # --- unmeasurable ------------------------------------------------------------

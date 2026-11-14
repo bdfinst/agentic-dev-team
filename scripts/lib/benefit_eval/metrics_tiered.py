@@ -17,7 +17,7 @@ NOT_EXPANDED = "none"
 EXPAND_VALUES = (NOT_EXPANDED, "one", "all")
 
 
-def _expand(row: streams.Row) -> str:
+def _expand_mode(row: streams.Row) -> str:
     value = streams.row_field(row, "expand", str)
     if value not in EXPAND_VALUES:
         raise streams.InputError(
@@ -35,7 +35,8 @@ def expand_rate(metric: Metric, ctx: ReportContext) -> ReportLine:
     expanded: dict[tuple[str, str], bool] = {}
     for row in part.real:
         key = (row.data["session_id"], streams.row_field(row, "report", str))
-        expanded[key] = expanded.get(key, False) or _expand(row) != NOT_EXPANDED
+        is_expanded = _expand_mode(row) != NOT_EXPANDED
+        expanded[key] = expanded.get(key, False) or is_expanded
     return formatting.rate_line(
         metric,
         sum(expanded.values()),

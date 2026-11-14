@@ -140,7 +140,7 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "metric": "Tiered findings expand rate: share of rendered reports where --expand was used",
       "instrument": "tiered-renders",
       "identity_class": "id-bearing",
-      "baseline": "no-reference: first measurement; render_tiered_findings.py has recorded each render since #2307",
+      "baseline": "no-reference: first measurement; render_tiered_findings.py has recorded each render of a non-empty report since #2307",
       "unit": "percent",
       "keep": "<= 20",
       "tune": "> 20",
@@ -153,7 +153,8 @@ This document fixes, before any data is read, how each mechanism shipped by epic
       "parity_cap": "none",
       "window": "Opens when #2199 merges. Closes at the later of 10 real sessions or 14 days. If minimum N is unmet at 28 days, the metric is NULL.",
       "confounds": [
-        "a cold /code-review --expand run re-renders the panel, so its report key can differ from the report the reader saw"
+        "a cold /code-review --expand run re-renders the panel, so its report key can differ from the report the reader saw",
+        "the report key hashes only finding ids, so two rounds in one session with identical finding sets count as one report"
       ],
       "computation": "metrics_tiered.expand_rate: tiered-renders rows of real sessions grouped by session and report key; a report is expanded when any of its renders has expand other than none",
       "rationale": "Expanding in over a fifth of reports means the Tier-1 lines are too thin; above half the tiering saves no reading."

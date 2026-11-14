@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -22,6 +23,13 @@ sys.path.insert(
 )
 
 import render_tiered_findings as rtf
+
+
+@pytest.fixture(autouse=True)
+def _isolated_cwd(tmp_path, monkeypatch):
+    """Each CLI run writes its render row under a throwaway project, never the repo's own metrics."""
+    monkeypatch.chdir(tmp_path)
+
 
 _SCRIPT = (
     _REPO_ROOT
@@ -218,13 +226,7 @@ class TestRenderExpand:
         assert rtf.render_expand_one(findings, ids, "no-such-id") is None
 
 
-@pytest.fixture(autouse=True)
-def _isolated_cwd(tmp_path, monkeypatch):
-    """Each CLI run writes its render row under a throwaway project, never the repo's own metrics."""
-    monkeypatch.chdir(tmp_path)
-
-
-def _run(*args, input_text=None, session_id=None):
+def _run(*args, input_text=None, session_id=None, env_extra=None):
     env = {
         k: v
         for k, v in os.environ.items()
@@ -232,6 +234,7 @@ def _run(*args, input_text=None, session_id=None):
     }
     if session_id is not None:
         env["CLAUDE_CODE_SESSION_ID"] = session_id
+    env.update(env_extra or {})
     return subprocess.run(
         [sys.executable, str(_SCRIPT), *args],
         input=input_text,
@@ -254,13 +257,35 @@ class TestRenderLog:
     expand rate has both its numerator and its denominator."""
 
     def test_plain_render_logs_an_unexpanded_row_with_the_session_id(self, tmp_path):
-        r = _run(input_text=json.dumps([_finding()]), session_id="sess-1")
+        findings = [_finding(), _finding(line=7)]
+        r = _run(input_text=json.dumps(findings), session_id="sess-1")
         assert r.returncode == 0
         (row,) = _render_rows(tmp_path)
         assert row["expand"] == "none"
-        assert row["findings"] == 1
+        assert row["findings"] == 2
         assert row["session_id"] == "sess-1"
         assert {"ts", "plugin_version", "report"} <= row.keys()
+
+    def test_claude_session_id_alone_sets_the_session_id(self, tmp_path):
+        _run(input_text=json.dumps([_finding()]), env_extra={"CLAUDE_SESSION_ID": "legacy"})
+        (row,) = _render_rows(tmp_path)
+        assert row["session_id"] == "legacy"
+
+    def test_claude_code_session_id_wins_when_both_are_set(self, tmp_path):
+        _run(
+            input_text=json.dumps([_finding()]),
+            env_extra={"CLAUDE_CODE_SESSION_ID": "current", "CLAUDE_SESSION_ID": "legacy"},
+        )
+        (row,) = _render_rows(tmp_path)
+        assert row["session_id"] == "current"
+
+    def test_an_empty_claude_code_session_id_falls_back_to_claude_session_id(self, tmp_path):
+        _run(
+            input_text=json.dumps([_finding()]),
+            env_extra={"CLAUDE_CODE_SESSION_ID": "", "CLAUDE_SESSION_ID": "x"},
+        )
+        (row,) = _render_rows(tmp_path)
+        assert row["session_id"] == "x"
 
     def test_expand_one_logs_an_expanded_row(self, tmp_path):
         findings = [_finding()]
@@ -283,17 +308,22 @@ class TestRenderLog:
         first, expanded, other = _render_rows(tmp_path)
         assert first["report"] == expanded["report"] != other["report"]
 
-    def test_report_key_does_not_leak_file_paths(self, tmp_path):
+    def test_row_carries_only_its_fields_and_a_digest_report_key(self, tmp_path):
         _run(input_text=json.dumps([_finding()]), session_id="s")
         (row,) = _render_rows(tmp_path)
-        assert "login" not in json.dumps(row)
+        assert row.keys() == {"ts", "plugin_version", "session_id", "report", "findings", "expand"}
+        assert re.fullmatch(r"[0-9a-f]{12}", row["report"])
 
     def test_clean_pass_logs_nothing(self, tmp_path):
-        _run(input_text=json.dumps([]), session_id="s")
+        r = _run(input_text=json.dumps([]), session_id="s")
+        assert r.returncode == 0
+        assert r.stdout.strip() == rtf.CLEAN_PASS_SUMMARY
         assert _render_rows(tmp_path) == []
 
     def test_unknown_expand_id_logs_nothing(self, tmp_path):
-        _run("--expand", "no-such-id", input_text=json.dumps([_finding()]), session_id="s")
+        r = _run("--expand", "no-such-id", input_text=json.dumps([_finding()]), session_id="s")
+        assert r.returncode == 1
+        assert "finding-id not found" in r.stderr
         assert _render_rows(tmp_path) == []
 
     def test_row_omits_session_id_when_none_is_set(self, tmp_path):

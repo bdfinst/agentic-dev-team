@@ -311,8 +311,8 @@ def test_a_cell_missing_its_follow_up_issue_number_is_rejected_naming_the_metric
 
 
 def test_an_issue_number_can_follow_the_reason_text():
-    cell = f"unmeasurable: nothing is counted; follow-up #{ISSUE_CITES['expand-rate']}"
-    assert_clean(with_baseline("expand-rate", cell), check_issue_cites)
+    cell = f"unmeasurable: nothing is counted; follow-up #{ISSUE_CITES['report-size-cut']}"
+    assert_clean(with_baseline("report-size-cut", cell), check_issue_cites)
 
 
 def test_an_issue_number_that_only_prefixes_the_cited_one_is_rejected():
