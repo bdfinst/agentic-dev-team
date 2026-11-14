@@ -38,6 +38,7 @@ from .paths import EvalPaths
 from .run_id import make_run_id
 from .run_types import RunMetadata
 from .snapshot import InputSnapshot, take_snapshot
+from .stress_arms import Axis, stress_arms
 from .tools import ToolProfile, WriteCapableAgentError, resolve_tool_profile
 
 AGENT_ERROR_FIX_HINTS = {
@@ -65,6 +66,8 @@ class RunPlan:
     # The repo's own copies of the answer key (git directory, every checkout's
     # `evals/expected`), denied to a sandboxed trial; empty for other runs.
     answer_key_paths: tuple[Path, ...] = ()
+    # True for a stress-matrix run: current, step-down and step-up arms, and a verdict.
+    stress: bool = False
 
     @property
     def fixtures(self) -> tuple[ResolvedFixture, ...]:
@@ -87,11 +90,16 @@ def plan_run(
     allow_unjailed_checks: bool = False,
     find_check_jail: Callable[[], CheckJail | None] = find_working_jail,
     find_answer_key_paths: Callable[[], tuple[Path, ...]] = repo_answer_key_paths,
+    stress_axis: Axis | None = None,
 ) -> Iterator[RunPlan]:
     """Yield the plan, with the artifact path reserved; the reservation is the last step.
 
     The candidate arm takes `candidate_model`/`candidate_effort`, each defaulting
-    to the baseline (frontmatter) value. The baseline's frontmatter values and any
+    to the baseline (frontmatter) value. With `stress_axis`, there is no
+    candidate: the arms are the frontmatter tier, one step down and one step up
+    on that axis, or on the other ladder when that axis has no rung left
+    (`stress_arms`), and the run ID names the frontmatter tier. The baseline's
+    frontmatter values and any
     explicit candidate values are checked against the agent contract before the
     run ID, which names the artifact file, is built from them. `rng` needs
     `getrandbits`. `eval_paths` names the directories the agent file, expected
@@ -124,19 +132,19 @@ def plan_run(
         effort_label=f"agent {agent!r} frontmatter `effort:`",
     )
     validate_candidate(candidate_model, candidate_effort)
+    if stress_axis is not None and (candidate_model or candidate_effort):
+        raise UsageError(
+            "--stress picks its own arms (one step down and one step up from the "
+            "frontmatter tier): drop --model and --effort"
+        )
     fixtures = resolve_fixtures(
         agent, fixture_stems, eval_paths.expected_dir, eval_paths.fixtures_dir
     )
     _refuse_fixtures_the_grader_cannot_use(agent, grading, fixtures)
-    baseline = Arm(BASELINE_LABEL, agent_spec.model, agent_spec.effort)
-    candidate = Arm(
-        CANDIDATE_LABEL,
-        candidate_model or baseline.model,
-        candidate_effort or baseline.effort,
-    )
-    _refuse_identical_arms(baseline, candidate)
+    arms = _arms_for(agent, agent_spec, candidate_model, candidate_effort, stress_axis)
+    named = arms[0] if stress_axis is not None else arms[-1]
     if grading.judge is not None:
-        check_judge_tier(grading.judge, [baseline.model, candidate.model])
+        check_judge_tier(grading.judge, [arm.model for arm in arms])
     stub_agents = (
         build_stub_agents(list_agent_names(eval_paths.agents_dir))
         if grading.kind is GraderKind.DISPATCH_SET
@@ -144,7 +152,7 @@ def plan_run(
     )
     jail = _check_jail_for(fixtures, allow_unjailed_checks, find_check_jail)
     answer_key_paths = find_answer_key_paths() if grading.sandbox else ()
-    run_id = make_run_id(now, agent, candidate.model, candidate.effort, rng)
+    run_id = make_run_id(now, agent, named.model, named.effort, rng)
     owned = ExitStack()
     try:
         with interrupts.held_signals():
@@ -161,7 +169,7 @@ def plan_run(
             planned = RunPlan(
                 agent=agent,
                 system_prompt=agent_spec.system_prompt,
-                arms=(baseline, candidate),
+                arms=arms,
                 profile=profile,
                 snapshot=snapshot,
                 metadata=RunMetadata(
@@ -176,11 +184,37 @@ def plan_run(
                 stub_agents=stub_agents,
                 check_jail=jail,
                 answer_key_paths=answer_key_paths,
+                stress=stress_axis is not None,
             )
         yield planned
     finally:
         with interrupts.held_signals():
             owned.close()
+
+
+def _arms_for(
+    agent: str,
+    agent_spec: AgentSpec,
+    candidate_model: str | None,
+    candidate_effort: str | None,
+    stress_axis: Axis | None,
+) -> tuple[Arm, ...]:
+    if stress_axis is not None:
+        arms = stress_arms(agent_spec.model, agent_spec.effort, stress_axis)
+        if len(arms) == 1:
+            raise UsageError(
+                f"agent {agent!r} at {agent_spec.model}/{agent_spec.effort} "
+                "has no step down or up on the model or effort ladder"
+            )
+        return arms
+    baseline = Arm(BASELINE_LABEL, agent_spec.model, agent_spec.effort)
+    candidate = Arm(
+        CANDIDATE_LABEL,
+        candidate_model or baseline.model,
+        candidate_effort or baseline.effort,
+    )
+    _refuse_identical_arms(baseline, candidate)
+    return baseline, candidate
 
 
 def _refuse_fixtures_the_grader_cannot_use(

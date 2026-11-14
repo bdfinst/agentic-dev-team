@@ -35,6 +35,7 @@ from model_effort import (
     tools,
 )
 from model_effort.grader_config import GraderKind
+from model_effort.stress_arms import Axis, stress_arms
 
 GRADER_MAP = paths.GRADER_MAP_PATH
 MIN_FIXTURES = 3
@@ -134,11 +135,13 @@ def test_the_map_has_rubric_agents_so_the_rubric_checks_run():
 
 
 @pytest.mark.parametrize("agent", RUBRIC_AGENTS)
-def test_rubric_judge_is_pinned_one_tier_above_the_agent(agent):
+def test_rubric_judge_is_pinned_one_tier_above_the_agents_stress_arms(agent):
+    # The strongest arm a run can put before the judge is the stress step-up arm.
     judge = grader_config.resolve_agent_grading(agent, GRADER_MAP).judge
-    agent_tier = judge_tier.model_tier(_frontmatter(agent)["model"])
+    frontmatter = _frontmatter(agent)
+    arms = stress_arms(frontmatter["model"], frontmatter["effort"], Axis.MODEL)
 
-    expected = min(agent_tier + 1, len(judge_tier.MODEL_TIERS) - 1)
+    expected = judge_tier.required_judge_tier([arm.model for arm in arms])
     assert judge_tier.model_tier(judge.model) == expected
     assert judge.model.startswith("claude-"), "pin a full model ID, not an alias"
     enums = external.contract_enums()

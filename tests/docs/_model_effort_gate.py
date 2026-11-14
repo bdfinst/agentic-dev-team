@@ -84,15 +84,21 @@ RECALL_GAP_SENTENCE = (
 # The downgrade rule is relative to the current tier: recall equal or better,
 # no clean-fixture false-positive increase, 100% parse. delta:0 means the
 # proposed tier lost no recall relative to the current tier; it does not mean
-# every trial passed.
+# every trial passed. An upgrade records delta:+N, the number of expected
+# findings the higher tier catches in at least half its trials that the
+# current tier misses in every trial; the stress run's verdict lists them.
 EVIDENCE_RE = re.compile(
     r"^eval:(?P<run_id>[A-Za-z0-9][A-Za-z0-9-]*); "
     r"model:(?P<model>claude-[a-z0-9-]+); "
     rf"effort:(?P<effort>{'|'.join(map(re.escape, EFFORT_RANK))}); "
     r"fixtures:(?P<fixtures>\d+); "
-    r"trials:(?P<trials>\d+); delta:0; "
+    r"trials:(?P<trials>\d+); delta:(?P<delta>0|\+[1-9]\d*); "
     r"cost:(?P<baseline_cost>\d+(?:\.\d+)?)->(?P<candidate_cost>\d+(?:\.\d+)?)$"
 )
+DOWNGRADE_DELTA = "0"
+# Agents whose results are excluded from evidence; the same set as
+# scripts/lib/model_effort/verdict.py RECALL_GAP_EXCLUDED_AGENTS.
+RECALL_GAP_AGENTS = {"correctness-review"}
 SAVING_RE = re.compile(r"^\d+(?:\.\d+)?$")
 CONCRETE_MODEL_ID_RE = re.compile(r"^claude-[a-z0-9-]+$")
 EFFORT_VARIABLE_VALUES = {"yes", "no"}
@@ -289,9 +295,21 @@ def check_tier_change(
         return as_violation(
             name, f"decision '{row['Decision']}' contradicts the {direction} movement"
         )
+    if name in RECALL_GAP_AGENTS:
+        return as_violation(
+            name,
+            "results are excluded from evidence (known recall gap), "
+            "so the tier cannot move",
+        )
     match = EVIDENCE_RE.match(row[EVIDENCE_COLUMN])
     if not match:
         return as_violation(name, "evidence missing or malformed")
+    if direction == DECISION_DOWNGRADE and match["delta"] != DOWNGRADE_DELTA:
+        return as_violation(name, "downgrade evidence must record delta:0")
+    if direction == DECISION_UPGRADE and match["delta"] == DOWNGRADE_DELTA:
+        return as_violation(
+            name, "upgrade evidence must record delta:+N, the expected findings gained"
+        )
     if match["model"] in UNVERSIONED_MODEL_IDS:
         return as_violation(
             name, "evidence names a model family, not a concrete model ID"
@@ -372,6 +390,15 @@ def check_artifact(
         return as_violation(
             name, f"artifact {run_id} ran agent '{artifact['agent']}', not this row's"
         )
+    if artifact.get("tier_change_eligible") is False:
+        return as_violation(
+            name,
+            f"artifact {run_id} is not tier-change eligible "
+            "(too few graded trials for its grader)",
+        )
+    problems = check_verdict(name, row, match, direction, artifact)
+    if problems:
+        return problems
     arms = artifact["arms"]
     model_arms = [a for a in arms if a["model_id"] == match["model"]]
     if not model_arms:
@@ -425,3 +452,49 @@ def check_artifact(
                 f"baseline minus final cost ({artifact_saving:.4f})",
             )
     return problems
+
+
+def check_verdict(
+    name: str, row: dict[str, str], match: re.Match, direction: str, artifact: dict
+) -> list[str]:
+    """A stress run's verdict must pick this row's decision and Final tier.
+
+    An upgrade must cite a stress run, since only its verdict shows the higher
+    tier catching what the current tier misses; its delta counts those findings.
+    An A/B run (no verdict) still backs a downgrade by its arms alone.
+    """
+    run_id = match["run_id"]
+    verdict = artifact.get("verdict")
+    if verdict is None:
+        if direction == DECISION_UPGRADE:
+            return as_violation(
+                name,
+                "upgrade evidence must cite a stress run with a verdict; "
+                f"artifact {run_id} has none",
+            )
+        return []
+    if verdict["decision"] != direction:
+        return as_violation(
+            name,
+            f"artifact {run_id} verdict is '{verdict['decision']}', not "
+            f"'{direction}': {verdict['reason']}",
+        )
+    row_tier = f"{row['Final model']}/{row['Final effort']}"
+    verdict_tier = f"{verdict['model']}/{verdict['effort']}"
+    model_matches = (
+        row["Final model"] == NOT_APPLICABLE or verdict["model"] == row["Final model"]
+    )
+    if not model_matches or verdict["effort"] != row["Final effort"]:
+        return as_violation(
+            name,
+            f"artifact {run_id} verdict moves to {verdict_tier}, not the row's {row_tier}",
+        )
+    if direction == DECISION_UPGRADE:
+        gained = len(verdict["upgrade"]["findings"])
+        if int(match["delta"]) != gained:
+            return as_violation(
+                name,
+                f"evidence delta {match['delta']} differs from artifact {run_id} "
+                f"verdict's {gained} upgrade finding(s)",
+            )
+    return []

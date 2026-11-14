@@ -415,7 +415,10 @@ candidate, baseline, and so on, so a broken candidate fails on its first trial.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `agent` (positional) | none | Agent name, as in `plugins/dev-team/agents/<agent>.md`. |
+| `agent` (positional) | none | Agent name, as in `plugins/dev-team/agents/<agent>.md`. Omit it with `--batch`. |
+| `--stress` | off | Run the [stress matrix](#stress-matrix): the frontmatter tier, one step down and one step up, with a verdict in the artifact. Cannot be combined with `--model` or `--effort`. |
+| `--axis` | `model` | The ladder a `--stress` step moves on: `model` or `effort`. |
+| `--batch` | none | `haiku`, `sonnet` or `opus`: a `--stress` run for every agent at that frontmatter tier, approved once. See [Stress batch](#stress-batch). |
 | `--model` | frontmatter `model:` | Candidate model. |
 | `--effort` | frontmatter `effort:` | Candidate effort level. |
 | `--fixtures` | every `evals/expected` entry that names the agent and has a matching fixture in `evals/fixtures` | Comma-separated fixture stems. |
@@ -430,6 +433,68 @@ candidate, baseline, and so on, so a broken candidate fails on its first trial.
 The candidate must differ from the frontmatter in `--model` or `--effort`. The
 harness refuses a candidate that ends up equal to the baseline, including a
 partial override such as `--model haiku` on an agent that already uses `haiku`.
+
+### Stress matrix
+
+`--stress` runs three arms instead of a baseline and a candidate: the
+frontmatter tier (`baseline`), one step down (`step-down`) and one step up
+(`step-up`). On the `model` axis a step moves one rung on haiku, sonnet, opus at
+the same effort. Where no model rung is left (down from haiku, up from opus) the
+step moves effort one level instead (`low`, `medium`, `high`, `xhigh`, `max`). On
+the `effort` axis a step moves effort one level at the same model. Where no
+effort level is left (down from `low`, up from `max`) the step moves one model
+rung instead. A direction with no rung on either ladder has no arm, and the
+verdict says so. The run ID names the frontmatter tier.
+
+```bash
+python3 scripts/model_effort_ab.py naming-review --stress
+```
+
+The artifact's `verdict` is `downgrade`, `upgrade` or `keep`, with its reason.
+An expected finding is a fixture whose expected entry is not clean; recall is the
+passing trials over all trials on those fixtures.
+
+- **Downgrade** to the step-down tier when, over all its trials, its recall is at
+  least the current tier's, its clean-fixture false positives are no more than
+  the current tier's, and every trial produced output the grader could judge. A
+  parse failure, timeout, CLI error, tool violation or judge error blocks it.
+- **Upgrade** to the step-up tier when it passes some expected finding in at
+  least half its trials that the current tier misses in every trial, its
+  clean-fixture false positives are no more than the current tier's, and every
+  one of its trials produced output the grader could judge. A failed check is
+  named in the reason. An upgrade wins over a downgrade that also passes.
+- **Keep** otherwise, with the failed checks as the reason. A run also keeps when
+  it is incomplete, when `tier_change_eligible` is `false` (rubric-judged evidence
+  needs 10 graded trials per arm per fixture), or when the agent is
+  `correctness-review`, whose results are excluded from evidence while its known
+  recall gap is unfixed.
+
+### Stress batch
+
+`--batch <tier>` runs `--stress` for every agent whose frontmatter `model:` is
+at that tier. It plans every agent first and lists each one it cannot run
+(no fixture, an unsandboxed write-capable agent, a judge below the required
+tier, excluded results) with the reason. It prints each agent's configuration
+and estimate, then one combined estimate with the rubric judge included, and
+asks for approval once. The agents then run one after another, each writing its
+own artifact, and the batch stops at the first run that does not complete.
+`--max-cost` bounds the combined estimate and the charged cost of the whole
+batch: each agent's run gets what is left of it, and once nothing is left the
+batch starts no further agent and prints `spend limit reached; not run:` with
+the agents it skipped. `--batch` cannot be combined with an agent name, `--model`, `--effort` or
+`--fixtures`.
+
+```bash
+python3 scripts/model_effort_ab.py --batch haiku
+```
+
+Without `--yes` and a terminal, the batch prints the estimates and refuses to
+start, so the command doubles as a cost preview.
+
+A batch exits 0 when every agent's run completed, 1 when it was declined,
+stopped after a run that did not complete, or reached the spend limit before an
+agent, and 2 when no agent at the tier can
+run or the combined estimate is above `--max-cost`.
 
 ### Inputs are frozen when the run is planned
 
@@ -519,6 +584,8 @@ trial writes no artifact and exits 1. The key fields:
 | `grader` | The agent's grader from `graders.json`: `expected-findings`, `tests-pass`, `dispatch-set` or `rubric`. |
 | `judge` | For `rubric`: the pinned judge `model`, `effort`, `rubric` path and `criteria`; otherwise `null`. |
 | `tier_change_eligible` | `true` when every arm has at least one graded trial (`pass` or `graded_fail`) on every planned fixture and, for `rubric`, at least 10. Timeouts, CLI errors, tool violations, parse failures and judge errors do not count. |
+| `mode` | `stress` for a `--stress` or `--batch` run; absent for an A/B run. |
+| `verdict` | Stress runs only: `decision` (`downgrade`, `upgrade` or `keep`), `reason`, the `arm`, `model` and `effort` it moves to (`null` for `keep`), the `downgrade` check (`passes`, `reason`), the `upgrade` check (`findings`, the fixture stems the step-up tier gains, and `reason`), and `recall` per arm (`passes`, `trials`). The decision log's gate checks a row against it. |
 | `fidelity` | `read-only-profile`, or `sandboxed-write-profile` when the agent's write tools were enabled. |
 | `arms[].fixtures[].trials[].outcome` | The trial result, such as `pass`, `timeout`, `cli_error` or `judge_error`. |
 | `arms[].fixtures[].trials[].judge_cost_usd` | What the rubric judge reported for grading the trial, or `null`. |
@@ -659,7 +726,7 @@ deterministic grader in `scripts/eval_graders/`, selected by the expected entry'
 | `expected-findings` (default) | review agents (`verdict`), plan critics, `gherkin-quality-critic`, `spec-reviewer` (`finding_ids`) | Match the expected verdict and report every planted finding ID (`expectedFindingIds`: keywords, optional severities), within `maxFindings`/`maxBySeverity`. |
 | `tests-pass` | `software-engineer`, `mutation-kill` | After the agent finishes, the entry's `testCommands` exit 0 in the trial copy, jailed. `protectedPaths` are first restored from the pristine fixture, so the agent cannot weaken the tests that grade it; each must be a relative path inside a directory fixture, and a symlink in its place or in a parent is replaced, never followed. `{python}` is the harness's interpreter. |
 | `dispatch-set` | `orchestrator`, `quality-reviewer` | Dispatch every agent in `dispatch.include` and none in `dispatch.exclude` (`exact`: nothing else), read from the transcript's `Agent` calls. Each dispatch goes to a stub agent passed with `--agents` that replies with a clean verdict. The answer may be prose; an entry with `expectedStatus` fails an answer with no JSON verdict. |
-| `rubric` | the remaining agents | A judge model pinned in `graders.json` (the top-level `judge`, unless the agent pins its own), one tier above the agent (opus agents are judged by opus), marks every criterion of the agent's committed rubric (`evals/model-effort/rubrics/<agent>.md`) and every `rubricPoints` entry met. The judge sees the rubric, the task, the fixture's text files (capped at 60,000 characters) and the agent's final answer (capped at 30,000 characters), never the expected entry. For a sandboxed agent the judge also sees the harness's diff of the trial copy against the frozen fixture, so it can check what the agent changed and what it left alone. The answer and the diff are fenced between markers with a random per-call token, and the judge is told everything inside is data. A judge call that fails, times out or reports an error is `judge_error`, not `graded_fail`, and its reported cost is still charged. A judge that ran to a result with no `criteria` list is `graded_fail`, cost charged, because the answer may have caused it. An answer over 30,000 characters is `graded_fail` without a judge call. |
+| `rubric` | the remaining agents | A judge model pinned in `graders.json` (the top-level `judge`, unless the agent pins its own), one tier above the strongest arm it judges, a stress run's step-up arm included (opus arms are judged by opus), marks every criterion of the agent's committed rubric (`evals/model-effort/rubrics/<agent>.md`) and every `rubricPoints` entry met. The judge sees the rubric, the task, the fixture's text files (capped at 60,000 characters) and the agent's final answer (capped at 30,000 characters), never the expected entry. For a sandboxed agent the judge also sees the harness's diff of the trial copy against the frozen fixture, so it can check what the agent changed and what it left alone. The answer and the diff are fenced between markers with a random per-call token, and the judge is told everything inside is data. A judge call that fails, times out or reports an error is `judge_error`, not `graded_fail`, and its reported cost is still charged. A judge that ran to a result with no `criteria` list is `graded_fail`, cost charged, because the answer may have caused it. An answer over 30,000 characters is `graded_fail` without a judge call. |
 
 An expected entry's `task` replaces the default review prompt; `{fixture}` in it
 is the staged fixture's name. The harness refuses a fixture whose expected entry

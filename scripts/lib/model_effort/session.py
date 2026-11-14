@@ -20,6 +20,7 @@ from . import (
     estimate,
     interrupts,
     report,
+    verdict,
 )
 from .errors import UsageError
 from .execution import TrialRunner, run_trials
@@ -156,6 +157,14 @@ def finish_run(
     if run.started_trials == 0:
         print(report.render_no_trials_notice(), file=console.stderr)
         return EXIT_FAILED
+    fixture_stems = [fixture.stem for fixture in plan.fixtures]
+    stress_verdict = (
+        verdict.stress_verdict(
+            plan.agent, run.arm_runs, plan.grading, fixture_stems, run.abort_reason
+        )
+        if plan.stress
+        else None
+    )
     data = artifact.build_artifact(
         plan.metadata,
         run.arm_runs,
@@ -163,7 +172,10 @@ def finish_run(
         plan.profile,
         run.abort_reason,
         plan.grading,
-        fixture_stems=[fixture.stem for fixture in plan.fixtures],
+        fixture_stems=fixture_stems,
+        verdict=(
+            verdict.verdict_dict(stress_verdict) if stress_verdict is not None else None
+        ),
     )
     save_exit_code = save_artifact(
         plan.artifact_path, artifact_store.render_artifact(data), console
@@ -178,6 +190,8 @@ def finish_run(
     )
     for line in summary:
         print(line, file=console.stderr)
+    if stress_verdict is not None:
+        print(report.render_verdict(stress_verdict), file=console.stderr)
     if save_exit_code == EXIT_OK:
         print(f"artifact written: {plan.artifact_path}", file=console.stderr)
     return save_exit_code if run.is_complete else EXIT_FAILED

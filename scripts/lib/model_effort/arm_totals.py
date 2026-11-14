@@ -56,7 +56,7 @@ def compute_arm_totals(arm_run: ArmRun, run_estimate: RunEstimate) -> ArmTotals:
             1
             for fixture in arm_run.fixture_trials
             for result in fixture.results
-            if _is_clean_fixture_false_positive(fixture, result)
+            if is_clean_fixture_false_positive(fixture, result)
         ),
         actual_cost_usd=total_cost_usd(
             result.reported_cost_usd for result in arm_run.results
@@ -83,7 +83,7 @@ def compute_arm_totals(arm_run: ArmRun, run_estimate: RunEstimate) -> ArmTotals:
     )
 
 
-def _is_clean_fixture_false_positive(
+def is_clean_fixture_false_positive(
     fixture: FixtureTrials, result: TrialResult
 ) -> bool:
     if not fixture.expected_clean or result.outcome != Outcome.GRADED_FAIL:
