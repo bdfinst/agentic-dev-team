@@ -10,7 +10,8 @@
         {"id": "billing-space-to-workspace", "requirement": "Reports replacing 'team space' and 'space' with 'workspace' in `billing.md`."},
         {"id": "members-org-to-workspace", "requirement": "Reports replacing 'organization' with 'workspace' in `members.md`."},
         {"id": "projects-tenant-to-workspace", "requirement": "Reports replacing 'tenant' with 'workspace' in `projects.md` (the sentence about deleting a tenant deleting its projects)."},
-        {"id": "project-preserved", "requirement": "Does not replace 'project' with 'workspace' (or vice versa) anywhere, treating project as a distinct entity inside a workspace."}
+        {"id": "project-preserved", "requirement": "Does not replace 'project' with 'workspace' (or vice versa) anywhere, treating project as a distinct entity inside a workspace."},
+        {"id": "sources-untouched", "requirement": "The harness's diff of changes shows no edit to `docs/glossary.md` or `src/models.py`."}
       ]
     }
   }

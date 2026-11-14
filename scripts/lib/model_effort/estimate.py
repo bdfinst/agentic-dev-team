@@ -115,10 +115,13 @@ def estimate_run(
     trials_per_fixture: int,
     pricing_table: dict,
     judge: Judge | None = None,
+    judge_sees_changes: bool = False,
 ) -> RunEstimate:
     """Estimate each arm's cost: (input + output allowance) priced, times fixtures times trials.
 
-    With a rubric `judge`, also estimate one judgement per trial of every arm.
+    With a rubric `judge`, also estimate one judgement per trial of every arm;
+    `judge_sees_changes` (a sandboxed agent) adds an answer-sized allowance for
+    the diff of what the trial changed.
 
     Raises:
         UsageError: an arm's or the judge's model has no rate in `pricing_table`.
@@ -138,7 +141,9 @@ def estimate_run(
         total_trials_per_arm=len(fixtures) * trials_per_fixture,
         arm_count=len(arms),
         judge_usd=(
-            _judge_cost_usd(judge, fixtures, pricing_table) * trials_per_fixture * len(arms)
+            _judge_cost_usd(judge, fixtures, pricing_table, judge_sees_changes)
+            * trials_per_fixture
+            * len(arms)
             if judge is not None
             else 0.0
         ),
@@ -146,16 +151,20 @@ def estimate_run(
 
 
 def _judge_cost_usd(
-    judge: Judge, fixtures: Sequence[ResolvedFixture], pricing_table: dict
+    judge: Judge,
+    fixtures: Sequence[ResolvedFixture],
+    pricing_table: dict,
+    sees_changes: bool = False,
 ) -> float:
-    """One judgement on each fixture: rubric, points, task, material and an answer-sized allowance in; verdicts out."""
+    """One judgement on each fixture: rubric, points, task, material and an answer-sized
+    allowance in (twice, when the judge also sees the trial's changes); verdicts out."""
     rate = external.pricing().rate(pricing_table, judge.model)
     if rate is None:
         raise UsageError(
             f"no price for the rubric judge model {judge.model!r}: add it to "
             f"{PRICING_FILE_HINT}, because the cost estimate and spend limit need a rate"
         )
-    answer_chars = OUTPUT_TOKENS_PER_TRIAL * CHARS_PER_TOKEN
+    answer_chars = OUTPUT_TOKENS_PER_TRIAL * CHARS_PER_TOKEN * (2 if sees_changes else 1)
     total = 0.0
     for fixture in fixtures:
         input_chars = (

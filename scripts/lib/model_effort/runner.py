@@ -13,6 +13,7 @@ import os
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -26,6 +27,7 @@ from .check_jail import CheckJail
 from .fixtures import copy_fixture
 from .process_record import TrialProcessRecord
 from .temp_tree import remove_tree
+from .work_diff import working_copy_diff
 
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 600
 # Shell convention for "command not found or not executable".
@@ -63,9 +65,12 @@ def run_cli_process(
     while a process is started, waited on or killed. The wait comes up for air
     every `INTERRUPT_POLL_SECONDS` to look for one.
 
-    On timeout or interrupt the whole group is killed, so grandchildren the CLI
-    spawned do not outlive the trial; a timeout sets `timed_out` and keeps the
-    partial output, an interrupt consumes the signal and raises `KeyboardInterrupt`.
+    The whole group is killed once the process ends, however it ends, so a
+    grandchild the CLI spawned in its group does not outlive the call: nothing
+    it started can still be writing when the caller restores or grades the copy.
+    A process that left the group (a new session) is not reached. A timeout sets
+    `timed_out` and keeps the partial output, an interrupt consumes the signal
+    and raises `KeyboardInterrupt`.
     A binary that cannot be started yields exit code 127 with the OS error as stderr.
     """
     previous_mask = interrupts.block()
@@ -98,12 +103,17 @@ def run_cli_process(
                 cwd=cwd,
             )
         try:
-            return _wait_for_exit(process, cwd, trial_timeout_seconds)
+            record = _wait_for_exit(process, cwd, trial_timeout_seconds)
         except BaseException:
             # The new session detaches the child from the terminal, so Ctrl-C no
             # longer reaches it; kill it here before propagating.
             _kill_group_and_collect(process)
             raise
+        # A group ID is not reused while the group has a member. Once it is empty,
+        # a new session leader could take the ID between the reap and this call;
+        # that window is the residual.
+        _kill_process_group(process)
+        return record
     finally:
         interrupts.restore(previous_mask)
 
@@ -203,8 +213,8 @@ def _decode_partial(data: bytes | str | None) -> str:
 def _kill_process_group(process: subprocess.Popen) -> None:
     try:
         os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass  # The group already exited.
+    except (ProcessLookupError, PermissionError):
+        pass  # The group already exited; its ID is gone or no longer ours.
 
 
 def run_trial(
@@ -214,11 +224,14 @@ def run_trial(
 ) -> TrialProcessRecord:
     """Run one trial of `config` against a fresh copy of `fixture`.
 
-    A sandboxed trial's copy is first made a git repo with one commit, and the
-    trial reads its own copy of the knowledge directory, so a write to it cannot
-    reach a later trial. When the config has test commands they run in the copy
-    after the agent finishes, jailed when the config has a jail, with no
-    credential in their environment; their results ride on the returned record.
+    The CLI gets its own empty HOME (with a credential variable) and TMPDIR in a
+    private temp dir, removed with the trial. A sandboxed trial's copy is first
+    made a git repo with one commit, the trial reads its own copy of the
+    knowledge directory, so a write to it cannot reach a later trial, and its
+    changes to the copy ride on the record as `work_diff`. When the config has
+    test commands they run in the copy after the agent finishes, jailed when the
+    config has a jail, with no credential in their environment; their results
+    ride on the returned record.
     """
     with staged_fixture(fixture) as staging_dir, _private_dirs() as private:
         if config.sandbox:
@@ -226,11 +239,19 @@ def run_trial(
         argv = invocation.build_argv(
             config, invocation.build_user_prompt(fixture.name, config.task)
         )
-        env = invocation.build_trial_env(os.environ, _fresh_dir(private / "home"))
+        env = {
+            **invocation.build_trial_env(os.environ, _fresh_dir(private / "home")),
+            "TMPDIR": str(_fresh_dir(private / "tmp")),
+        }
         work_dir = staging_dir / fixture.name if fixture.is_dir() else staging_dir
         if config.sandbox:
             init_sandbox_repo(work_dir)
+        # Returns only once the CLI's whole process group is dead.
         record = run_cli_process(argv, staging_dir, trial_timeout_seconds, env)
+        if config.sandbox:
+            record = dataclasses.replace(
+                record, work_diff=working_copy_diff(fixture, work_dir)
+            )
         if not config.test_commands or record.timed_out:
             return record
         restore_protected_paths(fixture, work_dir, config.protected_paths)
@@ -254,7 +275,7 @@ def run_trial(
 
 @contextmanager
 def _private_dirs() -> Iterator[Path]:
-    """A temp dir outside the staging dir for the trial's HOME, knowledge copy and check temp."""
+    """A temp dir outside the staging dir for the trial's HOME, TMPDIR, knowledge copy and check temp."""
     root = Path(tempfile.mkdtemp(prefix=PRIVATE_DIR_PREFIX))
     try:
         yield root
@@ -308,64 +329,118 @@ class UnsafeProtectedPathError(RuntimeError):
     """A protected path would resolve outside the trial's working copy."""
 
 
+# Opens a directory entry only if it is a real directory, never through a symlink.
+_DIR_OPEN_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+_NEW_FILE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+_NEW_DIR_MODE = 0o755
+
+
 def restore_protected_paths(
     pristine_fixture: Path, work_dir: Path, protected_paths: tuple[str, ...]
 ) -> None:
     """Put each protected path back as the pristine fixture has it, so the agent cannot change its own grader.
 
-    The agent may have replaced any part of a path with a symlink. Every ancestor
-    is walked from `work_dir` down: a symlink or file in an ancestor's place is
-    removed and a real directory made, and each step is checked to resolve inside
-    `work_dir` before anything is removed or copied. A symlink is removed, never
-    followed, so nothing outside `work_dir` is touched.
+    The walk holds an open directory descriptor at every step and names each
+    entry relative to it (`dir_fd`), opening directories with `O_NOFOLLOW`. A
+    symlink or file in a parent's place is removed and a real directory made;
+    the target is removed (a directory recursively, through descriptors) and
+    copied in with `O_EXCL | O_NOFOLLOW`. A symlink swapped in mid-walk makes
+    the open fail instead of redirecting it, so nothing outside `work_dir` is
+    removed or written. A process still running can change the copy after the
+    restore; `run_cli_process` kills the CLI's process group first.
 
     Raises:
         UnsafeProtectedPathError: a path is absolute or climbs out with `..`
-            (fixture loading refuses those first), or a step resolves outside
-            `work_dir`.
+            (fixture loading refuses those first), or a parent could not be
+            opened as a real directory.
     """
     root = work_dir.resolve()
     for relative in protected_paths:
         parts = PurePosixPath(relative).parts
         if not parts or PurePosixPath(relative).is_absolute() or ".." in parts:
             raise UnsafeProtectedPathError(f"protected path {relative!r} is not inside the fixture")
-        parent = root
-        for part in parts[:-1]:
-            parent = _real_dir(parent, part, root)
-        target = parent / parts[-1]
-        _assert_inside(target.parent, root)
-        _remove_entry(target)
-        source = pristine_fixture / relative
-        if source.is_dir() and not source.is_symlink():
-            shutil.copytree(source, target, symlinks=True)
-        elif source.is_file() or source.is_symlink():
-            shutil.copy2(source, target, follow_symlinks=False)
+        parent_fd = _open_real_dirs(root, parts[:-1])
+        try:
+            _remove_at(parent_fd, parts[-1])
+            _copy_in(pristine_fixture / relative, parent_fd, parts[-1])
+        finally:
+            os.close(parent_fd)
 
 
-def _real_dir(parent: Path, name: str, root: Path) -> Path:
-    """`parent / name` as a real directory inside `root`, replacing a symlink or file there."""
-    _assert_inside(parent, root)
-    entry = parent / name
-    if entry.is_symlink() or (entry.exists() and not entry.is_dir()):
-        entry.unlink()
-    if not entry.exists():
-        entry.mkdir()
-    _assert_inside(entry, root)
-    return entry
+def _open_dir_at(name: str | Path, dir_fd: int | None, shown: str) -> int:
+    try:
+        return os.open(name, _DIR_OPEN_FLAGS, dir_fd=dir_fd)
+    except OSError as error:
+        raise UnsafeProtectedPathError(
+            f"{shown} is not a real directory inside the working copy: {error}"
+        ) from error
 
 
-def _remove_entry(target: Path) -> None:
-    if target.is_symlink() or target.is_file():
-        target.unlink()
-    elif target.is_dir():
-        shutil.rmtree(target)
-    elif target.exists():
-        target.unlink()
+def _open_real_dirs(root: Path, names: tuple[str, ...]) -> int:
+    """A descriptor for `root / names...`, each step made a real directory first."""
+    fd = _open_dir_at(root, None, str(root))
+    try:
+        for name in names:
+            entry = _lstat_at(fd, name)
+            if entry is not None and not stat.S_ISDIR(entry.st_mode):
+                os.unlink(name, dir_fd=fd)
+                entry = None
+            if entry is None:
+                os.mkdir(name, _NEW_DIR_MODE, dir_fd=fd)
+            child = _open_dir_at(name, fd, name)
+            os.close(fd)
+            fd = child
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
 
 
-def _assert_inside(path: Path, root: Path) -> None:
-    if not path.resolve().is_relative_to(root):
-        raise UnsafeProtectedPathError(f"{path} resolves outside the working copy {root}")
+def _lstat_at(dir_fd: int, name: str) -> os.stat_result | None:
+    try:
+        return os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+
+
+def _remove_at(dir_fd: int, name: str) -> None:
+    """Remove `name` under `dir_fd`; a directory's contents first, never through a symlink."""
+    entry = _lstat_at(dir_fd, name)
+    if entry is None:
+        return
+    if not stat.S_ISDIR(entry.st_mode):
+        os.unlink(name, dir_fd=dir_fd)
+        return
+    fd = _open_dir_at(name, dir_fd, name)
+    try:
+        with os.scandir(fd) as entries:
+            names = [child.name for child in entries]
+        for child in names:
+            _remove_at(fd, child)
+    finally:
+        os.close(fd)
+    os.rmdir(name, dir_fd=dir_fd)
+
+
+def _copy_in(source: Path, dir_fd: int, name: str) -> None:
+    """Copy the pristine `source` to `name` under `dir_fd`, which must not exist; links stay links."""
+    if source.is_symlink():
+        os.symlink(os.readlink(source), name, dir_fd=dir_fd)
+    elif source.is_dir():
+        os.mkdir(name, _NEW_DIR_MODE, dir_fd=dir_fd)
+        fd = _open_dir_at(name, dir_fd, name)
+        try:
+            for child in sorted(source.iterdir()):
+                _copy_in(child, fd, child.name)
+            os.fchmod(fd, stat.S_IMODE(source.stat().st_mode))
+        finally:
+            os.close(fd)
+    elif source.is_file():
+        mode = stat.S_IMODE(source.stat().st_mode)
+        fd = os.open(name, _NEW_FILE_FLAGS, mode, dir_fd=dir_fd)
+        with os.fdopen(fd, "wb") as target:
+            target.write(source.read_bytes())
+            os.fchmod(target.fileno(), mode)
 
 
 def run_check_command(

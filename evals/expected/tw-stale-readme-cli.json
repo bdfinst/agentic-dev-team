@@ -10,7 +10,7 @@
         {"id": "output-flag", "requirement": "Reports replacing `--out` with `--output` (optionally noting `-o`) in both the usage example and the options table."},
         {"id": "quiet-not-verbose", "requirement": "Reports removing `--verbose`/`-v` and documenting `--quiet`/`-q` as printing only errors."},
         {"id": "port-default", "requirement": "Reports changing the documented `--port` default from 5140 to 9514."},
-        {"id": "code-untouched", "requirement": "Does not report changing `logship/cli.py` or any flag name in the code."}
+        {"id": "code-untouched", "requirement": "The harness's diff of changes shows no edit to `logship/cli.py`, and the answer does not report changing it or any flag name in the code."}
       ]
     }
   }

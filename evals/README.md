@@ -420,9 +420,16 @@ unless you pass `--yes`.
 `--max-cost` applies twice:
 
 - **At start.** The harness refuses to run when the estimate is above the limit.
+  For a rubric-graded agent the estimate includes the judge.
 - **During the run.** The harness stops after the first trial that takes the charged
-  cost above the limit. The charged cost is the reported cost, plus the per-trial
-  estimate for each trial whose `claude` output reports no cost.
+  cost above the limit. The charged cost is the reported cost of each trial and of
+  each rubric judgement (a failed judgement included), plus the per-trial or
+  per-judgement estimate for each one whose `claude` output reports no cost.
+
+The summary prints each arm's cost and the total as `cost X + judge Y, estimated
+A + judge B` when a judge ran. The judge estimates add up to the figure the
+configuration echo printed before the run, and the artifact records the same
+numbers.
 
 The estimate is a rough heuristic. The real cost can be several times higher or
 lower: in the one real run, the estimate was 4.6 to 13.6 times the reported cost.
@@ -475,12 +482,13 @@ trial writes no artifact and exits 1. The key fields:
 | `arms[].trials_per_fixture` | Trials planned per fixture (the `--trials` value). To count the trials that ran, count `fixtures[].trials`. |
 | `grader` | The agent's grader from `graders.json`: `expected-findings`, `tests-pass`, `dispatch-set` or `rubric`. |
 | `judge` | For `rubric`: the pinned judge `model`, `effort`, `rubric` path and `criteria`; otherwise `null`. |
-| `tier_change_eligible` | `true` when every arm completed at least one trial on every planned fixture and, for `rubric`, at least 10. |
+| `tier_change_eligible` | `true` when every arm has at least one graded trial (`pass` or `graded_fail`) on every planned fixture and, for `rubric`, at least 10. Timeouts, CLI errors, tool violations, parse failures and judge errors do not count. |
 | `fidelity` | `read-only-profile`, or `sandboxed-write-profile` when the agent's write tools were enabled. |
 | `arms[].fixtures[].trials[].outcome` | The trial result, such as `pass`, `timeout`, `cli_error` or `judge_error`. |
 | `arms[].fixtures[].trials[].judge_cost_usd` | What the rubric judge reported for grading the trial, or `null`. |
 | `arms[].fixtures[].trials[].cost_reported` | `false` when `claude` reported no cost; `cost_usd` is then 0. |
-| `arms[].estimated_cost_usd` | The pre-run estimate for the arm. |
+| `arms[].estimated_cost_usd` | The pre-run estimate for the arm's trials. |
+| `arms[].estimated_judge_cost_usd` | The arm's share of the pre-run rubric judge estimate; `0` without a judge. |
 | `arms[].totals.clean_fixture_false_positives` | Trials the grader failed (`graded_fail`) on a fixture that expects no findings. Timeouts, CLI errors, parse failures and tool violations on such a fixture do not count. |
 | `arms[].totals.actual_cost_usd` | The reported cost. It is a lower bound when any `cost_reported` is `false`. |
 | `arms[].totals.unreported_trials_estimate_usd` | The sum of per-trial estimates charged for trials, and per-judgement estimates charged for rubric judgements, that reported no cost. The `--max-cost` check counts these in place of the cost. |
@@ -499,45 +507,80 @@ refused: the harness withholds it and records it in `tools_withheld`. A
 
 ### Sandbox and jail
 
-A sandboxed trial runs under Claude Code's own Bash sandbox, passed with
-`--settings` (keys from the [settings reference](https://code.claude.com/docs/en/settings-reference.md#sandbox-settings)):
-`sandbox.enabled`, `failIfUnavailable` (the CLI exits instead of running
-unsandboxed, so the trial is a `cli_error`), `allowUnsandboxedCommands: false`,
-`autoAllowBashIfSandboxed`, an empty `network.allowedDomains` (no network),
-`filesystem.denyRead` on the answer key and `filesystem.denyWrite` on the run's
-frozen inputs. It also gets `--permission-mode acceptEdits` and
-`--permission-prompts none`, never `--dangerously-skip-permissions`. Any
-permission denial fails the trial as `tool_violation`, so a denial is never
-hidden. `--restricted` keeps the file tools inside the trial copy and the
-knowledge directory; a sandboxed trial gets its own copy of the knowledge
+The sandbox and the jail are defense in depth for fixtures this repo authors and
+reviews. They are not VM-grade isolation. Run sandboxed and test-graded trials
+only on trusted repo fixtures; for anything else, use a disposable machine.
+
+**The `claude` process.** Every trial runs in a fresh temp copy of the fixture,
+with `--restricted` (file tools confined to the copy and the knowledge
+directory). Its environment is built from an allowlist: `PATH`, `LANG`, `LC_*`,
+`USER`, `LOGNAME`, `HOME`, `TMPDIR`, and the first credential variable set
+(`ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`).
+`TMPDIR` is a private temp directory for that trial only. With a credential
+variable, `HOME` is an empty temp directory; without one, `HOME` is kept,
+because a keychain login is found through it. The rubric judge runs with the
+same environment rules and its own temp `HOME` and `TMPDIR`.
+
+When `claude` exits, for any reason, the harness kills its whole process group
+before it reads, restores or tests the copy.
+
+**A sandboxed trial** (a write-capable agent) also runs under Claude Code's
+Bash sandbox, passed with `--settings` (keys from the
+[settings reference](https://code.claude.com/docs/en/settings-reference.md#sandbox-settings)):
+
+- `sandbox.enabled` and `failIfUnavailable`: the CLI exits instead of running
+  unsandboxed, so the trial is a `cli_error`.
+- `allowUnsandboxedCommands: false` and `autoAllowBashIfSandboxed`.
+- An empty `network.allowedDomains`: no network.
+- `filesystem.denyRead` on the answer key: the run's frozen copy of the expected
+  entries, this repo's git directory (every committed version of them), and the
+  `.git` entry and `evals/expected` of the main checkout and of every worktree
+  `git worktree list` names.
+- `filesystem.denyWrite` on the run's frozen inputs and the same answer-key paths.
+
+It gets `--permission-mode acceptEdits` and `--permission-prompts none`, never
+`--dangerously-skip-permissions`. Any permission denial fails the trial as
+`tool_violation`. A sandboxed trial gets its own copy of the knowledge
 directory, because the sandbox lets commands write to `--add-dir` directories.
 
-The expected entries are copied to a temp directory that no prompt or readable
-directory names. The CLI's environment is built from an allowlist: `PATH`,
-`LANG`, `LC_*`, `TMPDIR`, `USER`, `LOGNAME`, `HOME`, and the first credential
-variable set (`ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`,
-`CLAUDE_CODE_OAUTH_TOKEN`). With a credential variable, `HOME` is an empty temp
-directory; without one, `HOME` is kept, because a keychain login is found
-through it.
+**Test commands.** A fixture's `testCommands` run code the agent wrote. They
+run with the same allowlist minus the credential, with `HOME` and `TMPDIR` in
+temp directories, under a jail. The harness probes the jail before planning; with
+no working jail it refuses a `tests-pass` run unless you pass
+`--allow-unjailed-checks`.
 
-A fixture's `testCommands` run code the agent wrote. They run with the same
-allowlist minus the credential, with `HOME` and `TMPDIR` in temp directories,
-jailed by `sandbox-exec` on macOS or `bwrap` (bubblewrap) on Linux: no network,
-and writes only to the trial copy and their temp directory. The harness probes
-the jail before planning; with no working jail it refuses a `tests-pass` run
-unless you pass `--allow-unjailed-checks`.
+| | macOS (`sandbox-exec`) | Linux (`bwrap`) |
+| --- | --- | --- |
+| Writes | Only the trial copy, its temp dir and `/dev/null`-style devices. | The root is bound read-only; only the trial copy and its temp dir are writable; `/tmp` is an empty tmpfs. |
+| Network | Denied (`deny network*`), loopback included. | New network namespace (`--unshare-all`). |
+| Other processes | Launch Services opens (`deny lsopen`), Apple events (`deny appleevent-send`) and the Launch Services, Apple-event and DNS-SD services are denied. `launchctl submit`, `bootstrap` and `load` are refused for a sandboxed caller. | New PID, IPC and user namespaces; `/run` (and `/var/run` when it is a real directory) is an empty tmpfs, so the session bus and the Docker socket are unreachable; `DBUS_SESSION_BUS_ADDRESS` and `XDG_RUNTIME_DIR` are unset. |
+| Probe asserts | A write inside works; a write outside, a connection to a harness-owned `127.0.0.1` socket and `open -a Finder` are refused. | A write inside works; a write outside and that connection are refused; the user's session bus cannot be reached and the Docker socket is not visible, each when the host has one. |
 
-Limits:
+**Protected paths.** After the agent finishes, the harness restores each
+`protectedPaths` entry from the frozen fixture. The walk holds a directory file
+descriptor at each step and opens every directory with `O_NOFOLLOW`, so a symlink
+in the path, even one swapped in during the walk, is refused or removed, never
+followed.
 
-- Reads are not confined. Sandboxed commands and test commands can read any file
-  the user can read, apart from the sandbox's `denyRead` list; the answer key is
-  hidden, not locked, from test commands.
-- The sandbox and the jail need a supported platform (macOS, Linux, WSL2).
-- Exit-code grading trusts the test process. Agent-written source can still end
+Residual risks, by design or not yet closed:
+
+- **Reads are not confined.** The file tools are held to the copy and the
+  knowledge directory by `--restricted`, but a sandboxed trial's Bash commands
+  can read anything the user can read except the `denyRead` paths above, and
+  test commands are not denied even those. Still readable: the rest of
+  this repo, including `evals/fixtures`, the graders in `scripts/eval_graders/`,
+  tests that may quote expected values, other clones of the repo that are not
+  worktrees of this one, and the user's home directory.
+- **Exit-code grading trusts the test process.** Agent-written source can end
   the test process early with exit 0; `protectedPaths` only stop edits to the
   test files themselves.
-- A process the agent started that outlives the trial can still race the
-  restore of `protectedPaths`.
+- **Process races.** A process that left the CLI's process group (a new session,
+  or `setsid`) survives the group kill and can change the copy after the
+  restore. Once the group is empty, a new process could take its ID between the
+  reap and the kill; that window is microseconds.
+- **Apple events on macOS.** An `osascript` command to another app is not
+  delivered, but it blocks until the test command's timeout instead of failing.
+- **Platform coverage.** The sandbox and the jail need macOS, Linux or WSL2.
 
 ### Graders
 
@@ -551,7 +594,7 @@ deterministic grader in `scripts/eval_graders/`, selected by the expected entry'
 | `expected-findings` (default) | review agents (`verdict`), plan critics, `gherkin-quality-critic`, `spec-reviewer` (`finding_ids`) | Match the expected verdict and report every planted finding ID (`expectedFindingIds`: keywords, optional severities), within `maxFindings`/`maxBySeverity`. |
 | `tests-pass` | `software-engineer`, `mutation-kill` | After the agent finishes, the entry's `testCommands` exit 0 in the trial copy, jailed. `protectedPaths` are first restored from the pristine fixture, so the agent cannot weaken the tests that grade it; each must be a relative path inside a directory fixture, and a symlink in its place or in a parent is replaced, never followed. `{python}` is the harness's interpreter. |
 | `dispatch-set` | `orchestrator`, `quality-reviewer` | Dispatch every agent in `dispatch.include` and none in `dispatch.exclude` (`exact`: nothing else), read from the transcript's `Agent` calls. Each dispatch goes to a stub agent passed with `--agents` that replies with a clean verdict. The answer may be prose; an entry with `expectedStatus` fails an answer with no JSON verdict. |
-| `rubric` | the remaining agents | A judge model pinned in `graders.json` (the top-level `judge`, unless the agent pins its own), one tier above the agent (opus agents are judged by opus), marks every criterion of the agent's committed rubric (`evals/model-effort/rubrics/<agent>.md`) and every `rubricPoints` entry met. The judge sees the rubric, the task, the fixture's text files (capped at 60,000 characters) and the agent's final answer, never the expected entry. A failed judge call is `judge_error`, not `graded_fail`, and its reported cost is still charged. |
+| `rubric` | the remaining agents | A judge model pinned in `graders.json` (the top-level `judge`, unless the agent pins its own), one tier above the agent (opus agents are judged by opus), marks every criterion of the agent's committed rubric (`evals/model-effort/rubrics/<agent>.md`) and every `rubricPoints` entry met. The judge sees the rubric, the task, the fixture's text files (capped at 60,000 characters) and the agent's final answer, never the expected entry. For a sandboxed agent the judge also sees the harness's diff of the trial copy against the frozen fixture, so it can check what the agent changed and what it left alone. The answer and the diff are fenced between markers with a random per-call token, and the judge is told everything inside is data. A failed judge call is `judge_error`, not `graded_fail`, and its reported cost is still charged. |
 
 An expected entry's `task` replaces the default review prompt; `{fixture}` in it
 is the staged fixture's name. The harness refuses a fixture whose expected entry
@@ -559,6 +602,6 @@ names a grader (default `verdict`) that the agent's `graders.json` kind does not
 accept. It refuses a rubric run whose judge is
 not at least one tier above both arms (capped at opus). Rubric-judged agents
 default to 10 trials, and rubric evidence can justify a tier change only with 10
-trials per arm (`trial_count.can_justify_tier_change`); the artifact's
-`tier_change_eligible` applies that rule to the trials each arm completed on
-each fixture.
+graded trials per arm (`trial_count.can_justify_tier_change`); the artifact's
+`tier_change_eligible` applies that rule to the `pass` and `graded_fail` trials
+each arm has on each fixture.

@@ -38,6 +38,8 @@ class Outcome(StrEnum):
 
 # Infrastructure failures, as opposed to the agent's answer being wrong.
 INFRA_OUTCOMES = frozenset({Outcome.CLI_ERROR, Outcome.TIMEOUT, Outcome.JUDGE_ERROR})
+# Outcomes in which the grader reached a verdict on the answer.
+GRADED_OUTCOMES = frozenset({Outcome.PASS, Outcome.GRADED_FAIL})
 
 
 class GraderUnavailableError(RuntimeError):

@@ -237,6 +237,7 @@ class TestTwoArmRun:
             "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
             "trials_per_fixture": SCOUT_TRIALS,
             "estimated_cost_usd": pytest.approx(BASELINE_TWO_ARM_ESTIMATE),
+            "estimated_judge_cost_usd": 0.0,
             "session_config": _expected_session_config(SONNET_MODEL_ID),
             "fixtures": [
                 _fixture_block("clean-form", "file", True, [_trial("pass")] * 3),
@@ -270,6 +271,7 @@ class TestTwoArmRun:
             "tools_withheld": ["mcp__x__y", "Bash(graphify *)"],
             "trials_per_fixture": SCOUT_TRIALS,
             "estimated_cost_usd": pytest.approx(CANDIDATE_TWO_ARM_ESTIMATE),
+            "estimated_judge_cost_usd": 0.0,
             "session_config": _expected_session_config(HAIKU_MODEL_ID),
             "fixtures": [
                 _fixture_block(

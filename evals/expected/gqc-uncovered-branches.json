@@ -22,7 +22,8 @@
             "zero or negative",
             "negative amount",
             "NOT_POSITIVE",
-            "zero",
+            "zero amount",
+            "amount of zero",
             "<= 0"
           ]
         },

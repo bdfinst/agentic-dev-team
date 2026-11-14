@@ -42,8 +42,10 @@ def resolve_trials(
 
 
 def can_justify_tier_change(grader: GraderKind, trials_per_arm: int) -> bool:
-    """True when a run graded by `grader` with this many trials per arm per fixture may move a tier.
+    """True when a run graded by `grader` with this many graded trials per arm per fixture may move a tier.
 
-    Rubric-judged evidence needs `RUBRIC_TRIALS`; deterministic graders have no floor here.
+    `trials_per_arm` counts only trials the grader reached a verdict on (`pass`
+    or `graded_fail`). Rubric-judged evidence needs `RUBRIC_TRIALS` of them;
+    deterministic graders have no floor here.
     """
     return grader is not GraderKind.RUBRIC or trials_per_arm >= RUBRIC_TRIALS

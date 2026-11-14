@@ -210,6 +210,8 @@ calls.append({
     ),
     "observed": observed,
     "git_dirs": sorted(str(p.relative_to(cwd)) for p in cwd.rglob(".git")),
+    "tmpdir": os.environ.get("TMPDIR"),
+    "home": os.environ.get("HOME"),
 })
 RECORD.write_text(json.dumps(calls))
 if BEHAVIOR.get("tamper"):
@@ -235,6 +237,16 @@ if BEHAVIOR.get("grandchild_marker"):
         BEHAVIOR["grandchild_marker"],
     )
     subprocess.Popen([sys.executable, "-c", code])
+if BEHAVIOR.get("detached_sleep"):
+    # Stays in the CLI's process group but lets go of its pipes, so the CLI's exit
+    # ends the wait at once and only an explicit group kill stops it.
+    detached = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(%s)" % BEHAVIOR["detached_sleep"]],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    Path(BEHAVIOR["detached_pid_file"]).write_text(str(detached.pid))
 if BEHAVIOR.get("holder_sleep"):
     # Inherits stdout and stderr, so it keeps both pipes open after this process exits.
     holder = subprocess.Popen(

@@ -126,6 +126,7 @@ def estimate_and_echo(
         settings.trials.count,
         pricing_table,
         judge=plan.grading.judge,
+        judge_sees_changes=plan.grading.sandbox,
     )
     for line in config_echo.render_config(plan, settings, run_estimate):
         print(line, file=console.stderr)

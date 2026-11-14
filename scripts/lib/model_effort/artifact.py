@@ -14,7 +14,7 @@ from .arm import BASELINE_LABEL
 from .arm_totals import ArmTotals, compute_arm_totals
 from .estimate import RunEstimate
 from .grader_config import DEFAULT_GRADING, AgentGrading
-from .outcome import TrialResult
+from .outcome import GRADED_OUTCOMES, TrialResult
 from .paths import REPO_ROOT
 from .run_status import AbortReason, RunStatus
 from .run_types import ArmRun, FixtureTrials, RunMetadata
@@ -48,10 +48,8 @@ def build_artifact(
     `grader` is the agent's grader from the grader map, so a decision row can cite
     it; `judge` names the pinned rubric judge, or is null.
 
-    `tier_change_eligible` says whether the trials actually completed may move a
-    tier: the fewest completed by any arm on any planned fixture (`fixture_stems`,
-    or every fixture a trial completed on) must be at least one and meet the
-    grader's floor.
+    `tier_change_eligible` says whether the graded trials may move a tier (see
+    `tier_change_eligible`).
     """
     arms = [_arm_dict(arm_run, run_estimate, profile) for arm_run in arm_runs]
     return {
@@ -74,9 +72,18 @@ def build_artifact(
 def tier_change_eligible(
     arm_runs: Sequence[ArmRun], grading: AgentGrading, fixture_stems: Sequence[str] = ()
 ) -> bool:
-    """Whether the completed trials meet the grader's per-arm, per-fixture floor."""
+    """Whether the graded trials meet the grader's per-arm, per-fixture floor.
+
+    Only a trial whose answer was graded (`pass` or `graded_fail`) counts: a
+    timeout, CLI error, tool violation, parse failure or judge error says
+    nothing about the answer. The fewest graded trials of any arm on any planned
+    fixture (`fixture_stems`, or every fixture a trial completed on) must be at
+    least one and meet the grader's floor (`can_justify_tier_change`).
+    """
     completed = {
-        (arm_run.arm.label, fixture.stem): len(fixture.results)
+        (arm_run.arm.label, fixture.stem): sum(
+            1 for result in fixture.results if result.outcome in GRADED_OUTCOMES
+        )
         for arm_run in arm_runs
         for fixture in arm_run.fixture_trials
     }
@@ -128,6 +135,7 @@ def _arm_dict(arm_run: ArmRun, run_estimate: RunEstimate, profile: ToolProfile) 
         "tools_withheld": list(profile.withheld_tools),
         "trials_per_fixture": arm_run.trials_per_fixture,
         "estimated_cost_usd": totals.estimated_cost_usd,
+        "estimated_judge_cost_usd": totals.estimated_judge_cost_usd,
         "session_config": _first_session_config(arm_run),
         "fixtures": [_fixture_dict(fixture) for fixture in arm_run.fixture_trials],
         "totals": _totals_dict(totals),

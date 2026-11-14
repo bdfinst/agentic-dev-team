@@ -7,7 +7,6 @@ the whole baseline arm has been paid for.
 from __future__ import annotations
 
 import dataclasses
-import os
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -218,10 +217,16 @@ class _TrialExecutor:
         )
 
     def _answer_dirs(self) -> tuple[Path, ...]:
-        """Where the answer key lives: the run's frozen copy and the repo's own."""
-        return (
-            self.plan.snapshot.eval_paths.expected_dir,
-            paths.EXPECTED_DIR,
+        """Where the answer key lives: the run's frozen copy, the repo's `evals/expected`,
+        and the plan's other repo copies (git directory, every checkout's expected dir)."""
+        return tuple(
+            dict.fromkeys(
+                (
+                    self.plan.snapshot.eval_paths.expected_dir,
+                    paths.EXPECTED_DIR,
+                    *self.plan.answer_key_paths,
+                )
+            )
         )
 
     def progress(self, slot: _TrialSlot, result: TrialResult) -> TrialProgress:
@@ -299,9 +304,9 @@ class _KindGrader:
                 ),
                 self._parsed.result_text or "",
                 material=rubric_judge.fixture_material(self._fixture.path),
+                changes=self._record.work_diff,
                 claude_bin=self._executor.settings.claude_bin,
                 timeout_seconds=self._executor.settings.trial_timeout_seconds,
-                env=invocation.build_trial_env(os.environ),
                 run_process=run_process,
             )
         except rubric_judge.JudgeError as error:

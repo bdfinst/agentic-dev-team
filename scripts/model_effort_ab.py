@@ -47,6 +47,7 @@ if str(_PACKAGE_PARENT) not in sys.path:
     sys.path.insert(0, str(_PACKAGE_PARENT))
 
 from model_effort import (
+    answer_key,
     check_jail,
     external,
     interrupts,
@@ -108,6 +109,9 @@ class Deps:
     find_check_jail: Callable[[], check_jail.CheckJail | None] = (
         check_jail.find_working_jail
     )
+    find_answer_key_paths: Callable[[], tuple[Path, ...]] = (
+        answer_key.repo_answer_key_paths
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -154,9 +158,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--max-cost",
         type=_positive_float,
         dest="max_cost_usd",
-        help="dollars; refuse to run when the estimate is above this, and stop the "
-        "run once the charged cost (reported cost, or the estimate for a trial that "
-        "reported none) is above this (no default)",
+        help="dollars; refuse to run when the estimate (rubric judge included) is "
+        "above this, and stop the run once the charged cost is above this: each "
+        "trial's and each rubric judgement's reported cost, or its estimate when it "
+        "reported none (no default)",
     )
     parser.add_argument(
         "--yes",
@@ -276,6 +281,7 @@ def _plan_from(args: argparse.Namespace, deps: Deps) -> AbstractContextManager[R
         eval_paths=deps.eval_paths,
         allow_unjailed_checks=args.allow_unjailed_checks,
         find_check_jail=deps.find_check_jail,
+        find_answer_key_paths=deps.find_answer_key_paths,
     )
 
 

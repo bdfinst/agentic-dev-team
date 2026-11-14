@@ -21,6 +21,7 @@ from .agent_file import (
     load_agent_file,
 )
 from .agent_spec import AgentSpec, build_agent_spec
+from .answer_key import repo_answer_key_paths
 from .arm import BASELINE_LABEL, CANDIDATE_LABEL, Arm
 from .check_jail import CheckJail, find_working_jail
 from .errors import UsageError
@@ -61,6 +62,9 @@ class RunPlan:
     # How the fixtures' test commands are jailed; None with test commands means
     # the operator allowed them to run unjailed.
     check_jail: CheckJail | None = None
+    # The repo's own copies of the answer key (git directory, every checkout's
+    # `evals/expected`), denied to a sandboxed trial; empty for other runs.
+    answer_key_paths: tuple[Path, ...] = ()
 
     @property
     def fixtures(self) -> tuple[ResolvedFixture, ...]:
@@ -82,6 +86,7 @@ def plan_run(
     eval_paths: EvalPaths,
     allow_unjailed_checks: bool = False,
     find_check_jail: Callable[[], CheckJail | None] = find_working_jail,
+    find_answer_key_paths: Callable[[], tuple[Path, ...]] = repo_answer_key_paths,
 ) -> Iterator[RunPlan]:
     """Yield the plan, with the artifact path reserved; the reservation is the last step.
 
@@ -138,6 +143,7 @@ def plan_run(
         else None
     )
     jail = _check_jail_for(fixtures, allow_unjailed_checks, find_check_jail)
+    answer_key_paths = find_answer_key_paths() if grading.sandbox else ()
     run_id = make_run_id(now, agent, candidate.model, candidate.effort, rng)
     owned = ExitStack()
     try:
@@ -169,6 +175,7 @@ def plan_run(
                 grading=grading,
                 stub_agents=stub_agents,
                 check_jail=jail,
+                answer_key_paths=answer_key_paths,
             )
         yield planned
     finally:

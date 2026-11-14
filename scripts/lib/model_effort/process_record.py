@@ -12,7 +12,9 @@ class TrialProcessRecord:
 
     `cwd` is the directory the process ran in, so text it printed can be scrubbed of it.
     `check_results` holds the post-trial test commands' results, for a trial that has them:
-    `{"command", "exit_code", "stderr_first_line"}` each.
+    `{"command", "exit_code", "stderr_first_line"}` each. `work_diff` is a sandboxed
+    trial's working copy against the frozen fixture (see `work_diff`), taken once
+    the CLI's process group is dead; None for a trial that cannot write.
     """
 
     exit_code: int | None
@@ -21,3 +23,4 @@ class TrialProcessRecord:
     timed_out: bool
     cwd: Path | None = None
     check_results: tuple[dict, ...] = ()
+    work_diff: str | None = None

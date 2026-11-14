@@ -4,6 +4,7 @@ A stub executable stands in for `claude` and records its argv, cwd and the files
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import shutil
 import signal
@@ -641,3 +642,63 @@ class TestExecution:
 
         assert record.exit_code == 127
         assert record.stderr != ""
+
+
+class TestAfterTheCliExits:
+    """Nothing the CLI started in its group survives it, and each trial has its own TMPDIR."""
+
+    def test_a_grandchild_that_let_go_of_the_pipes_is_killed_when_the_cli_exits(
+        self, stub_dir, fixture_root
+    ):
+        pid_file = stub_dir / "detached.pid"
+        stub = StubClaude(
+            stub_dir, detached_sleep=STUB_RUN_SECONDS, detached_pid_file=str(pid_file)
+        )
+
+        record = runner.run_trial(
+            _make_file_fixture(fixture_root, "a.txt", "a"),
+            _config(stub),
+            trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS,
+        )
+
+        assert record.exit_code == 0 and not record.timed_out
+        assert _process_gone_within(int(pid_file.read_text()), TRIAL_DEADLINE_SECONDS)
+
+    def test_the_group_is_killed_before_the_protected_paths_are_restored(
+        self, stub_dir, fixture_root, monkeypatch
+    ):
+        events: list[str] = []
+        real_kill = runner._kill_process_group
+        monkeypatch.setattr(
+            runner,
+            "_kill_process_group",
+            lambda process: (events.append("kill"), real_kill(process))[1],
+        )
+        monkeypatch.setattr(
+            runner, "restore_protected_paths", lambda *_args: events.append("restore")
+        )
+        fixture = _make_directory_fixture(fixture_root)
+        config = dataclasses.replace(
+            _config(StubClaude(stub_dir)), test_commands=("{python} -c pass",)
+        )
+
+        runner.run_trial(fixture, config)
+
+        assert events[:2] == ["kill", "restore"]
+
+    def test_each_trial_gets_its_own_tmpdir_outside_the_copy_removed_afterwards(
+        self, stub_dir, fixture_root, monkeypatch
+    ):
+        monkeypatch.setenv("TMPDIR", str(stub_dir))
+        stub = StubClaude(stub_dir)
+        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+
+        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, _config(stub))
+
+        first, second = (Path(call["tmpdir"]) for call in stub.calls)
+        assert first != second
+        assert first != stub_dir and second != stub_dir
+        for call, tmpdir in zip(stub.calls, (first, second), strict=True):
+            assert not tmpdir.is_relative_to(Path(call["cwd"]))
+            assert not tmpdir.exists()

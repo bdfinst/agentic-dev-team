@@ -27,7 +27,8 @@ class ArmTotals:
     trial reported none; `unreported_trials_estimate_usd` is what the spend limit
     charged for those trials in their place, and for rubric judgements that
     reported no cost. `judge_cost_usd` sums what the judge reported, failed
-    judgements included.
+    judgements included; `estimated_judge_cost_usd` is the arm's share of the
+    pre-run judge estimate, so the arms' shares add up to the echoed figure.
     """
 
     label: str
@@ -38,6 +39,8 @@ class ArmTotals:
     estimated_cost_usd: float
     # What the rubric judge reported for this arm's trials; 0.0 when no judge ran.
     judge_cost_usd: float = 0.0
+    # This arm's share of the pre-run rubric judge estimate; 0.0 when no judge runs.
+    estimated_judge_cost_usd: float = 0.0
 
 
 def compute_arm_totals(arm_run: ArmRun, run_estimate: RunEstimate) -> ArmTotals:
@@ -75,4 +78,5 @@ def compute_arm_totals(arm_run: ArmRun, run_estimate: RunEstimate) -> ArmTotals:
         judge_cost_usd=total_cost_usd(
             result.judge_cost_usd or 0.0 for result in arm_run.results
         ),
+        estimated_judge_cost_usd=run_estimate.judge_usd / run_estimate.arm_count,
     )
