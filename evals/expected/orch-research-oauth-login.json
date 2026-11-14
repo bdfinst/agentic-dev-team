@@ -1,0 +1,26 @@
+{
+  "fixture": "orch-research-oauth-login",
+  "description": "An OAuth/PKCE login request on a small TS service with no RECON artifact: Phase 1 research must bring in the architect, data-flow tracer, codebase recon and, because the change touches authentication, the security engineer; no implementation or code-review agent yet.",
+  "applicableAgents": [
+    "orchestrator"
+  ],
+  "agents": {
+    "orchestrator": {
+      "grader": "dispatch_set",
+      "task": "Run Phase 1 (Research) for the request in `{fixture}/REQUEST.md`. The repository is `{fixture}/` in the current working directory; there is no `.claude/memory/` state yet. Dispatch the agents this step needs now with the Agent tool (by agent name as `subagent_type`), wait for them, then end with one sentence naming what you dispatched.",
+      "dispatch": {
+        "include": [
+          "architect",
+          "data-flow-tracer",
+          "codebase-recon",
+          "security-engineer"
+        ],
+        "exclude": [
+          "software-engineer",
+          "security-review",
+          "quality-reviewer"
+        ]
+      }
+    }
+  }
+}

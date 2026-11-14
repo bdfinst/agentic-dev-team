@@ -25,16 +25,36 @@ class FixtureKind(StrEnum):
 
 @dataclass(frozen=True)
 class ResolvedFixture:
+    """A fixture to run and what its expected entry tells the trial beyond grading.
+
+    `task` replaces the default review prompt; `{fixture}` in it is the staged
+    fixture's name. `test_commands` run in the sandbox after the agent finishes,
+    once `protected_paths` are restored from the pristine fixture. `rubric_points`
+    are the fixture's (id, requirement) pairs for the rubric judge.
+    """
+
     stem: str
     path: Path
     kind: FixtureKind
     expected_clean: bool
+    task: str | None = None
+    test_commands: tuple[str, ...] = ()
+    protected_paths: tuple[str, ...] = ()
+    rubric_points: tuple[tuple[str, str], ...] = ()
+
+
+def agent_expectation(expected_entry: dict, agent: str) -> dict:
+    """The entry's block for `agent`, or an empty dict."""
+    return expected_entry.get("agents", {}).get(agent, {})
 
 
 def is_expected_clean(expected_entry: dict, agent: str) -> bool:
     """True when the expected entry says `agent` should report no problems."""
-    expectation = expected_entry.get("agents", {}).get(agent, {})
-    return expectation.get("expectedStatus") == EXPECTED_STATUS_CLEAN
+    expectation = agent_expectation(expected_entry, agent)
+    return (
+        expectation.get("expectedStatus") == EXPECTED_STATUS_CLEAN
+        or expectation.get("clean") is True
+    )
 
 
 def describe_fixture(path: Path) -> tuple[str, FixtureKind]:
@@ -107,14 +127,28 @@ def resolve_fixtures(
     runnable = sorted(stem for stem in entries if stem in index)
     stems = _choose_stems(agent, requested, entries, runnable)
     return [
-        ResolvedFixture(
-            stem=stem,
-            path=index[stem][0],
-            kind=index[stem][1],
-            expected_clean=is_expected_clean(entries[stem], agent),
-        )
-        for stem in stems
+        _resolved(stem, index[stem], entries[stem], agent) for stem in stems
     ]
+
+
+def _resolved(
+    stem: str, located: tuple[Path, FixtureKind], entry: dict, agent: str
+) -> ResolvedFixture:
+    expectation = agent_expectation(entry, agent)
+    task = expectation.get("task")
+    return ResolvedFixture(
+        stem=stem,
+        path=located[0],
+        kind=located[1],
+        expected_clean=is_expected_clean(entry, agent),
+        task=task if isinstance(task, str) and task.strip() else None,
+        test_commands=tuple(expectation.get("testCommands", ())),
+        protected_paths=tuple(expectation.get("protectedPaths", ())),
+        rubric_points=tuple(
+            (point["id"], point["requirement"])
+            for point in expectation.get("rubricPoints", ())
+        ),
+    )
 
 
 def _choose_stems(

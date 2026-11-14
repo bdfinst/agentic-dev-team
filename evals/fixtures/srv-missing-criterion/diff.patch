@@ -1,0 +1,48 @@
+diff --git a/docs_api/routes/documents.py b/docs_api/routes/documents.py
+index 3b1c0de..9f2e7aa 100644
+--- a/docs_api/routes/documents.py
++++ b/docs_api/routes/documents.py
+@@ -1,5 +1,19 @@
+ from flask import Blueprint, jsonify
+ 
+ from docs_api.store import store
+ 
+ bp = Blueprint("documents", __name__)
++
++
++def _error(status: int, code: str):
++    return jsonify({"error": code}), status
++
++
++@bp.get("/documents/<doc_id>")
++def get_document(doc_id: str):
++    doc = store.get(doc_id)
++    if doc is None:
++        return _error(404, "NOT_FOUND")
++    return jsonify(
++        {"id": doc.id, "title": doc.title, "updated_at": doc.updated_at.isoformat()}
++    ), 200
+diff --git a/tests/test_documents_get.py b/tests/test_documents_get.py
+new file mode 100644
+index 0000000..c4d5e6f
+--- /dev/null
++++ b/tests/test_documents_get.py
+@@ -0,0 +1,18 @@
++from datetime import datetime, timezone
++
++from docs_api.store import Document
++
++
++def test_active_document_is_returned(client, seed):
++    seed(Document("D-1", "Q3 report", datetime(2026, 11, 1, tzinfo=timezone.utc)))
++    resp = client.get("/documents/D-1")
++    assert resp.status_code == 200
++    assert resp.json["title"] == "Q3 report"
++    assert resp.json["id"] == "D-1"
++    assert resp.json["updated_at"] == "2026-11-01T00:00:00+00:00"
++
++
++def test_unknown_document_returns_404(client):
++    resp = client.get("/documents/D-404")
++    assert resp.status_code == 404
++    assert resp.json == {"error": "NOT_FOUND"}

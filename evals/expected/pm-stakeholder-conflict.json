@@ -1,0 +1,18 @@
+{
+  "fixture": "pm-stakeholder-conflict",
+  "description": "Hard: Sales and Support each demand the next sprint; metrics show the refund bug costs about $13.8k/month and the larger bulk-discount prospect is blocked by security review, not discount codes, while the smaller one has a manual workaround. A correct answer mediates with a data-backed recommendation and puts the trade-off cost in the open.",
+  "applicableAgents": ["product-manager"],
+  "agents": {
+    "product-manager": {
+      "grader": "rubric",
+      "task": "Two leads want next sprint for different work. Their asks are in `{fixture}/requests.md` and the supporting data is in `{fixture}/metrics.md`. Decide what the team should do next sprint and write the message you would send to both leads. You cannot write files in this run, so put your complete answer in your final message.",
+      "rubricPoints": [
+        {"id": "recommends-refund-fix", "requirement": "Recommends the partial-refund fix for next sprint, citing its measured cost (about $13,800 per month written off, or $41,300 over 90 days, and/or 260 tickets)."},
+        {"id": "prospect-one-not-blocked-by-codes", "requirement": "Points out that the $60k prospect's notes say security review, not discount codes, is the blocker, so the at-risk revenue tied to bulk codes is about $30k rather than $90k."},
+        {"id": "workaround-for-prospect-two", "requirement": "Proposes a way to serve the $30k prospect's launch-event need without the full feature, such as the existing one-at-a-time code workaround (about 150 codes at about 2 minutes each) or using the remaining sprint days after the 5-day fix."},
+        {"id": "tradeoff-in-open", "requirement": "States explicitly what Sales gives up or risks under the recommendation, instead of presenting the decision as cost-free."},
+        {"id": "mediates-before-escalating", "requirement": "Proposes a resolution to both leads itself and reserves escalation for the case where they reject it, rather than escalating the raw conflict to leadership first."}
+      ]
+    }
+  }
+}

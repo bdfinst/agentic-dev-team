@@ -1,0 +1,7 @@
+[
+  {"id": "exponent-off-by-one", "file": "lib/backoff.py", "find": "2 ** (attempt - 1)", "replace": "2 ** attempt"},
+  {"id": "cap-removed", "file": "lib/backoff.py", "find": "return min(delay, MAX_DELAY_SECONDS)", "replace": "return delay"},
+  {"id": "attempt-floor-lt-to-lte", "file": "lib/backoff.py", "find": "if attempt < 1:", "replace": "if attempt <= 1:"},
+  {"id": "max-attempts-gt-to-gte", "file": "lib/backoff.py", "find": "if attempt > MAX_ATTEMPTS:", "replace": "if attempt >= MAX_ATTEMPTS:"},
+  {"id": "exhausted-guard-removed", "file": "lib/backoff.py", "find": "        raise RetriesExhausted(attempt)\n", "replace": "        pass\n"}
+]

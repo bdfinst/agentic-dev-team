@@ -1,0 +1,17 @@
+{
+  "fixture": "uxd-checkout-form",
+  "description": "A single-page checkout that forces account creation, uses placeholder-only labels, asks for unneeded fields, and signals errors only by red borders plus a generic top message, with analytics showing early abandonment on mobile; a correct answer prioritizes guest checkout, field cuts, visible labels and accessible inline errors, grounded in the data and WCAG.",
+  "applicableAgents": ["ui-ux-designer"],
+  "agents": {
+    "ui-ux-designer": {
+      "grader": "rubric",
+      "task": "Our checkout is in `{fixture}/checkout.html` and its analytics are in `{fixture}/analytics.md`. Recommend design changes to improve completion, in priority order. You cannot write files in this run, so put your complete design recommendation in your final message.",
+      "rubricPoints": [
+        {"id": "guest-checkout", "requirement": "Recommends guest checkout (account creation optional or offered after the order), citing the 'didn't want another account' feedback and/or the 52% of exits before any field is typed in."},
+        {"id": "cut-fields", "requirement": "Recommends removing or making optional unneeded fields, naming at least two of fax, date of birth (no age-restricted products), confirm password, or duplicate billing address (for example, a 'same as shipping' default)."},
+        {"id": "visible-labels", "requirement": "Recommends persistent visible labels instead of placeholder-only labels, citing an accessibility reason (placeholders vanish on input and are not reliable labels; WCAG 3.3.2 or 1.3.1)."},
+        {"id": "accessible-inline-errors", "requirement": "Recommends field-level error text that names the problem and how to fix it, programmatically tied to the field and not conveyed by red color alone (WCAG 1.4.1 and/or 3.3.1), with focus or scroll moved to the first error."}
+      ]
+    }
+  }
+}

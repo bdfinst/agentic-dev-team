@@ -1,0 +1,50 @@
+{
+  "fixture": "pra-falsifier-gaps",
+  "description": "Coupon-cap plan (hard: otherwise solid criteria) with one scenario missing its falsifier per plan_falsifiers.json, one tautological 'response is not empty' Then, and an orphan caching step tracing to no criterion; a correct review returns needs-revision and flags all three.",
+  "applicableAgents": [
+    "plan-review-acceptance"
+  ],
+  "agents": {
+    "plan-review-acceptance": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Acceptance Test Critic. The dispatcher already ran `plan_falsifiers.py` on this plan; its JSON output is in `{fixture}/plan_falsifiers.json`. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "needs-revision",
+      "findingFields": [
+        "criteria_issues",
+        "scenario_issues",
+        "missing_scenarios",
+        "step_issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "exhausted-scenario-missing-falsifier",
+          "anyOf": [
+            "Exhausted coupon"
+          ],
+          "severityAnyOf": [
+            "blocker"
+          ]
+        },
+        {
+          "id": "uncapped-scenario-tautological-then",
+          "anyOf": [
+            "Uncapped",
+            "not empty",
+            "tautolog"
+          ]
+        },
+        {
+          "id": "orphan-cache-step",
+          "anyOf": [
+            "Step 1.2",
+            "cache",
+            "caching",
+            "orphan"
+          ]
+        }
+      ],
+      "maxFindings": 10
+    }
+  }
+}

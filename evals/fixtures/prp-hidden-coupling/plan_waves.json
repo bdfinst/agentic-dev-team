@@ -1,0 +1,51 @@
+{
+  "collisions": [],
+  "schema": "plan-waves/v1",
+  "scope_mismatches": [],
+  "slices": {
+    "1": {
+      "depends_on": [],
+      "files": [
+        "src/shipping/carrier_webhook.ts",
+        "src/events/order_shipped.ts",
+        "migrations/0042_create_shipments.sql",
+        "src/shipping/carrier_webhook.test.ts"
+      ],
+      "wave": 1
+    },
+    "2": {
+      "depends_on": [],
+      "files": [
+        "src/email/shipped_email.ts",
+        "src/email/shipped_email.test.ts"
+      ],
+      "wave": 1
+    },
+    "3": {
+      "depends_on": [],
+      "files": [
+        "src/pages/Tracking.tsx",
+        "src/pages/Tracking.test.tsx"
+      ],
+      "wave": 1
+    },
+    "4": {
+      "depends_on": [],
+      "files": [
+        "src/pages/admin/Shipments.tsx",
+        "src/pages/admin/Shipments.test.tsx",
+        "src/routes.tsx",
+        "migrations/0042_index_shipments_created_at.sql"
+      ],
+      "wave": 1
+    }
+  },
+  "waves": [
+    [
+      "1",
+      "2",
+      "3",
+      "4"
+    ]
+  ]
+}

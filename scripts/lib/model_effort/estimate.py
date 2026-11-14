@@ -23,6 +23,8 @@ from .arm import Arm
 from .cost import total_cost_usd
 from .errors import UsageError
 from .fixtures import ResolvedFixture
+from .grader_config import Judge
+from .rubric_judge import JUDGE_SYSTEM_PROMPT
 
 if TYPE_CHECKING:
     from .outcome import TrialResult
@@ -39,6 +41,8 @@ TOOL_TURN_MULTIPLIER = 3
 # several times that, and thinking tokens bill as output.
 OUTPUT_TOKENS_PER_TRIAL = 2000
 TOKENS_PER_RATE_UNIT = 1_000_000
+# Output tokens one rubric judgement is assumed to write: a verdict and a reason per criterion.
+JUDGE_OUTPUT_TOKENS_PER_TRIAL = 800
 PRICING_FILE_HINT = "plugins/dev-team/knowledge/model-pricing.json"
 
 
@@ -51,10 +55,12 @@ class RunEstimate:
 
     by_arm: tuple[tuple[str, float], ...]
     total_trials_per_arm: int
+    # The rubric judge's estimated dollars over every trial of every arm; 0.0 without a judge.
+    judge_usd: float = 0.0
 
     @property
     def estimated_total_usd(self) -> float:
-        return total_cost_usd(cost_usd for _, cost_usd in self.by_arm)
+        return total_cost_usd([*(cost_usd for _, cost_usd in self.by_arm), self.judge_usd])
 
     def cost_usd_for_arm(self, label: str) -> float:
         return dict(self.by_arm)[label]
@@ -88,11 +94,14 @@ def estimate_run(
     fixtures: Sequence[ResolvedFixture],
     trials_per_fixture: int,
     pricing_table: dict,
+    judge: Judge | None = None,
 ) -> RunEstimate:
     """Estimate each arm's cost: (input + output allowance) priced, times fixtures times trials.
 
+    With a rubric `judge`, also estimate one judgement per trial of every arm.
+
     Raises:
-        UsageError: an arm's model has no rate in `pricing_table`.
+        UsageError: an arm's or the judge's model has no rate in `pricing_table`.
     """
     rates = _rates_by_arm(arms, pricing_table)
     input_tokens = sum(_input_tokens(system_prompt, fixture) for fixture in fixtures)
@@ -107,7 +116,39 @@ def estimate_run(
             for arm in arms
         ),
         total_trials_per_arm=len(fixtures) * trials_per_fixture,
+        judge_usd=(
+            _judge_cost_usd(judge, fixtures, pricing_table) * trials_per_fixture * len(arms)
+            if judge is not None
+            else 0.0
+        ),
     )
+
+
+def _judge_cost_usd(
+    judge: Judge, fixtures: Sequence[ResolvedFixture], pricing_table: dict
+) -> float:
+    """One judgement on each fixture: rubric, points, task and an answer-sized allowance in; verdicts out."""
+    rate = external.pricing().rate(pricing_table, judge.model)
+    if rate is None:
+        raise UsageError(
+            f"no price for the rubric judge model {judge.model!r}: add it to "
+            f"{PRICING_FILE_HINT}, because the cost estimate and spend limit need a rate"
+        )
+    answer_chars = OUTPUT_TOKENS_PER_TRIAL * CHARS_PER_TOKEN
+    total = 0.0
+    for fixture in fixtures:
+        input_chars = (
+            len(JUDGE_SYSTEM_PROMPT)
+            + len(judge.rubric_text)
+            + sum(len(point_id) + len(text) for point_id, text in fixture.rubric_points)
+            + len(invocation.build_user_prompt(fixture.path.name, fixture.task))
+            + answer_chars
+        )
+        total += (
+            input_chars / CHARS_PER_TOKEN * rate["input"]
+            + JUDGE_OUTPUT_TOKENS_PER_TRIAL * rate["output"]
+        ) / TOKENS_PER_RATE_UNIT
+    return total
 
 
 def _rates_by_arm(arms: Sequence[Arm], pricing_table: dict) -> dict[str, dict]:
@@ -129,7 +170,7 @@ def _input_tokens(system_prompt: str, fixture: ResolvedFixture) -> float:
     chars = (
         len(system_prompt)
         + fixture_size_bytes(fixture.path)
-        + len(invocation.build_user_prompt(fixture.path.name))
+        + len(invocation.build_user_prompt(fixture.path.name, fixture.task))
     )
     return chars / CHARS_PER_TOKEN * TOOL_TURN_MULTIPLIER
 

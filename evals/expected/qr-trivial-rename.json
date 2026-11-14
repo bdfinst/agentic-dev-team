@@ -1,0 +1,20 @@
+{
+  "fixture": "qr-trivial-rename",
+  "description": "A trivial local rename: the reviewer must return status skip and dispatch no agent.",
+  "applicableAgents": [
+    "quality-reviewer"
+  ],
+  "agents": {
+    "quality-reviewer": {
+      "grader": "dispatch_set",
+      "task": "Run the Stage 2 code-quality review for the unit of work in `{fixture}/UNIT.md` (the diff is `{fixture}/diff.patch`; the changed files are under `{fixture}/`). Dispatch the review agents by name with the Agent tool as `subagent_type`, act on what they return, and respond with only the JSON object defined by your output contract.",
+      "dispatch": {
+        "include": [],
+        "exclude": [],
+        "exact": true
+      },
+      "expectedStatus": "skip",
+      "clean": true
+    }
+  }
+}

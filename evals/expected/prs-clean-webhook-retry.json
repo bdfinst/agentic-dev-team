@@ -1,0 +1,24 @@
+{
+  "fixture": "prs-clean-webhook-retry",
+  "description": "Webhook-retry plan with a quantified problem, a considered and rejected alternative, explicit out-of-scope list, flag-guarded rollout, and flag-off rollback; a correct review approves with no blockers.",
+  "applicableAgents": [
+    "plan-review-strategic"
+  ],
+  "agents": {
+    "plan-review-strategic": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Strategic Critic. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "approve",
+      "findingFields": [
+        "issues"
+      ],
+      "clean": true,
+      "expectedFindingIds": [],
+      "maxFindings": 3,
+      "maxBySeverity": {
+        "blocker": 0
+      }
+    }
+  }
+}

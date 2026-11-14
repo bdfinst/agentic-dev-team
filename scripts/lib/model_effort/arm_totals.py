@@ -34,6 +34,8 @@ class ArmTotals:
     actual_cost_usd: float
     unreported_trials_estimate_usd: float
     estimated_cost_usd: float
+    # What the rubric judge reported for this arm's trials; 0.0 when no judge ran.
+    judge_cost_usd: float = 0.0
 
 
 def compute_arm_totals(arm_run: ArmRun, run_estimate: RunEstimate) -> ArmTotals:
@@ -59,4 +61,7 @@ def compute_arm_totals(arm_run: ArmRun, run_estimate: RunEstimate) -> ArmTotals:
             if not result.cost_reported
         ),
         estimated_cost_usd=run_estimate.cost_usd_for_arm(label),
+        judge_cost_usd=total_cost_usd(
+            result.judge_cost_usd or 0.0 for result in arm_run.results
+        ),
     )

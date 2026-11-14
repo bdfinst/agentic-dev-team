@@ -1,0 +1,5 @@
+{
+  "name": "@acme/api",
+  "type": "module",
+  "dependencies": {"express": "^4.19.2", "jsonwebtoken": "^9.0.2", "bcrypt": "^5.1.1", "@acme/shared": "workspace:*"}
+}

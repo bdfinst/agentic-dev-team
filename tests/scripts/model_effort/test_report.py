@@ -129,10 +129,10 @@ class TestProgressAndSummary:
         arm_cost = format_usd(ARM_RUN_CALLS * TRIAL_COST)
         assert (
             "Summary:\n"
-            "  baseline: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, "
+            "  baseline: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, judge_error 0, "
             f"graded_fail {SCOUT_TRIALS}, pass {SCOUT_TRIALS}; cost {arm_cost}, "
             f"estimated {format_usd(BASELINE_TWO_ARM_ESTIMATE)}\n"
-            "  candidate: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, "
+            "  candidate: timeout 0, cli_error 0, tool_violation 0, parse_failure 0, judge_error 0, "
             f"graded_fail {SCOUT_TRIALS}, pass {SCOUT_TRIALS}; cost {arm_cost}, "
             f"estimated {format_usd(CANDIDATE_TWO_ARM_ESTIMATE)}\n"
             f"  total: cost {format_usd(FULL_RUN_COST)}, "

@@ -1,0 +1,18 @@
+{
+  "fixture": "qae-e2e-merge-gate",
+  "description": "A PR workflow that gates merges on a flaky Playwright E2E suite run against a full docker-compose stack and shared staging DB, with pipeline stats; a correct answer removes E2E from the pre-merge gate and replaces its coverage with deterministic unit/component tests for the tax logic.",
+  "applicableAgents": ["qa-engineer"],
+  "agents": {
+    "qa-engineer": {
+      "grader": "rubric",
+      "task": "Our PR pipeline is in `{fixture}/.github/workflows/pr.yml`, the E2E tests are in `{fixture}/tests/e2e/`, and recent pipeline data is in `{fixture}/pipeline-stats.md`. Advise the team on how to change the pre-merge gate and the tests. Skills and subagents are unavailable in this run, so answer directly from the material. Do not modify any files; put your complete advice in your final message.",
+      "rubricPoints": [
+        {"id": "e2e-out-of-premerge", "requirement": "Recommends removing the Playwright E2E run (and the full docker-compose stack) from the pre-merge gate, because E2E is non-deterministic and should never gate merges."},
+        {"id": "deterministic-replacement", "requirement": "Recommends covering the order-total/tax behavior with deterministic tests that run pre-merge, such as unit tests on `pricing/tax.ts` and/or a component test with the tax service and database replaced by test doubles."},
+        {"id": "names-flake-causes", "requirement": "Ties the flakiness to concrete causes in the material: the fixed `waitForTimeout(5000)` wait for tax-service and/or shared staging DB state (the `sku-991` row changed by another team)."},
+        {"id": "cost-in-delivery-terms", "requirement": "Frames the problem in delivery terms using the data, such as the 38-minute median pipeline, the 41% re-run rate, or the team ignoring red E2E runs and re-running."},
+        {"id": "no-layer-quota", "requirement": "Does not prescribe target percentages or a per-layer test-count distribution (for example, '70% unit / 20% integration / 10% E2E')."}
+      ]
+    }
+  }
+}

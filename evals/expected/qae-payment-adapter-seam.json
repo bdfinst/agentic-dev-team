@@ -1,0 +1,18 @@
+{
+  "fixture": "qae-payment-adapter-seam",
+  "description": "Hard: a checkout service calls a third-party payment sandbox directly via requests, its tests hit the live sandbox and flake, the 5xx branch is untested, and the provider offers no contract-testing cooperation; a correct answer introduces an owned adapter seam with a double, keeps the live sandbox out of the merge gate, and validates the double with scheduled out-of-band tests.",
+  "applicableAgents": ["qa-engineer"],
+  "agents": {
+    "qa-engineer": {
+      "grader": "rubric",
+      "task": "How should we test `{fixture}/src/checkout_service.py`? Current tests are in `{fixture}/tests/test_checkout_service.py` and constraints are in `{fixture}/context.md`. The team wants these tests in the pre-merge gate. Skills and subagents are unavailable in this run, so answer directly from the material. Do not modify any files; put your complete recommendation in your final message.",
+      "rubricPoints": [
+        {"id": "adapter-seam", "requirement": "Recommends extracting the PayGate HTTP call behind an adapter/port the team owns (injected into CheckoutService) so the service can be tested without the network."},
+        {"id": "double-in-premerge", "requirement": "Recommends pre-merge tests that use a test double for that adapter (in-memory fake, stub, or HTTP-level virtualization such as WireMock) instead of the live sandbox, and keeps the live sandbox out of the merge gate."},
+        {"id": "covers-failure-branches", "requirement": "Calls for tests of the provider failure paths: a 5xx response leading to 'payment_pending_retry' and a timeout or connection error (which the current code does not handle)."},
+        {"id": "double-validation-no-cooperation", "requirement": "Recommends keeping the double honest with scheduled out-of-band tests against the PayGate sandbox that do not gate merges, and does not rely on consumer-driven contract verification run by PayGate."},
+        {"id": "contract-term-glossed", "requirement": "Uses the term 'contract test' for tests pinning the adapter's request/response shape, and if it says 'narrow integration test' it glosses it as a contract test."}
+      ]
+    }
+  }
+}

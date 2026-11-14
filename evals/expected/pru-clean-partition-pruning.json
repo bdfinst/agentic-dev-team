@@ -1,0 +1,24 @@
+{
+  "fixture": "pru-clean-partition-pruning",
+  "description": "Internal nightly job that drops expired database partitions, with no API, UI, CLI, or customer-visible surface; a correct review self-skips and approves with an empty issues list.",
+  "applicableAgents": [
+    "plan-review-ux"
+  ],
+  "agents": {
+    "plan-review-ux": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the UX Critic. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "approve",
+      "findingFields": [
+        "issues"
+      ],
+      "clean": true,
+      "expectedFindingIds": [],
+      "maxFindings": 1,
+      "maxBySeverity": {
+        "blocker": 0
+      }
+    }
+  }
+}

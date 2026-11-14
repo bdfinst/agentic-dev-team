@@ -1,0 +1,18 @@
+{
+  "fixture": "uxd-destructive-delete",
+  "description": "Hard: a settings page puts an irreversible 'Delete workspace' button styled identically next to 'Save', behind an 'Are you sure? OK' modal with default focus on OK and no focus management, causing about 3 accidental deletions per week; a brand request to make all primary buttons red is a distractor. A correct answer separates and de-emphasizes the destructive action, makes confirmation consequence-specific, fixes dialog focus, and adds recovery.",
+  "applicableAgents": ["ui-ux-designer"],
+  "agents": {
+    "ui-ux-designer": {
+      "grader": "rubric",
+      "task": "Redesign the delete flow described in `{fixture}/settings-spec.md`. Address the brand team's request in the same file as part of your answer. You cannot write files in this run, so put your complete design spec in your final message.",
+      "rubricPoints": [
+        {"id": "separate-danger-zone", "requirement": "Moves 'Delete workspace' away from 'Save changes' into a separate, clearly labeled destructive area and gives it a style distinct from the primary Save button."},
+        {"id": "consequence-confirmation", "requirement": "Replaces 'Are you sure? OK' with a confirmation that names the consequence (projects, files, and members permanently removed) and uses a specific action label such as 'Delete workspace', and/or requires typing the workspace name; default focus is not on the destructive button."},
+        {"id": "dialog-focus", "requirement": "Requires accessible dialog behavior: focus moves into the dialog, Tab stays within it, Escape cancels, and focus returns to the trigger on close (citing WCAG or ARIA dialog guidance)."},
+        {"id": "recovery-window", "requirement": "Recommends a recovery path such as a soft delete with a restore period, citing the about 3 accidental-deletion tickets per week and/or the 6-hour engineer restore."},
+        {"id": "brand-red-pushback", "requirement": "Pushes back on making every primary button red because red signals danger and would blur the distinction between Save and Delete (and/or raises a contrast check), proposing to keep red for destructive actions only."}
+      ]
+    }
+  }
+}

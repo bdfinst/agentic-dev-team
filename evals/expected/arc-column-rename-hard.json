@@ -1,0 +1,31 @@
+{
+  "fixture": "arc-column-rename-hard",
+  "description": "Two independently deployed services plus a cron SQL job share a customers table; the proposal renames customers.phone in one migration with crm's release; a correct answer rejects the in-place rename for expand/contract and finds the hidden nightly SQL job reader.",
+  "applicableAgents": [
+    "architect"
+  ],
+  "agents": {
+    "architect": {
+      "grader": "rubric",
+      "task": "Review the proposal in `{fixture}/proposal.md` against the code in `{fixture}/` and decide how the rename should be carried out. Do not write files; give your design decision and its rationale in your final answer.",
+      "rubricPoints": [
+        {
+          "id": "rename-breaks-support",
+          "requirement": "States that the in-place `RENAME COLUMN` in migration 0042 breaks `support/lookup.py` (still querying `phone`) for the days between the Friday crm release and the Wednesday support release."
+        },
+        {
+          "id": "finds-nightly-sql-job",
+          "requirement": "Identifies `jobs/nightly_sms_report.sql` as a third reader of `customers.phone` that the proposal does not mention and that the rename would also break."
+        },
+        {
+          "id": "expand-contract",
+          "requirement": "Decides on an expand/contract (parallel change) sequence: add `phone_number`, write both columns and backfill, move every reader (crm, support, nightly job) to `phone_number`, and drop `phone` only in a later, separate release."
+        },
+        {
+          "id": "rollback-safe",
+          "requirement": "Notes that each step stays backward compatible so either service release can be rolled back independently, which the single-migration plan does not allow."
+        }
+      ]
+    }
+  }
+}

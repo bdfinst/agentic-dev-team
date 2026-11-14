@@ -187,7 +187,7 @@ cwd = Path(os.getcwd())
 files_before = {
     str(p.relative_to(cwd)): p.read_text()
     for p in sorted(cwd.rglob("*"))
-    if p.is_file()
+    if p.is_file() and ".git" not in p.parts
 }
 symlinks = [str(p.relative_to(cwd)) for p in sorted(cwd.rglob("*")) if p.is_symlink()]
 observed = None
@@ -213,7 +213,7 @@ calls.append({
 RECORD.write_text(json.dumps(calls))
 if BEHAVIOR.get("tamper"):
     for p in cwd.rglob("*"):
-        if p.is_file():
+        if p.is_file() and ".git" not in p.parts:
             p.write_text(p.read_text() + "TAMPERED")
 if BEHAVIOR.get("touch"):
     Path(BEHAVIOR["touch"]).write_text("created during the run")

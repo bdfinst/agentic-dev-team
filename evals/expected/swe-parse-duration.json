@@ -1,0 +1,19 @@
+{
+  "fixture": "swe-parse-duration",
+  "description": "A stdlib Python package missing parse_duration; protected acceptance tests cover units, ordering, whitespace and invalid input. Passes when every test passes after the agent's change.",
+  "applicableAgents": [
+    "software-engineer"
+  ],
+  "agents": {
+    "software-engineer": {
+      "grader": "tests_pass",
+      "task": "Implement the feature described in `{fixture}/TASK.md`. The project is the `{fixture}/` directory in the current working directory; work only inside it. Do not change `tests/test_acceptance.py`. When you are done, the command `python3 -m unittest discover -s tests -t .` run from `{fixture}/` must pass. End with one sentence on what you changed and the test result.",
+      "testCommands": [
+        "{python} -m unittest discover -s tests -t ."
+      ],
+      "protectedPaths": [
+        "tests/test_acceptance.py"
+      ]
+    }
+  }
+}

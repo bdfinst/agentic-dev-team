@@ -1,0 +1,17 @@
+{
+  "fixture": "pm-settings-import-replace",
+  "description": "A 'settings import' request where the legacy export lacks SSO, retention and custom-field keys that customers already set, and there is no undo; a correct answer surfaces the replace-vs-merge choice with merge as the recommended default and writes acceptance criteria that preserve unspecified settings.",
+  "applicableAgents": ["product-manager"],
+  "agents": {
+    "product-manager": {
+      "grader": "rubric",
+      "task": "Turn the request in `{fixture}/request.md` into acceptance criteria. Supporting material: `{fixture}/src/settings/model.py`, `{fixture}/legacy-export-sample.json`, and `{fixture}/notes.md`. Include any questions you need answered before engineering starts. You cannot write files in this run, so put your complete answer in your final message.",
+      "rubricPoints": [
+        {"id": "surfaces-replace-vs-merge", "requirement": "Raises whether an import replaces all existing settings or merges with them, and recommends merge (keep existing values for keys absent from the file) as the default."},
+        {"id": "names-at-risk-settings", "requirement": "Names at least one concrete setting that a replace would wipe because the legacy export lacks it: SSO enforcement, retention days, or custom fields."},
+        {"id": "testable-criteria", "requirement": "Gives acceptance criteria that are observable and testable, including one stating that a setting absent from the imported file keeps its prior value."},
+        {"id": "invalid-file-criterion", "requirement": "Includes a criterion for a malformed or invalid settings file (for example, rejected with an error and no settings changed)."}
+      ]
+    }
+  }
+}

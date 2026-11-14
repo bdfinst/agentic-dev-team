@@ -1,0 +1,5 @@
+[
+  {"id": "threshold-gte-to-gt", "file": "shop/shipping.py", "find": "subtotal >= FREE_SHIPPING_THRESHOLD", "replace": "subtotal > FREE_SHIPPING_THRESHOLD"},
+  {"id": "heavy-gt-to-gte", "file": "shop/shipping.py", "find": "weight_kg > HEAVY_KG", "replace": "weight_kg >= HEAVY_KG"},
+  {"id": "surcharge-removed", "file": "shop/shipping.py", "find": "fee += HEAVY_SURCHARGE", "replace": "fee += 0"}
+]

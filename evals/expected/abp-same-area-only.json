@@ -1,0 +1,23 @@
+{
+  "fixture": "abp-same-area-only",
+  "description": "Five ungrouped issues that all touch authentication but describe separate pieces of work; a correct answer returns an empty proposals array.",
+  "applicableAgents": [
+    "autoship-batch-proposer"
+  ],
+  "agents": {
+    "autoship-batch-proposer": {
+      "grader": "rubric",
+      "task": "Step 2b of /dev-team:autoship: the deterministic grouping pass left these issues ungrouped. Their titles and bodies follow (the same text is in `{fixture}/issues.md`).\n\n### #301: Rate-limit failed login attempts\n\nAfter 5 failed logins for one account within 10 minutes, reject further attempts for 15 minutes.\n\n### #302: Support SAML single sign-on for enterprise tenants\n\nEnterprise customers need to log in through their identity provider using SAML 2.0.\n\n### #303: Password reset email uses the wrong sender name\n\nReset emails show \"noreply\" instead of the product name as the sender.\n\n### #304: Show last login time on the account page\n\nDisplay the date and time of the previous successful login under the profile picture.\n\n### #305: Upgrade bcrypt library to the latest minor version\n\nRoutine dependency bump; no API changes expected.\n\nRespond with only the JSON object defined by your output contract.",
+      "rubricPoints": [
+        {
+          "id": "empty-proposals",
+          "requirement": "Returns `{\"proposals\": []}` (no groupings), because the issues only share the authentication area and are separate pieces of work."
+        },
+        {
+          "id": "no-topic-grouping",
+          "requirement": "Does not group any issues on shared topic alone (for example login rate limiting with SSO, or password reset with last-login display)."
+        }
+      ]
+    }
+  }
+}

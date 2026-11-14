@@ -1,0 +1,17 @@
+{
+  "fixture": "seng-tenant-api-keys",
+  "description": "A proposed multi-tenant reporting API that authenticates a key but takes tenant_id from the query string and fetches downloads by sequential id, stores keys in plaintext, and logs headers to a broadly searchable vendor platform; a correct answer names cross-tenant data access as critical and binds tenant to the key.",
+  "applicableAgents": ["security-engineer"],
+  "agents": {
+    "security-engineer": {
+      "grader": "rubric",
+      "task": "What is the attack surface of the API design in `{fixture}/design.md`? Threat model it before any code is written. You cannot write files in this run, so put your complete threat model (findings with severity and remediation) in your final message.",
+      "rubricPoints": [
+        {"id": "cross-tenant-idor", "requirement": "Identifies that any valid key can read another tenant's reports by changing `tenant_id` in the query string, rates it critical or high, and recommends deriving the tenant from the API key server-side."},
+        {"id": "download-object-authz", "requirement": "Identifies that `/v1/reports/<report_id>/download` with sequential integer ids lets a key download other tenants' reports, and recommends checking the report's owner against the key's tenant (non-guessable ids alone are not enough)."},
+        {"id": "plaintext-keys", "requirement": "Flags plaintext key storage in `api_keys` and recommends storing only a hash of the key (with a visible prefix for lookup), with lost keys revoked and reissued rather than looked up."},
+        {"id": "keys-in-logs", "requirement": "Flags that logging all request headers ships `X-Api-Key` values to a log platform searchable by engineers and a contractor, and recommends redacting the header."}
+      ]
+    }
+  }
+}

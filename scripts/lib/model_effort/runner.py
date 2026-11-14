@@ -8,9 +8,13 @@ grading it happen elsewhere.
 
 from __future__ import annotations
 
+import dataclasses
 import os
+import shlex
+import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 from collections.abc import Iterator, Mapping, Sequence
@@ -206,8 +210,94 @@ def run_trial(
     config: invocation.TrialConfig,
     trial_timeout_seconds: float = DEFAULT_TRIAL_TIMEOUT_SECONDS,
 ) -> TrialProcessRecord:
-    """Run one trial of `config` against a fresh copy of `fixture`."""
-    argv = invocation.build_argv(config, invocation.build_user_prompt(fixture.name))
+    """Run one trial of `config` against a fresh copy of `fixture`.
+
+    A sandboxed trial's copy is first made a git repo with one commit. When the
+    config has test commands they run in the copy after the agent finishes, and
+    their results ride on the returned record.
+    """
+    argv = invocation.build_argv(
+        config, invocation.build_user_prompt(fixture.name, config.task)
+    )
     env = invocation.build_trial_env(os.environ)
     with staged_fixture(fixture) as staging_dir:
-        return run_cli_process(argv, staging_dir, trial_timeout_seconds, env)
+        work_dir = staging_dir / fixture.name if fixture.is_dir() else staging_dir
+        if config.sandbox:
+            init_sandbox_repo(work_dir)
+        record = run_cli_process(argv, staging_dir, trial_timeout_seconds, env)
+        if not config.test_commands or record.timed_out:
+            return record
+        restore_protected_paths(fixture, work_dir, config.protected_paths)
+        results = tuple(
+            run_check_command(command, work_dir, trial_timeout_seconds, env)
+            for command in config.test_commands
+        )
+        return dataclasses.replace(record, check_results=results)
+
+
+SANDBOX_GIT_IDENTITY = ("-c", "user.name=model-effort-ab", "-c", "user.email=ab@example.com")
+PYTHON_PLACEHOLDER = "{python}"
+
+
+def init_sandbox_repo(work_dir: Path) -> None:
+    """Make `work_dir` a git repo whose one commit holds the fixture as staged.
+
+    Raises:
+        OSError, subprocess.CalledProcessError: git is missing or a step failed;
+            the run records that as a harness error.
+    """
+    for args in (
+        ("init", "-q"),
+        ("add", "-A"),
+        ("commit", "-q", "--no-verify", "--no-gpg-sign", "-m", "fixture"),
+    ):
+        subprocess.run(
+            ["git", *SANDBOX_GIT_IDENTITY, *args],
+            cwd=work_dir,
+            check=True,
+            capture_output=True,
+        )
+
+
+def restore_protected_paths(
+    pristine_fixture: Path, work_dir: Path, protected_paths: tuple[str, ...]
+) -> None:
+    """Put each protected path back as the pristine fixture has it, so the agent cannot change its own grader."""
+    for relative in protected_paths:
+        source = pristine_fixture / relative
+        target = work_dir / relative
+        if target.is_dir() and not target.is_symlink():
+            shutil.rmtree(target)
+        elif target.exists() or target.is_symlink():
+            target.unlink()
+        if source.is_dir():
+            shutil.copytree(source, target, symlinks=True)
+        elif source.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+
+
+def run_check_command(
+    command: str, work_dir: Path, timeout_seconds: float, env: dict[str, str]
+) -> dict:
+    """Run one test command in `work_dir`; `{python}` is this interpreter."""
+    argv = shlex.split(command.replace(PYTHON_PLACEHOLDER, shlex.quote(sys.executable)))
+    record = run_cli_process(argv, work_dir, timeout_seconds, env)
+    return {
+        "command": command,
+        "exit_code": record.exit_code,
+        "stderr_first_line": _failure_line(record),
+    }
+
+
+def _failure_line(record: TrialProcessRecord) -> str:
+    """A line saying why a command failed: stderr's first, else stdout's last."""
+    if record.exit_code == 0:
+        return ""
+    if record.timed_out:
+        return "timed out"
+    for text, pick in ((record.stderr, 0), (record.stdout, -1)):
+        lines = [line for line in text.splitlines() if line.strip()]
+        if lines:
+            return lines[pick].strip()[:200]
+    return ""

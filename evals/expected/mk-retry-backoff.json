@@ -1,0 +1,21 @@
+{
+  "fixture": "mk-retry-backoff",
+  "description": "Hard: five survivors in a capped exponential backoff, including a cap reached only at the last allowed attempt and an exhaustion guard; the report also lists one equivalent mutant the agent must exclude rather than chase. Passes when the tests pass and every killable mutant is killed.",
+  "applicableAgents": [
+    "mutation-kill"
+  ],
+  "agents": {
+    "mutation-kill": {
+      "grader": "tests_pass",
+      "task": "Drive the surviving mutants of `lib/backoff.py` down in the Python project `{fixture}/` in the current working directory. `{fixture}/SURVIVORS.md` is the survivor report from the last mutmut run; mutmut is not installed, so do not run it. Add targeted pytest tests to `tests/test_backoff.py` that kill the listed survivors (one is marked equivalent; record it as excluded instead of chasing it). Do not change `lib/backoff.py` or anything under `mutants/`. Verify from `{fixture}/` with `python3 -m pytest -q tests` and `python3 mutants/check_mutants.py`, commit on green, and end with one sentence giving the survivors killed.",
+      "testCommands": [
+        "{python} -m pytest -q -p no:cacheprovider tests",
+        "{python} mutants/check_mutants.py"
+      ],
+      "protectedPaths": [
+        "mutants",
+        "lib/backoff.py"
+      ]
+    }
+  }
+}

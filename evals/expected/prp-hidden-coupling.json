@@ -1,0 +1,48 @@
+{
+  "fixture": "prp-hidden-coupling",
+  "description": "Four-slice single-wave shipment plan (hard: plan_waves.json reports no collisions) where slice 2 consumes the OrderShipped event slice 1 introduces, slices 1 and 4 both add a migration numbered 0042, and slice 3's step edits src/routes.tsx without declaring it while slice 4 declares it; a correct review returns needs-revision and flags all three.",
+  "applicableAgents": [
+    "plan-review-parallelization"
+  ],
+  "agents": {
+    "plan-review-parallelization": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Parallelization Critic. The dispatcher already ran `scripts/plan_waves.py` on this plan; its JSON output (including `collisions`) is in `{fixture}/plan_waves.json`. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "needs-revision",
+      "findingFields": [
+        "issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "shipped-email-consumes-same-wave-event",
+          "anyOf": [
+            "OrderShipped",
+            "order_shipped",
+            "onOrderShipped"
+          ],
+          "severityAnyOf": [
+            "blocker"
+          ]
+        },
+        {
+          "id": "duplicate-0042-migration-same-wave",
+          "anyOf": [
+            "0042",
+            "migration number"
+          ]
+        },
+        {
+          "id": "tracking-slice-undeclared-routes",
+          "anyOf": [
+            "Tracking",
+            "Slice 3",
+            "under-declared",
+            "undeclared"
+          ]
+        }
+      ],
+      "maxFindings": 8
+    }
+  }
+}

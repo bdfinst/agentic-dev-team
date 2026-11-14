@@ -1,0 +1,31 @@
+{
+  "fixture": "recon-flask-api",
+  "description": "Small Flask service with a JWT auth decorator, an outbound payments client, and a seed CLI script; a correct RECON names both entry points, the three requirements.txt dependencies, and the auth/egress/secrets surface.",
+  "applicableAgents": [
+    "codebase-recon"
+  ],
+  "agents": {
+    "codebase-recon": {
+      "grader": "rubric",
+      "task": "Run reconnaissance on the repository rooted at `{fixture}/` (treat that directory as the repo root and use its name for the slug).  If the schema file or the inventory script your procedure names is not reachable, record that in `notes` and continue. The grader cannot open files: after the `RECON written:` block, include the full JSON envelope you wrote.",
+      "rubricPoints": [
+        {
+          "id": "entry-points",
+          "requirement": "Lists `app.py` as an `http-server` entry point (citing `@app.route` or `app.run`) and `scripts/seed_db.py` as a `cli` entry point (citing the python3 shebang with a `__main__` guard)."
+        },
+        {
+          "id": "deps-and-framework",
+          "requirement": "Reports the dependencies flask, pyjwt, and requests from `requirements.txt`, and flask as the dominant Python framework."
+        },
+        {
+          "id": "auth-and-secrets",
+          "requirement": "Puts `auth.py` in `auth_paths` and records `auth.py` (os.environ JWT_SECRET) and `clients/payments.py` (os.getenv) in `secrets_referenced`."
+        },
+        {
+          "id": "network-egress",
+          "requirement": "Puts `clients/payments.py` (requests.post) in `network_egress`, and lists no ML model loading."
+        }
+      ]
+    }
+  }
+}

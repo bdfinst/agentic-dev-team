@@ -75,12 +75,17 @@ class TestOutcomeEnum:
             "cli_error",
             "tool_violation",
             "parse_failure",
+            "judge_error",
             "graded_fail",
             "pass",
         ]
 
-    def test_infrastructure_outcomes_are_cli_error_and_timeout(self):
-        assert outcome.INFRA_OUTCOMES == {Outcome.CLI_ERROR, Outcome.TIMEOUT}
+    def test_infrastructure_outcomes_are_cli_error_timeout_and_judge_error(self):
+        assert outcome.INFRA_OUTCOMES == {
+            Outcome.CLI_ERROR,
+            Outcome.TIMEOUT,
+            Outcome.JUDGE_ERROR,
+        }
 
 
 class TestTrialOutcomes:

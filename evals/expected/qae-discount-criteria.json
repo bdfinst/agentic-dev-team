@@ -1,0 +1,17 @@
+{
+  "fixture": "qae-discount-criteria",
+  "description": "A loyalty-discount story with vague draft acceptance criteria and precise business rules (5%/10%, $100 post-coupon threshold, shipping excluded, expired members); a correct answer rewrites the criteria as concrete, testable examples covering the boundary and coupon ordering.",
+  "applicableAgents": ["qa-engineer"],
+  "agents": {
+    "qa-engineer": {
+      "grader": "rubric",
+      "task": "The story in `{fixture}/story.md` has vague acceptance criteria. Rewrite them as testable acceptance criteria with concrete examples (Gherkin is fine) that the team can automate. Skills and subagents are unavailable in this run, so answer directly from the material. Do not modify any files; put your complete answer in your final message.",
+      "rubricPoints": [
+        {"id": "threshold-boundary", "requirement": "Includes concrete examples on both sides of the $100.00 threshold (for example, $99.99 gets no loyalty discount and $100.00 does)."},
+        {"id": "coupon-ordering", "requirement": "Includes an example where a coupon brings a subtotal of $100.00 or more below $100.00, so no loyalty discount applies because the threshold is checked after the coupon."},
+        {"id": "tier-rates-concrete", "requirement": "Gives concrete expected amounts for Silver (5%) and Gold (10%) rather than restating 'bigger discount'."},
+        {"id": "shipping-and-expired", "requirement": "Includes examples that shipping is not discounted and that an expired member gets no loyalty discount."}
+      ]
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "fixture": "gqc-clean-shipping-fee",
+  "description": "Shipping-fee feature that covers every branch of the cited function (flat rate, free at threshold, negative subtotal, unsupported country) with balanced success and failure scenarios; a correct review reports no gaps and no balance issues.",
+  "applicableAgents": [
+    "gherkin-quality-critic"
+  ],
+  "agents": {
+    "gherkin-quality-critic": {
+      "grader": "finding_ids",
+      "task": "`/gherkin-derive` just wrote `{fixture}/features/shipping_fee.feature`. Its cited source surface is `{fixture}/pricing/shipping_fee.py`. Review the feature file for coverage gaps and positive/negative balance against that source. Respond with only the JSON object defined by your output contract.",
+      "findingFields": [
+        "gaps",
+        "balance_issues"
+      ],
+      "clean": true,
+      "expectedFindingIds": [],
+      "maxFindings": 1
+    }
+  }
+}

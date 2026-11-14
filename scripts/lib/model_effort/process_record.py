@@ -11,6 +11,8 @@ class TrialProcessRecord:
     """Raw result of one CLI process. `exit_code` is None when it timed out.
 
     `cwd` is the directory the process ran in, so text it printed can be scrubbed of it.
+    `check_results` holds the post-trial test commands' results, for a trial that has them:
+    `{"command", "exit_code", "stderr_first_line"}` each.
     """
 
     exit_code: int | None
@@ -18,3 +20,4 @@ class TrialProcessRecord:
     stderr: str
     timed_out: bool
     cwd: Path | None = None
+    check_results: tuple[dict, ...] = ()

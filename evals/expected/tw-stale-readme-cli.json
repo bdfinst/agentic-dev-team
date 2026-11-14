@@ -1,0 +1,17 @@
+{
+  "fixture": "tw-stale-readme-cli",
+  "description": "A CLI README that documents `--out`, `--verbose` and port 5140 while the argparse code defines `--output/-o`, `--quiet/-q` and port 9514; a correct answer edits the README to match the code without touching the code.",
+  "applicableAgents": ["tech-writer"],
+  "agents": {
+    "tech-writer": {
+      "grader": "rubric",
+      "task": "`{fixture}/README.md` has drifted from the CLI defined in `{fixture}/logship/cli.py`. Update the README so it matches the code. Treat the code as correct and do not edit it. In your final message, list every change you made as file, old text, and new text.",
+      "rubricPoints": [
+        {"id": "output-flag", "requirement": "Reports replacing `--out` with `--output` (optionally noting `-o`) in both the usage example and the options table."},
+        {"id": "quiet-not-verbose", "requirement": "Reports removing `--verbose`/`-v` and documenting `--quiet`/`-q` as printing only errors."},
+        {"id": "port-default", "requirement": "Reports changing the documented `--port` default from 5140 to 9514."},
+        {"id": "code-untouched", "requirement": "Does not report changing `logship/cli.py` or any flag name in the code."}
+      ]
+    }
+  }
+}

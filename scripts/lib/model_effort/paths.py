@@ -14,11 +14,13 @@ PRICING_PATH = KNOWLEDGE_DIR / "model-pricing.json"
 EXPECTED_DIR = REPO_ROOT / "evals" / "expected"
 FIXTURES_DIR = REPO_ROOT / "evals" / "fixtures"
 RUNS_DIR = REPO_ROOT / "evals" / "model-effort" / "runs"
+# Which grader each agent uses; rubric paths in it are relative to its directory.
+GRADER_MAP_PATH = REPO_ROOT / "evals" / "model-effort" / "graders.json"
 
 
 @dataclass(frozen=True)
 class EvalPaths:
-    """The directories a run reads: agent files, expected entries, fixtures and the plugin.
+    """The directories a run reads: agent files, expected entries, fixtures, the plugin and the grader map.
 
     `default()` is the repo checkout; a test or another caller names its own.
     """
@@ -28,6 +30,7 @@ class EvalPaths:
     fixtures_dir: Path
     plugin_root: Path
     knowledge_dir: Path
+    grader_map: Path = GRADER_MAP_PATH
 
     @classmethod
     def default(cls) -> EvalPaths:

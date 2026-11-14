@@ -1,0 +1,23 @@
+{
+  "fixture": "orch-route-test-strategy",
+  "description": "A strategic 'is our testing healthy' request: must route to qa-engineer (which owns test-health), not split it into direct per-file test-review / test-smell-review dispatches.",
+  "applicableAgents": [
+    "orchestrator"
+  ],
+  "agents": {
+    "orchestrator": {
+      "grader": "dispatch_set",
+      "task": "Handle the request in `{fixture}/REQUEST.md`. The repository is `{fixture}/` in the current working directory; there is no `.claude/memory/` state yet. Dispatch the agents this step needs now with the Agent tool (by agent name as `subagent_type`), wait for them, then end with one sentence naming what you dispatched.",
+      "dispatch": {
+        "include": [
+          "qa-engineer"
+        ],
+        "exclude": [
+          "test-review",
+          "test-smell-review",
+          "software-engineer"
+        ]
+      }
+    }
+  }
+}

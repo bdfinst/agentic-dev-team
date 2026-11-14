@@ -1,0 +1,18 @@
+{
+  "fixture": "seng-webhook-fulfillment",
+  "description": "A proposed public webhook receiver that ships orders on unauthenticated JSON, defers HMAC signature checks, ignores duplicate delivery, commits the secret, and logs full headers; a correct threat model names forged-webhook fulfillment as critical and prescribes signature + timestamp verification, idempotency by event_id, and secret handling.",
+  "applicableAgents": ["security-engineer"],
+  "agents": {
+    "security-engineer": {
+      "grader": "rubric",
+      "task": "Threat model the proposed design in `{fixture}/design.md` before any code is written. You cannot write files in this run, so put your complete threat model (findings with severity and remediation) in your final message.",
+      "rubricPoints": [
+        {"id": "forged-webhook-critical", "requirement": "Identifies that, without verifying `X-PayGate-Signature`, anyone can POST a forged `payment.succeeded` event to the public endpoint and get unpaid orders shipped, and rates this critical or high."},
+        {"id": "hmac-and-timestamp", "requirement": "Prescribes verifying the HMAC-SHA256 signature over the raw request body with a constant-time comparison and rejecting stale `t=` timestamps to block replay, before any processing."},
+        {"id": "idempotent-event-id", "requirement": "Flags that duplicate or retried deliveries could ship an order twice and recommends deduplicating on `event_id` (or making fulfillment idempotent per order)."},
+        {"id": "secret-and-logging", "requirement": "Flags that committing the webhook secret and API key in `config/paygate.yml` and logging full headers (which include the signature) exposes secrets, and recommends a secrets manager and redacted logging."},
+        {"id": "verify-amount", "requirement": "Recommends checking that the event's amount (and currency/order) matches the stored order before fulfilling, or confirming the payment with PayGate's API."}
+      ]
+    }
+  }
+}

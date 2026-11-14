@@ -1,0 +1,56 @@
+{
+  "collisions": [
+    {
+      "file": "src/routes.tsx",
+      "slices": [
+        "1",
+        "2"
+      ],
+      "wave": 1
+    }
+  ],
+  "schema": "plan-waves/v1",
+  "scope_mismatches": [],
+  "slices": {
+    "1": {
+      "depends_on": [],
+      "files": [
+        "src/pages/account/Profile.tsx",
+        "src/pages/account/Profile.test.tsx",
+        "src/routes.tsx"
+      ],
+      "wave": 1
+    },
+    "2": {
+      "depends_on": [],
+      "files": [
+        "src/pages/account/Notifications.tsx",
+        "src/pages/account/Notifications.test.tsx",
+        "src/routes.tsx"
+      ],
+      "wave": 1
+    },
+    "3": {
+      "depends_on": [
+        "1",
+        "2"
+      ],
+      "files": [
+        "src/pages/account/SettingsNav.tsx",
+        "src/pages/account/SettingsNav.test.tsx",
+        "src/pages/account/Profile.tsx",
+        "src/pages/account/Notifications.tsx"
+      ],
+      "wave": 2
+    }
+  },
+  "waves": [
+    [
+      "1",
+      "2"
+    ],
+    [
+      "3"
+    ]
+  ]
+}

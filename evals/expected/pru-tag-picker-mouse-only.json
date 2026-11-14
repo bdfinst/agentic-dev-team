@@ -1,0 +1,52 @@
+{
+  "fixture": "pru-tag-picker-mouse-only",
+  "description": "Ticket-tag plan (hard: three distinct a11y/UX defects in one custom component) whose drag-and-drop div-based picker has no keyboard path, whose unsaved state is signalled only by a red chip, and which drifts between 'tag', 'label', and 'category'; a correct review returns needs-revision with a keyboard blocker and flags the color-only state and terminology drift.",
+  "applicableAgents": [
+    "plan-review-ux"
+  ],
+  "agents": {
+    "plan-review-ux": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the UX Critic. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "needs-revision",
+      "findingFields": [
+        "issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "drag-only-picker-no-keyboard",
+          "anyOf": [
+            "keyboard"
+          ],
+          "severityAnyOf": [
+            "blocker"
+          ]
+        },
+        {
+          "id": "unsaved-state-color-only",
+          "anyOf": [
+            "color alone",
+            "colour alone",
+            "color-only",
+            "colour-only",
+            "only by color",
+            "red chip",
+            "turns red",
+            "color independence"
+          ]
+        },
+        {
+          "id": "tag-label-category-terminology-drift",
+          "anyOf": [
+            "terminology",
+            "drift",
+            "inconsistent term",
+            "synonym"
+          ]
+        }
+      ],
+      "maxFindings": 9
+    }
+  }
+}

@@ -2,9 +2,10 @@
 
 Reads the raw stdout line by line and keeps only what trial grading needs: the
 final result text, error flag, cost, the resolved model ID, the names of the
-tools the agent called, the permission denial count, and a scrubbed copy of the
-`system`/`init` event (the session configuration). Unparseable lines and event
-types that carry none of that (`rate_limit_event`, ...) are skipped.
+tools the agent called, the agent types it dispatched, the permission denial
+count, and a scrubbed copy of the `system`/`init` event (the session
+configuration). Unparseable lines and event types that carry none of that
+(`rate_limit_event`, ...) are skipped.
 """
 
 from __future__ import annotations
@@ -21,6 +22,9 @@ EVENT_ASSISTANT = "assistant"
 EVENT_SYSTEM = "system"
 SUBTYPE_INIT = "init"
 BLOCK_TOOL_USE = "tool_use"
+# Tool names a dispatch is made with, and the input key naming the dispatched agent.
+DISPATCH_TOOL_NAMES = frozenset({"Agent", "Task"})
+SUBAGENT_TYPE_KEY = "subagent_type"
 
 # Neither fence may match newlines beside the line break it needs: the opening
 # fence ends at the first line break and the closing fence is indented but opens
@@ -42,11 +46,13 @@ class ParsedTranscript:
     has_result: bool
     permission_denial_count: int = 0
     session_config: dict | None = None
+    dispatched_agents: tuple[str, ...] = ()
 
 
 def parse_stream(stdout: str) -> ParsedTranscript:
     """Fold the stream into a `ParsedTranscript`; the last `result` event wins."""
     tool_names: list[str] = []
+    dispatched: list[str] = []
     result_event: dict | None = None
     session_config: dict | None = None
     for event in _iter_events(stdout):
@@ -55,6 +61,7 @@ def parse_stream(stdout: str) -> ParsedTranscript:
             result_event = event
         elif event_type == EVENT_ASSISTANT:
             tool_names.extend(_tool_names(event))
+            dispatched.extend(_dispatched_agents(event))
         elif _is_init_event(event) and session_config is None:
             session_config = _scrub_init(event)
 
@@ -68,6 +75,7 @@ def parse_stream(stdout: str) -> ParsedTranscript:
             called_tool_names=tuple(tool_names),
             has_result=False,
             session_config=session_config,
+            dispatched_agents=tuple(dispatched),
         )
     model_id, note = _resolve_model_id(result_event.get("modelUsage"))
     return ParsedTranscript(
@@ -80,6 +88,7 @@ def parse_stream(stdout: str) -> ParsedTranscript:
         has_result=True,
         permission_denial_count=_count_denials(result_event.get("permission_denials")),
         session_config=session_config,
+        dispatched_agents=tuple(dispatched),
     )
 
 
@@ -150,18 +159,34 @@ def _count_denials(value) -> int:
     return len(value) if isinstance(value, list) else 0
 
 
-def _tool_names(assistant_event: dict) -> list[str]:
+def _tool_use_blocks(assistant_event: dict) -> list[dict]:
     message = assistant_event.get("message")
     content = message.get("content") if isinstance(message, dict) else None
     if not isinstance(content, list):
         return []
     return [
-        block["name"]
+        block
         for block in content
         if isinstance(block, dict)
         and block.get("type") == BLOCK_TOOL_USE
         and isinstance(block.get("name"), str)
     ]
+
+
+def _tool_names(assistant_event: dict) -> list[str]:
+    return [block["name"] for block in _tool_use_blocks(assistant_event)]
+
+
+def _dispatched_agents(assistant_event: dict) -> list[str]:
+    """The agent type of each dispatch tool call in the event."""
+    dispatched = []
+    for block in _tool_use_blocks(assistant_event):
+        tool_input = block.get("input")
+        if block["name"] in DISPATCH_TOOL_NAMES and isinstance(tool_input, dict):
+            agent_type = tool_input.get(SUBAGENT_TYPE_KEY)
+            if isinstance(agent_type, str) and agent_type.strip():
+                dispatched.append(agent_type.strip())
+    return dispatched
 
 
 def _resolve_model_id(model_usage) -> tuple[str | None, str | None]:

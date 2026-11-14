@@ -1,0 +1,45 @@
+{
+  "fixture": "gqc-placeholder-failure",
+  "description": "Invitation feature (hard: three plausible success variants mask the gaps) whose only failure scenario is an unresolved '<invalid request>'/'<failure-mode-summary>' placeholder, while the cited route returns 403 for non-admins and 409 for existing members; a correct review flags the placeholder/unbalanced coverage and both uncovered status codes.",
+  "applicableAgents": [
+    "gherkin-quality-critic"
+  ],
+  "agents": {
+    "gherkin-quality-critic": {
+      "grader": "finding_ids",
+      "task": "`/gherkin-derive` just wrote `{fixture}/features/invitations.feature`. Its cited source surface is `{fixture}/src/routes/invitations.ts`. Review the feature file for coverage gaps and positive/negative balance against that source. Respond with only the JSON object defined by your output contract.",
+      "findingFields": [
+        "gaps",
+        "balance_issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "placeholder-only-failure-path",
+          "anyOf": [
+            "placeholder",
+            "<invalid request>",
+            "failure-mode-summary",
+            "unbalanced"
+          ]
+        },
+        {
+          "id": "non-admin-403-uncovered",
+          "anyOf": [
+            "403",
+            "NOT_WORKSPACE_ADMIN",
+            "non-admin"
+          ]
+        },
+        {
+          "id": "existing-member-409-uncovered",
+          "anyOf": [
+            "409",
+            "ALREADY_MEMBER",
+            "already a member"
+          ]
+        }
+      ],
+      "maxFindings": 8
+    }
+  }
+}

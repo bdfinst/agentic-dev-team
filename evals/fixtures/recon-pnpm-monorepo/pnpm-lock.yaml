@@ -1,0 +1,10 @@
+lockfileVersion: '9.0'
+importers:
+  packages/api:
+    dependencies:
+      express: {specifier: ^4.19.2, version: 4.19.2}
+      jsonwebtoken: {specifier: ^9.0.2, version: 9.0.2}
+      bcrypt: {specifier: ^5.1.1, version: 5.1.1}
+  packages/worker:
+    dependencies:
+      axios: {specifier: ^1.7.2, version: 1.7.2}

@@ -12,13 +12,16 @@ from collections.abc import Sequence
 from .arm import BASELINE_LABEL
 from .arm_totals import ArmTotals, compute_arm_totals
 from .estimate import RunEstimate
+from .grader_config import DEFAULT_GRADING, AgentGrading, GraderKind
 from .outcome import TrialResult
+from .paths import REPO_ROOT
 from .run_status import AbortReason, RunStatus
 from .run_types import ArmRun, FixtureTrials, RunMetadata
 from .tools import ToolProfile
 
 FIDELITY = "read-only-profile"
-GRADER = "expected-findings"
+SANDBOX_FIDELITY = "sandboxed-write-profile"
+GRADER = GraderKind.EXPECTED_FINDINGS.value
 
 CREATED_TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -29,6 +32,7 @@ def build_artifact(
     run_estimate: RunEstimate,
     profile: ToolProfile,
     abort_reason: AbortReason | None,
+    grading: AgentGrading = DEFAULT_GRADING,
 ) -> dict:
     """Build the artifact dict, joining each arm's results with its pre-run estimate.
 
@@ -38,6 +42,9 @@ def build_artifact(
 
     The run-level `session_config` is the baseline arm's, because the baseline
     is the reference configuration; each arm also carries its own.
+
+    `grader` is the agent's grader from the grader map, so a decision row can cite
+    it; `judge` names the pinned rubric judge, or is null.
     """
     arms = [_arm_dict(arm_run, run_estimate, profile) for arm_run in arm_runs]
     return {
@@ -47,12 +54,32 @@ def build_artifact(
         "created": metadata.created.strftime(CREATED_TIME_FORMAT),
         "git_sha": metadata.git_sha,
         "agent": metadata.agent,
-        "grader": GRADER,
-        "fidelity": FIDELITY,
+        "grader": grading.kind.value,
+        "judge": _judge_dict(grading),
+        "fidelity": SANDBOX_FIDELITY if grading.sandbox else FIDELITY,
         "knowledge_dir": metadata.knowledge_dir,
         "session_config": _baseline_session_config(arms),
         "arms": arms,
     }
+
+
+def _judge_dict(grading: AgentGrading) -> dict | None:
+    judge = grading.judge
+    if judge is None:
+        return None
+    return {
+        "model": judge.model,
+        "effort": judge.effort,
+        "rubric": _repo_relative(judge.rubric_path),
+        "criteria": list(judge.criterion_ids),
+    }
+
+
+def _repo_relative(path) -> str:
+    try:
+        return path.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def _baseline_session_config(arms: Sequence[dict]) -> dict | None:
@@ -98,6 +125,7 @@ def _trial_dict(result: TrialResult) -> dict:
         "cost_reported": result.cost_reported,
         "grader_messages": list(result.grader_messages),
         "error": result.error,
+        "judge_cost_usd": result.judge_cost_usd,
     }
 
 
@@ -107,6 +135,7 @@ def _totals_dict(totals: ArmTotals) -> dict:
         "clean_fixture_false_positives": totals.clean_fixture_false_positives,
         "actual_cost_usd": totals.actual_cost_usd,
         "unreported_trials_estimate_usd": totals.unreported_trials_estimate_usd,
+        "judge_cost_usd": totals.judge_cost_usd,
     }
 
 

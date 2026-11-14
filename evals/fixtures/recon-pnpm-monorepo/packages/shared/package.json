@@ -1,0 +1,5 @@
+{
+  "name": "@acme/shared",
+  "type": "module",
+  "main": "src/index.ts"
+}

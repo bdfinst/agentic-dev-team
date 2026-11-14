@@ -1,0 +1,3 @@
+flask==3.0.3
+pyjwt==2.8.0
+requests==2.32.3

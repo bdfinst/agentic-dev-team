@@ -1,0 +1,35 @@
+{
+  "fixture": "ae-convert-mixed",
+  "description": "Temperature CLI with a precedence bug in Fahrenheit-to-Celsius plus a criterion with no run command; a correct examination reports AC1 not-met, AC2 met, AC3 not-met, AC4 met, AC5 indeterminate.",
+  "applicableAgents": [
+    "acceptance-examiner"
+  ],
+  "agents": {
+    "acceptance-examiner": {
+      "grader": "rubric",
+      "task": "Examine the delivered change against these acceptance criteria.\n\nAC1: The unit test suite passes: `python3 -m unittest discover -s tests` exits 0.\nAC2: `python3 convert.py --to f 100` prints `212.0`.\nAC3: `python3 convert.py --to c 32` prints `0.0`.\nAC4: `python3 convert.py --to k 10` exits with code 64.\nAC5: Every conversion is appended to the audit log.\n\nGherkin scenarios: `features/convert.feature` (read it with `cat`).\n\nRun commands:\n- python3 -m unittest discover -s tests\n- python3 convert.py --to f 100\n- python3 convert.py --to c 32\n- python3 convert.py --to k 10\n\nWorking directory: `{fixture}` (run every command from there, e.g. `cd {fixture} && <command>`).\nAcceptance-examination plan: model-effort-eval\n\nRespond with only the fenced json block defined by your output format.",
+      "rubricPoints": [
+        {
+          "id": "ac1-not-met",
+          "requirement": "AC1 is reported `not-met`, citing the unittest failure (FAILED, failures=1, in test_freezing_point_in_celsius) or the non-zero exit."
+        },
+        {
+          "id": "ac2-met",
+          "requirement": "AC2 is reported `met`, citing the output `212.0`."
+        },
+        {
+          "id": "ac3-not-met",
+          "requirement": "AC3 is reported `not-met`, quoting the actual output `14.22`."
+        },
+        {
+          "id": "ac4-met",
+          "requirement": "AC4 is reported `met`, citing exit code 64."
+        },
+        {
+          "id": "ac5-indeterminate",
+          "requirement": "AC5 is reported `indeterminate` because no run command observes the audit log; it is not reported met or not-met."
+        }
+      ]
+    }
+  }
+}

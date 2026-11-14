@@ -25,6 +25,7 @@ from .errors import UsageError
 from .execution import TrialRunner, run_trials
 from .formatting import format_usd
 from .plan import RunPlan
+from .rubric_judge import ProcessRunner
 from .run_types import RunResult, TrialProgress, TrialSettings
 from .stop_rules import SpendLimit
 
@@ -53,6 +54,7 @@ def run_session(
     pricing_table: dict,
     run_trial: TrialRunner,
     guard: interrupts.RunGuard,
+    run_judge_process: ProcessRunner | None = None,
 ) -> int:
     """Run the plan from estimate to artifact and return the exit code.
 
@@ -89,6 +91,7 @@ def run_session(
             settings,
             run_estimate,
             run_trial=run_trial,
+            run_judge_process=run_judge_process,
             spend_limit=spend_limit,
             on_trial=print_progress,
         )
@@ -122,6 +125,7 @@ def estimate_and_echo(
         plan.fixtures,
         settings.trials.count,
         pricing_table,
+        judge=plan.grading.judge,
     )
     for line in config_echo.render_config(plan, settings, run_estimate):
         print(line, file=console.stderr)
@@ -152,7 +156,12 @@ def finish_run(
         print(report.render_no_trials_notice(), file=console.stderr)
         return EXIT_FAILED
     data = artifact.build_artifact(
-        plan.metadata, run.arm_runs, run_estimate, plan.profile, run.abort_reason
+        plan.metadata,
+        run.arm_runs,
+        run_estimate,
+        plan.profile,
+        run.abort_reason,
+        plan.grading,
     )
     save_exit_code = save_artifact(
         plan.artifact_path, artifact_store.render_artifact(data), console

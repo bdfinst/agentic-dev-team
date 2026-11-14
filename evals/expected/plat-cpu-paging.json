@@ -1,0 +1,31 @@
+{
+  "fixture": "plat-cpu-paging",
+  "description": "Alert rules that page on CPU, memory, and any single 5xx while real incidents went unnoticed; a correct answer defines availability and latency SLIs/SLOs from the exported metrics and pages on error-budget burn rate instead.",
+  "applicableAgents": [
+    "platform-engineer"
+  ],
+  "agents": {
+    "platform-engineer": {
+      "grader": "rubric",
+      "task": "On-call for the checkout API in `{fixture}/` is noisy and still missed real incidents (see `{fixture}/oncall-report.md`). Redesign the alerting in `{fixture}/monitoring/alerts.yaml`. Do not write files; give your recommendation in your final answer.",
+      "rubricPoints": [
+        {
+          "id": "slis-from-metrics",
+          "requirement": "Defines an availability SLI as the ratio of non-5xx to total `http_requests_total`, and a latency SLI from `http_request_duration_seconds_bucket` with the 800 ms threshold."
+        },
+        {
+          "id": "slo-targets",
+          "requirement": "Sets SLOs matching the product target: 99.9% success and 99% of requests under 800 ms over a 30-day window."
+        },
+        {
+          "id": "burn-rate-paging",
+          "requirement": "Pages on error-budget burn rate (for example a multi-window fast/slow burn alert) instead of on any single 5xx."
+        },
+        {
+          "id": "demote-resource-alerts",
+          "requirement": "Removes HighCPU and HighMemory from paging (deletes them or downgrades them to tickets/dashboards), citing that they fired during the nightly batch with no customer impact."
+        }
+      ]
+    }
+  }
+}

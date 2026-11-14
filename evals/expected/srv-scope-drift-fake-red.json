@@ -1,0 +1,64 @@
+{
+  "fixture": "srv-scope-drift-fake-red",
+  "description": "Discount-code step (hard: both scenarios have passing tests) whose rejection message 'Coupon has expired' contradicts the specified 'Discount code expired', whose diff edits the undeclared src/lib/logger.ts, and whose RED output is a module-not-found error rather than a behavioral failure; a correct review fails the step and flags all three.",
+  "applicableAgents": [
+    "spec-reviewer"
+  ],
+  "agents": {
+    "spec-reviewer": {
+      "grader": "finding_ids",
+      "task": "Verify the freshly implemented step against its spec. Inputs in `{fixture}/`: `plan-step.md` (the plan step with its acceptance criteria, declared files, and the slice's Gherkin scenarios), `diff.patch` (the diff of files changed), the resulting test files under the fixture, and `evidence.md` (the implementer's RED, GREEN, and suite output). No other spec artifacts exist. Respond with only the JSON object defined by your output contract.",
+      "statusField": "status",
+      "expectedStatus": "fail",
+      "findingFields": [
+        {
+          "field": "criterionResults",
+          "where": {
+            "result": [
+              "partial",
+              "missing",
+              "contradicted"
+            ]
+          }
+        },
+        {
+          "field": "scenarioResults",
+          "where": {
+            "result": [
+              "partial",
+              "missing"
+            ]
+          }
+        },
+        "scopeIssues",
+        "testDisciplineIssues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "expired-message-contradicts-spec",
+          "anyOf": [
+            "Discount code expired",
+            "Coupon has expired"
+          ]
+        },
+        {
+          "id": "undeclared-logger-file-edited",
+          "anyOf": [
+            "logger"
+          ]
+        },
+        {
+          "id": "red-was-module-not-found",
+          "anyOf": [
+            "Cannot find module",
+            "no-real-red",
+            "wrong-failure-reason",
+            "module not found",
+            "RED phase"
+          ]
+        }
+      ],
+      "maxFindings": 7
+    }
+  }
+}

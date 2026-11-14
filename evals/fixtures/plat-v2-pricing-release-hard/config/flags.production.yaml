@@ -1,0 +1,3 @@
+# Feature flags for production. Read at process start.
+pricing_v2_enabled: true
+cart_recommendations: false

@@ -1,0 +1,44 @@
+{
+  "fixture": "gqc-uncovered-branches",
+  "description": "Transfer feature covering success and INSUFFICIENT_FUNDS while the cited transfer() also raises AMOUNT_NOT_POSITIVE, SAME_WALLET, and CURRENCY_MISMATCH; a correct review reports a gap for each of the three uncovered branches.",
+  "applicableAgents": [
+    "gherkin-quality-critic"
+  ],
+  "agents": {
+    "gherkin-quality-critic": {
+      "grader": "finding_ids",
+      "task": "`/gherkin-derive` just wrote `{fixture}/features/transfer.feature`. Its cited source surface is `{fixture}/wallet/transfer.py`. Review the feature file for coverage gaps and positive/negative balance against that source. Respond with only the JSON object defined by your output contract.",
+      "findingFields": [
+        "gaps",
+        "balance_issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "non-positive-amount-uncovered",
+          "anyOf": [
+            "AMOUNT_NOT_POSITIVE",
+            "non-positive",
+            "amount <= 0",
+            "zero or negative",
+            "negative amount"
+          ]
+        },
+        {
+          "id": "same-wallet-uncovered",
+          "anyOf": [
+            "SAME_WALLET",
+            "same wallet"
+          ]
+        },
+        {
+          "id": "currency-mismatch-uncovered",
+          "anyOf": [
+            "CURRENCY_MISMATCH",
+            "currency"
+          ]
+        }
+      ],
+      "maxFindings": 6
+    }
+  }
+}

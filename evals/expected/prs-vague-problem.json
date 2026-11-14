@@ -1,0 +1,48 @@
+{
+  "fixture": "prs-vague-problem",
+  "description": "Search plan whose goal is 'feels modern and works better' with no measurable problem, and which builds a custom tokenizer/inverted index/BM25/Levenshtein engine for a 4,000-product Postgres catalog without considering Postgres full-text/trigram search or a library; a correct review returns needs-revision with a blocker for the missing problem statement and flags the unconsidered simpler alternative.",
+  "applicableAgents": [
+    "plan-review-strategic"
+  ],
+  "agents": {
+    "plan-review-strategic": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Strategic Critic. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "needs-revision",
+      "findingFields": [
+        "issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "no-measurable-problem-statement",
+          "anyOf": [
+            "problem statement",
+            "feels modern",
+            "vague",
+            "measurable",
+            "no clear problem"
+          ],
+          "severityAnyOf": [
+            "blocker"
+          ]
+        },
+        {
+          "id": "custom-engine-over-simpler-alternative",
+          "anyOf": [
+            "pg_trgm",
+            "trigram",
+            "full-text",
+            "tsvector",
+            "library",
+            "off-the-shelf",
+            "in-house",
+            "build our own",
+            "simpler alternative"
+          ]
+        }
+      ],
+      "maxFindings": 8
+    }
+  }
+}

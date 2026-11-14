@@ -359,8 +359,9 @@ the tier vocabulary (unit → integration → acceptance).
 
 `scripts/model_effort_ab.py` compares an agent's frontmatter `model:` and
 `effort:` (the baseline arm) with a candidate. Each trial runs through
-`claude -p` against a fresh copy of a fixture. The deterministic grader scores
-the reply against `evals/expected`. The runs are paid API calls.
+`claude -p` against a fresh copy of a fixture. The agent's grader, named in
+[`evals/model-effort/graders.json`](model-effort/graders.json), scores the trial
+against `evals/expected`. The runs are paid API calls.
 
 ```bash
 python3 scripts/model_effort_ab.py security-review --model haiku --effort medium
@@ -378,8 +379,7 @@ candidate, baseline, and so on, so a broken candidate fails on its first trial.
 | `--model` | frontmatter `model:` | Candidate model. |
 | `--effort` | frontmatter `effort:` | Candidate effort level. |
 | `--fixtures` | every `evals/expected` entry that names the agent and has a matching fixture in `evals/fixtures` | Comma-separated fixture stems. |
-| `--trials` | 10 for `security-review`, `correctness-review`, `architect` and `security-engineer`; otherwise 5 | Trials per arm per fixture. Must be a whole number of 1 or more. |
-| `--grader` | `expected-findings` | Only `expected-findings` works. `rubric` is refused as not implemented yet. |
+| `--trials` | 10 for `security-review`, `correctness-review`, `architect`, `security-engineer` and rubric-judged agents; otherwise 5 | Trials per arm per fixture. Must be a whole number of 1 or more. |
 | `--trial-timeout` | 600 | Seconds before a trial is killed and recorded as `timeout`. |
 | `--max-cost` | none | Dollar limit on the estimate and on the charged cost, described in [Spend limit](#spend-limit). |
 | `--yes` | off | Skip the confirmation prompt. |
@@ -428,7 +428,7 @@ lower: in the one real run, the estimate was 4.6 to 13.6 times the reported cost
 | --- | --- |
 | 0 | The run completed and the artifact was written. |
 | 1 | The run was declined, stopped early, or a signal arrived while the finished run was being saved (the artifact is still written), or the artifact could not be written. When the write fails, the artifact JSON goes to stdout so the paid results survive. A run interrupted before its first trial writes no artifact and exits 1. |
-| 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, an agent file that cannot be read or has no valid frontmatter (no `---` block at the top, invalid YAML, or a block that is not a key: value mapping), a missing, blank or invalid `model:` or `effort:` in the agent's frontmatter, identical arms, a write-capable agent, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
+| 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, an agent file that cannot be read or has no valid frontmatter (no `---` block at the top, invalid YAML, or a block that is not a key: value mapping), a missing, blank or invalid `model:` or `effort:` in the agent's frontmatter, identical arms, a write-capable agent `graders.json` does not sandbox, a rubric judge below the required tier, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
 
 Messages go to stderr.
 
@@ -468,19 +468,47 @@ trial writes no artifact and exits 1. The key fields:
 | `status` | `complete`, or `incomplete` when `abort_reason` is set. |
 | `abort_reason` | A stop reason from the table above, or `null`. |
 | `arms[].trials_per_fixture` | Trials planned per fixture (the `--trials` value). To count the trials that ran, count `fixtures[].trials`. |
-| `arms[].fixtures[].trials[].outcome` | The trial result, such as `pass`, `timeout` or `cli_error`. |
+| `grader` | The agent's grader from `graders.json`: `expected-findings`, `tests-pass`, `dispatch-set` or `rubric`. |
+| `judge` | For `rubric`: the pinned judge `model`, `effort`, `rubric` path and `criteria`; otherwise `null`. |
+| `fidelity` | `read-only-profile`, or `sandboxed-write-profile` when the agent's write tools were enabled. |
+| `arms[].fixtures[].trials[].outcome` | The trial result, such as `pass`, `timeout`, `cli_error` or `judge_error`. |
+| `arms[].fixtures[].trials[].judge_cost_usd` | What the rubric judge reported for grading the trial, or `null`. |
 | `arms[].fixtures[].trials[].cost_reported` | `false` when `claude` reported no cost; `cost_usd` is then 0. |
 | `arms[].estimated_cost_usd` | The pre-run estimate for the arm. |
 | `arms[].totals.clean_fixture_false_positives` | Trials the grader failed (`graded_fail`) on a fixture that expects no findings. Timeouts, CLI errors, parse failures and tool violations on such a fixture do not count. |
 | `arms[].totals.actual_cost_usd` | The reported cost. It is a lower bound when any `cost_reported` is `false`. |
 | `arms[].totals.unreported_trials_estimate_usd` | The sum of per-trial estimates charged for trials that reported no cost. The `--max-cost` check counts these in place of the cost. |
+| `arms[].totals.judge_cost_usd` | The rubric judge's reported cost for the arm's trials. It is not in `actual_cost_usd`; the `--max-cost` check counts it. |
 
 ### Tools and write-capable agents
 
-Trials get only the agent's read-only tools: `Read`, `Grep` and `Glob`. Every
+Trials get the agent's read-only tools: `Read`, `Grep` and `Glob`. Every
 other `tools:` entry is withheld and recorded in the artifact under
 `tools_withheld`. The harness refuses an agent that declares `Bash`, `Edit`,
-`Write`, `MultiEdit` or `NotebookEdit`, because it has no sandbox for them. The
-refusal matches those names exactly. A scoped entry such as `Bash(graphify *)` is
-not refused: the harness withholds it and records it in `tools_withheld`. Support
-for write-capable agents is planned.
+`Write`, `MultiEdit` or `NotebookEdit` unless `graders.json` marks it
+`sandbox: true`. A sandboxed agent gets those tools too, and its trial copy is a
+git repo with one commit. The sandbox is the temp copy and `--restricted`: the
+file tools stay inside it, but `Bash` is not confined by the harness. The refusal
+matches those names exactly. A scoped entry such as `Bash(graphify *)` is not
+refused: the harness withholds it and records it in `tools_withheld`. A
+`dispatch-set` agent also gets its `Agent` tool.
+
+### Graders
+
+[`evals/model-effort/graders.json`](model-effort/graders.json) names the grader
+for each agent that the default does not fit. Every grader's pass rule is a
+deterministic grader in `scripts/eval_graders/`, selected by the expected entry's
+`grader` field.
+
+| Grader | Agents | What a trial must do |
+| --- | --- | --- |
+| `expected-findings` (default) | review agents (`verdict`), plan critics, `gherkin-quality-critic`, `spec-reviewer` (`finding_ids`) | Match the expected verdict and report every planted finding ID (`expectedFindingIds`: keywords, optional severities), within `maxFindings`/`maxBySeverity`. |
+| `tests-pass` | `software-engineer`, `mutation-kill` | After the agent finishes, the entry's `testCommands` exit 0 in the trial copy. `protectedPaths` are first restored from the pristine fixture, so the agent cannot weaken the tests that grade it. `{python}` is the harness's interpreter. |
+| `dispatch-set` | `orchestrator`, `quality-reviewer` | Dispatch every agent in `dispatch.include` and none in `dispatch.exclude` (`exact`: nothing else), read from the transcript's `Agent` calls. Each dispatch goes to a stub agent passed with `--agents` that replies with a clean verdict. |
+| `rubric` | the remaining agents | A judge model pinned in `graders.json`, one tier above the agent (opus agents are judged by opus), marks every criterion of the agent's committed rubric (`evals/model-effort/rubrics/<agent>.md`) and every `rubricPoints` entry met. The judge sees the rubric, the task and the agent's final answer, not the fixture. A failed judge call is `judge_error`, not `graded_fail`. |
+
+An expected entry's `task` replaces the default review prompt; `{fixture}` in it
+is the staged fixture's name. The harness refuses a rubric run whose judge is
+not at least one tier above both arms (capped at opus). Rubric-judged agents
+default to 10 trials, and rubric evidence can justify a tier change only with 10
+trials per arm (`trial_count.can_justify_tier_change`).

@@ -1,0 +1,24 @@
+{
+  "fixture": "orch-research-csv-order",
+  "description": "Hard: a CSV column-order request with no auth, crypto, secrets or new API surface; Phase 1 research dispatches the architect and data-flow tracer but must not pull in the security engineer, and nothing implements yet.",
+  "applicableAgents": [
+    "orchestrator"
+  ],
+  "agents": {
+    "orchestrator": {
+      "grader": "dispatch_set",
+      "task": "Run Phase 1 (Research) for the request in `{fixture}/REQUEST.md`. The repository is `{fixture}/` in the current working directory; there is no `.claude/memory/` state yet. Dispatch the agents this step needs now with the Agent tool (by agent name as `subagent_type`), wait for them, then end with one sentence naming what you dispatched.",
+      "dispatch": {
+        "include": [
+          "architect",
+          "data-flow-tracer"
+        ],
+        "exclude": [
+          "security-engineer",
+          "software-engineer",
+          "security-review"
+        ]
+      }
+    }
+  }
+}

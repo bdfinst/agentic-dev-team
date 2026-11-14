@@ -1,0 +1,41 @@
+{
+  "fixture": "srv-clean-pagination",
+  "description": "Pagination step whose diff touches only the declared files, implements every criterion, has a test asserting each scenario, and shows a behavioral RED; a correct review passes with no partial/missing results, scope issues, or test-discipline issues.",
+  "applicableAgents": [
+    "spec-reviewer"
+  ],
+  "agents": {
+    "spec-reviewer": {
+      "grader": "finding_ids",
+      "task": "Verify the freshly implemented step against its spec. Inputs in `{fixture}/`: `plan-step.md` (the plan step with its acceptance criteria, declared files, and the slice's Gherkin scenarios), `diff.patch` (the diff of files changed), the resulting test files under the fixture, and `evidence.md` (the implementer's RED, GREEN, and suite output). No other spec artifacts exist. Respond with only the JSON object defined by your output contract.",
+      "statusField": "status",
+      "expectedStatus": "pass",
+      "findingFields": [
+        {
+          "field": "criterionResults",
+          "where": {
+            "result": [
+              "partial",
+              "missing",
+              "contradicted"
+            ]
+          }
+        },
+        {
+          "field": "scenarioResults",
+          "where": {
+            "result": [
+              "partial",
+              "missing"
+            ]
+          }
+        },
+        "scopeIssues",
+        "testDisciplineIssues"
+      ],
+      "clean": true,
+      "expectedFindingIds": [],
+      "maxFindings": 1
+    }
+  }
+}

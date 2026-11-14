@@ -1,0 +1,49 @@
+{
+  "fixture": "pra-weasel-criteria",
+  "description": "CSV-export plan with a weasel-word criterion (AC2 'appropriately'), a criterion (AC4 date range) whose slice has no Gherkin, and a vague step test; a correct review returns needs-revision and flags all three.",
+  "applicableAgents": [
+    "plan-review-acceptance"
+  ],
+  "agents": {
+    "plan-review-acceptance": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Acceptance Test Critic. The dispatcher already ran `plan_falsifiers.py` on this plan; its JSON output is in `{fixture}/plan_falsifiers.json`. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "needs-revision",
+      "findingFields": [
+        "criteria_issues",
+        "scenario_issues",
+        "missing_scenarios",
+        "step_issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "weasel-large-history-criterion",
+          "anyOf": [
+            "AC2",
+            "appropriately",
+            "large order histor"
+          ]
+        },
+        {
+          "id": "date-range-criterion-no-scenario",
+          "anyOf": [
+            "AC4",
+            "date range",
+            "date-range",
+            "from/to"
+          ]
+        },
+        {
+          "id": "vague-filter-step-test",
+          "anyOf": [
+            "filter works",
+            "Step 2.1",
+            "vague"
+          ]
+        }
+      ],
+      "maxFindings": 10
+    }
+  }
+}

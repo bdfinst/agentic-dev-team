@@ -45,17 +45,18 @@ if str(_PACKAGE_PARENT) not in sys.path:
     sys.path.insert(0, str(_PACKAGE_PARENT))
 
 from model_effort import (
-    artifact,
     external,
     interrupts,
     invocation,
     paths,
     report,
+    rubric_judge,
     runner,
     session,
 )
 from model_effort.errors import UsageError
 from model_effort.execution import TrialRunner
+from model_effort.grader_config import GraderKind
 from model_effort.plan import RunPlan, plan_run
 from model_effort.run_types import TrialSettings
 from model_effort.session import EXIT_FAILED, EXIT_USAGE
@@ -64,13 +65,8 @@ from model_effort.trial_count import (
     DEFAULT_TRIALS,
     HIGH_STAKES_AGENTS,
     HIGH_STAKES_TRIALS,
+    RUBRIC_TRIALS,
     resolve_trials,
-)
-
-RUBRIC_GRADER = "rubric"
-RUBRIC_GRADER_REFUSAL = (
-    "--grader rubric is not implemented yet; rubric grading is planned: "
-    f"omit --grader to use {artifact.GRADER}"
 )
 
 
@@ -106,6 +102,7 @@ class Deps:
     stdin: TextIO = field(default_factory=lambda: sys.stdin)
     stdin_is_tty: Callable[[], bool] = _stdin_is_tty
     run_trial: TrialRunner = runner.run_trial
+    run_judge_process: rubric_judge.ProcessRunner = runner.run_cli_process
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -136,14 +133,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--trials",
         type=_positive_int,
         help=f"trials per arm per fixture (default: {HIGH_STAKES_TRIALS} for "
-        f"{', '.join(sorted(HIGH_STAKES_AGENTS))}; otherwise {DEFAULT_TRIALS})",
-    )
-    parser.add_argument(
-        "--grader",
-        choices=(artifact.GRADER, RUBRIC_GRADER),
-        default=artifact.GRADER,
-        help=f"how trials are graded (default: {artifact.GRADER}, the deterministic "
-        f"grader over evals/expected; {RUBRIC_GRADER} is not implemented yet)",
+        f"{', '.join(sorted(HIGH_STAKES_AGENTS))}; {RUBRIC_TRIALS} for rubric-judged "
+        f"agents; otherwise {DEFAULT_TRIALS}). The grader per agent comes from "
+        "evals/model-effort/graders.json",
     )
     parser.add_argument(
         "--trial-timeout",
@@ -227,12 +219,14 @@ def main(argv: Sequence[str] | None = None, *, deps: Deps | None = None) -> int:
 
 
 def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> int:
-    if args.grader == RUBRIC_GRADER:
-        return _report_usage_error(UsageError(RUBRIC_GRADER_REFUSAL))
     try:
         with _plan_from(args, deps) as plan:
             settings = TrialSettings(
-                trials=resolve_trials(args.trials, args.agent),
+                trials=resolve_trials(
+                    args.trials,
+                    args.agent,
+                    rubric_judged=plan.grading.kind is GraderKind.RUBRIC,
+                ),
                 trial_timeout_seconds=args.trial_timeout_seconds,
                 claude_bin=args.claude_bin,
             )
@@ -250,6 +244,7 @@ def _run(args: argparse.Namespace, deps: Deps, guard: interrupts.RunGuard) -> in
                 assume_yes=args.yes,
                 pricing_table=deps.pricing_table,
                 run_trial=deps.run_trial,
+                run_judge_process=deps.run_judge_process,
                 guard=guard,
             )
     except UsageError as error:

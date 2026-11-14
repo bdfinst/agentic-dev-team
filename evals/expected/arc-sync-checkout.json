@@ -1,0 +1,31 @@
+{
+  "fixture": "arc-sync-checkout",
+  "description": "Checkout handler calls inventory, pricing, and a flaky email service synchronously in the request path, causing timeouts and duplicate orders; a correct answer moves the email off the request path via an outbox/queue and keeps reservation and pricing synchronous.",
+  "applicableAgents": [
+    "architect"
+  ],
+  "agents": {
+    "architect": {
+      "grader": "rubric",
+      "task": "Checkout in `{fixture}/` is missing its 99.9% availability target; see `{fixture}/incident-notes.md`. What design change do you make? Do not write files; give your design decision and its rationale in your final answer.",
+      "rubricPoints": [
+        {
+          "id": "email-is-root-cause",
+          "requirement": "Identifies the synchronous `send_confirmation_email` call (2 s timeout, after the order is saved) as the main cause of failed checkouts and the p99 latency."
+        },
+        {
+          "id": "async-email-outbox",
+          "requirement": "Decides to send the confirmation email asynchronously (outbox table, queue, or background job written when the order is saved), so an email failure no longer fails the checkout request."
+        },
+        {
+          "id": "keep-reserve-and-price-sync",
+          "requirement": "Keeps inventory reservation and pricing in the synchronous request path, because the response depends on them and they meet their reliability targets."
+        },
+        {
+          "id": "duplicate-orders",
+          "requirement": "Addresses the duplicate orders from client retries, e.g. by noting the async change removes the error-after-save case and/or adding an idempotency key on checkout."
+        }
+      ]
+    }
+  }
+}

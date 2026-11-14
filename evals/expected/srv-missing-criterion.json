@@ -1,0 +1,48 @@
+{
+  "fixture": "srv-missing-criterion",
+  "description": "Document-fetch step whose diff and tests implement 200 and 404 but not the 410 ARCHIVED criterion and scenario; a correct review fails the step and marks the archived criterion and scenario missing.",
+  "applicableAgents": [
+    "spec-reviewer"
+  ],
+  "agents": {
+    "spec-reviewer": {
+      "grader": "finding_ids",
+      "task": "Verify the freshly implemented step against its spec. Inputs in `{fixture}/`: `plan-step.md` (the plan step with its acceptance criteria, declared files, and the slice's Gherkin scenarios), `diff.patch` (the diff of files changed), the resulting test files under the fixture, and `evidence.md` (the implementer's RED, GREEN, and suite output). No other spec artifacts exist. Respond with only the JSON object defined by your output contract.",
+      "statusField": "status",
+      "expectedStatus": "fail",
+      "findingFields": [
+        {
+          "field": "criterionResults",
+          "where": {
+            "result": [
+              "partial",
+              "missing",
+              "contradicted"
+            ]
+          }
+        },
+        {
+          "field": "scenarioResults",
+          "where": {
+            "result": [
+              "partial",
+              "missing"
+            ]
+          }
+        },
+        "scopeIssues",
+        "testDisciplineIssues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "archived-410-not-implemented",
+          "anyOf": [
+            "410",
+            "archived"
+          ]
+        }
+      ],
+      "maxFindings": 4
+    }
+  }
+}

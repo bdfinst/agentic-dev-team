@@ -19,16 +19,34 @@ PLUGIN_ROOT_PLACEHOLDER = "${CLAUDE_PLUGIN_ROOT}"
 
 @dataclass(frozen=True)
 class TrialConfig:
-    """Everything that selects how the CLI runs, apart from the fixture."""
+    """Everything that selects how the CLI runs and what the sandbox does, apart from the fixture.
+
+    `task` is the fixture's own prompt (None: the default review prompt).
+    `stub_agents` is the `--agents` JSON that answers a dispatch-graded agent's
+    dispatches. `sandbox` makes the staged copy a git repo with one commit, for a
+    write-capable agent. `test_commands` run in the staged fixture after the
+    agent finishes, once `protected_paths` are restored from the pristine fixture.
+    """
 
     arm: Arm
     system_prompt: str
     profile: ToolProfile
     eval_paths: paths.EvalPaths
     claude_bin: str = DEFAULT_CLAUDE_BIN
+    task: str | None = None
+    stub_agents: str | None = None
+    sandbox: bool = False
+    test_commands: tuple[str, ...] = ()
+    protected_paths: tuple[str, ...] = ()
 
 
-def build_user_prompt(staged_name: str) -> str:
+FIXTURE_PLACEHOLDER = "{fixture}"
+
+
+def build_user_prompt(staged_name: str, task: str | None = None) -> str:
+    """The trial's user prompt: the fixture's task, else the default review request."""
+    if task is not None:
+        return task.replace(FIXTURE_PLACEHOLDER, staged_name)
     return (
         f"Review `{staged_name}` in the current working directory. "
         "Respond with only the JSON object defined by your output contract, "
@@ -45,6 +63,9 @@ def build_argv(config: TrialConfig, user_prompt: str) -> list[str]:
     """
     system_prompt = config.system_prompt.replace(
         PLUGIN_ROOT_PLACEHOLDER, str(config.eval_paths.plugin_root)
+    )
+    stub_agent_args = (
+        ["--agents", config.stub_agents] if config.stub_agents is not None else []
     )
     return [
         config.claude_bin,
@@ -65,6 +86,7 @@ def build_argv(config: TrialConfig, user_prompt: str) -> list[str]:
         "--add-dir",
         str(config.eval_paths.knowledge_dir),
         "--restricted",
+        *stub_agent_args,
         "--system-prompt",
         system_prompt,
     ]

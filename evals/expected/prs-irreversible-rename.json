@@ -1,0 +1,52 @@
+{
+  "fixture": "prs-irreversible-rename",
+  "description": "Subscription-state plan (hard: clear problem and scope boundaries as distractors) whose single migration drops the old columns and whose same deploy renames a public partner-facing API field, with no rollback or expand/contract path, while charging of past_due awaits an unresolved Payments team decision; a correct review returns needs-revision with a blocker for the irreversible change and flags the API break and the unresolved dependency.",
+  "applicableAgents": [
+    "plan-review-strategic"
+  ],
+  "agents": {
+    "plan-review-strategic": {
+      "grader": "finding_ids",
+      "task": "Review the implementation plan in `{fixture}/plan.md` as the Strategic Critic. No spec artifacts exist for this plan. Respond with only the JSON object defined by your output contract.",
+      "statusField": "verdict",
+      "expectedStatus": "needs-revision",
+      "findingFields": [
+        "issues"
+      ],
+      "expectedFindingIds": [
+        {
+          "id": "migration-drops-columns-no-rollback",
+          "anyOf": [
+            "rollback",
+            "roll back",
+            "irreversible",
+            "drop"
+          ],
+          "severityAnyOf": [
+            "blocker"
+          ]
+        },
+        {
+          "id": "public-api-field-rename-breaks-partners",
+          "anyOf": [
+            "partner",
+            "mobile",
+            "breaking",
+            "contract",
+            "/v1/"
+          ]
+        },
+        {
+          "id": "unresolved-payments-team-decision",
+          "anyOf": [
+            "Payments team",
+            "awaiting",
+            "unresolved",
+            "pending decision"
+          ]
+        }
+      ],
+      "maxFindings": 8
+    }
+  }
+}
