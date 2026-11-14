@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import pytest
-from _model_effort_support import (
+from ab_results import (
     READ_ONLY_PROFILE,
-    _arm_run,
-    _built_arm,
-    _metadata,
-    _run_estimate,
-    _trial_result,
+    arm_run_of,
+    built_arm,
+    flat_run_estimate,
+    run_metadata,
+    trial_result,
 )
 from model_effort import artifact, tools
 from model_effort.arm import BASELINE_LABEL, CANDIDATE_LABEL
@@ -20,7 +20,7 @@ from model_effort.run_status import AbortReason
 class TestArtifactStatus:
     def test_run_without_an_abort_reason_is_complete(self):
         built = artifact.build_artifact(
-            _metadata(), [], _run_estimate(), READ_ONLY_PROFILE, None
+            run_metadata(), [], flat_run_estimate(), READ_ONLY_PROFILE, None
         )
 
         assert (built["status"], built["abort_reason"]) == ("complete", None)
@@ -30,7 +30,7 @@ class TestArtifactStatus:
     )
     def test_run_with_an_abort_reason_is_incomplete_and_names_it(self, reason):
         built = artifact.build_artifact(
-            _metadata(), [], _run_estimate(), READ_ONLY_PROFILE, reason
+            run_metadata(), [], flat_run_estimate(), READ_ONLY_PROFILE, reason
         )
 
         assert (built["status"], built["abort_reason"]) == ("incomplete", reason.value)
@@ -52,12 +52,12 @@ class TestArtifactTools:
             refused_tools=(),
         )
         runs = [
-            _arm_run(BASELINE_LABEL, [_trial_result(Outcome.PASS)]),
-            _arm_run(CANDIDATE_LABEL, [_trial_result(Outcome.PASS)]),
+            arm_run_of(BASELINE_LABEL, [trial_result(Outcome.PASS)]),
+            arm_run_of(CANDIDATE_LABEL, [trial_result(Outcome.PASS)]),
         ]
 
         built = artifact.build_artifact(
-            _metadata(), runs, _run_estimate(), profile, None
+            run_metadata(), runs, flat_run_estimate(), profile, None
         )
 
         assert [
@@ -68,35 +68,35 @@ class TestArtifactTools:
 class TestArtifactSessionConfig:
     def test_arm_session_config_comes_from_its_first_trial_with_an_init_event(self):
         first = {"model": "first"}
-        arm = _built_arm(
+        arm = built_arm(
             [
-                _trial_result(Outcome.CLI_ERROR),
-                _trial_result(Outcome.PASS, session_config=first),
-                _trial_result(Outcome.PASS, session_config={"model": "later"}),
+                trial_result(Outcome.CLI_ERROR),
+                trial_result(Outcome.PASS, session_config=first),
+                trial_result(Outcome.PASS, session_config={"model": "later"}),
             ]
         )
 
         assert arm["session_config"] == first
 
     def test_arm_without_any_init_event_has_null_session_config(self):
-        assert _built_arm([_trial_result(Outcome.CLI_ERROR)])["session_config"] is None
+        assert built_arm([trial_result(Outcome.CLI_ERROR)])["session_config"] is None
 
     def test_run_level_session_config_is_the_baseline_arms_whatever_the_arm_order(
         self,
     ):
-        baseline = _arm_run(
+        baseline = arm_run_of(
             BASELINE_LABEL,
-            [_trial_result(Outcome.PASS, session_config={"model": "base"})],
+            [trial_result(Outcome.PASS, session_config={"model": "base"})],
         )
-        candidate = _arm_run(
+        candidate = arm_run_of(
             CANDIDATE_LABEL,
-            [_trial_result(Outcome.PASS, session_config={"model": "cand"})],
+            [trial_result(Outcome.PASS, session_config={"model": "cand"})],
         )
 
         built = artifact.build_artifact(
-            _metadata(),
+            run_metadata(),
             [candidate, baseline],
-            _run_estimate(),
+            flat_run_estimate(),
             READ_ONLY_PROFILE,
             None,
         )

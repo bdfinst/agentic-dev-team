@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from _model_effort_support import (
+from ab_constants import (
     CAUSE_LIMIT,
     ENABLED,
     GRADED_AGENT,
@@ -16,15 +16,16 @@ from _model_effort_support import (
     PASS_VERDICT,
     TRIAL_COST,
     TRUNCATED_OUTER_OBJECT,
+)
+from ab_inputs import make_file_fixture, trial_config
+from ab_stub_claude import (
     StubClaude,
-    _config,
-    _expected_session_config,
-    _fixture_text,
-    _init_event,
-    _make_file_fixture,
-    _result_event,
-    _stream,
-    _tool_use_event,
+    expected_session_config,
+    fixture_text,
+    init_event,
+    result_event,
+    stream_of,
+    tool_use_event,
 )
 from model_effort import grading, outcome, process_record, runner, transcript
 from model_effort.outcome import Outcome
@@ -63,8 +64,8 @@ def real_grader(graded_expected_dir):
 
 
 def _verdict_stream(verdict: dict, *tool_names: str) -> str:
-    events = [_tool_use_event(*tool_names)] if tool_names else []
-    return _stream(*events, _result_event(json.dumps(verdict)))
+    events = [tool_use_event(*tool_names)] if tool_names else []
+    return stream_of(*events, result_event(json.dumps(verdict)))
 
 
 class TestOutcomeEnum:
@@ -146,18 +147,18 @@ class TestTrialOutcomes:
         assert result.reported_issue_count == 0
 
     def test_ungraded_trial_records_no_issue_count(self):
-        result = _resolve(_stream(_result_event("I found nothing to report.")))
+        result = _resolve(stream_of(result_event("I found nothing to report.")))
 
         assert result.reported_issue_count is None
 
     def test_text_with_no_json_object_is_parse_failure(self):
-        result = _resolve(_stream(_result_event("I found nothing to report.")))
+        result = _resolve(stream_of(result_event("I found nothing to report.")))
 
         assert result.outcome == Outcome.PARSE_FAILURE
         assert result.error
 
     def test_truncated_outer_object_is_parse_failure_not_its_inner_object(self):
-        result = _resolve(_stream(_result_event(TRUNCATED_OUTER_OBJECT)))
+        result = _resolve(stream_of(result_event(TRUNCATED_OUTER_OBJECT)))
 
         assert result.outcome == Outcome.PARSE_FAILURE
 
@@ -176,7 +177,7 @@ class TestTrialOutcomes:
 
     @pytest.mark.parametrize("tool_name", ["Bash", "WebFetch"])
     def test_tool_violation_outranks_parse_failure(self, tool_name):
-        stdout = _stream(_tool_use_event(tool_name), _result_event("no json here"))
+        stdout = stream_of(tool_use_event(tool_name), result_event("no json here"))
 
         result = _resolve(stdout)
 
@@ -196,13 +197,13 @@ class TestTrialOutcomes:
         assert result.outcome == Outcome.CLI_ERROR
 
     def test_exit_zero_with_no_result_event_is_cli_error(self):
-        result = _resolve(_stream(_tool_use_event("Read")))
+        result = _resolve(stream_of(tool_use_event("Read")))
 
         assert result.outcome == Outcome.CLI_ERROR
         assert "result" in result.error
 
     def test_result_event_flagged_is_error_is_cli_error_even_with_exit_zero(self):
-        stdout = _stream(_result_event("model gone", is_error=True))
+        stdout = stream_of(result_event("model gone", is_error=True))
 
         result = _resolve(stdout)
 
@@ -211,7 +212,7 @@ class TestTrialOutcomes:
 
     def test_timed_out_run_is_timeout_even_with_other_failures(self):
         result = _resolve(
-            _stream(_tool_use_event("WebFetch")),
+            stream_of(tool_use_event("WebFetch")),
             exit_code=None,
             timed_out=True,
         )
@@ -245,15 +246,15 @@ class TestTrialOutcomes:
         assert len(result.error) == CAUSE_LIMIT
 
     def test_recorded_successful_run_resolves_to_pass_with_a_passing_grader(self):
-        result = _resolve(_fixture_text("pass-readonly.jsonl"))
+        result = _resolve(fixture_text("pass-readonly.jsonl"))
 
         assert result.outcome == Outcome.PASS
 
     def test_recorded_bad_model_run_resolves_to_cli_error_carrying_stderr(self):
         result = _resolve(
-            _fixture_text("bad-model.jsonl"),
+            fixture_text("bad-model.jsonl"),
             exit_code=1,
-            stderr=_fixture_text("bad-model.stderr.txt"),
+            stderr=fixture_text("bad-model.stderr.txt"),
         )
 
         assert result.outcome == Outcome.CLI_ERROR
@@ -265,7 +266,7 @@ class TestTrialOutcomes:
             pytest.param(
                 _verdict_stream(PASS_VERDICT, "WebFetch"), {}, id="tool-violation"
             ),
-            pytest.param(_stream(_result_event("no json")), {}, id="parse-failure"),
+            pytest.param(stream_of(result_event("no json")), {}, id="parse-failure"),
             pytest.param(
                 _verdict_stream(PASS_VERDICT), {"exit_code": 1}, id="cli-error"
             ),
@@ -305,13 +306,13 @@ class TestTrialOutcomes:
         assert _resolve(_verdict_stream(PASS_VERDICT)).cost_reported is True
 
     def test_trial_with_no_result_event_has_zero_cost_marked_unreported(self):
-        result = _resolve(_stream(_tool_use_event("Read")), exit_code=1)
+        result = _resolve(stream_of(tool_use_event("Read")), exit_code=1)
 
         assert (result.reported_cost_usd, result.cost_reported) == (0.0, False)
 
     def test_trial_with_a_non_finite_cost_has_zero_cost_marked_unreported(self):
-        stdout = _stream(
-            _result_event(json.dumps(PASS_VERDICT), total_cost_usd=float("nan"))
+        stdout = stream_of(
+            result_event(json.dumps(PASS_VERDICT), total_cost_usd=float("nan"))
         )
 
         result = _resolve(stdout)
@@ -319,11 +320,11 @@ class TestTrialOutcomes:
         assert (result.reported_cost_usd, result.cost_reported) == (0.0, False)
 
     def test_session_config_comes_from_the_transcript_init_event(self):
-        stdout = _stream(_init_event(), _result_event(json.dumps(PASS_VERDICT)))
+        stdout = stream_of(init_event(), result_event(json.dumps(PASS_VERDICT)))
 
         result = _resolve(stdout)
 
-        assert result.session_config == _expected_session_config(HAIKU_MODEL_ID)
+        assert result.session_config == expected_session_config(HAIKU_MODEL_ID)
 
 
 class TestErrorTextIsScrubbed:
@@ -346,9 +347,9 @@ class TestErrorTextIsScrubbed:
         self, stub_dir, fixture_root
     ):
         stub = StubClaude(stub_dir, exit_code=1, stderr_cwd=True)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        record = runner.run_trial(fixture, _config(stub))
+        record = runner.run_trial(fixture, trial_config(stub))
         result = outcome.resolve_outcome(
             record,
             transcript.parse_stream(record.stdout),

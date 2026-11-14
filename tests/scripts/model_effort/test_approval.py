@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 
 import pytest
-from _model_effort_support import (
+from ab_constants import (
     ARM_COUNT,
     FULL_RUN_CALLS,
     FULL_RUN_COST,
@@ -14,15 +14,17 @@ from _model_effort_support import (
     SCOUT_HAIKU_ARGS,
     SCOUT_TRIALS,
     TWO_ARM_ESTIMATE,
+)
+from ab_stub_claude import StubClaude
+from ab_world import (
     RaisingStdin,
-    StubClaude,
     World,
-    _cli,
-    _deps_with_canned_trials,
-    _gated_deps,
-    _passing_stub,
-    _stderr_lines,
     assert_nothing_ran,
+    cli,
+    deps_with_canned_trials,
+    gated_deps,
+    passing_stub,
+    stderr_lines,
 )
 from model_effort import plan
 from model_effort.formatting import format_usd
@@ -33,7 +35,7 @@ SINGLE_TRIAL_RUN_CALLS = ARM_COUNT * SCOUT_FIXTURE_COUNT
 
 def _run_over_max_cost(world: World, stub: StubClaude, **cli_options) -> int:
     """Run the CLI with a spend limit under the run's estimate, so startup refuses it."""
-    return _cli(
+    return cli(
         world,
         stub,
         *SCOUT_HAIKU_ARGS,
@@ -51,7 +53,7 @@ class TestSpendRefusals:
     ):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "scout", "--model", "opus")
+        code = cli(world, stub, "scout", "--model", "opus")
 
         stderr = capsys.readouterr().err
         assert code == 2
@@ -67,7 +69,7 @@ class TestSpendRefusals:
             plan, "take_snapshot", lambda *args: copies.append(args) or None
         )
 
-        code = _cli(world, StubClaude(world.stub_dir), "scout", "--model", "opus")
+        code = cli(world, StubClaude(world.stub_dir), "scout", "--model", "opus")
 
         assert code == 2
         assert copies == []
@@ -92,14 +94,14 @@ class TestSpendRefusals:
 
         _run_over_max_cost(world, stub)
 
-        lines = _stderr_lines(capsys)
+        lines = stderr_lines(capsys)
         assert "Agent: scout" in lines
         assert any(line.startswith("Estimate (rough") for line in lines)
 
     def test_estimate_below_max_cost_runs(self, world):
-        stub = _passing_stub(world)
+        stub = passing_stub(world)
 
-        code = _cli(
+        code = cli(
             world,
             stub,
             *SCOUT_HAIKU_ARGS,
@@ -119,7 +121,7 @@ class TestSpendRefusals:
         stub = StubClaude(world.stub_dir)
 
         with pytest.raises(SystemExit) as excinfo:
-            _cli(world, stub, "scout", "--max-cost", value)
+            cli(world, stub, "scout", "--max-cost", value)
 
         assert excinfo.value.code == 2
         assert_nothing_ran(stub, world)
@@ -133,10 +135,10 @@ DECLINED_MESSAGE = (
 class TestApprovalGate:
     def _run(self, world, stdin, *, is_tty=True, yes=False) -> tuple[int, list[tuple]]:
         """Run one trial per arm behind the gate; return the exit code and the trials that ran."""
-        deps, trial_calls = _deps_with_canned_trials(
-            _gated_deps(world, stdin, is_tty=is_tty)
+        deps, trial_calls = deps_with_canned_trials(
+            gated_deps(world, stdin, is_tty=is_tty)
         )
-        code = _cli(
+        code = cli(
             world,
             StubClaude(world.stub_dir),
             *SCOUT_HAIKU_ARGS,
@@ -224,11 +226,11 @@ class TestApprovalGate:
         assert (trial_calls, world.artifacts) == ([], [])
 
     def test_estimate_above_max_cost_exits_2_before_prompting(self, world, capsys):
-        stub = _passing_stub(world)
+        stub = passing_stub(world)
         stdin = RaisingStdin(AssertionError("stdin must not be read"))
 
         code = _run_over_max_cost(
-            world, stub, yes=False, deps=_gated_deps(world, stdin)
+            world, stub, yes=False, deps=gated_deps(world, stdin)
         )
 
         assert code == 2

@@ -1,4 +1,4 @@
-"""The CLI (scripts/model_effort_ab.py), end to end through a stub binary."""
+"""The CLI's argument handling, default dependencies and pre-run refusals (scripts/model_effort_ab.py)."""
 
 from __future__ import annotations
 
@@ -11,16 +11,10 @@ from types import SimpleNamespace
 
 import model_effort_ab
 import pytest
-from _model_effort_support import (
-    SCOUT_HAIKU_ARGS,
-    StubClaude,
-    _cli,
-    _make_file_fixture,
-    _passing_stub,
-    _write_agent,
-    _write_expected,
-    assert_nothing_ran,
-)
+from ab_constants import SCOUT_HAIKU_ARGS
+from ab_inputs import make_file_fixture, write_agent_file, write_expected
+from ab_stub_claude import StubClaude
+from ab_world import assert_nothing_ran, cli, passing_stub
 from model_effort import external, paths, runner
 
 
@@ -103,7 +97,7 @@ class TestPreRunRefusals:
         stub = StubClaude(world.stub_dir)
         world.artifact_path.write_text("sentinel", encoding="utf-8")
 
-        code = _cli(world, stub, *SCOUT_HAIKU_ARGS)
+        code = cli(world, stub, *SCOUT_HAIKU_ARGS)
 
         assert code == 2
         assert stub.calls == []
@@ -115,7 +109,7 @@ class TestPreRunRefusals:
         stub = StubClaude(world.stub_dir)
         world.artifact_path.write_text("x", encoding="utf-8")
 
-        _cli(world, stub, *SCOUT_HAIKU_ARGS)
+        cli(world, stub, *SCOUT_HAIKU_ARGS)
 
         stderr = capsys.readouterr().err
         assert "already exists" in stderr and "rerun" in stderr
@@ -125,7 +119,7 @@ class TestPreRunRefusals:
     ):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "no-such-agent")
+        code = cli(world, stub, "no-such-agent")
 
         stderr = capsys.readouterr().err
         assert code == 2
@@ -138,7 +132,7 @@ class TestPreRunRefusals:
     ):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "scout", "--fixtures", "clean-form,nope")
+        code = cli(world, stub, "scout", "--fixtures", "clean-form,nope")
 
         stderr = capsys.readouterr().err
         assert code == 2
@@ -151,7 +145,7 @@ class TestPreRunRefusals:
     ):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "scout", "--fixtures", ",")
+        code = cli(world, stub, "scout", "--fixtures", ",")
 
         assert code == 2
         assert "named no stems" in capsys.readouterr().err
@@ -162,7 +156,7 @@ class TestPreRunRefusals:
     ):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "scout", "--fixtures", "other-only")
+        code = cli(world, stub, "scout", "--fixtures", "other-only")
 
         assert code == 2
         assert "other-only" in capsys.readouterr().err
@@ -173,7 +167,7 @@ class TestPreRunRefusals:
     ):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "lonely")
+        code = cli(world, stub, "lonely")
 
         assert code == 2
         assert "no fixtures were found" in capsys.readouterr().err
@@ -182,7 +176,7 @@ class TestPreRunRefusals:
     def test_write_capable_agent_exits_2_before_any_trial(self, world, capsys):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "write-capable")
+        code = cli(world, stub, "write-capable")
 
         err = capsys.readouterr().err
         assert code == 2
@@ -197,7 +191,7 @@ class TestPreRunRefusals:
         stub = StubClaude(world.stub_dir)
         world.runs_dir.rmdir()
 
-        code = _cli(world, stub, *SCOUT_HAIKU_ARGS)
+        code = cli(world, stub, *SCOUT_HAIKU_ARGS)
 
         assert code == 2
         assert "runs directory" in capsys.readouterr().err
@@ -208,7 +202,7 @@ class TestPreRunRefusals:
         broken = world.expected_dir / "broken.json"
         broken.write_text("{not json", encoding="utf-8")
 
-        code = _cli(world, stub, "scout")
+        code = cli(world, stub, "scout")
 
         assert code == 2
         assert str(broken) in capsys.readouterr().err
@@ -217,7 +211,7 @@ class TestPreRunRefusals:
     def test_misspelled_candidate_effort_exits_2_before_any_trial(self, world, capsys):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "scout", "--effort", "hgih")
+        code = cli(world, stub, "scout", "--effort", "hgih")
 
         stderr = capsys.readouterr().err
         assert code == 2
@@ -229,7 +223,7 @@ class TestPreRunRefusals:
     ):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "scout", "--model", "../../etc")
+        code = cli(world, stub, "scout", "--model", "../../etc")
 
         assert code == 2
         assert "--model" in capsys.readouterr().err
@@ -251,7 +245,7 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
         stub = StubClaude(world.stub_dir)
 
         with pytest.raises(SystemExit) as excinfo:
-            _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", trials)
+            cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", trials)
 
         self._assert_refused(
             world, stub, capsys, excinfo.value.code, "a whole number of 1 or more"
@@ -261,7 +255,7 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
         "write_agent",
         [
             pytest.param(
-                lambda agents_dir: _write_agent(
+                lambda agents_dir: write_agent_file(
                     agents_dir, "odd", "Read", model="sonnet"
                 ),
                 id="no-effort",
@@ -280,7 +274,7 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
         write_agent(world.deps.eval_paths.agents_dir)
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "odd", "--model", "haiku", "--effort", "low")
+        code = cli(world, stub, "odd", "--model", "haiku", "--effort", "low")
 
         self._assert_refused(
             world,
@@ -297,7 +291,7 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
         stub = StubClaude(world.stub_dir)
 
         with pytest.raises(SystemExit) as excinfo:
-            _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trial-timeout", seconds)
+            cli(world, stub, *SCOUT_HAIKU_ARGS, "--trial-timeout", seconds)
 
         self._assert_refused(
             world, stub, capsys, excinfo.value.code, "a whole number of 1 or more"
@@ -318,7 +312,7 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
     ):
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "scout", *overrides)
+        code = cli(world, stub, "scout", *overrides)
 
         self._assert_refused(
             world, stub, capsys, code, "pass a different --model or --effort"
@@ -335,14 +329,14 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
     def test_malformed_frontmatter_value_is_refused_naming_the_key_and_value(
         self, world, capsys, model, effort, named_key, bad_value
     ):
-        _write_agent(
+        write_agent_file(
             world.deps.eval_paths.agents_dir, "odd", "Read", model=model, effort=effort
         )
-        _write_expected(world.expected_dir, "odd-case", "odd", "pass")
-        _make_file_fixture(world.deps.eval_paths.fixtures_dir, "odd-case.txt")
+        write_expected(world.expected_dir, "odd-case", "odd", "pass")
+        make_file_fixture(world.deps.eval_paths.fixtures_dir, "odd-case.txt")
         stub = StubClaude(world.stub_dir)
 
-        code = _cli(world, stub, "odd", "--model", "haiku", "--effort", "low")
+        code = cli(world, stub, "odd", "--model", "haiku", "--effort", "low")
 
         err = capsys.readouterr().err
         assert code == 2
@@ -352,8 +346,8 @@ class TestInvalidArgumentsAreRefusedBeforeTheEstimate:
         assert_nothing_ran(stub, world)
 
     def test_a_partial_override_that_changes_one_value_is_accepted(self, world):
-        stub = _passing_stub(world)
+        stub = passing_stub(world)
 
-        code = _cli(world, stub, "scout", "--effort", "low", "--trials", "1")
+        code = cli(world, stub, "scout", "--effort", "low", "--trials", "1")
 
         assert code == 0

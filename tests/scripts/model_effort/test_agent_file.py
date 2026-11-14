@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import pytest
-from _model_effort_support import _write_agent
+from ab_inputs import write_agent_file
 from model_effort import agent_file
 
 
 class TestLoadAgentFile:
     def test_returns_frontmatter_and_body_from_one_read(self, agents_dir):
-        _write_agent(agents_dir, "scout", "Read, Grep", body="You are scout.")
+        write_agent_file(agents_dir, "scout", "Read, Grep", body="You are scout.")
 
         loaded = agent_file.load_agent_file("scout", agents_dir)
 
@@ -31,8 +31,8 @@ class TestLoadAgentFile:
         assert loaded.body == "Intro\n\n---\n\nAfter the rule\n"
 
     def test_unknown_agent_raises_listing_valid_names(self, agents_dir):
-        _write_agent(agents_dir, "alpha")
-        _write_agent(agents_dir, "beta")
+        write_agent_file(agents_dir, "alpha")
+        write_agent_file(agents_dir, "beta")
 
         with pytest.raises(agent_file.UnknownAgentError) as excinfo:
             agent_file.load_agent_file("gamma", agents_dir)
@@ -42,7 +42,7 @@ class TestLoadAgentFile:
         assert "alpha" in message and "beta" in message
 
     def test_agent_name_with_path_separator_is_unknown(self, agents_dir):
-        _write_agent(agents_dir, "alpha")
+        write_agent_file(agents_dir, "alpha")
         (agents_dir.parent / "outside.md").write_text(
             "---\ntools: Read\n---\n", encoding="utf-8"
         )

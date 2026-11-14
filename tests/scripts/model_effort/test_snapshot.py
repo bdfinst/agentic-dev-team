@@ -9,26 +9,26 @@ import signal
 from pathlib import Path
 
 import pytest
-from _model_effort_support import (
-    CLEAN_FORM_ARGS,
-    MAX_COST_BELOW_ESTIMATE,
-    WORLD_KNOWLEDGE_NOTE,
+from ab_constants import CLEAN_FORM_ARGS, MAX_COST_BELOW_ESTIMATE, WORLD_KNOWLEDGE_NOTE
+from ab_inputs import (
+    eval_paths_with,
+    make_directory_fixture,
+    make_file_fixture,
+    read_tree,
+    write_expected,
+)
+from ab_results import flat_run_estimate
+from ab_signals import signal_own_thread
+from ab_world import (
     World,
-    _arm_block,
-    _cli,
-    _cli_canned,
-    _deps_raising_after,
-    _deps_with_canned_trials,
-    _eval_paths,
-    _make_directory_fixture,
-    _make_file_fixture,
-    _outcomes,
-    _passing_stub,
-    _run_estimate,
-    _snapshot,
-    _write_expected,
-    _written,
-    signal_own_thread,
+    arm_block,
+    cli,
+    cli_canned,
+    deps_raising_after,
+    deps_with_canned_trials,
+    outcomes_of,
+    passing_stub,
+    read_artifact,
 )
 from model_effort import (
     artifact_store,
@@ -50,10 +50,10 @@ class TestRunInputsAreFrozenAtPlanTime:
         paths_ = world.deps.eval_paths
         (paths_.fixtures_dir / "clean-form.html").write_text("EDITED", encoding="utf-8")
         (paths_.knowledge_dir / "note.md").write_text("EDITED", encoding="utf-8")
-        _write_expected(paths_.expected_dir, "clean-form", "scout", "fail")
+        write_expected(paths_.expected_dir, "clean-form", "scout", "fail")
 
     def _deps_editing_sources_in_the_first_trial(self, world: World):
-        canned, _ = _deps_with_canned_trials(world.deps)
+        canned, _ = deps_with_canned_trials(world.deps)
         seen: list[tuple[str, str]] = []
 
         def run_trial(fixture, config, timeout):
@@ -70,18 +70,18 @@ class TestRunInputsAreFrozenAtPlanTime:
     ):
         deps, seen = self._deps_editing_sources_in_the_first_trial(world)
 
-        code = _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "2")
+        code = cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "2")
 
-        written = _written(world)
+        written = read_artifact(world)
         assert code == 0
         assert seen == [("<form></form>", WORLD_KNOWLEDGE_NOTE)] * 4
-        assert _outcomes(written, BASELINE_LABEL) == ["pass", "pass"]
-        assert _outcomes(written, CANDIDATE_LABEL) == ["pass", "pass"]
+        assert outcomes_of(written, BASELINE_LABEL) == ["pass", "pass"]
+        assert outcomes_of(written, CANDIDATE_LABEL) == ["pass", "pass"]
 
     def test_the_trial_reads_a_private_copy_and_cannot_reach_the_expected_answers(
         self, world
     ):
-        canned, _ = _deps_with_canned_trials(world.deps)
+        canned, _ = deps_with_canned_trials(world.deps)
         seen = []
 
         def run_trial(fixture, config, timeout):
@@ -96,7 +96,7 @@ class TestRunInputsAreFrozenAtPlanTime:
             )
             return canned.run_trial(fixture, config, timeout)
 
-        _cli_canned(
+        cli_canned(
             world,
             dataclasses.replace(world.deps, run_trial=run_trial),
             *CLEAN_FORM_ARGS,
@@ -113,18 +113,18 @@ class TestRunInputsAreFrozenAtPlanTime:
         assert knowledge not in expected_dir.parents
 
     def test_the_artifact_still_names_the_source_knowledge_dir(self, world):
-        canned, _ = _deps_with_canned_trials(world.deps)
+        canned, _ = deps_with_canned_trials(world.deps)
 
-        _cli_canned(world, canned, *CLEAN_FORM_ARGS, "--trials", "1")
+        cli_canned(world, canned, *CLEAN_FORM_ARGS, "--trials", "1")
 
-        assert _written(world)["knowledge_dir"] == str(
+        assert read_artifact(world)["knowledge_dir"] == str(
             world.deps.eval_paths.knowledge_dir
         )
 
     def test_trials_are_configured_and_graded_from_the_plans_snapshot(
         self, world, scout_plan
     ):
-        canned, calls = _deps_with_canned_trials(world.deps)
+        canned, calls = deps_with_canned_trials(world.deps)
         settings = run_types.TrialSettings(
             trials=trial_count.TrialCount(1, "test"),
             trial_timeout_seconds=1,
@@ -132,10 +132,10 @@ class TestRunInputsAreFrozenAtPlanTime:
         )
         # The live entry says a pass is right; only the snapshot's copy says fail.
         frozen_expected = scout_plan.snapshot.paths.expected_dir
-        _write_expected(frozen_expected, "clean-form", "scout", "fail")
+        write_expected(frozen_expected, "clean-form", "scout", "fail")
 
         run = execution.run_trials(
-            scout_plan, settings, _run_estimate(), run_trial=canned.run_trial
+            scout_plan, settings, flat_run_estimate(), run_trial=canned.run_trial
         )
 
         assert {config.snapshot_paths for _, config, _ in calls} == {
@@ -151,7 +151,7 @@ class TestRunInputsAreFrozenAtPlanTime:
         assert graded and set(graded) == {Outcome.GRADED_FAIL}
 
     def test_fixture_trials_carry_the_plans_skip_expectation(self, world, scout_plan):
-        canned, _ = _deps_with_canned_trials(world.deps)
+        canned, _ = deps_with_canned_trials(world.deps)
         settings = run_types.TrialSettings(
             trials=trial_count.TrialCount(1, "test"),
             trial_timeout_seconds=1,
@@ -167,7 +167,7 @@ class TestRunInputsAreFrozenAtPlanTime:
         )
 
         run = execution.run_trials(
-            plan, settings, _run_estimate(), run_trial=canned.run_trial
+            plan, settings, flat_run_estimate(), run_trial=canned.run_trial
         )
 
         flags = [
@@ -188,23 +188,23 @@ class TestSnapshotIsRemoved:
         return sorted(path.name for path in self.private_tmp.iterdir())
 
     def test_after_a_complete_run(self, world):
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
 
         assert code == 0
         assert self._left_over() == []
 
     def test_after_the_operator_declines(self, world):
-        code = _cli(
-            world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1", yes=False
+        code = cli(
+            world, passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1", yes=False
         )
 
         assert code == 1
         assert self._left_over() == []
 
     def test_after_the_estimate_is_refused(self, world):
-        code = _cli(
+        code = cli(
             world,
-            _passing_stub(world),
+            passing_stub(world),
             *CLEAN_FORM_ARGS,
             "--max-cost",
             str(MAX_COST_BELOW_ESTIMATE),
@@ -216,7 +216,7 @@ class TestSnapshotIsRemoved:
     def test_after_the_artifact_path_cannot_be_reserved(self, world):
         shutil.rmtree(world.runs_dir)
 
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS)
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS)
 
         assert code == 2
         assert self._left_over() == []
@@ -227,7 +227,7 @@ class TestSnapshotIsRemoved:
     def test_after_the_runs_directory_refuses_the_placeholder(self, world, capsys):
         world.runs_dir.chmod(0o500)
         try:
-            code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS)
+            code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS)
         finally:
             world.runs_dir.chmod(0o700)
 
@@ -240,9 +240,9 @@ class TestSnapshotIsRemoved:
         "error", [KeyboardInterrupt(), RuntimeError("boom")], ids=["interrupt", "error"]
     )
     def test_after_a_trial_is_cut_short(self, world, error):
-        deps = _deps_raising_after(world, 1, error)
+        deps = deps_raising_after(world, 1, error)
 
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, deps=deps)
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS, deps=deps)
 
         assert code == 1
         assert self._left_over() == []
@@ -268,7 +268,7 @@ class TestRunResourcesSurviveSignals:
 
         monkeypatch.setattr(snapshot.shutil, "copytree", interrupted_copy)
 
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS)
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS)
 
         assert code == 1
         assert self._left_over() == []
@@ -297,7 +297,7 @@ class TestRunResourcesSurviveSignals:
         # Wraps the step: a signal can be sent into the window after it only by hand.
         monkeypatch.setattr(owner, name, make_then_signal)
 
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS)
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS)
 
         assert code == 1
         assert self._left_over() == []
@@ -314,11 +314,11 @@ class TestRunResourcesSurviveSignals:
 
         monkeypatch.setattr(snapshot, "remove_tree", signal_then_remove)
 
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
 
         assert code == 1
         assert self._left_over() == []
-        assert _written(world)["status"] == "complete"
+        assert read_artifact(world)["status"] == "complete"
 
 
 class TestSnapshotPathsAreScrubbed:
@@ -335,9 +335,9 @@ class TestSnapshotPathsAreScrubbed:
 
         deps = dataclasses.replace(world.deps, run_trial=failing_trial)
 
-        _cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "1")
+        cli_canned(world, deps, *CLEAN_FORM_ARGS, "--trials", "1")
 
-        trial = _arm_block(_written(world), BASELINE_LABEL)["fixtures"][0]["trials"][0]
+        trial = arm_block(read_artifact(world), BASELINE_LABEL)["fixtures"][0]["trials"][0]
         assert trial["error"] == (
             "exit code 1: cannot read <snapshot>/plugin/knowledge/missing.md"
         )
@@ -350,10 +350,10 @@ class TestTakeSnapshot:
         for directory in (fixtures_dir, expected_dir, knowledge / "sub"):
             directory.mkdir(parents=True)
         (knowledge / "sub" / "deep.md").write_text("deep", encoding="utf-8")
-        _make_file_fixture(fixtures_dir, "a.html", "<a>")
-        _make_directory_fixture(fixtures_dir)
+        make_file_fixture(fixtures_dir, "a.html", "<a>")
+        make_directory_fixture(fixtures_dir)
         for stem in ("a", "service", "unused"):
-            _write_expected(expected_dir, stem, "scout", "pass")
+            write_expected(expected_dir, stem, "scout", "pass")
         fixtures = [
             fixture_resolution.ResolvedFixture(
                 "a", fixtures_dir / "a.html", fixture_resolution.FixtureKind.FILE, True
@@ -365,7 +365,7 @@ class TestTakeSnapshot:
                 True,
             ),
         ]
-        source = _eval_paths(
+        source = eval_paths_with(
             agents_dir=tmp_path / "agents-elsewhere",
             expected_dir=expected_dir,
             fixtures_dir=fixtures_dir,
@@ -381,13 +381,13 @@ class TestTakeSnapshot:
         with snapshot.take_snapshot(source, fixtures) as taken:
             fixture_names = [fixture.path.name for fixture in taken.fixtures]
             copied_contents = [
-                sorted(_snapshot(fixture.path).values()) for fixture in taken.fixtures
+                sorted(read_tree(fixture.path).values()) for fixture in taken.fixtures
             ]
             expected_names = sorted(
                 path.name for path in taken.paths.expected_dir.iterdir()
             )
             knowledge_contents = list(
-                _snapshot(taken.paths.knowledge_dir).values()
+                read_tree(taken.paths.knowledge_dir).values()
             )
 
         assert fixture_names == ["a.html", "service"]

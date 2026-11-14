@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 
-import _model_effort_support  # noqa: F401  (puts the harness on sys.path first)
+import ab_harness_path  # noqa: F401  (puts the harness on sys.path first)
 import pytest
 from model_effort import check_jail
 

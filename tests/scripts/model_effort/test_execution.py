@@ -6,7 +6,7 @@ import dataclasses
 from types import SimpleNamespace
 
 import pytest
-from _model_effort_support import (
+from ab_constants import (
     ARM_COUNT,
     BASELINE_TWO_ARM_ESTIMATE,
     CANDIDATE_TWO_ARM_ESTIMATE,
@@ -19,23 +19,27 @@ from _model_effort_support import (
     SCOUT_TRIALS,
     SONNET_MODEL_ID,
     TRIAL_COST,
+)
+from ab_stub_claude import (
     StubClaude,
+    expected_session_config,
+    flag_value,
+    init_event,
+    result_event,
+    stream_of,
+    verdict_call,
+)
+from ab_world import (
     World,
-    _arm_block,
-    _cli,
-    _deps_raising_after,
-    _deps_timing_out,
-    _deps_with_canned_trials,
-    _expected_session_config,
-    _flag_value,
-    _init_event,
-    _outcomes,
-    _passing_stub,
-    _result_event,
-    _stream,
-    _verdict_call,
-    _written,
+    arm_block,
     assert_cut_at_limit,
+    cli,
+    deps_raising_after,
+    deps_timing_out,
+    deps_with_canned_trials,
+    outcomes_of,
+    passing_stub,
+    read_artifact,
 )
 from model_effort import external, grading, plan
 from model_effort.arm import BASELINE_LABEL, CANDIDATE_LABEL
@@ -44,8 +48,8 @@ FAIL_VERDICT = {"status": "fail", "issues": [], "summary": "Layer violation."}
 
 
 def _unparseable_call(model_id: str) -> dict:
-    result = _result_event("No JSON here.", model_usage={model_id: {}})
-    return {"stdout": _stream(_init_event(model_id), result)}
+    result = result_event("No JSON here.", model_usage={model_id: {}})
+    return {"stdout": stream_of(init_event(model_id), result)}
 
 
 def _two_arm_stub(world: World) -> StubClaude:
@@ -55,10 +59,10 @@ def _two_arm_stub(world: World) -> StubClaude:
     layered-svc trial calls WebFetch.
     """
     stub = StubClaude(world.stub_dir)
-    baseline_pass = _verdict_call(PASS_VERDICT, SONNET_MODEL_ID)
-    baseline_fail = _verdict_call(FAIL_VERDICT, SONNET_MODEL_ID)
-    candidate_pass = _verdict_call(PASS_VERDICT, HAIKU_MODEL_ID)
-    candidate_fail = _verdict_call(FAIL_VERDICT, HAIKU_MODEL_ID)
+    baseline_pass = verdict_call(PASS_VERDICT, SONNET_MODEL_ID)
+    baseline_fail = verdict_call(FAIL_VERDICT, SONNET_MODEL_ID)
+    candidate_pass = verdict_call(PASS_VERDICT, HAIKU_MODEL_ID)
+    candidate_fail = verdict_call(FAIL_VERDICT, HAIKU_MODEL_ID)
     stub.queue(
         baseline_pass,
         candidate_pass,
@@ -67,7 +71,7 @@ def _two_arm_stub(world: World) -> StubClaude:
         baseline_pass,
         candidate_pass,
         baseline_fail,
-        _verdict_call(FAIL_VERDICT, HAIKU_MODEL_ID, "WebFetch"),
+        verdict_call(FAIL_VERDICT, HAIKU_MODEL_ID, "WebFetch"),
         baseline_fail,
         candidate_fail,
         baseline_fail,
@@ -78,8 +82,8 @@ def _two_arm_stub(world: World) -> StubClaude:
 
 def _run_two_arm_scenario(world: World) -> tuple[int, dict, StubClaude]:
     stub = _two_arm_stub(world)
-    code = _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", str(SCOUT_TRIALS))
-    return code, _written(world), stub
+    code = cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", str(SCOUT_TRIALS))
+    return code, read_artifact(world), stub
 
 
 def _trial(outcome_name: str, error: str | None = None) -> dict:
@@ -117,27 +121,27 @@ class TestTwoArmRun:
             "tier_change_eligible": True,
             "fidelity": "read-only-profile",
             "knowledge_dir": str(world.deps.eval_paths.knowledge_dir),
-            "session_config": _expected_session_config(SONNET_MODEL_ID),
+            "session_config": expected_session_config(SONNET_MODEL_ID),
         }
 
     def test_artifact_git_sha_is_null_when_the_repository_has_no_head(self, world):
         deps = dataclasses.replace(world.deps, read_git_sha=lambda: None)
 
-        _cli(
+        cli(
             world,
-            _passing_stub(world),
+            passing_stub(world),
             *CLEAN_FORM_ARGS,
             "--trials",
             "1",
             deps=deps,
         )
 
-        assert _written(world)["git_sha"] is None
+        assert read_artifact(world)["git_sha"] is None
 
     def test_baseline_arm_records_configuration_trials_and_totals(self, world):
         _, written, _ = _run_two_arm_scenario(world)
 
-        assert _arm_block(written, BASELINE_LABEL) == {
+        assert arm_block(written, BASELINE_LABEL) == {
             "label": "baseline",
             "model": "sonnet",
             "model_id": SONNET_MODEL_ID,
@@ -148,7 +152,7 @@ class TestTwoArmRun:
             "trials_per_fixture": SCOUT_TRIALS,
             "estimated_cost_usd": pytest.approx(BASELINE_TWO_ARM_ESTIMATE),
             "estimated_judge_cost_usd": 0.0,
-            "session_config": _expected_session_config(SONNET_MODEL_ID),
+            "session_config": expected_session_config(SONNET_MODEL_ID),
             "fixtures": [
                 _fixture_block("clean-form", "file", True, [_trial("pass")] * 3),
                 _fixture_block("layered-svc", "directory", False, [_trial("pass")] * 3),
@@ -171,7 +175,7 @@ class TestTwoArmRun:
     def test_candidate_arm_records_its_parse_failure_and_tool_violation(self, world):
         _, written, _ = _run_two_arm_scenario(world)
 
-        assert _arm_block(written, CANDIDATE_LABEL) == {
+        assert arm_block(written, CANDIDATE_LABEL) == {
             "label": "candidate",
             "model": "haiku",
             "model_id": HAIKU_MODEL_ID,
@@ -182,7 +186,7 @@ class TestTwoArmRun:
             "trials_per_fixture": SCOUT_TRIALS,
             "estimated_cost_usd": pytest.approx(CANDIDATE_TWO_ARM_ESTIMATE),
             "estimated_judge_cost_usd": 0.0,
-            "session_config": _expected_session_config(HAIKU_MODEL_ID),
+            "session_config": expected_session_config(HAIKU_MODEL_ID),
             "fixtures": [
                 _fixture_block(
                     "clean-form",
@@ -226,7 +230,7 @@ class TestTwoArmRun:
         _, _, stub = _run_two_arm_scenario(world)
 
         calls = stub.calls
-        assert [_flag_value(c["argv"], "--model") for c in calls] == [
+        assert [flag_value(c["argv"], "--model") for c in calls] == [
             "sonnet",
             "haiku",
         ] * 6
@@ -235,9 +239,9 @@ class TestTwoArmRun:
         assert staged[6:] == [["layered-svc/src/app.py"]] * 6
 
     def test_candidate_inherits_baseline_values_for_omitted_flags(self, world):
-        stub = _passing_stub(world)
+        stub = passing_stub(world)
 
-        _cli(
+        cli(
             world,
             stub,
             "scout",
@@ -249,16 +253,16 @@ class TestTwoArmRun:
             "1",
         )
 
-        written = _written(world)
-        baseline = _arm_block(written, BASELINE_LABEL)
-        candidate = _arm_block(written, CANDIDATE_LABEL)
+        written = read_artifact(world)
+        baseline = arm_block(written, BASELINE_LABEL)
+        candidate = arm_block(written, CANDIDATE_LABEL)
         assert (baseline["model"], baseline["effort"]) == ("sonnet", "high")
         assert (candidate["model"], candidate["effort"]) == ("sonnet", "low")
 
     def test_fixtures_flag_restricts_the_run_to_the_named_stems(self, world):
-        stub = _passing_stub(world)
+        stub = passing_stub(world)
 
-        code = _cli(
+        code = cli(
             world,
             stub,
             *SCOUT_HAIKU_ARGS,
@@ -273,9 +277,9 @@ class TestTwoArmRun:
         assert all("layered-svc/src/app.py" in c["files_before"] for c in stub.calls)
 
     def test_a_fixture_named_twice_runs_once_per_arm(self, world):
-        deps, trial_calls = _deps_with_canned_trials(world.deps)
+        deps, trial_calls = deps_with_canned_trials(world.deps)
 
-        code = _cli(
+        code = cli(
             world,
             StubClaude(world.stub_dir),
             "scout",
@@ -288,19 +292,19 @@ class TestTwoArmRun:
             deps=deps,
         )
 
-        written = _written(world)
+        written = read_artifact(world)
         assert code == 0
         assert len(trial_calls) == ARM_COUNT
         for label in (BASELINE_LABEL, CANDIDATE_LABEL):
-            stems = [f["stem"] for f in _arm_block(written, label)["fixtures"]]
+            stems = [f["stem"] for f in arm_block(written, label)["fixtures"]]
             assert stems == ["clean-form"]
 
     def test_enabled_tools_reach_the_cli_and_withheld_tools_only_the_artifact(
         self, world
     ):
-        stub = _passing_stub(world)
+        stub = passing_stub(world)
 
-        _cli(
+        cli(
             world,
             stub,
             *CLEAN_FORM_ARGS,
@@ -309,15 +313,15 @@ class TestTwoArmRun:
         )
 
         for call in stub.calls:
-            assert _flag_value(call["argv"], "--tools") == "Read,Grep"
+            assert flag_value(call["argv"], "--tools") == "Read,Grep"
             assert not any("mcp__" in arg for arg in call["argv"])
-        for arm in _written(world)["arms"]:
+        for arm in read_artifact(world)["arms"]:
             assert arm["tools_withheld"] == ["mcp__x__y", "Bash(graphify *)"]
 
     def test_artifact_path_is_reserved_empty_before_the_first_trial(self, world):
-        stub = _passing_stub(world, observe=str(world.artifact_path))
+        stub = passing_stub(world, observe=str(world.artifact_path))
 
-        _cli(
+        cli(
             world,
             stub,
             *CLEAN_FORM_ARGS,
@@ -328,16 +332,16 @@ class TestTwoArmRun:
         assert stub.calls[0]["observed"] == {"exists": True, "size": 0}
 
     def test_trial_that_times_out_is_recorded_as_a_timeout_in_the_artifact(self, world):
-        _cli(
+        cli(
             world,
             StubClaude(world.stub_dir),
             *CLEAN_FORM_ARGS,
             "--trials",
             "1",
-            deps=_deps_timing_out(world),
+            deps=deps_timing_out(world),
         )
 
-        baseline = _arm_block(_written(world), BASELINE_LABEL)
+        baseline = arm_block(read_artifact(world), BASELINE_LABEL)
         trial = baseline["fixtures"][0]["trials"][0]
         assert baseline["totals"]["timeout"] == 1
         assert (trial["outcome"], trial["error"]) == (
@@ -352,15 +356,15 @@ class TestToolViolationFollowsThePlansToolProfile:
     ):
         stub = StubClaude(
             world.stub_dir,
-            **_verdict_call(PASS_VERDICT, SONNET_MODEL_ID, "Glob"),
+            **verdict_call(PASS_VERDICT, SONNET_MODEL_ID, "Glob"),
         )
 
-        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "1")
+        code = cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "1")
 
-        written = _written(world)
-        trial = _arm_block(written, BASELINE_LABEL)["fixtures"][0]["trials"][0]
+        written = read_artifact(world)
+        trial = arm_block(written, BASELINE_LABEL)["fixtures"][0]["trials"][0]
         assert code == 0
-        assert _arm_block(written, BASELINE_LABEL)["tools_enabled"] == ["Read", "Grep"]
+        assert arm_block(written, BASELINE_LABEL)["tools_enabled"] == ["Read", "Grep"]
         assert trial["outcome"] == "tool_violation"
         assert trial["error"] == "tools outside the enabled set: Glob"
 
@@ -369,24 +373,24 @@ class TestUnexpectedTrialError:
     def test_error_in_a_trial_keeps_the_completed_trials_and_marks_the_artifact_harness_error(
         self, world, capsys
     ):
-        code = _cli(
+        code = cli(
             world,
-            _passing_stub(world),
+            passing_stub(world),
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
-            deps=_deps_raising_after(world, 3, RuntimeError("staging exploded")),
+            deps=deps_raising_after(world, 3, RuntimeError("staging exploded")),
         )
 
-        written = _written(world)
+        written = read_artifact(world)
         err = capsys.readouterr().err
         assert code == 1
         assert (written["status"], written["abort_reason"]) == (
             "incomplete",
             "harness-error",
         )
-        assert _outcomes(written, BASELINE_LABEL) == ["pass", "pass"]
-        assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
+        assert outcomes_of(written, BASELINE_LABEL) == ["pass", "pass"]
+        assert outcomes_of(written, CANDIDATE_LABEL) == ["pass"]
         assert "run stopped early (harness-error)" in err
         assert "RuntimeError: staging exploded" in err
         assert f"artifact written: {world.artifact_path}" in err
@@ -395,13 +399,13 @@ class TestUnexpectedTrialError:
         self, world, capsys
     ):
         long_message = "m" * (4 * CAUSE_LIMIT)
-        _cli(
+        cli(
             world,
-            _passing_stub(world),
+            passing_stub(world),
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
-            deps=_deps_raising_after(world, 1, RuntimeError(long_message)),
+            deps=deps_raising_after(world, 1, RuntimeError(long_message)),
         )
 
         assert_cut_at_limit(capsys.readouterr().err, "RuntimeError: ", "m")
@@ -409,13 +413,13 @@ class TestUnexpectedTrialError:
     def test_terminal_control_sequences_in_the_error_are_shown_escaped(
         self, world, capsys
     ):
-        _cli(
+        cli(
             world,
-            _passing_stub(world),
+            passing_stub(world),
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
-            deps=_deps_raising_after(world, 1, RuntimeError("\x1b[2Jgone")),
+            deps=deps_raising_after(world, 1, RuntimeError("\x1b[2Jgone")),
         )
 
         err = capsys.readouterr().err
@@ -431,9 +435,9 @@ class TestUnexpectedTrialError:
         monkeypatch.setattr(plan, "check_expected_entries", lambda *_args: None)
         monkeypatch.setattr(grading, "shutil", SimpleNamespace(copy2=failing_copy))
 
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "2")
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "2")
 
-        written = _written(world)
+        written = read_artifact(world)
         assert code == 1
         assert written["abort_reason"] == "harness-error"
         assert [arm["fixtures"] for arm in written["arms"]] == [[], []]
@@ -447,9 +451,9 @@ class TestUnexpectedTrialError:
             external.eval_grade(), "run_grading", lambda **_kwargs: "drifted"
         )
 
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "2")
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "2")
 
-        written = _written(world)
+        written = read_artifact(world)
         assert code == 1
         assert written["abort_reason"] == "harness-error"
         assert [arm["fixtures"] for arm in written["arms"]] == [[], []]
@@ -458,16 +462,16 @@ class TestUnexpectedTrialError:
     def test_error_in_the_first_trial_still_writes_an_artifact_with_no_results(
         self, world
     ):
-        code = _cli(
+        code = cli(
             world,
-            _passing_stub(world),
+            passing_stub(world),
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
-            deps=_deps_raising_after(world, 0, RuntimeError("no staging dir")),
+            deps=deps_raising_after(world, 0, RuntimeError("no staging dir")),
         )
 
-        written = _written(world)
+        written = read_artifact(world)
         assert code == 1
         assert written["abort_reason"] == "harness-error"
         assert [arm["fixtures"] for arm in written["arms"]] == [[], []]

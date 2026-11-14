@@ -3,11 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from _model_effort_support import (
-    _make_directory_fixture,
-    _make_file_fixture,
-    _write_expected,
-)
+from ab_inputs import make_directory_fixture, make_file_fixture, write_expected
 from model_effort import fixtures as fixture_resolution
 from model_effort.errors import UsageError
 
@@ -54,7 +50,7 @@ class TestIsExpectedSkip:
 
 class TestDescribeFixture:
     def test_file_stem_drops_one_extension_and_kind_is_file(self, fixture_root):
-        path = _make_file_fixture(fixture_root, "a.b.html")
+        path = make_file_fixture(fixture_root, "a.b.html")
 
         assert fixture_resolution.describe_fixture(path) == (
             "a.b",
@@ -62,7 +58,7 @@ class TestDescribeFixture:
         )
 
     def test_directory_stem_is_its_name_and_kind_is_directory(self, fixture_root):
-        path = _make_directory_fixture(fixture_root)
+        path = make_directory_fixture(fixture_root)
 
         assert fixture_resolution.describe_fixture(path) == (
             "service",
@@ -74,7 +70,7 @@ class TestResolveFixtures:
     def test_agent_named_by_no_expected_entry_is_refused_saying_so(
         self, expected_dir, fixture_root
     ):
-        _write_expected(expected_dir, "other-case", "other", "pass")
+        write_expected(expected_dir, "other-case", "other", "pass")
 
         with pytest.raises(UsageError) as excinfo:
             fixture_resolution.resolve_fixtures(
@@ -86,8 +82,8 @@ class TestResolveFixtures:
     def test_entries_without_a_matching_fixture_are_refused_listing_the_stems(
         self, expected_dir, fixture_root
     ):
-        _write_expected(expected_dir, "ghost-case", "scout", "pass")
-        _write_expected(expected_dir, "phantom-case", "scout", "fail")
+        write_expected(expected_dir, "ghost-case", "scout", "pass")
+        write_expected(expected_dir, "phantom-case", "scout", "fail")
 
         with pytest.raises(UsageError) as excinfo:
             fixture_resolution.resolve_fixtures(
@@ -102,9 +98,9 @@ class TestResolveFixtures:
     def test_runnable_fixtures_carry_kind_path_and_expected_clean(
         self, expected_dir, fixture_root
     ):
-        _write_expected(expected_dir, "clean-form", "scout", "pass")
-        _write_expected(expected_dir, "layered-svc", "scout", "fail")
-        form = _make_file_fixture(fixture_root, "clean-form.html")
+        write_expected(expected_dir, "clean-form", "scout", "pass")
+        write_expected(expected_dir, "layered-svc", "scout", "fail")
+        form = make_file_fixture(fixture_root, "clean-form.html")
         service = fixture_root / "layered-svc"
         service.mkdir()
 
@@ -130,8 +126,8 @@ class TestResolveFixtures:
     def test_a_skip_expected_fixture_resolves_as_clean_and_skip(
         self, expected_dir, fixture_root
     ):
-        _write_expected(expected_dir, "out-of-scope", "scout", "skip")
-        _make_file_fixture(fixture_root, "out-of-scope.md")
+        write_expected(expected_dir, "out-of-scope", "scout", "skip")
+        make_file_fixture(fixture_root, "out-of-scope.md")
 
         (resolved,) = fixture_resolution.resolve_fixtures(
             "scout", None, expected_dir, fixture_root
@@ -142,7 +138,7 @@ class TestResolveFixtures:
     def test_missing_fixtures_directory_is_refused_naming_it(
         self, expected_dir, tmp_path
     ):
-        _write_expected(expected_dir, "clean-form", "scout", "pass")
+        write_expected(expected_dir, "clean-form", "scout", "pass")
         missing = tmp_path / "no-fixtures"
 
         with pytest.raises(UsageError) as excinfo:

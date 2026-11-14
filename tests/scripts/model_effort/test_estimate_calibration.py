@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import _model_effort_support  # noqa: F401  (puts the harness on sys.path first)
+import ab_harness_path  # noqa: F401  (puts the harness on sys.path first)
 import pytest
 from model_effort import estimate, external, paths
 from model_effort.agent_file import load_agent_file

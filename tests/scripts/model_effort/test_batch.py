@@ -8,15 +8,9 @@ import json
 import re
 
 import pytest
-from _model_effort_support import (
-    CLI_FAILURE_RECORD,
-    _cli_canned,
-    _deps_with_canned_trials,
-    _make_file_fixture,
-    _stderr_lines,
-    _write_agent,
-    _write_expected,
-)
+from ab_inputs import make_file_fixture, write_agent_file, write_expected
+from ab_results import CLI_FAILURE_RECORD
+from ab_world import cli_canned, deps_with_canned_trials, stderr_lines
 from model_effort.approval import DECLINED_MESSAGE, NO_TTY_MESSAGE
 from model_effort.arm import BASELINE_LABEL
 from model_effort.stress_arms import STEP_DOWN_LABEL, STEP_UP_LABEL
@@ -28,12 +22,12 @@ ESTIMATE_TOTAL_RE = re.compile(r"total \$(\d+\.\d{4})$")
 
 def _batch_deps(world, **overrides):
     deps = dataclasses.replace(world.deps, pricing_table=OPUS_PRICING, **overrides)
-    return _deps_with_canned_trials(deps)
+    return deps_with_canned_trials(deps)
 
 
 def _batch(world, *args, yes=True, **overrides):
     deps, calls = _batch_deps(world, **overrides)
-    code = _cli_canned(
+    code = cli_canned(
         world, deps, "--batch", "sonnet", "--trials", "1", *args, yes=yes
     )
     return code, calls
@@ -58,21 +52,21 @@ def test_batch_runs_a_stress_run_for_every_runnable_agent_at_the_tier(world):
 def test_batch_skips_agents_on_other_tiers(world, capsys):
     # quick could run (it has a fixture), so only its tier keeps it out.
     paths = world.deps.eval_paths
-    _write_agent(paths.agents_dir, "quick", "Read", model="haiku", effort="low")
-    _write_expected(paths.expected_dir, "quick-only", "quick", "pass")
-    _make_file_fixture(paths.fixtures_dir, "quick-only.txt", "quick")
+    write_agent_file(paths.agents_dir, "quick", "Read", model="haiku", effort="low")
+    write_expected(paths.expected_dir, "quick-only", "quick", "pass")
+    make_file_fixture(paths.fixtures_dir, "quick-only.txt", "quick")
 
     code, _ = _batch(world)
 
     assert code == 0
     assert set(_artifacts(world)) == {"scout", "other"}
-    assert not any(line.startswith("  quick:") for line in _stderr_lines(capsys))
+    assert not any(line.startswith("  quick:") for line in stderr_lines(capsys))
 
 
 def test_batch_lists_each_skipped_agent_with_its_reason(world, capsys):
     _batch(world)
 
-    lines = _stderr_lines(capsys)
+    lines = stderr_lines(capsys)
     assert any(line.startswith("  lonely: ") for line in lines), lines
     assert any(line.startswith("  write-capable: ") for line in lines), lines
 
@@ -80,7 +74,7 @@ def test_batch_lists_each_skipped_agent_with_its_reason(world, capsys):
 def test_batch_prints_one_combined_estimate_summing_every_agent(world, capsys):
     _batch(world)
 
-    lines = _stderr_lines(capsys)
+    lines = stderr_lines(capsys)
     per_agent = [
         float(match[1])
         for line in lines
@@ -107,7 +101,7 @@ def test_batch_estimate_includes_the_rubric_judge(world, capsys, monkeypatch):
     _batch(world)
 
     batch_line = next(
-        line for line in _stderr_lines(capsys) if line.startswith("Batch estimate")
+        line for line in stderr_lines(capsys) if line.startswith("Batch estimate")
     )
     assert "rubric judge $2.0000" in batch_line
 
@@ -126,7 +120,7 @@ def test_batch_asks_once_and_runs_nothing_when_declined(world, capsys):
 def test_batch_without_yes_and_no_tty_refuses_and_runs_nothing(world, capsys):
     code, calls = _batch(world, yes=False, stdin_is_tty=lambda: False)
 
-    lines = _stderr_lines(capsys)
+    lines = stderr_lines(capsys)
     assert (code, calls, world.artifacts) == (1, [], [])
     assert f"error: {NO_TTY_MESSAGE}" in lines
     assert not any("Proceed?" in line for line in lines)
@@ -135,7 +129,7 @@ def test_batch_without_yes_and_no_tty_refuses_and_runs_nothing(world, capsys):
 def test_batch_refuses_a_combined_estimate_above_max_cost(world, capsys):
     code, calls = _batch(world, "--max-cost", "0.0000001")
 
-    lines = _stderr_lines(capsys)
+    lines = stderr_lines(capsys)
     assert (code, calls) == (2, [])
     assert any(
         line.startswith("error: batch estimate $")
@@ -149,24 +143,24 @@ def test_batch_refuses_a_combined_estimate_above_max_cost(world, capsys):
 def test_batch_with_no_runnable_agent_is_a_usage_error(world, capsys):
     deps, calls = _batch_deps(world)
 
-    code = _cli_canned(world, deps, "--batch", "haiku", "--trials", "1")
+    code = cli_canned(world, deps, "--batch", "haiku", "--trials", "1")
 
     assert (code, calls) == (2, [])
     assert (
         "error: no agent at the haiku tier can run a stress batch (none found)"
-        in _stderr_lines(capsys)
+        in stderr_lines(capsys)
     )
 
 
 def test_batch_and_an_agent_name_together_are_a_usage_error(world, capsys):
     deps, calls = _batch_deps(world)
 
-    code = _cli_canned(world, deps, "scout", "--batch", "sonnet")
+    code = cli_canned(world, deps, "scout", "--batch", "sonnet")
 
     assert (code, calls) == (2, [])
     assert (
         "error: --batch runs every agent at its tier: drop the agent name"
-        in _stderr_lines(capsys)
+        in stderr_lines(capsys)
     )
 
 
@@ -176,23 +170,23 @@ def test_batch_and_an_agent_name_together_are_a_usage_error(world, capsys):
 def test_batch_with_a_per_agent_flag_is_a_usage_error(world, capsys, flag):
     deps, calls = _batch_deps(world)
 
-    code = _cli_canned(world, deps, "--batch", "sonnet", *flag)
+    code = cli_canned(world, deps, "--batch", "sonnet", *flag)
 
     assert (code, calls, world.artifacts) == (2, [], [])
     assert (
         "error: --batch picks each agent's arms and fixtures: drop --model, "
         "--effort and --fixtures"
-    ) in _stderr_lines(capsys)
+    ) in stderr_lines(capsys)
 
 
 def test_neither_an_agent_nor_a_batch_is_a_usage_error(world, capsys):
     deps, calls = _batch_deps(world)
 
-    code = _cli_canned(world, deps, "--trials", "1")
+    code = cli_canned(world, deps, "--trials", "1")
 
     assert (code, calls) == (2, [])
     assert "error: name an agent, or pass --batch haiku|sonnet|opus" in (
-        _stderr_lines(capsys)
+        stderr_lines(capsys)
     )
 
 
@@ -203,7 +197,7 @@ def test_batch_lists_an_agent_with_unreadable_frontmatter_as_skipped(world, caps
 
     code, _ = _batch(world)
 
-    lines = _stderr_lines(capsys)
+    lines = stderr_lines(capsys)
     assert code == 0
     assert "broken" not in _artifacts(world)
     assert any(
@@ -225,7 +219,7 @@ def test_batch_on_the_effort_axis_steps_effort_for_every_agent(world):
 
 
 def test_batch_skips_the_recall_gap_agent(world, capsys):
-    _write_agent(
+    write_agent_file(
         world.deps.eval_paths.agents_dir,
         "correctness-review",
         "Read",
@@ -238,22 +232,22 @@ def test_batch_skips_the_recall_gap_agent(world, capsys):
     assert "correctness-review" not in _artifacts(world)
     assert any(
         line.startswith("  correctness-review: ") and "recall gap" in line
-        for line in _stderr_lines(capsys)
+        for line in stderr_lines(capsys)
     )
 
 
 def test_batch_stops_after_an_agent_run_that_does_not_complete(world, capsys):
     deps = dataclasses.replace(world.deps, pricing_table=OPUS_PRICING)
-    deps, calls = _deps_with_canned_trials(deps, overrides={0: CLI_FAILURE_RECORD})
+    deps, calls = deps_with_canned_trials(deps, overrides={0: CLI_FAILURE_RECORD})
 
-    code = _cli_canned(world, deps, "--batch", "sonnet", "--trials", "1")
+    code = cli_canned(world, deps, "--batch", "sonnet", "--trials", "1")
 
     artifacts = _artifacts(world)
     assert (code, len(calls)) == (1, 1)
     assert list(artifacts) == ["other"]
     assert artifacts["other"]["status"] == "incomplete"
     assert artifacts["other"]["verdict"]["decision"] == DECISION_KEEP
-    assert "error: batch stopped after other; not run: scout" in _stderr_lines(capsys)
+    assert "error: batch stopped after other; not run: scout" in stderr_lines(capsys)
 
 
 # --- the spend limit across the batch -------------------------------------------
@@ -266,8 +260,8 @@ LIMIT_USED_BY_OTHER = "3"
 
 def _batch_with_trial_cost(world, cost, *args):
     deps = dataclasses.replace(world.deps, pricing_table=OPUS_PRICING)
-    deps, calls = _deps_with_canned_trials(deps, cost=cost)
-    code = _cli_canned(world, deps, "--batch", "sonnet", "--trials", "1", *args)
+    deps, calls = deps_with_canned_trials(deps, cost=cost)
+    code = cli_canned(world, deps, "--batch", "sonnet", "--trials", "1", *args)
     return code, calls
 
 
@@ -280,7 +274,7 @@ def test_batch_does_not_start_an_agent_once_the_spend_limit_is_used_up(world, ca
     assert (code, len(calls)) == (1, 3)
     assert list(artifacts) == ["other"]
     assert artifacts["other"]["status"] == "complete"
-    assert "error: spend limit reached; not run: scout" in _stderr_lines(capsys)
+    assert "error: spend limit reached; not run: scout" in stderr_lines(capsys)
 
 
 def test_batch_gives_the_next_agent_only_what_is_left_of_the_limit(world, capsys):
@@ -291,7 +285,7 @@ def test_batch_gives_the_next_agent_only_what_is_left_of_the_limit(world, capsys
     assert (code, len(calls)) == (1, 5)
     assert artifacts["scout"]["status"] == "incomplete"
     assert artifacts["scout"]["abort_reason"] == "max-cost"
-    assert "error: batch stopped after scout; not run: none" in _stderr_lines(capsys)
+    assert "error: batch stopped after scout; not run: none" in stderr_lines(capsys)
 
 
 def _pinned_arm_estimates(monkeypatch, usd_per_arm):
@@ -327,4 +321,4 @@ def test_batch_estimate_just_above_max_cost_is_refused(world, monkeypatch, capsy
     assert (
         "error: batch estimate $3.0000 is above --max-cost $2.9900: raise --max-cost, "
         "or lower --trials"
-    ) in _stderr_lines(capsys)
+    ) in stderr_lines(capsys)

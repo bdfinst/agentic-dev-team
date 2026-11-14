@@ -6,7 +6,9 @@ import json
 from contextlib import AbstractContextManager
 
 import pytest
-from _model_effort_support import NOW, FixedRng, World, _eval_paths
+from ab_constants import NOW
+from ab_inputs import FixedRng, eval_paths_with
+from ab_world import World
 from model_effort import external, paths, plan, snapshot
 from model_effort.errors import UsageError
 
@@ -82,7 +84,7 @@ class TestPlanSnapshot:
     def test_the_shipped_knowledge_dir_is_recorded_relative_to_the_repo(
         self, world, private_tmp
     ):
-        shipped_knowledge = _eval_paths(
+        shipped_knowledge = eval_paths_with(
             agents_dir=world.deps.eval_paths.agents_dir,
             expected_dir=world.deps.eval_paths.expected_dir,
             fixtures_dir=world.deps.eval_paths.fixtures_dir,

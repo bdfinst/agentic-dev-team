@@ -15,18 +15,15 @@ from pathlib import Path
 from typing import ClassVar
 
 import pytest
-from _model_effort_support import (
+from ab_constants import TIMEOUT_SECONDS
+from ab_inputs import make_directory_fixture, make_file_fixture, read_tree, trial_config
+from ab_signals import (
     INTERRUPT_SIGNALS,
-    TIMEOUT_SECONDS,
-    StubClaude,
-    _blocked_signals,
-    _config,
-    _make_directory_fixture,
-    _make_file_fixture,
-    _raise_keyboard_interrupt,
-    _snapshot,
+    blocked_signals,
+    raise_keyboard_interrupt,
     signal_own_thread,
 )
+from ab_stub_claude import StubClaude
 from model_effort import invocation, runner
 
 # Timing bounds are derived from these, not fixed seconds, so a machine loaded by
@@ -50,9 +47,9 @@ HOLDER_GRACE_SECONDS = 1
 class TestStagingFixtures:
     def test_file_fixture_is_staged_under_its_own_name(self, stub_dir, fixture_root):
         stub = StubClaude(stub_dir)
-        fixture = _make_file_fixture(fixture_root)
+        fixture = make_file_fixture(fixture_root)
 
-        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, trial_config(stub))
 
         assert stub.calls[0]["files_before"] == {"form.html": "<form></form>"}
 
@@ -60,9 +57,9 @@ class TestStagingFixtures:
         self, stub_dir, fixture_root
     ):
         stub = StubClaude(stub_dir)
-        fixture = _make_directory_fixture(fixture_root)
+        fixture = make_directory_fixture(fixture_root)
 
-        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, trial_config(stub))
 
         assert stub.calls[0]["files_before"] == {
             "service/README.md": "readme",
@@ -72,7 +69,7 @@ class TestStagingFixtures:
 
     @pytest.mark.parametrize(
         "make_fixture",
-        [_make_file_fixture, _make_directory_fixture],
+        [make_file_fixture, make_directory_fixture],
         ids=["file", "directory"],
     )
     def test_two_trials_each_see_a_pristine_copy_and_source_is_unchanged(
@@ -80,40 +77,40 @@ class TestStagingFixtures:
     ):
         stub = StubClaude(stub_dir, tamper=True)
         fixture = make_fixture(fixture_root)
-        source_before = _snapshot(fixture)
+        source_before = read_tree(fixture)
 
-        runner.run_trial(fixture, _config(stub))
-        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, trial_config(stub))
+        runner.run_trial(fixture, trial_config(stub))
 
         first, second = stub.calls
         assert first["files_before"] == second["files_before"]
         assert not any("TAMPERED" in text for text in second["files_before"].values())
-        assert _snapshot(fixture) == source_before
+        assert read_tree(fixture) == source_before
 
     def test_trials_run_in_distinct_temp_dirs(self, stub_dir, fixture_root):
         stub = StubClaude(stub_dir)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        runner.run_trial(fixture, _config(stub))
-        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, trial_config(stub))
+        runner.run_trial(fixture, trial_config(stub))
 
         assert stub.calls[0]["cwd"] != stub.calls[1]["cwd"]
 
     def test_temp_dir_is_removed_after_the_trial(self, stub_dir, fixture_root):
         stub = StubClaude(stub_dir)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, trial_config(stub))
 
         assert not Path(stub.calls[0]["cwd"]).exists()
 
     @pytest.mark.slow
     def test_temp_dir_is_removed_after_a_timeout(self, stub_dir, fixture_root):
         stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
         runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
+            fixture, trial_config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
         )
 
         assert stub.calls, "the stub never started, so the timeout proved nothing"
@@ -123,11 +120,11 @@ class TestStagingFixtures:
         self, stub_dir, fixture_root
     ):
         stub = StubClaude(stub_dir)
-        fixture = _make_directory_fixture(fixture_root)
-        outside = _make_file_fixture(fixture_root, "outside.txt", "outside")
+        fixture = make_directory_fixture(fixture_root)
+        outside = make_file_fixture(fixture_root, "outside.txt", "outside")
         (fixture / "link.txt").symlink_to(outside)
 
-        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, trial_config(stub))
 
         assert stub.calls[0]["symlinks"] == ["service/link.txt"]
 
@@ -136,9 +133,9 @@ class TestStagingFixtures:
         self, stub_dir, fixture_root, capsys
     ):
         stub = StubClaude(stub_dir, lock_subdir=True)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, trial_config(stub))
 
         leftover = Path(stub.calls[0]["cwd"])
         try:
@@ -156,16 +153,16 @@ class TestSignalsAroundSpawn:
         real_popen = subprocess.Popen
 
         def record_mask_then_spawn(*args, **kwargs):
-            blocked_during_spawn.append(_blocked_signals())
+            blocked_during_spawn.append(blocked_signals())
             return real_popen(*args, **kwargs)
 
         monkeypatch.setattr(subprocess, "Popen", record_mask_then_spawn)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        runner.run_trial(fixture, _config(StubClaude(stub_dir)))
+        runner.run_trial(fixture, trial_config(StubClaude(stub_dir)))
 
         assert set(INTERRUPT_SIGNALS) <= blocked_during_spawn[0]
-        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+        assert not set(INTERRUPT_SIGNALS) & blocked_signals()
 
     def test_the_cli_process_gets_no_stdin_and_its_own_session(
         self, stub_dir, fixture_root, monkeypatch
@@ -178,28 +175,28 @@ class TestSignalsAroundSpawn:
             return real_popen(*args, **kwargs)
 
         monkeypatch.setattr(subprocess, "Popen", record_options_then_spawn)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        runner.run_trial(fixture, _config(StubClaude(stub_dir)))
+        runner.run_trial(fixture, trial_config(StubClaude(stub_dir)))
 
         assert spawn_options[0]["stdin"] == subprocess.DEVNULL
         assert spawn_options[0]["start_new_session"] is True
 
     def test_signals_are_free_again_when_the_binary_cannot_start(self, fixture_root):
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        record = runner.run_trial(fixture, _config(claude_bin="/no/such/claude"))
+        record = runner.run_trial(fixture, trial_config(claude_bin="/no/such/claude"))
 
         assert record.exit_code == runner.COMMAND_NOT_RUNNABLE_EXIT_CODE
-        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+        assert not set(INTERRUPT_SIGNALS) & blocked_signals()
 
     def test_the_cli_process_starts_with_the_interrupt_signals_unblocked(
         self, stub_dir, fixture_root
     ):
         stub = StubClaude(stub_dir)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, trial_config(stub))
 
         blocked_in_child = set(stub.calls[0]["blocked_signals"])
         assert not {signum.name for signum in INTERRUPT_SIGNALS} & blocked_in_child
@@ -208,7 +205,7 @@ class TestSignalsAroundSpawn:
         self, stub_dir, fixture_root, monkeypatch
     ):
         stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
         children = []
         real_popen = subprocess.Popen
 
@@ -219,10 +216,10 @@ class TestSignalsAroundSpawn:
             return child
 
         monkeypatch.setattr(subprocess, "Popen", spawn_then_terminate)
-        previous = signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
+        previous = signal.signal(signal.SIGTERM, raise_keyboard_interrupt)
         try:
             with pytest.raises(KeyboardInterrupt):
-                runner.run_trial(fixture, _config(stub))
+                runner.run_trial(fixture, trial_config(stub))
             assert children[0].poll() is not None, "the child outlived the interrupt"
         finally:
             signal.signal(signal.SIGTERM, previous)
@@ -236,7 +233,7 @@ class TestSignalsAroundSpawn:
         self, stub_dir, fixture_root, monkeypatch
     ):
         stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
         blocked_during_kill = []
         # Call-through spy on `_kill_process_group`: it records the signal mask at
         # the kill. The mask is not visible from outside the process.
@@ -244,7 +241,7 @@ class TestSignalsAroundSpawn:
         real_popen = subprocess.Popen
 
         def record_mask_then_kill(process):
-            blocked_during_kill.append(_blocked_signals())
+            blocked_during_kill.append(blocked_signals())
             real_kill(process)
 
         def spawn_then_terminate(*args, **kwargs):
@@ -254,16 +251,16 @@ class TestSignalsAroundSpawn:
 
         monkeypatch.setattr(runner, "_kill_process_group", record_mask_then_kill)
         monkeypatch.setattr(subprocess, "Popen", spawn_then_terminate)
-        previous = signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
+        previous = signal.signal(signal.SIGTERM, raise_keyboard_interrupt)
         try:
             with pytest.raises(KeyboardInterrupt):
-                runner.run_trial(fixture, _config(stub))
+                runner.run_trial(fixture, trial_config(stub))
         finally:
             signal.signal(signal.SIGTERM, previous)
 
         assert blocked_during_kill, "the process group was never killed"
         assert set(INTERRUPT_SIGNALS) <= blocked_during_kill[0]
-        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+        assert not set(INTERRUPT_SIGNALS) & blocked_signals()
 
 
 class TestTrialEnvironment:
@@ -322,7 +319,7 @@ class TestTrialEnvironment:
         monkeypatch.setenv("DROP_ME", "1")
         stub = StubClaude(stub_dir)
 
-        runner.run_trial(_make_file_fixture(fixture_root), _config(stub))
+        runner.run_trial(make_file_fixture(fixture_root), trial_config(stub))
 
         env_names = stub.calls[0]["env_names"]
         assert "CLAUDE_CODE_SESSION_ID" not in env_names
@@ -367,9 +364,9 @@ class TestExecution:
         stub = StubClaude(
             stub_dir, exit_code=3, stdout="out-line", stderr="boom: bad model"
         )
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        record = runner.run_trial(fixture, _config(stub))
+        record = runner.run_trial(fixture, trial_config(stub))
 
         assert (record.exit_code, record.stdout, record.stderr, record.timed_out) == (
             3,
@@ -382,9 +379,9 @@ class TestExecution:
         self, stub_dir, fixture_root
     ):
         stub = StubClaude(stub_dir, stdout="ok")
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        record = runner.run_trial(fixture, _config(stub))
+        record = runner.run_trial(fixture, trial_config(stub))
 
         assert (record.exit_code, record.stdout, record.timed_out) == (0, "ok", False)
 
@@ -392,9 +389,9 @@ class TestExecution:
         self, stub_dir, fixture_root
     ):
         stub = StubClaude(stub_dir, stdout_hex="6f6bff")
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        record = runner.run_trial(fixture, _config(stub))
+        record = runner.run_trial(fixture, trial_config(stub))
 
         assert (record.exit_code, record.stdout) == (0, "ok�")
 
@@ -403,10 +400,10 @@ class TestExecution:
         self, stub_dir, fixture_root
     ):
         stub = StubClaude(stub_dir, sleep=STUB_RUN_SECONDS)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
+            fixture, trial_config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
         )
 
         assert stub.calls, "the stub never started, so the timeout proved nothing"
@@ -419,10 +416,10 @@ class TestExecution:
         stub = StubClaude(
             stub_dir, stdout="result", exit_code=0, holder_sleep=STUB_RUN_SECONDS
         )
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS
+            fixture, trial_config(stub), trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS
         )
 
         # Well short of the holder's sleep: the run did not wait for it.
@@ -443,10 +440,10 @@ class TestExecution:
             holder_sleep=STUB_RUN_SECONDS,
             holder_pid_file=str(pid_file),
         )
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS
+            fixture, trial_config(stub), trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS
         )
 
         holder_pid = int(pid_file.read_text(encoding="utf-8"))
@@ -463,10 +460,10 @@ class TestExecution:
             early_stdout="partial stdout",
             early_stderr="partial stderr",
         )
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
+            fixture, trial_config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
         )
 
         assert record.timed_out is True
@@ -476,10 +473,10 @@ class TestExecution:
         self, stub_dir, fixture_root, short_output_grace
     ):
         stub = StubClaude(stub_dir, stderr="boom", exit_code=3, holder_sleep=STUB_RUN_SECONDS)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS
+            fixture, trial_config(stub), trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS
         )
 
         assert (record.exit_code, record.stderr, record.timed_out) == (3, "boom", False)
@@ -496,12 +493,12 @@ class TestExecution:
             holder_new_session=True,
             holder_pid_file=str(pid_file),
         )
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
         try:
             record = runner.run_trial(
                 fixture,
-                _config(stub),
+                trial_config(stub),
                 trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS,
             )
         finally:
@@ -527,10 +524,10 @@ class TestExecution:
         stub = StubClaude(
             stub_dir, sleep=STUB_RUN_SECONDS, holder_sleep=STUB_RUN_SECONDS
         )
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
         record = runner.run_trial(
-            fixture, _config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
+            fixture, trial_config(stub), trial_timeout_seconds=TRIAL_DEADLINE_SECONDS
         )
 
         assert stub.calls, "the stub never started, so the timeout proved nothing"
@@ -574,8 +571,8 @@ class TestExecution:
         )
 
         runner.run_trial(
-            _make_file_fixture(fixture_root, "a.txt", "a"),
-            _config(stub),
+            make_file_fixture(fixture_root, "a.txt", "a"),
+            trial_config(stub),
             trial_timeout_seconds=TRIAL_DEADLINE_SECONDS,
         )
 
@@ -614,8 +611,8 @@ class TestExecution:
         try:
             with pytest.raises(KeyboardInterrupt):
                 runner.run_trial(
-                    _make_file_fixture(fixture_root, "a.txt", "a"),
-                    _config(stub),
+                    make_file_fixture(fixture_root, "a.txt", "a"),
+                    trial_config(stub),
                     trial_timeout_seconds=60,
                 )
         finally:
@@ -629,21 +626,21 @@ class TestExecution:
     def test_missing_claude_binary_yields_exit_127_with_the_os_error_as_stderr(
         self, tmp_path, fixture_root
     ):
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
         missing = tmp_path / "no-such-claude"
 
-        record = runner.run_trial(fixture, _config(claude_bin=str(missing)))
+        record = runner.run_trial(fixture, trial_config(claude_bin=str(missing)))
 
         assert (record.exit_code, record.timed_out) == (127, False)
         assert "no-such-claude" in record.stderr
 
     def test_non_executable_claude_binary_yields_exit_127(self, tmp_path, fixture_root):
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
         not_executable = tmp_path / "claude-plain-file"
         not_executable.write_text("not a program", encoding="utf-8")
         not_executable.chmod(0o644)
 
-        record = runner.run_trial(fixture, _config(claude_bin=str(not_executable)))
+        record = runner.run_trial(fixture, trial_config(claude_bin=str(not_executable)))
 
         assert record.exit_code == 127
         assert record.stderr != ""
@@ -661,8 +658,8 @@ class TestAfterTheCliExits:
         )
 
         record = runner.run_trial(
-            _make_file_fixture(fixture_root, "a.txt", "a"),
-            _config(stub),
+            make_file_fixture(fixture_root, "a.txt", "a"),
+            trial_config(stub),
             trial_timeout_seconds=LONG_TRIAL_DEADLINE_SECONDS,
         )
 
@@ -682,9 +679,9 @@ class TestAfterTheCliExits:
         monkeypatch.setattr(
             runner, "restore_protected_paths", lambda *_args: events.append("restore")
         )
-        fixture = _make_directory_fixture(fixture_root)
+        fixture = make_directory_fixture(fixture_root)
         config = dataclasses.replace(
-            _config(StubClaude(stub_dir)), test_commands=("{python} -c pass",)
+            trial_config(StubClaude(stub_dir)), test_commands=("{python} -c pass",)
         )
 
         runner.run_trial(fixture, config)
@@ -696,10 +693,10 @@ class TestAfterTheCliExits:
     ):
         monkeypatch.setenv("TMPDIR", str(stub_dir))
         stub = StubClaude(stub_dir)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
 
-        runner.run_trial(fixture, _config(stub))
-        runner.run_trial(fixture, _config(stub))
+        runner.run_trial(fixture, trial_config(stub))
+        runner.run_trial(fixture, trial_config(stub))
 
         first, second = (Path(call["tmpdir"]) for call in stub.calls)
         assert first != second

@@ -10,9 +10,9 @@ import json
 import sys
 from pathlib import Path
 
-import _model_effort_support  # noqa: F401  (puts the harness on sys.path first)
+import ab_harness_path  # noqa: F401  (puts the harness on sys.path first)
 import pytest
-from _model_effort_support import _result_event, _stream
+from ab_stub_claude import result_event, stream_of
 from model_effort import process_record, rubric_file, rubric_judge, runner
 
 OPUS_JUDGE = "claude-opus-5-5"
@@ -42,7 +42,7 @@ class _Capture:
 
 
 def _verdict_stdout(text: str) -> str:
-    return _stream(_result_event(text, total_cost_usd=JUDGE_COST))
+    return stream_of(result_event(text, total_cost_usd=JUDGE_COST))
 
 
 def _run(capture: _Capture, answer: str = "Use the queue.", material: str = ""):

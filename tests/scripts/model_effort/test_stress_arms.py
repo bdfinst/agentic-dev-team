@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import _model_effort_support  # noqa: F401  (puts the harness on sys.path first)
+import ab_harness_path  # noqa: F401  (puts the harness on sys.path first)
 import pytest
 from model_effort.arm import BASELINE_LABEL, Arm
 from model_effort.stress_arms import (

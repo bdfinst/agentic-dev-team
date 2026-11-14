@@ -5,18 +5,10 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
-from _model_effort_support import (
-    NOW,
-    PASS_VERDICT,
-    SONNET_MODEL_ID,
-    TEST_PRICING,
-    FixedRng,
-    _cli_canned,
-    _deps_with_canned_trials,
-    _stderr_lines,
-    _verdict_call,
-    _written,
-)
+from ab_constants import NOW, PASS_VERDICT, SONNET_MODEL_ID, TEST_PRICING
+from ab_inputs import FixedRng
+from ab_stub_claude import verdict_call
+from ab_world import cli_canned, deps_with_canned_trials, read_artifact, stderr_lines
 from model_effort import plan, process_record
 from model_effort.arm import BASELINE_LABEL, Arm
 from model_effort.errors import UsageError
@@ -79,15 +71,15 @@ def test_ab_plan_is_not_a_stress_plan(scout_plan):
 
 def _stress_cli(world, *args):
     deps = dataclasses.replace(world.deps, pricing_table=OPUS_PRICING)
-    deps, calls = _deps_with_canned_trials(deps)
-    code = _cli_canned(world, deps, "scout", "--stress", "--trials", "2", *args)
+    deps, calls = deps_with_canned_trials(deps)
+    code = cli_canned(world, deps, "scout", "--stress", "--trials", "2", *args)
     return code, calls
 
 
 def test_stress_cli_runs_every_arm_and_writes_the_verdict(world):
     code, calls = _stress_cli(world)
 
-    written = _written(world)
+    written = read_artifact(world)
     assert code == 0
     # two fixtures, two trials, three arms
     assert len(calls) == 12
@@ -107,17 +99,17 @@ def test_stress_cli_runs_every_arm_and_writes_the_verdict(world):
 def test_stress_cli_prints_the_verdict_and_its_reason(world, capsys):
     _stress_cli(world)
 
-    lines = _stderr_lines(capsys)
+    lines = stderr_lines(capsys)
     assert any(line.startswith("Verdict: downgrade to haiku/high") for line in lines), (
         lines
     )
 
 
 def test_ab_cli_writes_no_verdict(world):
-    deps, _ = _deps_with_canned_trials(world.deps)
-    _cli_canned(world, deps, "scout", "--model", "haiku", "--trials", "1")
+    deps, _ = deps_with_canned_trials(world.deps)
+    cli_canned(world, deps, "scout", "--model", "haiku", "--trials", "1")
 
-    written = _written(world)
+    written = read_artifact(world)
     assert "verdict" not in written
     assert "mode" not in written
 
@@ -136,13 +128,13 @@ def test_stress_flag_and_effort_flag_together_are_a_usage_error(world, capsys):
     assert (
         "error: --stress picks its own arms (one step down and one step up from the "
         "frontmatter tier): drop --model and --effort"
-    ) in _stderr_lines(capsys)
+    ) in stderr_lines(capsys)
 
 
 def test_stress_cli_on_the_effort_axis_runs_effort_steps(world):
     code, _ = _stress_cli(world, "--axis", "effort")
 
-    written = _written(world)
+    written = read_artifact(world)
     assert code == 0
     assert [(a["label"], a["model"], a["effort"]) for a in written["arms"]] == [
         (BASELINE_LABEL, "sonnet", "high"),
@@ -163,7 +155,7 @@ CAUGHT = {
 def _record(verdict: dict) -> process_record.TrialProcessRecord:
     return process_record.TrialProcessRecord(
         exit_code=0,
-        stdout=_verdict_call(verdict, SONNET_MODEL_ID)["stdout"],
+        stdout=verdict_call(verdict, SONNET_MODEL_ID)["stdout"],
         stderr="",
         timed_out=False,
     )
@@ -178,7 +170,7 @@ def _stress_cli_catching(world, catching_arms):
         return _record(CAUGHT if caught else PASS_VERDICT)
 
     deps = dataclasses.replace(deps, run_trial=canned_trial)
-    return _cli_canned(world, deps, "scout", "--stress", "--trials", "2")
+    return cli_canned(world, deps, "scout", "--stress", "--trials", "2")
 
 
 def test_stress_cli_upgrades_when_only_the_step_up_arm_catches_the_finding(
@@ -186,24 +178,24 @@ def test_stress_cli_upgrades_when_only_the_step_up_arm_catches_the_finding(
 ):
     code = _stress_cli_catching(world, {STEP_UP_LABEL})
 
-    written = _written(world)
+    written = read_artifact(world)
     assert code == 0
     assert written["verdict"]["decision"] == DECISION_UPGRADE
     assert written["verdict"]["upgrade"]["findings"] == [FINDING_STEM]
     assert (
         "Verdict: upgrade to opus/high (step-up arm): step-up catches layered-svc in "
         "at least half its trials; the current tier misses it in every trial"
-    ) in _stderr_lines(capsys)
+    ) in stderr_lines(capsys)
 
 
 def test_stress_cli_keeps_when_the_step_down_arm_loses_recall(world, capsys):
     code = _stress_cli_catching(world, {BASELINE_LABEL, STEP_UP_LABEL})
 
-    written = _written(world)
+    written = read_artifact(world)
     assert code == 0
     assert written["verdict"]["decision"] == DECISION_KEEP
     assert (
         "Verdict: keep: downgrade: recall 0/2 below the current tier's 2/2. "
         "upgrade: step-up catches no expected finding in at least half its trials "
         "that the current tier misses in every trial"
-    ) in _stderr_lines(capsys)
+    ) in stderr_lines(capsys)

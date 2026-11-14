@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import ClassVar
 
 import pytest
-from _model_effort_support import GRADED_AGENT, GRADED_STEM, PASS_VERDICT
+from ab_constants import GRADED_AGENT, GRADED_STEM, PASS_VERDICT
 from model_effort import external, grading, paths
 from model_effort.errors import UsageError
 
