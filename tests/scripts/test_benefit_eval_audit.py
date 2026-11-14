@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -249,6 +250,46 @@ def test_rows_that_instrument_log_persists_carry_a_session_id_and_are_id_bearing
     rows = streams.load_rows(streams.STREAM_TABLE[name], sources)
     assert [row.data.get("session_id") for row in rows] == [LONG_ID]
     assert streams.STREAM_TABLE[name].identity_class == streams.ID_BEARING
+
+
+def _run_consult_and_checkpoint(project: Path, session_id: str) -> None:
+    scripts = REPO_ROOT / "plugins" / "dev-team" / "scripts"
+    env = {
+        k: v for k, v in os.environ.items() if k != "CLAUDE_SESSION_ID"
+    }
+    env["CLAUDE_CODE_SESSION_ID"] = session_id
+    (project / "a.py").write_text("x = 1\n")
+    outcome = project / "outcome.json"
+    outcome.write_text(
+        json.dumps({"aborted": True, "redispatched": False, "findings": []})
+    )
+    for argv in (
+        [
+            scripts / "verdict_scope.py",
+            "--root",
+            project,
+            "--lens-files",
+            json.dumps({"correctness-review": ["a.py"]}),
+        ],
+        [scripts / "checkpoint_abort.py", "--mode", "outcome", "--from", outcome],
+    ):
+        subprocess.run(
+            [sys.executable, *map(str, argv)],
+            cwd=project,
+            env=env,
+            capture_output=True,
+            check=True,
+        )
+
+
+def test_consult_and_checkpoint_rows_from_three_real_sessions_are_confirmed(world):
+    for i in range(3):
+        session_id = f"sess{i:04d}-real"
+        world.session(session_id)
+        _run_consult_and_checkpoint(world.project, session_id)
+    for name in ("ledger-skips", "checkpoint-aborts"):
+        result = audit_one(world, name)
+        assert (result.status, result.real_sessions) == ("confirmed", 3)
 
 
 # --- unreadable instruments --------------------------------------------------

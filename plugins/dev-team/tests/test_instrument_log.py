@@ -1,9 +1,12 @@
 """instrument_log + its call sites (#2201): rows appear, behavior is unchanged."""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "hooks" / "lib"))
@@ -80,3 +83,90 @@ def test_checkpoint_abort_logs_abort_mode_source(tmp_path):
     (row,) = _rows(tmp_path, "checkpoint-aborts")
     assert row["mode"] == "abort"
     assert row["source"] == "checkpoint"
+
+
+def _session_env(**ids):
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
+    }
+    return {**env, **ids}
+
+
+def _run_verdict_scope(root: Path, env: dict):
+    (root / "a.py").write_text("x = 1\n")
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "verdict_scope.py"),
+            "--root",
+            str(root),
+            "--lens-files",
+            json.dumps({"correctness-review": ["a.py"]}),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+    )
+
+
+def _run_checkpoint_abort(root: Path, env: dict, mode: str):
+    src = root / "in.json"
+    if mode == "abort":
+        src.write_text("[]")
+        args = [
+            "--mode",
+            "abort",
+            "--cheap-results-from",
+            str(src),
+            "--lenses",
+            "correctness-review",
+        ]
+    else:
+        src.write_text(
+            json.dumps({"aborted": True, "redispatched": False, "findings": []})
+        )
+        args = ["--mode", "outcome", "--from", str(src)]
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "checkpoint_abort.py"), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=root,
+        env=env,
+    )
+
+
+def test_consult_row_carries_the_session_id_from_the_environment(tmp_path):
+    _run_verdict_scope(tmp_path, _session_env(CLAUDE_CODE_SESSION_ID="sess-consult"))
+    (row,) = _rows(tmp_path, "ledger-skips")
+    assert row["session_id"] == "sess-consult"
+
+
+@pytest.mark.parametrize("mode", ["abort", "outcome"])
+def test_checkpoint_row_carries_the_session_id_from_the_environment(tmp_path, mode):
+    _run_checkpoint_abort(
+        tmp_path, _session_env(CLAUDE_CODE_SESSION_ID="sess-ckpt"), mode
+    )
+    (row,) = _rows(tmp_path, "checkpoint-aborts")
+    assert row["session_id"] == "sess-ckpt"
+
+
+def test_hook_documented_session_variable_is_the_fallback(tmp_path):
+    _run_verdict_scope(tmp_path, _session_env(CLAUDE_SESSION_ID="sess-hook-var"))
+    (row,) = _rows(tmp_path, "ledger-skips")
+    assert row["session_id"] == "sess-hook-var"
+
+
+def test_row_without_any_session_variable_omits_the_field(tmp_path):
+    _run_checkpoint_abort(tmp_path, _session_env(), "outcome")
+    (row,) = _rows(tmp_path, "checkpoint-aborts")
+    assert "session_id" not in row
+
+
+def test_env_session_id_ignores_blank_values(monkeypatch):
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "  ")
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "sess-b")
+    assert instrument_log.env_session_id() == "sess-b"
