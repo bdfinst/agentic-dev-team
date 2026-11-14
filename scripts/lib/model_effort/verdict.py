@@ -10,7 +10,9 @@ The rules, over every trial of each arm:
   one of its trials produced output the grader could judge (`pass` or
   `graded_fail`).
 - Upgrade: on some fixture with an expected finding, the step-up arm passes at
-  least half its trials and the current arm passes none of its trials.
+  least half its trials and the current arm passes none of its trials; and, as
+  for a downgrade, the step-up arm's clean-fixture false positives are no more
+  than the current arm's and every one of its trials produced gradeable output.
 - An upgrade wins over a downgrade that also passes: the current tier misses a
   finding outright, and a cheaper tier cannot add it back.
 - Anything else, and every blocked run, is `keep` with a stated reason.
@@ -100,6 +102,7 @@ class Verdict:
     # None when a blocker stopped the comparison.
     downgrade_passes: bool | None
     downgrade_reason: str
+    # The expected findings step-up adds; listed even when another check blocks the upgrade.
     upgrade_findings: tuple[str, ...]
     upgrade_reason: str
     tallies: tuple[ArmTally, ...] = ()
@@ -118,12 +121,12 @@ def decide(
         else "recall, clean-fixture false positives and parse all hold"
     )
     findings = _upgrade_findings(current, step_up)
-    upgrade_reason = (
-        f"step-up catches {', '.join(findings)} in at least half its trials; "
-        "the current tier misses it in every trial"
-        if findings
-        else _no_upgrade_reason(current, step_up)
+    upgrade_failures = (
+        _quality_failures(current, step_up, f"{STEP_UP_LABEL} has ")
+        if findings and step_up is not None
+        else []
     )
+    upgrade_reason = _upgrade_reason(current, step_up, findings, upgrade_failures)
     tallies = tuple(t for t in (current, step_down, step_up) if t is not None)
     common = {
         "downgrade_passes": not downgrade_failures,
@@ -132,7 +135,7 @@ def decide(
         "upgrade_reason": upgrade_reason,
         "tallies": tallies,
     }
-    if findings and step_up is not None:
+    if findings and not upgrade_failures and step_up is not None:
         return _moving_verdict(DECISION_UPGRADE, upgrade_reason, step_up, common)
     if not downgrade_failures and step_down is not None:
         return _moving_verdict(DECISION_DOWNGRADE, downgrade_reason, step_down, common)
@@ -171,16 +174,23 @@ def _downgrade_failures(current: ArmTally, lower: ArmTally | None) -> list[str]:
             f"recall {lower_passes}/{lower_trials} below the current tier's "
             f"{current_passes}/{current_trials}"
         )
-    if lower.clean_false_positives > current.clean_false_positives:
+    return failures + _quality_failures(current, lower)
+
+
+def _quality_failures(current: ArmTally, other: ArmTally, prefix: str = "") -> list[str]:
+    """What blocks moving to `other` beyond recall: extra clean-fixture false positives, ungraded trials."""
+    failures = []
+    if other.clean_false_positives > current.clean_false_positives:
         failures.append(
-            f"{lower.clean_false_positives} clean-fixture false positives, above "
-            f"the current tier's {current.clean_false_positives}"
+            f"{prefix}{other.clean_false_positives} clean-fixture false positives, "
+            f"above the current tier's {current.clean_false_positives}"
         )
-    ungraded = {k: v for k, v in lower.ungraded.items() if v}
+    ungraded = {k: v for k, v in other.ungraded.items() if v}
     if ungraded:
         detail = ", ".join(f"{name} {count}" for name, count in ungraded.items())
         failures.append(
-            f"{sum(ungraded.values())} trial(s) with no gradeable output ({detail})"
+            f"{prefix}{sum(ungraded.values())} trial(s) with no gradeable output "
+            f"({detail})"
         )
     return failures
 
@@ -207,13 +217,24 @@ def _no_arm_reason(label: str, current: ArmTally, rung: str) -> str:
     )
 
 
-def _no_upgrade_reason(current: ArmTally, higher: ArmTally | None) -> str:
+def _upgrade_reason(
+    current: ArmTally,
+    higher: ArmTally | None,
+    findings: tuple[str, ...],
+    failures: list[str],
+) -> str:
     if higher is None:
         return _no_arm_reason(STEP_UP_LABEL, current, "higher")
-    return (
-        "step-up catches no expected finding in at least half its trials "
-        "that the current tier misses in every trial"
+    if not findings:
+        return (
+            "step-up catches no expected finding in at least half its trials "
+            "that the current tier misses in every trial"
+        )
+    caught = (
+        f"step-up catches {', '.join(findings)} in at least half its trials; "
+        "the current tier misses it in every trial"
     )
+    return f"{caught}; but {'; '.join(failures)}" if failures else caught
 
 
 def tally(arm_run: ArmRun) -> ArmTally:

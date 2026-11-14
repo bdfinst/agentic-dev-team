@@ -237,6 +237,46 @@ def test_upgrade_wins_over_a_passing_downgrade():
     assert verdict.downgrade_passes is True
 
 
+def test_an_ungraded_step_up_trial_blocks_the_upgrade_and_says_why():
+    verdict = decide(
+        _current(0), None, _up(TRIALS, ungraded={Outcome.PARSE_FAILURE.value: 1})
+    )
+
+    assert verdict.decision == DECISION_KEEP
+    assert (
+        "step-up has 1 trial(s) with no gradeable output (parse_failure 1)"
+        in verdict.upgrade_reason
+    )
+    assert verdict.upgrade_reason in verdict.reason
+
+
+def test_more_step_up_clean_fixture_false_positives_block_the_upgrade():
+    verdict = decide(_current(0), None, _up(TRIALS, false_positives=1))
+
+    assert verdict.decision == DECISION_KEEP
+    assert (
+        "step-up has 1 clean-fixture false positives, above the current tier's 0"
+        in verdict.upgrade_reason
+    )
+
+
+def test_equal_step_up_false_positives_still_upgrade():
+    verdict = decide(
+        _current(0, false_positives=1), None, _up(TRIALS, false_positives=1)
+    )
+
+    assert verdict.decision == DECISION_UPGRADE
+
+
+def test_a_blocked_upgrade_falls_back_to_a_passing_downgrade():
+    verdict = decide(
+        _current(0), _down(0), _up(TRIALS, ungraded={Outcome.TIMEOUT.value: 2})
+    )
+
+    assert verdict.decision == DECISION_DOWNGRADE
+    assert "timeout 2" in verdict.upgrade_reason
+
+
 def test_upgrade_lists_every_finding_it_adds_in_fixture_order():
     verdict = decide(
         _current(0, extra_findings={"second": 0}),
