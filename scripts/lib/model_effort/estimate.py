@@ -1,11 +1,11 @@
 """Estimate what a run will cost before it starts.
 
-The estimate is deliberately rough and can be several times off in either
-direction: it models the text the agent is given and the answer it writes, not
-the harness's own context overhead. All input tokens are priced at the model's
-input rate, so cache reads (billed at a fraction of that rate) make it high,
-while the fixed per-turn context makes it low. In the one real run the estimate
-was 4.6 to 13.6 times the reported cost.
+The estimate models the text the agent is given and an allowance per trial for
+everything else it is billed for. It ignores effort. Its constants are fitted to
+the costs the committed run artifacts in `evals/model-effort/runs/` reported:
+tests/scripts/model_effort/test_estimate_calibration.py checks that every arm
+there cost no more than its estimate and no less than an eighth of it. A
+low-effort arm on a small fixture lands furthest below its estimate.
 
 Pure functions: the pricing table is a parameter and the only file access is
 measuring fixture sizes.
@@ -36,10 +36,14 @@ CHARS_PER_TOKEN = 4
 # took 3 model turns (two Read tool calls, then the answer), so input is
 # counted 3 times.
 TOOL_TURN_MULTIPLIER = 3
-# Output tokens one trial is assumed to write, thinking included. The probe wrote
-# 230 for a trivial one-line answer; a findings JSON from a review agent runs
-# several times that, and thinking tokens bill as output.
-OUTPUT_TOKENS_PER_TRIAL = 2000
+# Output tokens one trial is billed for, fitted to the committed runs' reported
+# costs. Far more than a findings JSON: it also covers thinking and the harness's
+# own context (its system prompt and tool definitions, cached or not), which the
+# input count leaves out. Fitted as output because the per-model spread of the
+# reported costs follows the output rate better than the input rate.
+OUTPUT_TOKENS_PER_TRIAL = 16_000
+# The size of the answer a rubric judge reads, in tokens: a findings JSON.
+ANSWER_TOKENS_FOR_JUDGE = 2000
 TOKENS_PER_RATE_UNIT = 1_000_000
 # Output tokens one rubric judgement is assumed to write: a verdict and a reason per criterion.
 JUDGE_OUTPUT_TOKENS_PER_TRIAL = 800
@@ -164,7 +168,7 @@ def _judge_cost_usd(
             f"no price for the rubric judge model {judge.model!r}: add it to "
             f"{PRICING_FILE_HINT}, because the cost estimate and spend limit need a rate"
         )
-    answer_chars = OUTPUT_TOKENS_PER_TRIAL * CHARS_PER_TOKEN * (2 if sees_changes else 1)
+    answer_chars = ANSWER_TOKENS_FOR_JUDGE * CHARS_PER_TOKEN * (2 if sees_changes else 1)
     total = 0.0
     for fixture in fixtures:
         input_chars = (

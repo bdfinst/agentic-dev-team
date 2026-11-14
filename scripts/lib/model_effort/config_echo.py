@@ -64,6 +64,6 @@ def _render_estimate(run_estimate: RunEstimate) -> str:
         else ""
     )
     return (
-        "Estimate (rough; real cost can be several times off, high or low): "
+        "Estimate (rough; real cost is usually lower, by up to several times): "
         f"{per_arm}{judge}, total {format_usd(run_estimate.estimated_total_usd)}"
     )

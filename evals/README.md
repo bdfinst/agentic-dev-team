@@ -532,8 +532,12 @@ A + judge B` when a judge ran. The judge estimates add up to the figure the
 configuration echo printed before the run, and the artifact records the same
 numbers.
 
-The estimate is a rough heuristic. The real cost can be several times higher or
-lower: in the one real run, the estimate was 4.6 to 13.6 times the reported cost.
+The estimate is a rough heuristic that ignores effort. Its constants are fitted
+so that every arm of the committed runs in `evals/model-effort/runs/` cost no
+more than its estimate and no less than an eighth of it;
+`tests/scripts/model_effort/test_estimate_calibration.py` fails when a committed
+run breaks either bound. A low-effort arm on a small fixture lands furthest below
+its estimate. The rubric judge's estimate is not fitted to reported costs.
 
 ### Exit codes
 

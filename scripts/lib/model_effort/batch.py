@@ -206,7 +206,7 @@ def _echo_skipped(skipped: Sequence[Skipped], console: Console) -> None:
 def _render_batch_estimate(estimates: Sequence[RunEstimate], total_usd: float) -> str:
     judge_usd = total_cost_usd(e.judge_usd for e in estimates)
     return (
-        f"Batch estimate (rough; real cost can be several times off, high or low): "
+        f"Batch estimate (rough; real cost is usually lower, by up to several times): "
         f"{len(estimates)} agents, rubric judge {format_usd(judge_usd)}, "
         f"total {format_usd(total_usd)}"
     )

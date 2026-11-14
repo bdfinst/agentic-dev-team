@@ -53,7 +53,7 @@ class TestConfigurationEcho:
         _cli(world, stub, *SCOUT_HAIKU_ARGS, "--trials", str(SCOUT_TRIALS))
 
         assert (
-            "Estimate (rough; real cost can be several times off, high or low): "
+            "Estimate (rough; real cost is usually lower, by up to several times): "
             f"baseline {format_usd(BASELINE_TWO_ARM_ESTIMATE)}, "
             f"candidate {format_usd(CANDIDATE_TWO_ARM_ESTIMATE)}, "
             f"total {format_usd(TWO_ARM_ESTIMATE)}"
@@ -121,6 +121,6 @@ class TestConfigurationEcho:
         )
 
         assert (
-            "Estimate (rough; real cost can be several times off, high or low)"
+            "Estimate (rough; real cost is usually lower, by up to several times)"
             in stderr_when_trials_start[0]
         )
