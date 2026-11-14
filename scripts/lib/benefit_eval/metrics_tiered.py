@@ -13,8 +13,11 @@ from . import formatting, streams
 from .formatting import ReportContext, ReportLine
 from .prereg import Metric
 
-NOT_EXPANDED = "none"
-EXPAND_VALUES = (NOT_EXPANDED, "one", "all")
+# Must match the expand row values that render_tiered_findings.py writes.
+EXPAND_NONE = "none"
+EXPAND_ONE = "one"
+EXPAND_ALL = "all"
+EXPAND_VALUES = (EXPAND_NONE, EXPAND_ONE, EXPAND_ALL)
 
 
 def _expand_mode(row: streams.Row) -> str:
@@ -35,7 +38,7 @@ def expand_rate(metric: Metric, ctx: ReportContext) -> ReportLine:
     expanded: dict[tuple[str, str], bool] = {}
     for row in part.real:
         key = (row.data["session_id"], streams.row_field(row, "report", str))
-        is_expanded = _expand_mode(row) != NOT_EXPANDED
+        is_expanded = _expand_mode(row) != EXPAND_NONE
         expanded[key] = expanded.get(key, False) or is_expanded
     return formatting.rate_line(
         metric,
