@@ -130,7 +130,26 @@ def test_no_step_down_arm_keeps_with_that_reason():
     verdict = decide(_current(2), None, _up(0))
 
     assert verdict.decision == DECISION_KEEP
-    assert "no step-down arm" in verdict.reason
+    assert (
+        "no step-down arm: sonnet/high has no lower rung on the model or effort ladder"
+        in verdict.reason
+    )
+
+
+def test_no_arm_either_way_keeps_and_names_both_missing_arms():
+    verdict = decide(_current(2), None, None)
+
+    assert verdict.decision == DECISION_KEEP
+    assert verdict.downgrade_passes is False
+    assert verdict.downgrade_reason == (
+        "no step-down arm: sonnet/high has no lower rung on the model or effort ladder"
+    )
+    assert verdict.upgrade_reason == (
+        "no step-up arm: sonnet/high has no higher rung on the model or effort ladder"
+    )
+    assert verdict.reason == (
+        f"downgrade: {verdict.downgrade_reason}. upgrade: {verdict.upgrade_reason}"
+    )
 
 
 def test_recall_compares_rates_not_counts():

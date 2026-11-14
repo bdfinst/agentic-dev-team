@@ -202,7 +202,7 @@ def _arms_for(
         if len(arms) == 1:
             raise UsageError(
                 f"agent {agent!r} at {agent_spec.model}/{agent_spec.effort} "
-                f"has no step down or up on the {stress_axis.value} axis"
+                "has no step down or up on the model or effort ladder"
             )
         return arms
     baseline = Arm(BASELINE_LABEL, agent_spec.model, agent_spec.effort)

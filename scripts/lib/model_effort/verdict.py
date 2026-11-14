@@ -122,7 +122,7 @@ def decide(
         f"step-up catches {', '.join(findings)} in at least half its trials; "
         "the current tier misses it in every trial"
         if findings
-        else _no_upgrade_reason(step_up)
+        else _no_upgrade_reason(current, step_up)
     )
     tallies = tuple(t for t in (current, step_down, step_up) if t is not None)
     common = {
@@ -161,7 +161,7 @@ def _moving_verdict(
 
 def _downgrade_failures(current: ArmTally, lower: ArmTally | None) -> list[str]:
     if lower is None:
-        return ["no step-down arm: the current tier is the lowest on both ladders"]
+        return [_no_arm_reason(STEP_DOWN_LABEL, current, "lower")]
     failures = []
     lower_passes, lower_trials = lower.recall
     current_passes, current_trials = current.recall
@@ -200,9 +200,16 @@ def _upgrade_findings(current: ArmTally, higher: ArmTally | None) -> tuple[str, 
     return tuple(caught)
 
 
-def _no_upgrade_reason(higher: ArmTally | None) -> str:
+def _no_arm_reason(label: str, current: ArmTally, rung: str) -> str:
+    return (
+        f"no {label} arm: {current.model}/{current.effort} has no {rung} rung "
+        "on the model or effort ladder"
+    )
+
+
+def _no_upgrade_reason(current: ArmTally, higher: ArmTally | None) -> str:
     if higher is None:
-        return "no step-up arm: the current tier is the highest on both ladders"
+        return _no_arm_reason(STEP_UP_LABEL, current, "higher")
     return (
         "step-up catches no expected finding in at least half its trials "
         "that the current tier misses in every trial"

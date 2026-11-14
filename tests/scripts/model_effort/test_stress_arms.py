@@ -74,3 +74,38 @@ def test_a_model_off_the_ladder_steps_on_effort_only():
 
     assert arms[STEP_DOWN_LABEL] == Arm(STEP_DOWN_LABEL, "fable", "medium")
     assert arms[STEP_UP_LABEL] == Arm(STEP_UP_LABEL, "fable", "xhigh")
+
+
+def test_effort_axis_steps_the_model_up_when_no_higher_effort_exists():
+    arms = _arms("sonnet", "max", Axis.EFFORT)
+
+    assert arms[STEP_DOWN_LABEL] == Arm(STEP_DOWN_LABEL, "sonnet", "xhigh")
+    assert arms[STEP_UP_LABEL] == Arm(STEP_UP_LABEL, "opus", "max")
+
+
+def test_effort_axis_steps_the_model_down_when_no_lower_effort_exists():
+    arms = _arms("sonnet", "low", Axis.EFFORT)
+
+    assert arms[STEP_DOWN_LABEL] == Arm(STEP_DOWN_LABEL, "haiku", "low")
+    assert arms[STEP_UP_LABEL] == Arm(STEP_UP_LABEL, "sonnet", "medium")
+
+
+def test_model_axis_at_the_top_of_both_ladders_has_no_step_up():
+    arms = _arms("opus", "max")
+
+    assert arms == {
+        BASELINE_LABEL: Arm(BASELINE_LABEL, "opus", "max"),
+        STEP_DOWN_LABEL: Arm(STEP_DOWN_LABEL, "sonnet", "max"),
+    }
+
+
+@pytest.mark.parametrize("axis", list(Axis))
+def test_an_effort_off_the_ladder_steps_on_the_model_only(axis):
+    arms = _arms("sonnet", "turbo", axis)
+
+    assert arms[STEP_DOWN_LABEL] == Arm(STEP_DOWN_LABEL, "haiku", "turbo")
+    assert arms[STEP_UP_LABEL] == Arm(STEP_UP_LABEL, "opus", "turbo")
+
+
+def test_off_both_ladders_has_no_step_either_way():
+    assert set(_arms("fable", "turbo", Axis.EFFORT)) == {BASELINE_LABEL}
