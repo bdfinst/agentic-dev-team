@@ -57,8 +57,13 @@ def run_cli_process(
     cwd: Path,
     trial_timeout_seconds: float,
     env: Mapping[str, str] | None = None,
+    *,
+    stdin_text: str | None = None,
 ) -> TrialProcessRecord:
     """Run `argv` in `cwd` in its own process group.
+
+    `stdin_text` is written to the process's stdin, which is then closed; without
+    it stdin is `/dev/null`. Input too large for one argv string goes here.
 
     The interrupt signals are held back for the whole call (the run already holds
     them; a caller that does not gets them held here), so no signal handler runs
@@ -82,7 +87,7 @@ def run_cli_process(
                 argv,
                 cwd=cwd,
                 env=env,
-                stdin=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL if stdin_text is None else subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -103,7 +108,7 @@ def run_cli_process(
                 cwd=cwd,
             )
         try:
-            record = _wait_for_exit(process, cwd, trial_timeout_seconds)
+            record = _wait_for_exit(process, cwd, trial_timeout_seconds, stdin_text)
         except BaseException:
             # The new session detaches the child from the terminal, so Ctrl-C no
             # longer reaches it; kill it here before propagating.
@@ -119,7 +124,10 @@ def run_cli_process(
 
 
 def _wait_for_exit(
-    process: subprocess.Popen, cwd: Path, trial_timeout_seconds: float
+    process: subprocess.Popen,
+    cwd: Path,
+    trial_timeout_seconds: float,
+    stdin_text: str | None = None,
 ) -> TrialProcessRecord:
     """Wait for the process to exit and its output to end, noticing an interrupt.
 
@@ -130,7 +138,7 @@ def _wait_for_exit(
     that wait ends it early and stays pending: the finished trial is kept.
     """
     deadline = time.monotonic() + trial_timeout_seconds
-    output = _read_output(process, deadline, stop_at_exit=True)
+    output = _read_output(process, deadline, stop_at_exit=True, stdin_text=stdin_text)
     if output is None and process.poll() is None:
         stdout, stderr = _kill_group_and_collect(process)
         return TrialProcessRecord(
@@ -152,7 +160,11 @@ def _wait_for_exit(
 
 
 def _read_output(
-    process: subprocess.Popen, deadline: float, *, stop_at_exit: bool
+    process: subprocess.Popen,
+    deadline: float,
+    *,
+    stop_at_exit: bool,
+    stdin_text: str | None = None,
 ) -> tuple[str, str] | None:
     """Read the output to its end, in slices short enough to notice an interrupt.
 
@@ -164,7 +176,11 @@ def _read_output(
     `KeyboardInterrupt`. Without `stop_at_exit` the process has already exited
     and its result is complete, so a pending signal only ends the wait (None) and
     stays pending for the run to act on, instead of dropping the finished trial.
+
+    `stdin_text` goes to the first `communicate` only: a retry carries on writing
+    it, and passing it again would be refused.
     """
+    pending_input = stdin_text
     while True:
         if stop_at_exit:
             if interrupts.take_pending():
@@ -174,8 +190,11 @@ def _read_output(
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return None
+        stdin_input, pending_input = pending_input, None
         try:
-            return process.communicate(timeout=min(INTERRUPT_POLL_SECONDS, remaining))
+            return process.communicate(
+                input=stdin_input, timeout=min(INTERRUPT_POLL_SECONDS, remaining)
+            )
         except subprocess.TimeoutExpired:
             if stop_at_exit and process.poll() is not None:
                 return None
@@ -232,6 +251,12 @@ def run_trial(
     test commands they run in the copy after the agent finishes, jailed when the
     config has a jail, with no credential in their environment; their results
     ride on the returned record.
+
+    The staging dir and the working copy are identified (device and inode, not
+    following symlinks) before the CLI runs and checked again once it exits. If
+    either was moved, replaced or turned into a symlink, nothing is diffed,
+    restored or tested, and the record carries a `workspace_error`, as it does
+    when the protected paths cannot be restored: the trial fails, the run goes on.
     """
     with staged_fixture(fixture) as staging_dir, _private_dirs() as private:
         if config.sandbox:
@@ -244,17 +269,25 @@ def run_trial(
             "TMPDIR": str(_fresh_dir(private / "tmp")),
         }
         work_dir = staging_dir / fixture.name if fixture.is_dir() else staging_dir
+        identities = _dir_identities((staging_dir, work_dir))
         if config.sandbox:
             init_sandbox_repo(work_dir)
         # Returns only once the CLI's whole process group is dead.
         record = run_cli_process(argv, staging_dir, trial_timeout_seconds, env)
+        if not _same_dirs(identities):
+            return dataclasses.replace(record, workspace_error=SWAPPED_WORK_DIR_ERROR)
         if config.sandbox:
             record = dataclasses.replace(
                 record, work_diff=working_copy_diff(fixture, work_dir)
             )
         if not config.test_commands or record.timed_out:
             return record
-        restore_protected_paths(fixture, work_dir, config.protected_paths)
+        try:
+            restore_protected_paths(fixture, work_dir, config.protected_paths)
+        except (OSError, UnsafeProtectedPathError) as error:
+            return dataclasses.replace(
+                record, workspace_error=f"{RESTORE_FAILED_ERROR}: {error}"
+            )
         check_env = invocation.build_check_env(
             os.environ, _fresh_dir(private / "check-home")
         )
@@ -271,6 +304,36 @@ def run_trial(
             for command in config.test_commands
         )
         return dataclasses.replace(record, check_results=results)
+
+
+SWAPPED_WORK_DIR_ERROR = (
+    "the working copy or its staging dir was moved, replaced or made a symlink "
+    "during the trial; it was not diffed, restored or tested"
+)
+RESTORE_FAILED_ERROR = "the protected paths could not be restored"
+
+# A directory's identity: its device and inode, read without following a symlink.
+_DirIdentity = tuple[int, int]
+
+
+def _dir_identities(directories: Sequence[Path]) -> dict[Path, _DirIdentity]:
+    identities = {}
+    for directory in directories:
+        entry = os.lstat(directory)
+        identities[directory] = (entry.st_dev, entry.st_ino)
+    return identities
+
+
+def _same_dirs(identities: Mapping[Path, _DirIdentity]) -> bool:
+    """True when each path is still the real directory it was, not a symlink or a replacement."""
+    for directory, identity in identities.items():
+        try:
+            entry = os.stat(directory, follow_symlinks=False)
+        except OSError:
+            return False
+        if not stat.S_ISDIR(entry.st_mode) or (entry.st_dev, entry.st_ino) != identity:
+            return False
+    return True
 
 
 @contextmanager
@@ -331,6 +394,10 @@ class UnsafeProtectedPathError(RuntimeError):
 
 # Opens a directory entry only if it is a real directory, never through a symlink.
 _DIR_OPEN_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+_OWNER_RWX = stat.S_IRWXU
+# Where `chmod` cannot refuse to follow a symlink (Linux before Python 3.13), the
+# entry is checked with lstat first; the CLI's process group is dead by then.
+_CHMOD_NOFOLLOW = os.chmod in os.supports_follow_symlinks
 _NEW_FILE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
 _NEW_DIR_MODE = 0o755
 
@@ -344,7 +411,10 @@ def restore_protected_paths(
     entry relative to it (`dir_fd`), opening directories with `O_NOFOLLOW`. A
     symlink or file in a parent's place is removed and a real directory made;
     the target is removed (a directory recursively, through descriptors) and
-    copied in with `O_EXCL | O_NOFOLLOW`. A symlink swapped in mid-walk makes
+    copied in with `O_EXCL | O_NOFOLLOW`. Each directory on the way, `work_dir`
+    included, first gets owner read, write and search back (chmod, never through
+    a symlink), so an agent that locked the copy cannot stop the restore.
+    `work_dir` itself must be a real directory, not a symlink. A symlink swapped in mid-walk makes
     the open fail instead of redirecting it, so nothing outside `work_dir` is
     removed or written. A process still running can change the copy after the
     restore; `run_cli_process` kills the CLI's process group first.
@@ -353,8 +423,10 @@ def restore_protected_paths(
         UnsafeProtectedPathError: a path is absolute or climbs out with `..`
             (fixture loading refuses those first), or a parent could not be
             opened as a real directory.
+        OSError: an entry could still not be removed or written (for example
+            a file the agent made immutable).
     """
-    root = work_dir.resolve()
+    root = work_dir
     for relative in protected_paths:
         parts = PurePosixPath(relative).parts
         if not parts or PurePosixPath(relative).is_absolute() or ".." in parts:
@@ -377,7 +449,8 @@ def _open_dir_at(name: str | Path, dir_fd: int | None, shown: str) -> int:
 
 
 def _open_real_dirs(root: Path, names: tuple[str, ...]) -> int:
-    """A descriptor for `root / names...`, each step made a real directory first."""
+    """A descriptor for `root / names...`, each step made a real, owner-accessible directory first."""
+    _unlock_at(None, root)
     fd = _open_dir_at(root, None, str(root))
     try:
         for name in names:
@@ -387,6 +460,7 @@ def _open_real_dirs(root: Path, names: tuple[str, ...]) -> int:
                 entry = None
             if entry is None:
                 os.mkdir(name, _NEW_DIR_MODE, dir_fd=fd)
+            _unlock_at(fd, name)
             child = _open_dir_at(name, fd, name)
             os.close(fd)
             fd = child
@@ -396,7 +470,7 @@ def _open_real_dirs(root: Path, names: tuple[str, ...]) -> int:
     return fd
 
 
-def _lstat_at(dir_fd: int, name: str) -> os.stat_result | None:
+def _lstat_at(dir_fd: int | None, name: str | Path) -> os.stat_result | None:
     try:
         return os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
     except FileNotFoundError:
@@ -411,6 +485,7 @@ def _remove_at(dir_fd: int, name: str) -> None:
     if not stat.S_ISDIR(entry.st_mode):
         os.unlink(name, dir_fd=dir_fd)
         return
+    _unlock_at(dir_fd, name)
     fd = _open_dir_at(name, dir_fd, name)
     try:
         with os.scandir(fd) as entries:
@@ -420,6 +495,20 @@ def _remove_at(dir_fd: int, name: str) -> None:
     finally:
         os.close(fd)
     os.rmdir(name, dir_fd=dir_fd)
+
+
+def _unlock_at(dir_fd: int | None, name: str | Path) -> None:
+    """Give a real directory `name` owner read, write and search; a symlink or file is left alone."""
+    entry = _lstat_at(dir_fd, name)
+    if entry is None or not stat.S_ISDIR(entry.st_mode):
+        return
+    mode = stat.S_IMODE(entry.st_mode)
+    if mode & _OWNER_RWX == _OWNER_RWX:
+        return
+    if _CHMOD_NOFOLLOW:
+        os.chmod(name, mode | _OWNER_RWX, dir_fd=dir_fd, follow_symlinks=False)
+    else:
+        os.chmod(name, mode | _OWNER_RWX, dir_fd=dir_fd)
 
 
 def _copy_in(source: Path, dir_fd: int, name: str) -> None:

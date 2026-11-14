@@ -9,9 +9,15 @@ call, so text the agent wrote cannot close the fence and pose as instructions. I
 verdict per criterion; whether the trial passes is decided afterwards by the
 deterministic `rubric` grader in `scripts/eval_graders/`, not by the judge.
 
-A judge that cannot be run or whose answer has no verdict JSON raises
-`JudgeError`, which the outcome records as a judge failure, never as the agent's
-answer failing.
+The prompt goes to the CLI on stdin (`-p` with no prompt argument), so its size
+is not bound by the OS limit on one argv string. The agent's answer is capped at
+`ANSWER_MAX_CHARS`.
+
+A judge that cannot be run, fails or times out raises `JudgeError`, which the
+outcome records as a judge failure, never as the agent's answer failing. A judge
+that ran to a result but gave no `criteria` list, and an answer over the cap
+(not judged at all), yield a `Judgement` with a `failure`: the agent's answer
+may have caused it, so the trial is graded failed, not excused as infrastructure.
 """
 
 from __future__ import annotations
@@ -19,9 +25,10 @@ from __future__ import annotations
 import os
 import secrets
 import tempfile
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from . import invocation
 from .outcome import GraderUnavailableError
@@ -42,10 +49,18 @@ JUDGE_SYSTEM_PROMPT = (
     '"reason": "<one sentence>"}]}, with one entry for every criterion id listed.'
 )
 
-# Runs one CLI process: (argv, cwd, timeout seconds, env) -> record.
-ProcessRunner = Callable[
-    [Sequence[str], Path, float, Mapping[str, str] | None], TrialProcessRecord
-]
+class ProcessRunner(Protocol):
+    """Runs one CLI process with `stdin_text` on its stdin; `runner.run_cli_process` in production."""
+
+    def __call__(
+        self,
+        argv: Sequence[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: Mapping[str, str] | None,
+        *,
+        stdin_text: str | None = None,
+    ) -> TrialProcessRecord: ...
 
 
 class JudgeError(GraderUnavailableError):
@@ -103,11 +118,24 @@ def fixture_material(fixture: Path, max_chars: int = MATERIAL_MAX_CHARS) -> str:
 
 @dataclass(frozen=True)
 class Judgement:
+    """The judge's verdicts. `failure` says why there are none the agent can pass on."""
+
     criteria: list[dict]
     cost_usd: float | None
+    failure: str | None = None
 
 
 FENCE_TOKEN_BYTES = 16
+# The answer is capped, like the diff, so it cannot crowd out the rest of the prompt.
+ANSWER_MAX_CHARS = 30_000
+ANSWER_TRUNCATED_NOTE = "[answer truncated]"
+NO_CRITERIA_FAILURE = "rubric judge answer has no `criteria` list"
+
+
+def _capped_answer(answer: str) -> str:
+    if len(answer) <= ANSWER_MAX_CHARS:
+        return answer
+    return answer[:ANSWER_MAX_CHARS] + f"\n\n{ANSWER_TRUNCATED_NOTE}"
 
 
 def new_fence_token(*fenced: str) -> str:
@@ -135,8 +163,10 @@ def build_judge_prompt(
     the changes the agent made (when given) and the answer.
 
     The answer and the changes are fenced with `fence_token` (default: a new
-    random token that appears in neither).
+    random token that appears in neither). An answer over `ANSWER_MAX_CHARS` is
+    cut there and ends with `ANSWER_TRUNCATED_NOTE`.
     """
+    answer = _capped_answer(answer)
     token = fence_token or new_fence_token(answer, changes or "")
     changes_section = (
         "## Changes the agent made\n\n"
@@ -169,12 +199,14 @@ def build_judge_prompt(
     )
 
 
-def build_judge_argv(judge: Judge, claude_bin: str, prompt: str) -> list[str]:
-    """The judge's CLI argv: pinned model and effort, no tools, no project config."""
+def build_judge_argv(judge: Judge, claude_bin: str) -> list[str]:
+    """The judge's CLI argv: pinned model and effort, no tools, no project config.
+
+    `-p` has no prompt argument, so the CLI reads the prompt from stdin.
+    """
     return [
         claude_bin,
         "-p",
-        prompt,
         "--model",
         judge.model,
         "--effort",
@@ -212,15 +244,26 @@ def run_judge(
     this process's), with a fresh empty HOME and TMPDIR as a trial gets, removed
     afterwards.
 
+    The prompt goes on the process's stdin. An answer over `ANSWER_MAX_CHARS`
+    is not judged: the returned `Judgement` has a `failure` and no cost. So does
+    one whose judge ran to a result with no `criteria` list, with the cost it
+    reported.
+
     Raises:
-        JudgeError: the process failed or timed out, or its answer has no
-            `criteria` list.
+        JudgeError: the process failed or timed out, or reported an error or
+            no result.
     """
-    argv = build_judge_argv(
-        judge,
-        claude_bin,
-        build_judge_prompt(judge, rubric_points, task, answer, material, changes),
-    )
+    if len(answer) > ANSWER_MAX_CHARS:
+        return Judgement(
+            criteria=[],
+            cost_usd=None,
+            failure=(
+                f"the agent's answer is {len(answer)} characters, over the "
+                f"{ANSWER_MAX_CHARS}-character limit the judge reads"
+            ),
+        )
+    argv = build_judge_argv(judge, claude_bin)
+    prompt = build_judge_prompt(judge, rubric_points, task, answer, material, changes)
     with tempfile.TemporaryDirectory(prefix=JUDGE_TEMP_DIR_PREFIX) as root:
         cwd, home, temp = (Path(root) / name for name in ("cwd", "home", "tmp"))
         for directory in (cwd, home, temp):
@@ -231,7 +274,7 @@ def run_judge(
             ),
             "TMPDIR": str(temp),
         }
-        record = run_process(argv, cwd, timeout_seconds, env)
+        record = run_process(argv, cwd, timeout_seconds, env, stdin_text=prompt)
     parsed = parse_stream(record.stdout)
     cost = parsed.cost_usd
     if record.timed_out:
@@ -244,8 +287,8 @@ def run_judge(
     verdict = extract_agent_json(parsed.result_text)
     criteria = verdict.get("criteria") if verdict is not None else None
     if not isinstance(criteria, list):
-        raise JudgeError("rubric judge answer has no `criteria` list", cost)
-    return Judgement(criteria=criteria, cost_usd=parsed.cost_usd)
+        return Judgement(criteria=[], cost_usd=cost, failure=NO_CRITERIA_FAILURE)
+    return Judgement(criteria=criteria, cost_usd=cost)
 
 
 def judgement_actual(judge: Judge, judgement: Judgement) -> dict:

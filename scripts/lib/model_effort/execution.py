@@ -275,7 +275,10 @@ class _KindGrader:
         elif kind is GraderKind.TESTS_PASS:
             actual = {"results": list(self._record.check_results)}
         elif kind is GraderKind.RUBRIC:
-            actual = self._judged()
+            judgement = self._judged()
+            if judgement.failure is not None:
+                return False, [f"rubric: {judgement.failure}"]
+            actual = rubric_judge.judgement_actual(plan.grading.judge, judgement)
         else:
             actual = agent_json
         return grade_trial(
@@ -285,7 +288,8 @@ class _KindGrader:
             eval_paths=plan.snapshot.eval_paths,
         )
 
-    def _judged(self) -> dict:
+    def _judged(self) -> rubric_judge.Judgement:
+        """Run the judge on this trial's answer, recording what it reported it cost."""
         plan = self._executor.plan
         judge = plan.grading.judge
         run_process = self._executor.run_judge_process
@@ -313,4 +317,4 @@ class _KindGrader:
             self.judge_cost_usd = error.cost_usd
             raise
         self.judge_cost_usd = judgement.cost_usd
-        return rubric_judge.judgement_actual(judge, judgement)
+        return judgement

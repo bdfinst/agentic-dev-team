@@ -8,14 +8,16 @@ check what the agent claims it changed and what it was told to leave alone.
 from __future__ import annotations
 
 import difflib
+import hashlib
 from pathlib import Path
 
 # The diff is capped so a large rewrite cannot crowd out the rest of the judge's prompt.
 DIFF_MAX_CHARS = 30_000
 DIFF_TRUNCATED_NOTE = "[diff truncated]"
 NO_CHANGES_TEXT = "(no files changed)"
-# The trial's own git repo, made by the harness; its contents are not the agent's work.
-_SKIPPED_PARTS = frozenset({".git"})
+# The trial's own git repo, made by the harness at the top of the copy; its
+# contents are not the agent's work. A `.git` deeper down is the agent's.
+_HARNESS_GIT_DIR = ".git"
 
 
 def _entries(root: Path) -> dict[str, Path]:
@@ -28,27 +30,40 @@ def _entries(root: Path) -> dict[str, Path]:
         path.relative_to(root).as_posix(): path
         for path in root.rglob("*")
         if (path.is_symlink() or path.is_file())
-        and not _SKIPPED_PARTS & set(path.relative_to(root).parts)
+        and path.relative_to(root).parts[0] != _HARNESS_GIT_DIR
     }
 
 
 def _describe(path: Path) -> list[str] | str:
-    """A file's lines, or a one-line description of a symlink or binary file."""
+    """A file's lines, or a one-line description of a symlink or binary file.
+
+    A binary file is named by its size and SHA-256, so a same-size change shows.
+    """
     if path.is_symlink():
         return f"symlink to {path.readlink()}"
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return f"binary file, {path.stat().st_size} bytes"
+        data = path.read_bytes()
+    except OSError as error:
+        return f"unreadable file ({type(error).__name__})"
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return _binary(data)
     if "\x00" in text:
-        return f"binary file, {path.stat().st_size} bytes"
+        return _binary(data)
     return text.splitlines(keepends=True)
 
 
+def _binary(data: bytes) -> str:
+    return f"binary file, {len(data)} bytes, sha256 {hashlib.sha256(data).hexdigest()}"
+
+
 def _label(described: list[str] | str, present: bool) -> str:
+    if not present:
+        return "absent"
     if isinstance(described, str):
         return described
-    return "a text file" if present else "absent"
+    return "a text file" if described else "an empty file"
 
 
 def working_copy_diff(
@@ -57,17 +72,21 @@ def working_copy_diff(
     """A unified diff from `pristine` to `work`, `.git` skipped, capped at `max_chars`.
 
     Symlinks are described, never followed; a file that is not UTF-8 text is
-    named with its size.
+    named with its size and SHA-256. An empty file created or deleted gets a
+    labeled section, since a line diff of it is empty.
     """
     before, after = _entries(pristine), _entries(work)
     sections = []
     for name in sorted(before.keys() | after.keys()):
-        old = _describe(before[name]) if name in before else []
-        new = _describe(after[name]) if name in after else []
-        if old == new:
+        was_present, is_present = name in before, name in after
+        old = _describe(before[name]) if was_present else []
+        new = _describe(after[name]) if is_present else []
+        if old == new and was_present == is_present:
             continue
-        if isinstance(old, str) or isinstance(new, str):
-            was, now = _label(old, name in before), _label(new, name in after)
+        # A unified diff of two empty line lists is empty, so an empty file
+        # created or deleted gets a labeled section like a binary file does.
+        if isinstance(old, str) or isinstance(new, str) or not (old or new):
+            was, now = _label(old, was_present), _label(new, is_present)
             sections.append(f"--- a/{name}\n+++ b/{name}\n! was {was}; now {now}\n")
             continue
         sections.append(

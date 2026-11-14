@@ -5,9 +5,11 @@ temp dir, and has no network. macOS uses `sandbox-exec`; Linux uses `bwrap`
 (bubblewrap).
 
 On macOS the profile also refuses Launch Services opens (`lsopen`), Apple
-events, and the Launch Services, Apple-event and DNS-SD services, so a command
-cannot ask another, unjailed process to act for it. `launchctl submit` is
-refused by launchd for a sandboxed caller. On Linux the jail runs in new
+events and preference writes (`defaults write`, which `cfprefsd` would make
+outside the jail), and denies every Mach service except an allowlist the usual
+test tools need (user lookups, notifications, logging, preference reads), so a
+command cannot ask another, unjailed process to act for it. `launchctl submit`
+is refused by launchd for a sandboxed caller. On Linux the jail runs in new
 namespaces with an empty `/run` (and `/var/run`), so the user's D-Bus session
 bus and the Docker socket are not reachable, and the bus variables are unset.
 
@@ -35,16 +37,19 @@ BWRAP = "bwrap"
 PROBE_TIMEOUT_SECONDS = 30
 # Device files a test runner writes to; everything else outside the jail is read-only.
 _WRITABLE_DEVICES = ("/dev/null", "/dev/zero", "/dev/stdout", "/dev/stderr", "/dev/tty")
-# Services that act for the caller outside the jail: Launch Services (opens apps
-# and URLs), its database (without it an Apple event to another app cannot be
-# addressed), Apple events, and DNS-SD (name lookups through mDNSResponder).
-_DENIED_MACH_SERVICES = (
-    "com.apple.coreservices.launchservicesd",
-    "com.apple.lsd.mapdb",
-    "com.apple.lsd.modifydb",
-    "com.apple.coreservices.appleevents",
-    "com.apple.dnssd.service",
-    "com.apple.mDNSResponder",
+# The only Mach services a jailed command may look up; every other is denied, so
+# no service can act for it outside the jail. User and group lookups (`getpwuid`,
+# which Python, Node and git make), notifications, logging, and preference reads
+# (writes are refused separately). pytest, node, git and npx run with only these.
+ALLOWED_MACH_SERVICES = (
+    "com.apple.system.opendirectoryd.libinfo",
+    "com.apple.system.opendirectoryd.membership",
+    "com.apple.system.notification_center",
+    "com.apple.system.logger",
+    "com.apple.logd",
+    "com.apple.diagnosticd",
+    "com.apple.cfprefsd.daemon",
+    "com.apple.cfprefsd.agent",
 )
 # Variables that point a process at the user's session bus or runtime dir.
 _SESSION_ENV_NAMES = ("DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR")
@@ -58,11 +63,11 @@ def _sbpl_string(path: Path) -> str:
 
 def sandbox_exec_profile(writable: Sequence[Path]) -> str:
     """A `sandbox-exec` profile: allow everything except network, writes outside
-    `writable`, Launch Services opens, Apple events and the services in
-    `_DENIED_MACH_SERVICES`."""
+    `writable`, Launch Services opens, Apple events, preference writes and any
+    Mach service not in `ALLOWED_MACH_SERVICES`."""
     subpaths = " ".join(f"(subpath {_sbpl_string(path)})" for path in writable)
     devices = " ".join(f'(literal "{device}")' for device in _WRITABLE_DEVICES)
-    services = " ".join(f'(global-name "{name}")' for name in _DENIED_MACH_SERVICES)
+    services = " ".join(f'(global-name "{name}")' for name in ALLOWED_MACH_SERVICES)
     return (
         "(version 1)\n"
         "(allow default)\n"
@@ -71,7 +76,9 @@ def sandbox_exec_profile(writable: Sequence[Path]) -> str:
         f"(allow file-write* {subpaths} {devices})\n"
         "(deny lsopen)\n"
         "(deny appleevent-send)\n"
-        f"(deny mach-lookup {services})\n"
+        "(deny user-preference-write)\n"
+        "(deny mach-lookup)\n"
+        f"(allow mach-lookup {services})\n"
     )
 
 
@@ -149,6 +156,9 @@ def candidate_jail(
 
 # A harmless Launch Services open: Finder always runs, and `-g` keeps it in the background.
 _LSOPEN_PROBE_ARGV = ("/usr/bin/open", "-g", "-a", "Finder")
+# A preference domain the probe tries to write; removed again whatever happens.
+PREFERENCE_PROBE_DOMAIN = "com.example.model-effort-jail-probe"
+_DEFAULTS = "/usr/bin/defaults"
 _SESSION_BUS_TEMPLATE = "/run/user/{uid}/bus"
 _DOCKER_SOCKET = "/var/run/docker.sock"
 def _probe_script(
@@ -157,7 +167,8 @@ def _probe_script(
     """The jailed half of `probe`: exit 0 only when every escape it tries is refused.
 
     A nonzero exit names the escape: 3 wrote outside, 4 reached the network, 5
-    opened through Launch Services, 6 reached the session bus, 7 saw the Docker socket.
+    opened through Launch Services, 6 reached the session bus, 7 saw the Docker
+    socket, 8 wrote a preference. `lsopen` turns on the macOS cases (5 and 8).
     """
     return (
         "import os, pathlib, socket, subprocess, sys\n"
@@ -176,6 +187,9 @@ def _probe_script(
             f"if subprocess.run({list(_LSOPEN_PROBE_ARGV)!r}, capture_output=True,"
             " timeout=20).returncode == 0:\n"
             "    sys.exit(5)\n"
+            f"if subprocess.run([{_DEFAULTS!r}, 'write', {PREFERENCE_PROBE_DOMAIN!r},"
+            " 'probe', 'x'], capture_output=True, timeout=20).returncode == 0:\n"
+            "    sys.exit(8)\n"
             if lsopen
             else ""
         )
@@ -199,7 +213,8 @@ def probe(jail: CheckJail) -> bool:
 
     The jailed command must be refused a write outside the jail and a connection
     to a socket the harness listens on at 127.0.0.1. Under `sandbox-exec` it must
-    also fail to open an app through Launch Services. Under `bwrap` it must fail
+    also fail to open an app through Launch Services and to write a preference
+    (`defaults write`; the probe domain is deleted afterwards). Under `bwrap` it must fail
     to reach the user's session bus and see no Docker socket, each checked only
     when the host has one.
     """
@@ -231,11 +246,26 @@ def probe(jail: CheckJail) -> bool:
             )
         except (OSError, subprocess.TimeoutExpired):
             return False
+        finally:
+            if jail.tool == SANDBOX_EXEC:
+                _delete_probe_domain()
         return (
             completed.returncode == 0
             and (inside / "ok").exists()
             and not (outside / "escaped").exists()
         )
+
+
+def _delete_probe_domain() -> None:
+    try:
+        subprocess.run(
+            [_DEFAULTS, "delete", PREFERENCE_PROBE_DOMAIN],
+            capture_output=True,
+            timeout=PROBE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass  # Nothing was written, or nothing more can be done.
 
 
 def find_working_jail() -> CheckJail | None:

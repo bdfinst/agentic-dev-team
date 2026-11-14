@@ -79,7 +79,9 @@ def resolve_outcome(
     in the recorded error, as the trial's staging directory is. With
     `requires_agent_json` false, an answer with no JSON object is still graded
     (the grader gets an empty dict), for graders that judge the sandbox or the
-    answer's prose instead of its JSON. With `fail_on_permission_denials`, a
+    answer's prose instead of its JSON. A record with a `workspace_error` (the
+    agent swapped or locked its working copy) is a tool violation. With
+    `fail_on_permission_denials`, a
     trial the CLI denied any tool call is a tool violation, so a sandboxed
     trial's denials surface instead of passing unnoticed.
     """
@@ -127,6 +129,8 @@ def _decide(
             f"tools outside the enabled set: {', '.join(violations)}",
             [],
         )
+    if record.workspace_error is not None:
+        return Outcome.TOOL_VIOLATION, record.workspace_error, []
     if fail_on_permission_denials and parsed.permission_denial_count:
         return (
             Outcome.TOOL_VIOLATION,

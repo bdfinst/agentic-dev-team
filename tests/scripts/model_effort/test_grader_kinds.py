@@ -551,8 +551,9 @@ class TestRubricJudge:
         )
 
     def test_the_judge_runs_the_pinned_model_and_effort_with_no_tools(self):
-        argv = rubric_judge.build_judge_argv(self._judge(), "claude", "prompt")
+        argv = rubric_judge.build_judge_argv(self._judge(), "claude")
 
+        assert argv[1] == "-p" and argv[2].startswith("--")
         assert _flag_value(argv, "--model") == OPUS_JUDGE
         assert _flag_value(argv, "--effort") == "high"
         assert _flag_value(argv, "--tools") == ""
@@ -613,7 +614,7 @@ class TestRubricJudge:
     def test_the_judge_runs_with_a_fresh_empty_home_like_a_trial(self, tmp_path):
         seen = {}
 
-        def capture(_argv, cwd, _timeout, env):
+        def capture(_argv, cwd, _timeout, env, **_kwargs):
             home = Path(env["HOME"])
             seen.update(
                 home=home,
@@ -666,11 +667,6 @@ class TestRubricJudge:
                 r"failed \(exit 0\): boom",
             ),
             ({"stdout": _stream(_init_event())}, "no result event"),
-            ({"stdout": _stream(_result_event("no json"))}, "no `criteria` list"),
-            (
-                {"stdout": _stream(_result_event('{"criteria": "all met"}'))},
-                "no `criteria` list",
-            ),
         ],
     )
     def test_each_failure_raises_judge_error(self, record_fields, message):
@@ -678,7 +674,7 @@ class TestRubricJudge:
         fields.update(record_fields)
 
         with pytest.raises(rubric_judge.JudgeError, match=message):
-            self._run(lambda *_args: process_record.TrialProcessRecord(**fields))
+            self._run(lambda *_args, **_kwargs: process_record.TrialProcessRecord(**fields))
 
     def test_a_judge_reporting_no_cost_yields_a_judgement_with_no_cost(self):
         result = _result_event(json.dumps({"criteria": _met("commits")}))
@@ -687,7 +683,7 @@ class TestRubricJudge:
             exit_code=0, stdout=_stream(result), stderr="", timed_out=False
         )
 
-        judgement = self._run(lambda *_args: record)
+        judgement = self._run(lambda *_args, **_kwargs: record)
 
         assert judgement.cost_usd is None
         assert judgement.criteria == _met("commits")
@@ -720,7 +716,7 @@ class TestRubricRun:
         assert candidate_trial["judge_cost_usd"] == JUDGE_COST
         judge_argv = stub.calls[1]["argv"]
         assert _flag_value(judge_argv, "--model") == OPUS_JUDGE
-        assert "Use the queue." in _flag_value(judge_argv, "-p")
+        assert "Use the queue." in stub.calls[1]["stdin"]
 
     def test_summary_artifact_and_echo_agree_on_the_judge_figures(self, gworld, capsys):
         (gworld.root / "stub-dir").mkdir()
@@ -1352,12 +1348,7 @@ class TestCheckJail:
 
         assert "(deny lsopen)" in profile
         assert "(deny appleevent-send)" in profile
-        for service in (
-            "com.apple.coreservices.launchservicesd",
-            "com.apple.coreservices.appleevents",
-            "com.apple.dnssd.service",
-        ):
-            assert f'(global-name "{service}")' in profile
+        assert "(deny mach-lookup)\n" in profile
 
     @pytest.mark.parametrize(
         ("var_run_is_link", "hidden"),
@@ -1641,9 +1632,9 @@ class TestJudgeCost:
         assert totals.unreported_trials_estimate_usd == pytest.approx(0.1)
 
     def test_a_failed_judge_carries_the_cost_it_reported(self):
-        result = _result_event("no json here", total_cost_usd=0.07)
+        result = _result_event("boom", is_error=True, total_cost_usd=0.07)
 
-        def run_process(argv, cwd, timeout, env):
+        def run_process(argv, cwd, timeout, env, **_kwargs):
             return process_record.TrialProcessRecord(
                 exit_code=0, stdout=_stream(result), stderr="", timed_out=False
             )
@@ -1684,8 +1675,28 @@ class TestJudgeCost:
         baseline, candidate = written["arms"]
         assert baseline["totals"]["judge_cost_usd"] == JUDGE_COST
         assert candidate["totals"]["judge_cost_usd"] == 0.05
-        assert candidate["fixtures"][0]["trials"][0]["outcome"] == "judge_error"
+        # The judge ran but gave no verdict: that counts against the answer.
+        candidate_trial = candidate["fixtures"][0]["trials"][0]
+        assert candidate_trial["outcome"] == "graded_fail"
+        assert candidate_trial["grader_messages"] == [
+            f"rubric: {rubric_judge.NO_CRITERIA_FAILURE}"
+        ]
         assert ", rubric judge $" in capsys.readouterr().err
+
+    def test_an_over_cap_answer_is_graded_failed_without_a_judge_call(
+        self, gworld, tmp_path
+    ):
+        stub = _stub(tmp_path)
+        long_answer = "x" * (rubric_judge.ANSWER_MAX_CHARS + 1)
+        stub.queue(_answer_call(long_answer), _answer_call(long_answer))
+
+        _run(gworld, stub, "thinker", "--model", "opus")
+
+        written = gworld.written()
+        assert _trial_outcomes(written) == ["graded_fail", "graded_fail"]
+        assert len(stub.calls) == 2
+        trial = written["arms"][0]["fixtures"][0]["trials"][0]
+        assert "limit the judge reads" in trial["grader_messages"][0]
 
     def test_judge_spend_alone_can_cross_the_spend_limit(self, gworld, tmp_path, capsys):
         stub = _stub(tmp_path)
@@ -1793,7 +1804,7 @@ class TestJudgeSeesTheFixture:
 
         _run(gworld, stub, "thinker", "--model", "opus")
 
-        prompt = _flag_value(stub.calls[1]["argv"], "-p")
+        prompt = stub.calls[1]["stdin"]
         assert "## Provided material" in prompt
         assert "### brief.md" in prompt and "\nbrief\n" in prompt
         assert "Picks the queue." in prompt

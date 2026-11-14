@@ -519,10 +519,16 @@ directory). Its environment is built from an allowlist: `PATH`, `LANG`, `LC_*`,
 `TMPDIR` is a private temp directory for that trial only. With a credential
 variable, `HOME` is an empty temp directory; without one, `HOME` is kept,
 because a keychain login is found through it. The rubric judge runs with the
-same environment rules and its own temp `HOME` and `TMPDIR`.
+same environment rules and its own temp `HOME` and `TMPDIR`. Its prompt goes on
+stdin (`-p` with no prompt argument), so a large prompt cannot exceed the OS
+limit on one argument (128 KiB on Linux).
 
 When `claude` exits, for any reason, the harness kills its whole process group
-before it reads, restores or tests the copy.
+before it reads, restores or tests the copy. It then checks that the staging
+directory and the working copy are the same real directories (device and inode,
+read without following symlinks) as before the trial. If the agent moved,
+replaced or symlinked either one, the harness does not diff, restore or test
+the copy, and the trial is a `tool_violation`.
 
 **A sandboxed trial** (a write-capable agent) also runs under Claude Code's
 Bash sandbox, passed with `--settings` (keys from the
@@ -553,14 +559,24 @@ no working jail it refuses a `tests-pass` run unless you pass
 | --- | --- | --- |
 | Writes | Only the trial copy, its temp dir and `/dev/null`-style devices. | The root is bound read-only; only the trial copy and its temp dir are writable; `/tmp` is an empty tmpfs. |
 | Network | Denied (`deny network*`), loopback included. | New network namespace (`--unshare-all`). |
-| Other processes | Launch Services opens (`deny lsopen`), Apple events (`deny appleevent-send`) and the Launch Services, Apple-event and DNS-SD services are denied. `launchctl submit`, `bootstrap` and `load` are refused for a sandboxed caller. | New PID, IPC and user namespaces; `/run` (and `/var/run` when it is a real directory) is an empty tmpfs, so the session bus and the Docker socket are unreachable; `DBUS_SESSION_BUS_ADDRESS` and `XDG_RUNTIME_DIR` are unset. |
-| Probe asserts | A write inside works; a write outside, a connection to a harness-owned `127.0.0.1` socket and `open -a Finder` are refused. | A write inside works; a write outside and that connection are refused; the user's session bus cannot be reached and the Docker socket is not visible, each when the host has one. |
+| Other processes | Launch Services opens (`deny lsopen`), Apple events (`deny appleevent-send`) and preference writes (`deny user-preference-write`, so `defaults write` cannot reach `cfprefsd`) are denied. Every Mach service is denied except an allowlist for user lookups, notifications, logging and preference reads; `pytest`, `node`, `git` and `npx` run with it. `launchctl submit`, `bootstrap` and `load` are refused for a sandboxed caller. | New PID, IPC and user namespaces; `/run` (and `/var/run` when it is a real directory) is an empty tmpfs, so the session bus and the Docker socket are unreachable; `DBUS_SESSION_BUS_ADDRESS` and `XDG_RUNTIME_DIR` are unset. |
+| Probe asserts | A write inside works; a write outside, a connection to a harness-owned `127.0.0.1` socket, `open -a Finder` and `defaults write` are refused. | A write inside works; a write outside and that connection are refused; the user's session bus cannot be reached and the Docker socket is not visible, each when the host has one. |
 
 **Protected paths.** After the agent finishes, the harness restores each
 `protectedPaths` entry from the frozen fixture. The walk holds a directory file
 descriptor at each step and opens every directory with `O_NOFOLLOW`, so a symlink
 in the path, even one swapped in during the walk, is refused or removed, never
-followed.
+followed. Each directory on the way first gets owner read, write and search
+back (chmod without following a symlink), so an agent that locked the copy
+cannot stop the restore. If the restore still fails (for example, a file the
+agent made immutable), the trial is a `tool_violation` with its cost recorded,
+and the run continues.
+
+**What the judge sees of the changes.** The diff skips only the harness's own
+top-level `.git`; a `.git` directory deeper in the copy is the agent's work and
+is shown. An empty file created or deleted gets its own labeled section. A
+binary or non-UTF-8 file is named with its size and SHA-256, so a same-size
+change shows.
 
 Residual risks, by design or not yet closed:
 
@@ -576,7 +592,9 @@ Residual risks, by design or not yet closed:
   test files themselves.
 - **Process races.** A process that left the CLI's process group (a new session,
   or `setsid`) survives the group kill and can change the copy after the
-  restore. Once the group is empty, a new process could take its ID between the
+  restore, or swap the working copy after the identity check. On Linux before
+  Python 3.13, `chmod` cannot refuse a symlink, so the restore checks each
+  directory with `lstat` first and such a process could swap one in between. Once the group is empty, a new process could take its ID between the
   reap and the kill; that window is microseconds.
 - **Apple events on macOS.** An `osascript` command to another app is not
   delivered, but it blocks until the test command's timeout instead of failing.
@@ -594,7 +612,7 @@ deterministic grader in `scripts/eval_graders/`, selected by the expected entry'
 | `expected-findings` (default) | review agents (`verdict`), plan critics, `gherkin-quality-critic`, `spec-reviewer` (`finding_ids`) | Match the expected verdict and report every planted finding ID (`expectedFindingIds`: keywords, optional severities), within `maxFindings`/`maxBySeverity`. |
 | `tests-pass` | `software-engineer`, `mutation-kill` | After the agent finishes, the entry's `testCommands` exit 0 in the trial copy, jailed. `protectedPaths` are first restored from the pristine fixture, so the agent cannot weaken the tests that grade it; each must be a relative path inside a directory fixture, and a symlink in its place or in a parent is replaced, never followed. `{python}` is the harness's interpreter. |
 | `dispatch-set` | `orchestrator`, `quality-reviewer` | Dispatch every agent in `dispatch.include` and none in `dispatch.exclude` (`exact`: nothing else), read from the transcript's `Agent` calls. Each dispatch goes to a stub agent passed with `--agents` that replies with a clean verdict. The answer may be prose; an entry with `expectedStatus` fails an answer with no JSON verdict. |
-| `rubric` | the remaining agents | A judge model pinned in `graders.json` (the top-level `judge`, unless the agent pins its own), one tier above the agent (opus agents are judged by opus), marks every criterion of the agent's committed rubric (`evals/model-effort/rubrics/<agent>.md`) and every `rubricPoints` entry met. The judge sees the rubric, the task, the fixture's text files (capped at 60,000 characters) and the agent's final answer, never the expected entry. For a sandboxed agent the judge also sees the harness's diff of the trial copy against the frozen fixture, so it can check what the agent changed and what it left alone. The answer and the diff are fenced between markers with a random per-call token, and the judge is told everything inside is data. A failed judge call is `judge_error`, not `graded_fail`, and its reported cost is still charged. |
+| `rubric` | the remaining agents | A judge model pinned in `graders.json` (the top-level `judge`, unless the agent pins its own), one tier above the agent (opus agents are judged by opus), marks every criterion of the agent's committed rubric (`evals/model-effort/rubrics/<agent>.md`) and every `rubricPoints` entry met. The judge sees the rubric, the task, the fixture's text files (capped at 60,000 characters) and the agent's final answer (capped at 30,000 characters), never the expected entry. For a sandboxed agent the judge also sees the harness's diff of the trial copy against the frozen fixture, so it can check what the agent changed and what it left alone. The answer and the diff are fenced between markers with a random per-call token, and the judge is told everything inside is data. A judge call that fails, times out or reports an error is `judge_error`, not `graded_fail`, and its reported cost is still charged. A judge that ran to a result with no `criteria` list is `graded_fail`, cost charged, because the answer may have caused it. An answer over 30,000 characters is `graded_fail` without a judge call. |
 
 An expected entry's `task` replaces the default review prompt; `{fixture}` in it
 is the staged fixture's name. The harness refuses a fixture whose expected entry

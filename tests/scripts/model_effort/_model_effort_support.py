@@ -212,6 +212,7 @@ calls.append({
     "git_dirs": sorted(str(p.relative_to(cwd)) for p in cwd.rglob(".git")),
     "tmpdir": os.environ.get("TMPDIR"),
     "home": os.environ.get("HOME"),
+    "stdin": "" if sys.stdin is None or sys.stdin.isatty() else sys.stdin.read(),
 })
 RECORD.write_text(json.dumps(calls))
 if BEHAVIOR.get("tamper"):
