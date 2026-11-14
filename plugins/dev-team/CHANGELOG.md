@@ -1,5 +1,20 @@
 # Changelog
 
+## [14.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.2.1...dev-team-v14.3.0) (2026-11-14)
+
+
+### Features
+
+* **marketplace-dev:** keep model/effort decision log as an ADR 0026 sync surface ([#2316](https://github.com/bdfinst/agentic-dev-team/issues/2316)) ([2fb82eb](https://github.com/bdfinst/agentic-dev-team/commit/2fb82eb97af94760428d58b49d604cc2a26c4ebf))
+* **metrics:** add session id to consult and checkpoint-abort rows ([#2317](https://github.com/bdfinst/agentic-dev-team/issues/2317)) ([5cd276e](https://github.com/bdfinst/agentic-dev-team/commit/5cd276e8256d909ebad9bc3913577eb6196760e6))
+* **metrics:** persist review report size per round ([#2321](https://github.com/bdfinst/agentic-dev-team/issues/2321)) ([f545097](https://github.com/bdfinst/agentic-dev-team/commit/f545097b07136127d40e322678281bf09e200d08))
+* **metrics:** record tiered-finding expansions (expand-rate) ([#2319](https://github.com/bdfinst/agentic-dev-team/issues/2319)) ([2f86151](https://github.com/bdfinst/agentic-dev-team/commit/2f8615121413c318fdcb14291cf9ec3bdd8bdcc0))
+
+
+### Bug Fixes
+
+* **hooks:** stop SessionStart nudges re-firing on compaction ([#2318](https://github.com/bdfinst/agentic-dev-team/issues/2318)) ([cca024b](https://github.com/bdfinst/agentic-dev-team/commit/cca024b9e7aac5b8676a04efa76f6f8dd75b7a92))
+
 ## [14.2.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.2.0...dev-team-v14.2.1) (2026-11-14)
 
 
