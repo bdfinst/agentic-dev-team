@@ -187,11 +187,16 @@ def test_agent_missing_model_or_effort_is_an_error(tmp_path):
 
 
 def load_gate():
-    path = REPO_ROOT / "tests" / "docs" / "test_model_effort_decisions.py"
+    path = REPO_ROOT / "tests" / "docs" / "_model_effort_gate.py"
     spec = importlib.util.spec_from_file_location("model_effort_gate_under_test", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def no_committed_artifact(_run_id):
+    """Appended rows are keep rows, so the gate never resolves an evidence run."""
+    return
 
 
 def test_appended_rows_pass_the_decision_log_gate(tmp_path):
@@ -208,7 +213,10 @@ def test_appended_rows_pass_the_decision_log_gate(tmp_path):
     assert len(new_rows) == 3
     for row in new_rows:
         frontmatter = (root / row["Source"]).read_text(encoding="utf-8")
-        assert gate.check_row(row, lambda _source, fm=frontmatter: fm) == []
+        assert (
+            gate.check_row(row, lambda _source, fm=frontmatter: fm, no_committed_artifact)
+            == []
+        )
 
 
 def test_model_or_effort_outside_the_gate_vocabulary_is_an_error(tmp_path):
