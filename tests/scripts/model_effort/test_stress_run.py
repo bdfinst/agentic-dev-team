@@ -7,18 +7,21 @@ import dataclasses
 import pytest
 from _model_effort_support import (
     NOW,
+    PASS_VERDICT,
+    SONNET_MODEL_ID,
     TEST_PRICING,
     FixedRng,
     _cli_canned,
     _deps_with_canned_trials,
     _stderr_lines,
+    _verdict_call,
     _written,
 )
-from model_effort import plan
+from model_effort import plan, process_record
 from model_effort.arm import BASELINE_LABEL, Arm
 from model_effort.errors import UsageError
 from model_effort.stress_arms import STEP_DOWN_LABEL, STEP_UP_LABEL, Axis
-from model_effort.verdict import DECISION_DOWNGRADE
+from model_effort.verdict import DECISION_DOWNGRADE, DECISION_KEEP, DECISION_UPGRADE
 
 OPUS_PRICING = {
     "models": {**TEST_PRICING["models"], "test-top": {"input": 8.0, "output": 40.0}},
@@ -124,3 +127,83 @@ def test_stress_flag_and_model_flag_together_are_a_usage_error(world, capsys):
 
     assert (code, calls) == (2, [])
     assert "--stress" in capsys.readouterr().err
+
+
+def test_stress_flag_and_effort_flag_together_are_a_usage_error(world, capsys):
+    code, calls = _stress_cli(world, "--effort", "low")
+
+    assert (code, calls, world.artifacts) == (2, [], [])
+    assert (
+        "error: --stress picks its own arms (one step down and one step up from the "
+        "frontmatter tier): drop --model and --effort"
+    ) in _stderr_lines(capsys)
+
+
+def test_stress_cli_on_the_effort_axis_runs_effort_steps(world):
+    code, _ = _stress_cli(world, "--axis", "effort")
+
+    written = _written(world)
+    assert code == 0
+    assert [(a["label"], a["model"], a["effort"]) for a in written["arms"]] == [
+        (BASELINE_LABEL, "sonnet", "high"),
+        (STEP_DOWN_LABEL, "sonnet", "medium"),
+        (STEP_UP_LABEL, "sonnet", "xhigh"),
+    ]
+
+
+# layered-svc expects a finding: a `fail` answer catches it, a `pass` answer misses it.
+FINDING_STEM = "layered-svc"
+CAUGHT = {
+    "status": "fail",
+    "issues": [{"severity": "error", "message": "layering violation"}],
+    "summary": "Found one.",
+}
+
+
+def _record(verdict: dict) -> process_record.TrialProcessRecord:
+    return process_record.TrialProcessRecord(
+        exit_code=0,
+        stdout=_verdict_call(verdict, SONNET_MODEL_ID)["stdout"],
+        stderr="",
+        timed_out=False,
+    )
+
+
+def _stress_cli_catching(world, catching_arms):
+    """A stress run where only `catching_arms` catch the planted finding."""
+    deps = dataclasses.replace(world.deps, pricing_table=OPUS_PRICING)
+
+    def canned_trial(fixture_path, config, _timeout):
+        caught = fixture_path.name == FINDING_STEM and config.arm.label in catching_arms
+        return _record(CAUGHT if caught else PASS_VERDICT)
+
+    deps = dataclasses.replace(deps, run_trial=canned_trial)
+    return _cli_canned(world, deps, "scout", "--stress", "--trials", "2")
+
+
+def test_stress_cli_upgrades_when_only_the_step_up_arm_catches_the_finding(
+    world, capsys
+):
+    code = _stress_cli_catching(world, {STEP_UP_LABEL})
+
+    written = _written(world)
+    assert code == 0
+    assert written["verdict"]["decision"] == DECISION_UPGRADE
+    assert written["verdict"]["upgrade"]["findings"] == [FINDING_STEM]
+    assert (
+        "Verdict: upgrade to opus/high (step-up arm): step-up catches layered-svc in "
+        "at least half its trials; the current tier misses it in every trial"
+    ) in _stderr_lines(capsys)
+
+
+def test_stress_cli_keeps_when_the_step_down_arm_loses_recall(world, capsys):
+    code = _stress_cli_catching(world, {BASELINE_LABEL, STEP_UP_LABEL})
+
+    written = _written(world)
+    assert code == 0
+    assert written["verdict"]["decision"] == DECISION_KEEP
+    assert (
+        "Verdict: keep: downgrade: recall 0/2 below the current tier's 2/2. "
+        "upgrade: step-up catches no expected finding in at least half its trials "
+        "that the current tier misses in every trial"
+    ) in _stderr_lines(capsys)
