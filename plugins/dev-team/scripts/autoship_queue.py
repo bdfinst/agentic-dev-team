@@ -39,8 +39,12 @@ from typing import Any
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
+_HOOKS_LIB_DIR = _HERE.parent / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.append(str(_HOOKS_LIB_DIR))
 
 import autoship_state
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 
 class QueueError(Exception):
@@ -239,6 +243,10 @@ def _load_grouping_output(input_file: str | None) -> dict[str, Any]:
     with no need to interpose between the two stages — `/dev-team:autoship`
     itself always uses `--input-file`, see the module Usage note above).
 
+    Exits 2 (via `read_stdin_or_exit`, no `QueueError`) when stdin is a
+    terminal or a socket that never reaches EOF and no `--input-file` is
+    given.
+
     Raises `QueueError` on an unreadable file/stdin, invalid JSON, a
     non-object payload, or a malformed `batches`/`ungrouped` structure —
     never an uncaught exception.
@@ -253,7 +261,7 @@ def _load_grouping_output(input_file: str | None) -> dict[str, Any]:
             ) from exc
     else:
         try:
-            raw = sys.stdin.read()
+            raw = read_stdin_or_exit("--input-file")
         except (OSError, UnicodeDecodeError) as exc:
             raise QueueError(
                 f"grouping output could not be read from stdin: {exc}"

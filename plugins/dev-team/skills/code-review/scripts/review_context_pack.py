@@ -66,6 +66,11 @@ if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
 try:
+    from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+    read_stdin_or_exit = None
+
+try:
     import artifact_paths  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
     # Same guarded-import shape as the sibling scripts in this directory, which
@@ -265,10 +270,15 @@ def parse_name_status(lines) -> list[tuple[str, str]]:
     return out
 
 
-def _read_file_list(source: str | None) -> list[str]:
+def _read_file_list(source: str | None, flag: str) -> list[str]:
     if not source:
         return []
-    text = sys.stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+    if source != "-":
+        text = Path(source).read_text(encoding="utf-8")
+    elif read_stdin_or_exit is None:  # pragma: no cover - degraded fallback
+        text = sys.stdin.read()
+    else:
+        text = read_stdin_or_exit(flag)
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
@@ -288,9 +298,13 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     cwd = Path(args.cwd) if args.cwd else Path.cwd()
-    changed = parse_name_status(_read_file_list(args.name_status_from)) \
+    changed = parse_name_status(_read_file_list(args.name_status_from, "--name-status-from")) \
         if args.name_status_from else None
-    files = [p for p, _ in changed] if changed else _read_file_list(args.files_from)
+    files = (
+        [p for p, _ in changed]
+        if changed is not None
+        else _read_file_list(args.files_from, "--files-from")
+    )
     if not files:
         print(json.dumps({"error": "no files given", "path": None}))
         return 1

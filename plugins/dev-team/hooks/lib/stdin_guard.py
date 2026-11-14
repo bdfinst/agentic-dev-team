@@ -1,0 +1,76 @@
+"""stdin_guard - refuse stdin streams that never reach EOF.
+
+A stdin that is a socket or terminal, as seen when a script runs under the
+Bash tool, may never reach EOF. A script that reads stdin by default then
+blocks until the tool times out.
+``read_stdin_or_exit`` reads a stream only when its type can end, and
+otherwise exits with a usage error that names the flag to pass instead.
+A pipe, a regular file and the null device can end. Any other character
+device (``/dev/zero``, ``/dev/urandom``, a terminal) cannot, nor can a socket,
+a directory or a closed stream.
+
+Limits: a pipe whose writer never closes is not detected, and a socket that
+delivers data and then EOF is refused too (the caller passes the flag or
+pipes the input).
+
+Stdlib only.
+"""
+
+from __future__ import annotations
+
+import io
+import os
+import stat
+import sys
+
+REFUSAL_EXIT_STATUS = 2
+
+
+def stream_can_reach_eof(stream) -> bool:
+    """True when reading ``stream`` can reach EOF; ``None`` cannot.
+
+    Inspects the descriptor of the given stream, never the process's fd 0.
+    A stream with no descriptor (an in-memory stream) can reach EOF.
+    """
+    if stream is None or getattr(stream, "closed", False):
+        return False
+    try:
+        fd = stream.fileno()
+    except (io.UnsupportedOperation, ValueError):
+        return True
+    except OSError:
+        return False
+    try:
+        mode = os.fstat(fd).st_mode
+    except OSError:
+        return False
+    if stat.S_ISFIFO(mode) or stat.S_ISREG(mode):
+        return True
+    return stat.S_ISCHR(mode) and _is_null_device(fd)
+
+
+def _is_null_device(fd: int) -> bool:
+    if os.isatty(fd):
+        return False
+    try:
+        return os.path.samestat(os.fstat(fd), os.stat(os.devnull))
+    except OSError:
+        return False
+
+
+def read_stdin_or_exit(flag: str, stream=None) -> str:
+    """Return the text of ``stream`` (default ``sys.stdin``), or exit 2.
+
+    A stream that can hang is refused with one stderr message naming ``flag``;
+    nothing goes to stdout.
+    """
+    if stream is None:
+        stream = sys.stdin
+    if stream_can_reach_eof(stream):
+        return stream.read()
+    script = os.path.basename(sys.argv[0])
+    sys.stderr.write(
+        f"{script}: no input; stdin never reaches EOF here (terminal, open "
+        f"socket or closed stream). Pass {flag} <file> or pipe the input in.\n"
+    )
+    sys.exit(REFUSAL_EXIT_STATUS)

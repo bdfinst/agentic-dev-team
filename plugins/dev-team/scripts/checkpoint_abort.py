@@ -54,6 +54,7 @@ if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
 from instrument_log import append_row  # type: ignore[import-not-found]
+from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 
 # The bar this script's abort decision applies. Deliberately STRICTER than
 # `skills/code-review/SKILL.md` step 6a's "Severity floor (rounds >= 2)" rule
@@ -288,9 +289,9 @@ def merge_findings(existing: list, new: list) -> list:
     return merged
 
 
-def _read_text(path_or_dash: str) -> str:
+def _read_text(path_or_dash: str, flag: str) -> str:
     if path_or_dash == "-":
-        return sys.stdin.read()
+        return read_stdin_or_exit(flag)
     return Path(path_or_dash).read_text(encoding="utf-8")
 
 
@@ -339,7 +340,9 @@ def _validate_merge_input(data) -> None:
         )
 
 
-def _load_json_arg(path_or_dash: str, invalid_json_message: str) -> tuple[Any, int | None]:
+def _load_json_arg(
+    path_or_dash: str, invalid_json_message: str, flag: str
+) -> tuple[Any, int | None]:
     """Shared read-then-parse step for every `--mode`'s CLI entry point:
     read `path_or_dash` via `_read_text` (a file path or `-` for stdin),
     then `json.loads` it. Prints a formatted `checkpoint_abort.py: ...`
@@ -352,7 +355,7 @@ def _load_json_arg(path_or_dash: str, invalid_json_message: str) -> tuple[Any, i
     caller's grammar. Extracted from three near-identical copies of this
     same 2-step scaffold (structure-review, #2168 backstop review)."""
     try:
-        raw = _read_text(path_or_dash)
+        raw = _read_text(path_or_dash, flag)
     except OSError as exc:
         print(f"checkpoint_abort.py: cannot read {path_or_dash}: {exc}", file=sys.stderr)
         return None, 1
@@ -365,7 +368,9 @@ def _load_json_arg(path_or_dash: str, invalid_json_message: str) -> tuple[Any, i
 
 def _run_abort_mode(args) -> int:
     cheap_results, err = _load_json_arg(
-        args.cheap_results_from, "cheap-tier results are not valid JSON"
+        args.cheap_results_from,
+        "cheap-tier results are not valid JSON",
+        "--cheap-results-from",
     )
     if err is not None:
         return err
@@ -394,7 +399,9 @@ def _run_abort_mode(args) -> int:
 
 
 def _run_outcome_mode(args) -> int:
-    data, err = _load_json_arg(args.from_path, "--mode outcome input is not valid JSON")
+    data, err = _load_json_arg(
+        args.from_path, "--mode outcome input is not valid JSON", "--from"
+    )
     if err is not None:
         return err
 
@@ -426,7 +433,9 @@ def _run_outcome_mode(args) -> int:
 
 
 def _run_merge_mode(args) -> int:
-    data, err = _load_json_arg(args.from_path, "--mode merge input is not valid JSON")
+    data, err = _load_json_arg(
+        args.from_path, "--mode merge input is not valid JSON", "--from"
+    )
     if err is not None:
         return err
 
