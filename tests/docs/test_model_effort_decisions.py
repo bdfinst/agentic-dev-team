@@ -76,7 +76,7 @@ GOOD_EVIDENCE = (
 )
 UPGRADE_EVIDENCE = (
     f"eval:{UPGRADE_RUN_ID}; model:claude-haiku-5-5; effort:medium; "
-    f"fixtures:{MIN_FIXTURES}; trials:3; delta:0; cost:0.02->0.40"
+    f"fixtures:{MIN_FIXTURES}; trials:3; delta:+1; cost:0.02->0.40"
 )
 SKILL_EVIDENCE = GOOD_EVIDENCE.replace(f"eval:{GOOD_RUN_ID}", f"eval:{SKILL_RUN_ID}")
 # Baseline arm cost minus final arm cost in the GOOD_RUN_ID artifact.
@@ -120,6 +120,19 @@ def make_arm(label, model, effort, cost_usd, fixtures=MIN_FIXTURES, trials=3):
     }
 
 
+def make_verdict(decision, model, effort, upgrade_findings=()):
+    """The stress run's verdict, in the shape scripts/lib/model_effort/verdict.py writes."""
+    moving = decision != DECISION_KEEP
+    return {
+        "decision": decision,
+        "reason": "synthetic reason",
+        "arm": "step-up" if decision == DECISION_UPGRADE else "step-down",
+        "model": model if moving else None,
+        "effort": effort if moving else None,
+        "upgrade": {"findings": list(upgrade_findings), "reason": "synthetic"},
+    }
+
+
 def make_artifact(run_id, agent, arms, status=RUN_STATUS_COMPLETE):
     return {"run_id": run_id, "status": status, "agent": agent, "arms": arms}
 
@@ -133,14 +146,19 @@ ARTIFACTS_BY_RUN_ID = {
             make_arm("candidate", "haiku", "medium", 0.0212),
         ],
     ),
-    UPGRADE_RUN_ID: make_artifact(
-        UPGRADE_RUN_ID,
-        "b",
-        [
-            make_arm("baseline", "haiku", "low", 0.02),
-            make_arm("candidate", "haiku", "medium", 0.40),
-        ],
-    ),
+    UPGRADE_RUN_ID: {
+        **make_artifact(
+            UPGRADE_RUN_ID,
+            "b",
+            [
+                make_arm("baseline", "haiku", "low", 0.02),
+                make_arm("step-up", "haiku", "medium", 0.40),
+            ],
+        ),
+        "mode": "stress",
+        "tier_change_eligible": True,
+        "verdict": make_verdict(DECISION_UPGRADE, "haiku", "medium", ["f0"]),
+    },
     SKILL_RUN_ID: make_artifact(
         SKILL_RUN_ID,
         "s",
@@ -763,4 +781,110 @@ def test_keep_row_with_saving_is_rejected():
 def test_keep_row_cannot_carry_an_eval_record():
     assert errors_for(make_row(evidence=GOOD_EVIDENCE)) == [
         "b: keep-row evidence must be one of the known reasons"
+    ]
+
+
+# --- stress-run verdicts -------------------------------------------------------
+
+
+def stress_good_artifact(**overrides):
+    """The GOOD_RUN_ID artifact as a stress run whose verdict backs the downgrade row."""
+    return {
+        **ARTIFACTS_BY_RUN_ID[GOOD_RUN_ID],
+        "mode": "stress",
+        "tier_change_eligible": True,
+        "verdict": make_verdict(DECISION_DOWNGRADE, "haiku", "medium"),
+        **overrides,
+    }
+
+
+def errors_with_stress_artifact(row, **overrides):
+    return errors_for(row, {GOOD_RUN_ID: stress_good_artifact(**overrides)}.get)
+
+
+def test_downgrade_backed_by_a_stress_downgrade_verdict_passes():
+    assert errors_with_stress_artifact(make_tier_change_row()) == []
+
+
+def test_tier_change_citing_a_keep_verdict_is_rejected():
+    verdict = make_verdict(DECISION_KEEP, None, None)
+    assert errors_with_stress_artifact(make_tier_change_row(), verdict=verdict) == [
+        f"b: artifact {GOOD_RUN_ID} verdict is 'keep', not 'downgrade': synthetic reason"
+    ]
+
+
+def test_tier_change_to_a_tier_the_verdict_did_not_pick_is_rejected():
+    verdict = make_verdict(DECISION_DOWNGRADE, "haiku", "low")
+    assert errors_with_stress_artifact(make_tier_change_row(), verdict=verdict) == [
+        f"b: artifact {GOOD_RUN_ID} verdict moves to haiku/low, not the row's haiku/medium"
+    ]
+
+
+def test_tier_change_from_an_ineligible_run_is_rejected():
+    assert errors_with_stress_artifact(
+        make_tier_change_row(), tier_change_eligible=False
+    ) == [
+        (
+            f"b: artifact {GOOD_RUN_ID} is not tier-change eligible "
+            "(too few graded trials for its grader)"
+        )
+    ]
+
+
+def test_ineligible_ab_artifact_is_rejected_too():
+    assert errors_with_good_artifact(
+        make_tier_change_row(), tier_change_eligible=False
+    ) == [
+        (
+            f"b: artifact {GOOD_RUN_ID} is not tier-change eligible "
+            "(too few graded trials for its grader)"
+        )
+    ]
+
+
+def test_downgrade_evidence_with_a_positive_delta_is_rejected():
+    evidence = GOOD_EVIDENCE.replace("delta:0", "delta:+1")
+    assert errors_for(make_tier_change_row(evidence=evidence)) == [
+        "b: downgrade evidence must record delta:0"
+    ]
+
+
+def test_upgrade_evidence_with_a_zero_delta_is_rejected():
+    evidence = UPGRADE_EVIDENCE.replace("delta:+1", "delta:0")
+    assert errors_for(make_upgrade_row(evidence=evidence)) == [
+        "b: upgrade evidence must record delta:+N, the expected findings gained"
+    ]
+
+
+def test_upgrade_delta_must_equal_the_verdicts_findings():
+    evidence = UPGRADE_EVIDENCE.replace("delta:+1", "delta:+2")
+    assert errors_for(make_upgrade_row(evidence=evidence)) == [
+        (
+            f"b: evidence delta +2 differs from artifact {UPGRADE_RUN_ID} "
+            "verdict's 1 upgrade finding(s)"
+        )
+    ]
+
+
+def test_upgrade_citing_an_ab_run_without_a_verdict_is_rejected():
+    plain = {
+        k: v
+        for k, v in ARTIFACTS_BY_RUN_ID[UPGRADE_RUN_ID].items()
+        if k not in {"mode", "verdict"}
+    }
+    assert errors_for(make_upgrade_row(), {UPGRADE_RUN_ID: plain}.get) == [
+        (
+            f"b: upgrade evidence must cite a stress run with a verdict; "
+            f"artifact {UPGRADE_RUN_ID} has none"
+        )
+    ]
+
+
+def test_recall_gap_agent_cannot_move_a_tier():
+    row = make_tier_change_row(agent="correctness-review")
+    assert errors_for(row) == [
+        (
+            "correctness-review: results are excluded from evidence "
+            "(known recall gap), so the tier cannot move"
+        )
     ]

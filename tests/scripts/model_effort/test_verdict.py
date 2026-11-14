@@ -349,3 +349,21 @@ def test_verdict_dict_for_a_blocked_keep_has_no_arm():
         None,
         None,
     )
+
+
+def test_the_decision_log_gate_excludes_the_same_agents():
+    import ast
+
+    from _repo_root import REPO_ROOT
+
+    gate = (REPO_ROOT / "tests" / "docs" / "_model_effort_gate.py").read_text(
+        encoding="utf-8"
+    )
+    assigned = next(
+        node.value
+        for node in ast.walk(ast.parse(gate))
+        if isinstance(node, ast.Assign)
+        and any(getattr(t, "id", None) == "RECALL_GAP_AGENTS" for t in node.targets)
+    )
+
+    assert ast.literal_eval(assigned) == set(RECALL_GAP_EXCLUDED_AGENTS)
