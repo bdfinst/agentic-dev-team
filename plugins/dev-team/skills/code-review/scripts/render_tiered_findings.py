@@ -7,9 +7,23 @@ report with a dozen findings a wall of text even when most of them are
 routine. This module renders a compact Tier-1 line per finding by default,
 and defers the full message/suggestedFix narrative (Tier-2) to an explicit
 `--expand <finding-id>|all`, using the SAME in-memory finding list already
-aggregated for the report — no re-dispatch. Its only write is one fail-open
-`tiered-renders` metrics row per non-empty render; stdout and the exit code
-are unaffected by it.
+aggregated for the report — no re-dispatch, no I/O beyond the finding JSON
+already on hand and the two measurement rows below.
+
+## Measurement rows
+
+Every successful render, with or without `--expand`, appends one row to
+`.claude/metrics/review-report-sizes.jsonl` through `instrument_log`:
+`findings`, `untiered_bytes` (UTF-8 bytes of the untiered report, every
+finding's full message and suggested fix inline) and `tiered_bytes` (UTF-8
+bytes of the Tier-1 report), plus `session_id` from `--session`, else
+`$CLAUDE_CODE_SESSION_ID`, else `$CLAUDE_SESSION_ID`. The sizes do not depend
+on `--expand`, so re-renders of one round write identical rows, which the
+metric counts once when the round has findings; every clean-pass row is
+counted. Each successful render of a non-empty report also appends one
+`tiered-renders` row for the expand-rate metric. An unknown `--expand` id
+writes no row. Both writes are fail-open and never change stdout or the exit
+code.
 
 This script is prose-path only. `--json` (step 7's other branch) and
 `./corrections/*.json` (step 8) read/write the full finding objects
@@ -72,6 +86,9 @@ from stdin_guard import read_stdin_or_exit  # type: ignore[import-not-found]
 #: Rendered instead of any per-finding line when a round has zero findings —
 #: there is nothing to list and nothing to expand.
 CLEAN_PASS_SUMMARY = "Clean pass: 0 findings this round — nothing to expand."
+
+#: Label that introduces a finding's suggested fix on its own line.
+SUGGESTED_FIX_LABEL = "Suggested fix: "
 
 #: Rendered once, after the Tier-1 lines, when the round has at least one
 #: finding. Omitted entirely on a zero-finding round (see CLEAN_PASS_SUMMARY)
@@ -145,16 +162,19 @@ def compute_ids(findings: list[dict]) -> list[str]:
     return ids
 
 
-def render_tier1_line(finding: dict, finding_id: str) -> str:
-    """One Tier-1 line: `file:line [agent] severity/confidence —
-    <first sentence of message> (<finding-id>)`."""
+def _finding_entry(finding: dict, finding_id: str, text: str) -> str:
     file_path = str(finding.get("file") or "")
     line = _finding_line(finding)
     agent = _finding_agent(finding)
     severity = str(finding.get("severity") or "")
     confidence = str(finding.get("confidence") or "")
-    sentence = first_sentence(finding.get("message", ""))
-    return f"{file_path}:{line} [{agent}] {severity}/{confidence} — {sentence} ({finding_id})"
+    return f"{file_path}:{line} [{agent}] {severity}/{confidence} — {text} ({finding_id})"
+
+
+def render_tier1_line(finding: dict, finding_id: str) -> str:
+    """One Tier-1 line: `file:line [agent] severity/confidence —
+    <first sentence of message> (<finding-id>)`."""
+    return _finding_entry(finding, finding_id, first_sentence(finding.get("message", "")))
 
 
 def render_tier1_report(findings: list[dict], ids: list[str]) -> str:
@@ -167,13 +187,58 @@ def render_tier1_report(findings: list[dict], ids: list[str]) -> str:
     return "\n".join(lines)
 
 
+def render_untiered_report(findings: list[dict], ids: list[str]) -> str:
+    """The report as it read before tiering: each finding's Tier-1 header with
+    its full message, then its suggested fix on its own line when present.
+    Used only to measure the size the tiering saves; never printed."""
+    if not findings:
+        return CLEAN_PASS_SUMMARY
+    lines = []
+    for finding, finding_id in zip(findings, ids):
+        message = " ".join(str(finding.get("message") or "").split())
+        lines.append(_finding_entry(finding, finding_id, message))
+        fix = finding.get("suggestedFix")
+        if fix:
+            lines.append(f"{SUGGESTED_FIX_LABEL}{fix}")
+    return "\n".join(lines)
+
+
+def measure_report_sizes(findings: list[dict], ids: list[str]) -> dict:
+    """UTF-8 byte sizes of the untiered and the Tier-1 report for one round."""
+    return {
+        "findings": len(findings),
+        "untiered_bytes": len(render_untiered_report(findings, ids).encode("utf-8")),
+        "tiered_bytes": len(render_tier1_report(findings, ids).encode("utf-8")),
+    }
+
+
+
+def _resolve_session_id(session_flag: str | None) -> str | None:
+    if session_flag:
+        return session_flag
+    return env_session_id()
+
+
+def _record_sizes(findings: list[dict], ids: list[str], session_flag: str | None) -> None:
+    """Append this round's size row. Fail-open: a measurement or write error
+    must never change the report printed or the exit code."""
+    try:
+        append_row(
+            "review-report-sizes",
+            measure_report_sizes(findings, ids),
+            session_id=_resolve_session_id(session_flag),
+        )
+    except Exception:  # noqa: BLE001, S110 — measurement must never break the render
+        pass
+
+
 def render_tier2_block(finding: dict, finding_id: str) -> str:
     """The full Tier-2 block for one finding: id header, full message, and
     the suggested fix (when the finding carries one)."""
     lines = [f"=== {finding_id} ===", str(finding.get("message") or "")]
     fix = finding.get("suggestedFix")
     if fix:
-        lines.append(f"Suggested fix: {fix}")
+        lines.append(f"{SUGGESTED_FIX_LABEL}{fix}")
     return "\n".join(lines)
 
 
@@ -216,12 +281,13 @@ def report_key(ids: list[str]) -> str:
     return hashlib.sha256("\n".join(ids).encode("utf-8")).hexdigest()[:12]
 
 
-def log_render(ids: list[str], expand: str | None) -> None:
+def log_render(ids: list[str], expand: str | None, session_id: str | None = None) -> None:
     """Append one ``tiered-renders`` row for a rendered non-empty report — fail-open,
-    stdout and exit code untouched. ``expand`` is the raw ``--expand`` argument."""
+    stdout and exit code untouched. ``expand`` is the raw ``--expand`` argument;
+    ``session_id`` defaults to the environment's session id."""
     if not ids:
         return
-    session_id = env_session_id()
+    session_id = session_id or env_session_id()
     append_row(
         "tiered-renders",
         {"report": report_key(ids), "findings": len(ids), "expand": expand_mode(expand)},
@@ -283,6 +349,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="A finding-id to render Tier-2 for, or 'all' to render every finding's Tier-2 block.",
     )
+    parser.add_argument(
+        "--session",
+        default=None,
+        help="Session id for both metrics rows (default: $CLAUDE_CODE_SESSION_ID, then $CLAUDE_SESSION_ID).",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -310,7 +381,8 @@ def main(argv: list[str] | None = None) -> int:
         print(tier1)
         print()
         print(block)
-    log_render(ids, args.expand)
+    _record_sizes(findings, ids, args.session)
+    log_render(ids, args.expand, _resolve_session_id(args.session))
     return 0
 
 

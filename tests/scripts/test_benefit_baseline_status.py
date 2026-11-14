@@ -73,7 +73,7 @@ PINNED_STATUS_MAP = {
     "guard-divergence": "no-reference",
     "contradicted-rate": "no-reference",
     "expand-rate": "no-reference",
-    "report-size-cut": "unmeasurable",
+    "report-size-cut": "no-reference",
 }
 
 PINNED_ISSUE_CITES = {
@@ -276,10 +276,10 @@ def test_a_no_reference_cell_on_a_record_capable_metric_pinned_to_another_status
 
 
 @pytest.mark.parametrize(
-    ("metric_id", "cell"),
+    ("metric_id", "cell", "handling"),
     [
-        ("report-size-cut", "by-definition: counted by hand"),
-        ("skip-rate", f"unmeasurable: no instrument (#{ISSUE_CITES['skip-rate']})"),
+        ("report-size-cut", "by-definition: counted by hand", "unmeasurable"),
+        ("skip-rate", f"unmeasurable: no instrument (#{ISSUE_CITES['skip-rate']})", None),
     ],
     ids=[
         "unmeasurable-handling-without-the-status",
@@ -287,10 +287,14 @@ def test_a_no_reference_cell_on_a_record_capable_metric_pinned_to_another_status
     ],
 )
 def test_unmeasurable_status_that_disagrees_with_id_less_handling_is_rejected(
-    metric_id, cell
+    metric_id, cell, handling
 ):
+    entries = good_entries()
+    entries[metric_id]["baseline"] = cell
+    if handling is not None:
+        entries[metric_id]["id_less_handling"] = handling
     assert_rejected(
-        with_baseline(metric_id, cell),
+        ctx_for(entries),
         check_unmeasurable_matches_handling,
         starts=f"{metric_id}.baseline:",
     )

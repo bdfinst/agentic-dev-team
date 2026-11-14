@@ -388,6 +388,118 @@ def test_agent_type_comes_from_the_dispatch_join_when_the_transcript_has_no_attr
     assert "100.00% (1/1)" in line_of(out, "injection-uptake:")
 
 
+# --- tiered findings report size ---------------------------------------------
+
+
+def sizes(session_id: str, untiered: int, tiered: int, findings: int = 3) -> dict:
+    return {"ts": IN_WINDOW, "session_id": session_id, "findings": findings,
+            "untiered_bytes": untiered, "tiered_bytes": tiered}
+
+
+def test_report_size_cut_is_the_mean_per_round_percent_cut(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 24761, 10154), sizes("sess-a", 1000, 700)])
+    code, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    line = line_of(out, "report-size-cut:")
+    assert "mean 44.50 percent" in line
+    assert "N=2 rounds" in line
+    assert line.endswith("| within")
+    assert code == 0
+
+
+def test_report_size_cut_leaves_zero_finding_rounds_out_and_counts_them(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 1000, 400), sizes("sess-a", 60, 60, findings=0)])
+    _, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    block = block_of(out, "report-size-cut:")
+    assert "mean 60 percent" in block
+    assert "N=1 rounds" in block
+    assert "clean-pass rounds left out: 1" in block
+
+
+def test_report_size_cut_with_only_clean_pass_rounds_reports_no_value(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.session("sess-b")
+    world.stream("review-report-sizes", [sizes("sess-a", 60, 60, findings=0), sizes("sess-b", 60, 60, findings=0)])
+    _, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    block = block_of(out, "report-size-cut:")
+    assert line_of(out, "report-size-cut:") == "report-size-cut: no rows in window"
+    assert "mean" not in block
+    assert "clean-pass rounds left out: 2" in block
+
+
+def test_report_size_cut_counts_a_negative_cut_as_is(world, tmp_path, capsys):
+    """A one-sentence finding with no fix renders larger tiered than untiered,
+    because of the expansion hint; that round lowers the mean rather than being clamped."""
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 100, 110, findings=1), sizes("sess-a", 1000, 300)])
+    _, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    line = line_of(out, "report-size-cut:")
+    assert "mean 30 percent" in line
+    assert "N=2 rounds" in line
+
+
+def test_report_size_cut_counts_identical_rows_of_one_session_once(world, tmp_path, capsys):
+    """Re-rendering one round, for example with --expand, writes an identical row."""
+    world.session("sess-a")
+    world.session("sess-b")
+    world.stream("review-report-sizes", [
+        sizes("sess-a", 1000, 400), sizes("sess-a", 1000, 400), sizes("sess-b", 1000, 400),
+    ])
+    _, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    assert "N=2 rounds" in line_of(out, "report-size-cut:")
+
+
+def test_report_size_cut_keeps_rows_of_one_session_that_differ_only_in_findings(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 1000, 400, findings=1), sizes("sess-a", 1000, 400, findings=2)])
+    _, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    assert "N=2 rounds" in line_of(out, "report-size-cut:")
+
+
+def test_report_size_cut_counts_every_clean_pass_row_of_one_session(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 60, 60, findings=0), sizes("sess-a", 60, 60, findings=0)])
+    _, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    assert "clean-pass rounds left out: 2" in block_of(out, "report-size-cut:")
+
+
+def test_report_size_cut_below_the_keep_floor_is_a_breach(world, tmp_path, capsys):
+    world.session("sess-a")
+    world.stream("review-report-sizes", [sizes("sess-a", 1000, 900)])
+    code, out, _ = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    assert line_of(out, "report-size-cut:").endswith("| breach")
+    assert code == 1
+
+
+def test_report_size_cut_rejects_a_row_with_no_byte_count(world, tmp_path, capsys):
+    world.session("sess-a")
+    row = sizes("sess-a", 1000, 400)
+    del row["tiered_bytes"]
+    path = world.stream("review-report-sizes", [row])
+    code, _, err = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    assert code == 2
+    assert_input_error(err, path, 1, "row field 'tiered_bytes' is not a non-negative integer")
+
+
+def test_report_size_cut_rejects_a_row_with_no_finding_count(world, tmp_path, capsys):
+    world.session("sess-a")
+    row = sizes("sess-a", 1000, 400)
+    del row["findings"]
+    path = world.stream("review-report-sizes", [row])
+    code, _, err = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    assert code == 2
+    assert_input_error(err, path, 1, "row field 'findings' is not a non-negative integer")
+
+
+def test_report_size_cut_rejects_findings_with_an_empty_untiered_report(world, tmp_path, capsys):
+    world.session("sess-a")
+    path = world.stream("review-report-sizes", [sizes("sess-a", 0, 0, findings=2)])
+    code, _, err = run_report(world, tmp_path, capsys, ["report-size-cut"])
+    assert code == 2
+    assert_input_error(err, path, 1, "row field 'untiered_bytes' is 0 although 'findings' is 2")
+
+
 # --- completion guard --------------------------------------------------------
 
 
@@ -1411,11 +1523,8 @@ NO_INSTRUMENT_CELLS = {"instrument": "none", "identity_class": "id-less", "id_le
 
 
 def test_a_metric_with_no_instrument_prints_unmeasurable_and_does_not_change_the_exit_code(world, tmp_path, capsys):
-    code, out, _ = run_report(
-        world, tmp_path, capsys, ["expand-rate", "report-size-cut"], **{"expand-rate": NO_INSTRUMENT_CELLS}
-    )
+    code, out, _ = run_report(world, tmp_path, capsys, ["expand-rate"], **{"expand-rate": NO_INSTRUMENT_CELLS})
     assert "expand-rate: unmeasurable" in out
-    assert "report-size-cut: unmeasurable" in out
     assert code == 0
 
 

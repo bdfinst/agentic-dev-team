@@ -899,11 +899,15 @@ def test_skip_rate_carries_the_theoretical_ceiling(real):
 
 def test_id_less_instruments_each_pin_one_handling(real):
     handling = {m.instrument: m.id_less_handling for m in real.metrics if m.identity_class == "id-less"}
-    assert handling == {"artifact-usage": "UNVERIFIED", "none": "unmeasurable"}
+    assert handling == {"artifact-usage": "UNVERIFIED"}
 
 
-def test_metrics_with_no_instrument_are_the_report_size_metric(real):
-    assert {m.id for m in real.metrics if m.instrument == "none"} == {"report-size-cut"}
+def test_no_metric_is_left_without_an_instrument(real):
+    assert {m.id for m in real.metrics if m.instrument == "none"} == set()
+
+
+def test_report_size_cut_reads_the_review_report_sizes_stream(real):
+    assert real.get("report-size-cut").instrument == "review-report-sizes"
 
 
 def test_expand_rate_reads_the_tiered_renders_stream(real):
@@ -943,7 +947,7 @@ def test_prereg_is_not_referenced_from_shipped_plugin_files():
     assert offenders == []
 
 
-def test_real_prereg_audit_with_no_data_flags_every_stream_and_the_unmeasurable_metrics(world, real):
+def test_real_prereg_audit_with_no_data_flags_every_stream(world, real):
     statuses = {s.instrument: s for s in streams.audit(real.metrics, world.sources)}
     assert {name: s.status for name, s in statuses.items()} == {
         "ledger-skips": "gap",
@@ -953,15 +957,15 @@ def test_real_prereg_audit_with_no_data_flags_every_stream_and_the_unmeasurable_
         "tiered-renders": "gap",
         "subagent-transcripts": "gap",
         "artifact-usage": "gap",
+        "review-report-sizes": "gap",
         "manual-input": "manual",
-        "none": "no instrument",
     }
-    assert statuses["none"].metrics == ("report-size-cut",)
+    assert statuses["review-report-sizes"].metrics == ("report-size-cut",)
     assert statuses["tiered-renders"].metrics == ("expand-rate",)
 
 
-def test_real_prereg_audit_with_data_reports_confirmed_manual_no_instrument_and_no_session_ids(world, real):
-    for name in ("ledger-skips", "checkpoint-aborts", "skill-injection", "subagent-stops", "tiered-renders"):
+def test_real_prereg_audit_with_data_reports_confirmed_manual_and_no_session_ids_and_exits_0(world, real):
+    for name in ("ledger-skips", "checkpoint-aborts", "skill-injection", "subagent-stops", "tiered-renders", "review-report-sizes"):
         world.real_sessions(name, 3)
     for i in range(3):
         world.subagent(f"sess{i:04d}-aaaa", "a1", [{"type": "assistant"}])
@@ -975,15 +979,14 @@ def test_real_prereg_audit_with_data_reports_confirmed_manual_no_instrument_and_
         "tiered-renders": "confirmed",
         "subagent-transcripts": "confirmed",
         "artifact-usage": "no session ids",
+        "review-report-sizes": "confirmed",
         "manual-input": "manual",
-        "none": "no instrument",
     }
-    assert streams.audit_exit_code(statuses) == 1
+    assert streams.audit_exit_code(statuses) == 0
 
 
 def test_real_prereg_audit_reports_every_registered_metric_and_exits_1_while_gaps_remain(world, real, capsys):
-    # Exit 1 holds while a metric has no instrument (report-size-cut) or only an id-less one
-    # (contradicted-rate); it becomes 0 only when no such metric is left.
+    # With no data every stream is a gap, so the audit exits 1.
     code = cli.main(cli_argv("audit", world, REAL_PREREG, "--json"))
     payload = json.loads(capsys.readouterr().out)
     assert code == payload["exit_code"] == 1
