@@ -257,6 +257,9 @@ def run_trial(
     either was moved, replaced or turned into a symlink, nothing is diffed,
     restored or tested, and the record carries a `workspace_error`, as it does
     when the protected paths cannot be restored: the trial fails, the run goes on.
+    The test commands' HOME and TMPDIR are made only after the CLI is dead, in
+    a new random temp dir, and the working copy and that TMPDIR are checked
+    again before every test command.
     """
     with staged_fixture(fixture) as staging_dir, _private_dirs() as private:
         if config.sandbox:
@@ -269,7 +272,10 @@ def run_trial(
             "TMPDIR": str(_fresh_dir(private / "tmp")),
         }
         work_dir = staging_dir / fixture.name if fixture.is_dir() else staging_dir
-        identities = _dir_identities((staging_dir, work_dir))
+        # Resolved now, while only the harness has touched these paths; the jail
+        # is later given these real paths and never resolves one itself.
+        real_work_dir = Path(os.path.realpath(work_dir))
+        identities = _dir_identities((staging_dir, work_dir, real_work_dir))
         if config.sandbox:
             init_sandbox_repo(work_dir)
         # Returns only once the CLI's whole process group is dead.
@@ -284,26 +290,61 @@ def run_trial(
             return record
         try:
             restore_protected_paths(fixture, work_dir, config.protected_paths)
-        except (OSError, UnsafeProtectedPathError) as error:
+        except (OSError, UnsafeProtectedPathError, RecursionError) as error:
             return dataclasses.replace(
                 record, workspace_error=f"{RESTORE_FAILED_ERROR}: {error}"
             )
-        check_env = invocation.build_check_env(
-            os.environ, _fresh_dir(private / "check-home")
-        )
-        check_temp = _fresh_dir(private / "check-tmp")
-        results = tuple(
+        with _check_dirs() as (check_home, check_temp):
+            return _run_checks(
+                record,
+                config,
+                real_work_dir,
+                check_home,
+                check_temp,
+                {**identities, **_dir_identities((check_temp,))},
+                trial_timeout_seconds,
+            )
+
+
+def _run_checks(
+    record: TrialProcessRecord,
+    config: invocation.TrialConfig,
+    work_dir: Path,
+    check_home: Path,
+    check_temp: Path,
+    identities: Mapping[Path, _DirIdentity],
+    timeout_seconds: float,
+) -> TrialProcessRecord:
+    """Run the test commands in order, each only while every dir is still the one it was.
+
+    A jailed command may write to the working copy and its temp dir, so it can
+    rename either and leave a symlink in its place; a later command would then
+    run in, and be jailed to, wherever the link points. The identities are
+    checked before every command and the trial stops at the first change.
+    """
+    env = {
+        **invocation.build_check_env(os.environ, check_home),
+        "TMPDIR": str(check_temp),
+    }
+    results = []
+    for command in config.test_commands:
+        if not _same_dirs(identities):
+            return dataclasses.replace(
+                record,
+                check_results=tuple(results),
+                workspace_error=SWAPPED_DURING_CHECKS_ERROR,
+            )
+        results.append(
             run_check_command(
                 command,
                 work_dir,
-                trial_timeout_seconds,
-                {**check_env, "TMPDIR": str(check_temp)},
+                timeout_seconds,
+                env,
                 jail=config.check_jail,
                 jail_temp_dir=check_temp,
             )
-            for command in config.test_commands
         )
-        return dataclasses.replace(record, check_results=results)
+    return dataclasses.replace(record, check_results=tuple(results))
 
 
 SWAPPED_WORK_DIR_ERROR = (
@@ -311,6 +352,11 @@ SWAPPED_WORK_DIR_ERROR = (
     "during the trial; it was not diffed, restored or tested"
 )
 RESTORE_FAILED_ERROR = "the protected paths could not be restored"
+SWAPPED_DURING_CHECKS_ERROR = (
+    "a test command moved, replaced or made a symlink of the working copy or its "
+    "temp dir; the remaining test commands were not run"
+)
+CHECK_DIR_PREFIX = "model-effort-check-"
 
 # A directory's identity: its device and inode, read without following a symlink.
 _DirIdentity = tuple[int, int]
@@ -348,6 +394,29 @@ def _private_dirs() -> Iterator[Path]:
 
 def _fresh_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+@contextmanager
+def _check_dirs() -> Iterator[tuple[Path, Path]]:
+    """A new HOME and TMPDIR for the test commands, made only after the CLI is dead.
+
+    They live in a new random temp dir, not in the trial's private dir, whose
+    paths the agent knows and could have filled with symlinks. Each is made
+    with a plain `mkdir` (which fails on anything already there) and checked
+    with `lstat`; the root's path is resolved right after it is made.
+    """
+    root = Path(os.path.realpath(tempfile.mkdtemp(prefix=CHECK_DIR_PREFIX)))
+    try:
+        yield _new_real_dir(root / "home"), _new_real_dir(root / "tmp")
+    finally:
+        remove_tree(root)
+
+
+def _new_real_dir(path: Path) -> Path:
+    os.mkdir(path, 0o700)
+    if not stat.S_ISDIR(os.lstat(path).st_mode):
+        raise OSError(f"{path} is not a real directory")
     return path
 
 
@@ -478,7 +547,13 @@ def _lstat_at(dir_fd: int | None, name: str | Path) -> os.stat_result | None:
 
 
 def _remove_at(dir_fd: int, name: str) -> None:
-    """Remove `name` under `dir_fd`; a directory's contents first, never through a symlink."""
+    """Remove `name` under `dir_fd`; a directory's contents first, never through a symlink.
+
+    The walk is a loop over an explicit stack, not recursion, so no nesting
+    depth can exhaust the call stack, and it holds one directory descriptor at
+    a time: it steps down by name and back up through `..`, checking that `..`
+    is the directory it came from (device and inode).
+    """
     entry = _lstat_at(dir_fd, name)
     if entry is None:
         return
@@ -487,14 +562,56 @@ def _remove_at(dir_fd: int, name: str) -> None:
         return
     _unlock_at(dir_fd, name)
     fd = _open_dir_at(name, dir_fd, name)
+    # One frame per open level: its name in its parent, the parent's identity,
+    # and the entries still to remove.
+    frames = [(name, _fd_identity(dir_fd), _entry_names(fd))]
     try:
-        with os.scandir(fd) as entries:
-            names = [child.name for child in entries]
-        for child in names:
-            _remove_at(fd, child)
+        while frames:
+            level_name, parent_identity, pending = frames[-1]
+            if pending:
+                child = pending.pop()
+                child_entry = _lstat_at(fd, child)
+                if child_entry is None:
+                    continue
+                if not stat.S_ISDIR(child_entry.st_mode):
+                    os.unlink(child, dir_fd=fd)
+                    continue
+                _unlock_at(fd, child)
+                identity = _fd_identity(fd)
+                child_fd = _open_dir_at(child, fd, child)
+                os.close(fd)
+                fd = child_fd
+                frames.append((child, identity, _entry_names(fd)))
+                continue
+            frames.pop()
+            if not frames:
+                break
+            parent_fd = _open_parent(fd, parent_identity)
+            os.close(fd)
+            fd = parent_fd
+            os.rmdir(level_name, dir_fd=fd)
     finally:
         os.close(fd)
     os.rmdir(name, dir_fd=dir_fd)
+
+
+def _entry_names(fd: int) -> list[str]:
+    with os.scandir(fd) as entries:
+        return [entry.name for entry in entries]
+
+
+def _fd_identity(fd: int) -> _DirIdentity:
+    entry = os.fstat(fd)
+    return entry.st_dev, entry.st_ino
+
+
+def _open_parent(fd: int, expected: _DirIdentity) -> int:
+    """A descriptor for the directory above `fd`, which must still be `expected`."""
+    parent_fd = _open_dir_at("..", fd, "..")
+    if _fd_identity(parent_fd) != expected:
+        os.close(parent_fd)
+        raise UnsafeProtectedPathError("a directory was moved during the restore")
+    return parent_fd
 
 
 def _unlock_at(dir_fd: int | None, name: str | Path) -> None:
@@ -512,18 +629,49 @@ def _unlock_at(dir_fd: int | None, name: str | Path) -> None:
 
 
 def _copy_in(source: Path, dir_fd: int, name: str) -> None:
-    """Copy the pristine `source` to `name` under `dir_fd`, which must not exist; links stay links."""
+    """Copy the pristine `source` to `name` under `dir_fd`, which must not exist; links stay links.
+
+    A directory tree is walked with an explicit stack, holding one directory
+    descriptor at a time, as `_remove_at` does.
+    """
+    if source.is_symlink() or not source.is_dir():
+        _copy_leaf(source, dir_fd, name)
+        return
+    os.mkdir(name, _NEW_DIR_MODE, dir_fd=dir_fd)
+    fd = _open_dir_at(name, dir_fd, name)
+    # One frame per open level: its source, the parent's identity, and the
+    # children still to copy (popped from the end, so stored in reverse).
+    frames = [(source, _fd_identity(dir_fd), sorted(source.iterdir(), reverse=True))]
+    try:
+        while frames:
+            level_source, parent_identity, pending = frames[-1]
+            if pending:
+                child = pending.pop()
+                if child.is_symlink() or not child.is_dir():
+                    _copy_leaf(child, fd, child.name)
+                    continue
+                os.mkdir(child.name, _NEW_DIR_MODE, dir_fd=fd)
+                identity = _fd_identity(fd)
+                child_fd = _open_dir_at(child.name, fd, child.name)
+                os.close(fd)
+                fd = child_fd
+                frames.append((child, identity, sorted(child.iterdir(), reverse=True)))
+                continue
+            frames.pop()
+            # `..` is opened before the mode is set, which may drop search.
+            parent_fd = _open_parent(fd, parent_identity) if frames else None
+            os.fchmod(fd, stat.S_IMODE(level_source.stat().st_mode))
+            if parent_fd is not None:
+                os.close(fd)
+                fd = parent_fd
+    finally:
+        os.close(fd)
+
+
+def _copy_leaf(source: Path, dir_fd: int, name: str) -> None:
+    """Copy a symlink as a symlink, or a regular file with its mode; anything else is skipped."""
     if source.is_symlink():
         os.symlink(os.readlink(source), name, dir_fd=dir_fd)
-    elif source.is_dir():
-        os.mkdir(name, _NEW_DIR_MODE, dir_fd=dir_fd)
-        fd = _open_dir_at(name, dir_fd, name)
-        try:
-            for child in sorted(source.iterdir()):
-                _copy_in(child, fd, child.name)
-            os.fchmod(fd, stat.S_IMODE(source.stat().st_mode))
-        finally:
-            os.close(fd)
     elif source.is_file():
         mode = stat.S_IMODE(source.stat().st_mode)
         fd = os.open(name, _NEW_FILE_FLAGS, mode, dir_fd=dir_fd)

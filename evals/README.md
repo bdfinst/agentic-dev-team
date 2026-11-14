@@ -550,17 +550,24 @@ It gets `--permission-mode acceptEdits` and `--permission-prompts none`, never
 directory, because the sandbox lets commands write to `--add-dir` directories.
 
 **Test commands.** A fixture's `testCommands` run code the agent wrote. They
-run with the same allowlist minus the credential, with `HOME` and `TMPDIR` in
-temp directories, under a jail. The harness probes the jail before planning; with
-no working jail it refuses a `tests-pass` run unless you pass
-`--allow-unjailed-checks`.
+run with the same allowlist minus the credential, under a jail. Their `HOME` and
+`TMPDIR` are new directories the harness makes only after `claude` exits, in a
+new random temp directory, not in the trial's private directory, whose paths the
+agent knows. The jail gets real paths resolved by the harness and never follows
+a symlink to find a writable directory. A jailed command can rename the working
+copy or its `TMPDIR` and leave a symlink in its place, so the harness checks
+both (device and inode, without following symlinks) before every command; on a
+change it runs no more commands and the trial is a `tool_violation`. The harness
+probes the jail before planning; with no working jail it refuses a `tests-pass`
+run unless you pass `--allow-unjailed-checks`.
 
 | | macOS (`sandbox-exec`) | Linux (`bwrap`) |
 | --- | --- | --- |
 | Writes | Only the trial copy, its temp dir and `/dev/null`-style devices. | The root is bound read-only; only the trial copy and its temp dir are writable; `/tmp` is an empty tmpfs. |
 | Network | Denied (`deny network*`), loopback included. | New network namespace (`--unshare-all`). |
+| Signals | Denied (`deny signal`) except to processes in the same sandbox, so a command can stop its own children but not the harness or another process of the user. | New PID namespace: no process outside the jail can be named. |
 | Other processes | Launch Services opens (`deny lsopen`), Apple events (`deny appleevent-send`) and preference writes (`deny user-preference-write`, so `defaults write` cannot reach `cfprefsd`) are denied. Every Mach service is denied except an allowlist for user lookups, notifications, logging and preference reads; `pytest`, `node`, `git` and `npx` run with it. `launchctl submit`, `bootstrap` and `load` are refused for a sandboxed caller. | New PID, IPC and user namespaces; `/run` (and `/var/run` when it is a real directory) is an empty tmpfs, so the session bus and the Docker socket are unreachable; `DBUS_SESSION_BUS_ADDRESS` and `XDG_RUNTIME_DIR` are unset. |
-| Probe asserts | A write inside works; a write outside, a connection to a harness-owned `127.0.0.1` socket, `open -a Finder` and `defaults write` are refused. | A write inside works; a write outside and that connection are refused; the user's session bus cannot be reached and the Docker socket is not visible, each when the host has one. |
+| Probe asserts | A write inside works; a write outside, a connection to a harness-owned `127.0.0.1` socket, a `SIGTERM` to a harness-owned sleeping process, `open -a Finder` and `defaults write` are refused. | A write inside works; a write outside, that connection and that signal are refused; the user's session bus cannot be reached and the Docker socket is not visible, each when the host has one. |
 
 **Protected paths.** After the agent finishes, the harness restores each
 `protectedPaths` entry from the frozen fixture. The walk holds a directory file
@@ -568,7 +575,9 @@ descriptor at each step and opens every directory with `O_NOFOLLOW`, so a symlin
 in the path, even one swapped in during the walk, is refused or removed, never
 followed. Each directory on the way first gets owner read, write and search
 back (chmod without following a symlink), so an agent that locked the copy
-cannot stop the restore. If the restore still fails (for example, a file the
+cannot stop the restore. The removal and the copy walk any depth of nesting
+with a loop, not recursion, holding one directory descriptor at a time and
+checking each `..` they climb back through. If the restore still fails (for example, a file the
 agent made immutable), the trial is a `tool_violation` with its cost recorded,
 and the run continues.
 
@@ -594,7 +603,9 @@ Residual risks, by design or not yet closed:
   or `setsid`) survives the group kill and can change the copy after the
   restore, or swap the working copy after the identity check. On Linux before
   Python 3.13, `chmod` cannot refuse a symlink, so the restore checks each
-  directory with `lstat` first and such a process could swap one in between. Once the group is empty, a new process could take its ID between the
+  directory with `lstat` first and such a process could swap one in between.
+  Such a process could also swap the working copy or the test commands' `TMPDIR`
+  between the identity check and the next command's start. Once the group is empty, a new process could take its ID between the
   reap and the kill; that window is microseconds.
 - **Apple events on macOS.** An `osascript` command to another app is not
   delivered, but it blocks until the test command's timeout instead of failing.

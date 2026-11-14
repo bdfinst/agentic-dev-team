@@ -9,9 +9,12 @@ events and preference writes (`defaults write`, which `cfprefsd` would make
 outside the jail), and denies every Mach service except an allowlist the usual
 test tools need (user lookups, notifications, logging, preference reads), so a
 command cannot ask another, unjailed process to act for it. `launchctl submit`
-is refused by launchd for a sandboxed caller. On Linux the jail runs in new
-namespaces with an empty `/run` (and `/var/run`), so the user's D-Bus session
-bus and the Docker socket are not reachable, and the bus variables are unset.
+is refused by launchd for a sandboxed caller. Signals reach only processes in
+the same sandbox, so a command can stop its own children but not the harness
+or any other process of the user. On Linux the jail runs in new namespaces
+(its own PID namespace, so no outside process can be signalled) with an empty
+`/run` (and `/var/run`), so the user's D-Bus session bus and the Docker socket
+are not reachable, and the bus variables are unset.
 
 Reads are not confined: the command can still read files the user can read,
 so the answer key lives in a directory no prompt names (see `snapshot`). A
@@ -28,7 +31,8 @@ import socket
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -63,8 +67,9 @@ def _sbpl_string(path: Path) -> str:
 
 def sandbox_exec_profile(writable: Sequence[Path]) -> str:
     """A `sandbox-exec` profile: allow everything except network, writes outside
-    `writable`, Launch Services opens, Apple events, preference writes and any
-    Mach service not in `ALLOWED_MACH_SERVICES`."""
+    `writable`, Launch Services opens, Apple events, preference writes, any
+    Mach service not in `ALLOWED_MACH_SERVICES`, and signals to a process
+    outside the sandbox (the command's own descendants share it)."""
     subpaths = " ".join(f"(subpath {_sbpl_string(path)})" for path in writable)
     devices = " ".join(f'(literal "{device}")' for device in _WRITABLE_DEVICES)
     services = " ".join(f'(global-name "{name}")' for name in ALLOWED_MACH_SERVICES)
@@ -79,6 +84,8 @@ def sandbox_exec_profile(writable: Sequence[Path]) -> str:
         "(deny user-preference-write)\n"
         "(deny mach-lookup)\n"
         f"(allow mach-lookup {services})\n"
+        "(deny signal)\n"
+        "(allow signal (target same-sandbox))\n"
     )
 
 
@@ -105,8 +112,13 @@ class CheckJail:
         temp_dir: Path,
         is_symlink: Callable[[str], bool] = os.path.islink,
     ) -> list[str]:
-        """`argv` run so that it can write only to `work_dir` and `temp_dir`, with no network."""
-        writable = [work_dir.resolve(), temp_dir.resolve()]
+        """`argv` run so that it can write only to `work_dir` and `temp_dir`, with no network.
+
+        Both must already be real paths (no symlink in any component) that the
+        caller made and checked. They are not resolved here: a symlink an agent
+        planted at one would otherwise grant writes to wherever it points.
+        """
+        writable = [work_dir, temp_dir]
         if self.tool == SANDBOX_EXEC:
             return [self.executable, "-p", sandbox_exec_profile(writable), *argv]
         binds = [arg for path in writable for arg in ("--bind", str(path), str(path))]
@@ -132,7 +144,7 @@ class CheckJail:
             "--die-with-parent",
             "--new-session",
             "--chdir",
-            str(work_dir.resolve()),
+            str(work_dir),
             *argv,
         ]
 
@@ -162,16 +174,22 @@ _DEFAULTS = "/usr/bin/defaults"
 _SESSION_BUS_TEMPLATE = "/run/user/{uid}/bus"
 _DOCKER_SOCKET = "/var/run/docker.sock"
 def _probe_script(
-    outside: Path, port: int, lsopen: bool, session_bus: str | None, docker: bool
+    outside: Path,
+    port: int,
+    lsopen: bool,
+    session_bus: str | None,
+    docker: bool,
+    sleeper_pid: int,
 ) -> str:
     """The jailed half of `probe`: exit 0 only when every escape it tries is refused.
 
     A nonzero exit names the escape: 3 wrote outside, 4 reached the network, 5
     opened through Launch Services, 6 reached the session bus, 7 saw the Docker
-    socket, 8 wrote a preference. `lsopen` turns on the macOS cases (5 and 8).
+    socket, 8 wrote a preference, 9 signalled the harness's sleeper. `lsopen`
+    turns on the macOS cases (5 and 8).
     """
     return (
-        "import os, pathlib, socket, subprocess, sys\n"
+        "import os, pathlib, signal, socket, subprocess, sys\n"
         "pathlib.Path('ok').write_text('x')\n"
         "try:\n"
         f"    pathlib.Path({str(outside / 'escaped')!r}).write_text('x')\n"
@@ -181,6 +199,11 @@ def _probe_script(
         "try:\n"
         f"    socket.create_connection(('127.0.0.1', {port}), timeout=5).close()\n"
         "    sys.exit(4)\n"
+        "except OSError:\n"
+        "    pass\n"
+        "try:\n"
+        f"    os.kill({sleeper_pid}, signal.SIGTERM)\n"
+        "    sys.exit(9)\n"
         "except OSError:\n"
         "    pass\n"
         + (
@@ -212,7 +235,8 @@ def probe(jail: CheckJail) -> bool:
     """True when the jail runs a command that writes inside it and refuses every escape tried.
 
     The jailed command must be refused a write outside the jail and a connection
-    to a socket the harness listens on at 127.0.0.1. Under `sandbox-exec` it must
+    to a socket the harness listens on at 127.0.0.1, and a signal to a sleeping
+    process the harness started. Under `sandbox-exec` it must
     also fail to open an app through Launch Services and to write a preference
     (`defaults write`; the probe domain is deleted afterwards). Under `bwrap` it must fail
     to reach the user's session bus and see no Docker socket, each checked only
@@ -222,8 +246,10 @@ def probe(jail: CheckJail) -> bool:
     with (
         tempfile.TemporaryDirectory(prefix="model-effort-jail-") as root,
         socket.create_server(("127.0.0.1", 0)) as listener,
+        _sleeper() as sleeper,
     ):
-        inside, outside = Path(root) / "in", Path(root) / "out"
+        real_root = Path(os.path.realpath(root))
+        inside, outside = real_root / "in", real_root / "out"
         inside.mkdir()
         outside.mkdir()
         code = _probe_script(
@@ -234,6 +260,7 @@ def probe(jail: CheckJail) -> bool:
             if jail.tool == BWRAP and os.path.exists(session_bus)
             else None,
             docker=jail.tool == BWRAP and os.path.exists(_DOCKER_SOCKET),
+            sleeper_pid=sleeper.pid,
         )
         argv = jail.wrap([sys.executable, "-c", code], inside, inside)
         try:
@@ -254,6 +281,22 @@ def probe(jail: CheckJail) -> bool:
             and (inside / "ok").exists()
             and not (outside / "escaped").exists()
         )
+
+
+@contextmanager
+def _sleeper() -> Iterator[subprocess.Popen]:
+    """A harness-owned process outside the jail for the probe to try to signal."""
+    process = subprocess.Popen(
+        [sys.executable, "-c", f"import time; time.sleep({PROBE_TIMEOUT_SECONDS * 2})"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        yield process
+    finally:
+        process.kill()
+        process.wait()
 
 
 def _delete_probe_domain() -> None:

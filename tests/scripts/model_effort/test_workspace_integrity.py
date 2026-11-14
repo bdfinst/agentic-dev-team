@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -219,3 +220,166 @@ class TestLockedWorkingCopy:
         assert "restore" in record.workspace_error
         assert record.check_results == ()
         assert _cost(record) == FAKE_COST_USD
+
+
+def _jail():
+    from model_effort import check_jail
+
+    jail = check_jail.find_working_jail()
+    if jail is None:
+        pytest.skip("no working sandbox-exec or bwrap on this machine")
+    return jail
+
+
+def _escape_script(outside: Path) -> str:
+    """A check that writes a marker to its TMPDIR, its HOME and straight into `outside`."""
+    return (
+        "import os, pathlib\n"
+        "for base in (os.environ['TMPDIR'], os.environ['HOME'],"
+        f" {str(outside)!r}):\n"
+        "    try:\n"
+        "        (pathlib.Path(base) / 'marker').write_text('x')\n"
+        "    except OSError:\n"
+        "        pass\n"
+    )
+
+
+class TestPlantedCheckDirs:
+    """The agent knows its TMPDIR, so it knows the private dir above it."""
+
+    PLANT = (
+        "private = pathlib.Path(os.environ['TMPDIR']).parent\n"
+        "for name in ('check-tmp', 'check-home'):\n"
+        "    (private / name).symlink_to(OUTSIDE, target_is_directory=True)\n"
+    )
+
+    def _config(self, fake: Path, outside: Path, fixture: Path, jail):
+        (fixture / "escape.py").write_text(_escape_script(outside))
+        return dataclasses.replace(
+            _test_graded(fake),
+            test_commands=("{python} escape.py",),
+            check_jail=jail,
+        )
+
+    def test_a_planted_symlink_does_not_become_the_checks_temp_or_home(
+        self, tmp_path, fixture, outside
+    ):
+        fake = _fake_cli(tmp_path, f"OUTSIDE = pathlib.Path({str(outside)!r})\n{self.PLANT}")
+
+        runner.run_trial(fixture, self._config(fake, tmp_path / "unused", fixture, None))
+
+        assert not (outside / "marker").exists()
+
+    def test_a_planted_symlink_does_not_widen_the_jail(self, tmp_path, fixture, outside):
+        jail = _jail()
+        fake = _fake_cli(tmp_path, f"OUTSIDE = pathlib.Path({str(outside)!r})\n{self.PLANT}")
+
+        runner.run_trial(fixture, self._config(fake, outside, fixture, jail))
+
+        assert not (outside / "marker").exists()
+
+
+class TestSwapBetweenChecks:
+    """A jailed check may rename its own temp dir or working copy and leave a symlink."""
+
+    @pytest.mark.parametrize(
+        "swap",
+        [
+            (
+                "tmp = pathlib.Path(os.environ['TMPDIR'])\n"
+                "tmp.rename(pathlib.Path.cwd() / 'moved-tmp')\n"
+                "tmp.symlink_to(OUTSIDE, target_is_directory=True)\n"
+            ),
+            (
+                "work = pathlib.Path.cwd()\n"
+                "work.rename(pathlib.Path(os.environ['TMPDIR']) / 'moved-work')\n"
+                "work.symlink_to(OUTSIDE, target_is_directory=True)\n"
+            ),
+        ],
+        ids=["check-temp", "work-dir"],
+    )
+    def test_the_next_check_does_not_run_through_the_swap(
+        self, tmp_path, fixture, outside, swap
+    ):
+        jail = _jail()
+        (fixture / "swap.py").write_text(
+            "import os, pathlib\n"
+            f"OUTSIDE = pathlib.Path({str(outside)!r})\n{swap}"
+        )
+        (fixture / "escape.py").write_text(_escape_script(outside))
+        fake = _fake_cli(tmp_path, "pass")
+        config = dataclasses.replace(
+            _test_graded(fake),
+            test_commands=("{python} swap.py", "{python} escape.py"),
+            check_jail=jail,
+        )
+
+        record = runner.run_trial(fixture, config)
+
+        assert not (outside / "marker").exists()
+        assert record.workspace_error is not None
+        assert len(record.check_results) == 1
+
+
+DEEP_NESTING = 1100
+
+
+class TestDeeplyNestedProtectedPath:
+    def test_a_protected_path_nested_deeper_than_the_recursion_limit_is_restored(
+        self, tmp_path, fixture
+    ):
+        fake = _fake_cli(
+            tmp_path,
+            "target = cwd / 'fx' / 'tests' / 't.py'\n"
+            "target.unlink()\n"
+            "target.mkdir()\n"
+            "os.chdir(target)\n"
+            f"for _ in range({DEEP_NESTING}):\n"
+            "    os.mkdir('d')\n"
+            "    os.chdir('d')\n"
+            "os.chdir(cwd)\n",
+        )
+
+        record = runner.run_trial(fixture, _test_graded(fake))
+
+        assert record.workspace_error is None
+        assert [result["exit_code"] for result in record.check_results] == [0]
+
+    def test_a_deep_pristine_tree_is_copied_without_recursion(self, tmp_path):
+        source = tmp_path / "src"
+        leaf = source
+        for _ in range(200):
+            leaf = leaf / "d"
+        leaf.mkdir(parents=True)
+        (leaf / "f").write_text("deep")
+        target = tmp_path / "dst"
+        target.mkdir()
+        depth = 0
+        frame = sys._getframe()
+        while frame is not None:
+            depth, frame = depth + 1, frame.f_back
+        old_limit = sys.getrecursionlimit()
+        sys.setrecursionlimit(depth + 60)
+        fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            runner._copy_in(source, fd, "copy")
+        finally:
+            os.close(fd)
+            sys.setrecursionlimit(old_limit)
+
+        assert (target / "copy" / Path(*["d"] * 200) / "f").read_text() == "deep"
+
+    def test_a_recursion_error_in_the_restore_is_recorded_on_the_trial(
+        self, tmp_path, fixture, monkeypatch
+    ):
+        def overflow(*_args):
+            raise RecursionError("maximum recursion depth exceeded")
+
+        monkeypatch.setattr(runner, "_remove_at", overflow)
+        fake = _fake_cli(tmp_path, "pass")
+
+        record = runner.run_trial(fixture, _test_graded(fake))
+
+        assert record.workspace_error is not None
+        assert "restore" in record.workspace_error
+        assert record.check_results == ()
