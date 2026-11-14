@@ -168,14 +168,14 @@ def report_size_cut(metric: Metric, ctx: ReportContext) -> ReportLine:
     session, findings and both sizes count once.
     Raises ``InputError`` for a row with findings but an empty untiered report."""
     part = ctx.partition(metric.instrument)
-    cuts, sessions, clean_pass_rounds = [], [], 0
+    cuts, sessions, clean_pass_rows = [], [], 0
     seen: set[tuple[str, int, int, int]] = set()
     for row in part.real:
         finding_count = streams.row_field(row, "findings", int, minimum=0)
         untiered_bytes = streams.row_field(row, "untiered_bytes", int, minimum=0)
         tiered_bytes = streams.row_field(row, "tiered_bytes", int, minimum=0)
         if finding_count == 0:
-            clean_pass_rounds += 1
+            clean_pass_rows += 1
             continue
         round_key = (row.data["session_id"], finding_count, untiered_bytes, tiered_bytes)
         if round_key in seen:
@@ -198,7 +198,7 @@ def report_size_cut(metric: Metric, ctx: ReportContext) -> ReportLine:
         sessions,
         len(part.unverified),
         f"mean {formatting.number_text(value)} {metric.unit}" if cuts else "",
-        details=[f"clean-pass rounds left out: {clean_pass_rounds}"],
+        details=[f"clean-pass rounds left out: {clean_pass_rows}"],
     )
 
 

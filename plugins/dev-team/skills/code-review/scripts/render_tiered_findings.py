@@ -19,7 +19,8 @@ finding's full message and suggested fix inline) and `tiered_bytes` (UTF-8
 bytes of the Tier-1 report), plus `session_id` from `--session`, else
 `$CLAUDE_CODE_SESSION_ID`, else `$CLAUDE_SESSION_ID`. The sizes do not depend
 on `--expand`, so re-renders of one round write identical rows, which the
-metric counts once. An unknown `--expand` id writes no row. Measuring and
+metric counts once when the round has findings; every clean-pass row is
+counted. An unknown `--expand` id writes no row. Measuring and
 writing are fail-open and never change stdout or the exit code.
 
 This script is prose-path only. `--json` (step 7's other branch) and
