@@ -197,7 +197,6 @@ def render_expand_one(findings: list[dict], ids: list[str], finding_id: str) -> 
 
 
 #: Session-id environment variables Claude Code sets for tool commands, in preference order.
-#: CLAUDE_CODE_SESSION_ID was confirmed present in Bash tool commands of a live session on 2026-11-14.
 _SESSION_ENV_VARS = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
 
 #: The ``expand`` values a ``tiered-renders`` row records.
