@@ -3,7 +3,7 @@ name: progress-guardian
 description: Tracks plan step completion, enforces commit discipline, and gates plan changes through human approval
 tools: Read, Grep, Glob
 model: haiku
-effort: high
+effort: medium
 color: cyan
 ---
 

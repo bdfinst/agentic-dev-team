@@ -27,6 +27,11 @@ MIN_ESTIMATE_TO_ACTUAL = 1.0
 # The estimate ignores effort, so a low-effort arm on a small fixture lands
 # furthest above its cost; this bounds how far.
 MAX_ESTIMATE_TO_ACTUAL = 8.0
+# The flat per-trial output allowance fits a review agent's findings report. A
+# rubric-graded agent answers in a few hundred tokens, so its estimate lands
+# far above its cost; that errs toward approval, so only the lower bound
+# applies to it.
+UPPER_BOUND_GRADER = "expected-findings"
 # Fewer arms than this means the guard is checking almost nothing.
 MIN_ARMS_CHECKED = 10
 
@@ -56,8 +61,10 @@ def _arm_estimate_usd(
     return total
 
 
-def _artifact_ratios(artifact: Path, pricing: dict) -> list[tuple[str, float]]:
+def _artifact_ratios(artifact: Path, pricing: dict) -> list[tuple[str, float, bool]]:
+    """(arm name, estimate-to-actual ratio, whether the upper bound applies)."""
     written = json.loads(artifact.read_text(encoding="utf-8"))
+    upper_bound_applies = written["grader"] == UPPER_BOUND_GRADER
     agent = written["agent"]
     system_prompt = build_agent_spec(
         agent, load_agent_file(agent, paths.AGENTS_DIR)
@@ -71,11 +78,11 @@ def _artifact_ratios(artifact: Path, pricing: dict) -> list[tuple[str, float]]:
             _arm_estimate_usd(agent, system_prompt, arm, pricing)
             / totals["actual_cost_usd"]
         )
-        ratios.append((f"{artifact.name}:{arm['label']}", ratio))
+        ratios.append((f"{artifact.name}:{arm['label']}", ratio, upper_bound_applies))
     return ratios
 
 
-def _ratios() -> list[tuple[str, float]]:
+def _ratios() -> list[tuple[str, float, bool]]:
     external.load_for_run()
     pricing = json.loads(paths.PRICING_PATH.read_text(encoding="utf-8"))
     ratios = []
@@ -92,7 +99,7 @@ def _ratios() -> list[tuple[str, float]]:
 
 
 @pytest.fixture(scope="module")
-def ratios() -> list[tuple[str, float]]:
+def ratios() -> list[tuple[str, float, bool]]:
     return _ratios()
 
 
@@ -103,7 +110,7 @@ def test_enough_arms_are_checked(ratios):
 def test_no_arm_cost_more_than_estimated(ratios):
     under = [
         (name, round(ratio, 2))
-        for name, ratio in ratios
+        for name, ratio, _ in ratios
         if ratio < MIN_ESTIMATE_TO_ACTUAL
     ]
 
@@ -113,8 +120,12 @@ def test_no_arm_cost_more_than_estimated(ratios):
 def test_no_arm_was_estimated_far_above_its_cost(ratios):
     over = [
         (name, round(ratio, 2))
-        for name, ratio in ratios
-        if ratio > MAX_ESTIMATE_TO_ACTUAL
+        for name, ratio, upper_bound_applies in ratios
+        if upper_bound_applies and ratio > MAX_ESTIMATE_TO_ACTUAL
     ]
 
     assert over == [], "the estimate is far above what these arms cost: recalibrate"
+
+
+def test_the_upper_bound_covers_enough_arms(ratios):
+    assert sum(1 for *_, applies in ratios if applies) >= MIN_ARMS_CHECKED
