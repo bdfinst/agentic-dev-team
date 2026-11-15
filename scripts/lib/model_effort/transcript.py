@@ -26,11 +26,13 @@ BLOCK_TOOL_USE = "tool_use"
 DISPATCH_TOOL_NAMES = frozenset({"Agent", "Task"})
 SUBAGENT_TYPE_KEY = "subagent_type"
 
-# Neither fence may match newlines beside the line break it needs: the opening
-# fence ends at the first line break and the closing fence is indented but opens
-# its own line. Otherwise a long run of blank lines after an unclosed fence takes
-# quadratic time to scan. The body is stripped by the caller.
-FENCED_JSON_PATTERN = re.compile(r"```json[ \t\r]*\n(.*?)\n[ \t\r]*```", re.DOTALL)
+# A fenced block opens with ```json and a line break, anywhere on a line, and
+# closes with ``` opening a later line, indented or not. The body is stripped by
+# the caller. Neither fence pattern matches newlines beside the line break it
+# needs, and `_fenced_blocks` searches for each fence on its own, so the scan is
+# linear even for a long run of blank lines or many unclosed openers.
+FENCE_OPEN_PATTERN = re.compile(r"```json[ \t\r]*\n")
+FENCE_CLOSE_PATTERN = re.compile(r"\n[ \t\r]*```")
 
 
 @dataclass(frozen=True)
@@ -96,13 +98,52 @@ def extract_agent_json(text: str | None) -> dict | None:
     """Return the agent's JSON object: a fenced ```json block, else the first parseable `{...}`."""
     if not text:
         return None
-    for fenced in FENCED_JSON_PATTERN.findall(text):
-        parsed = _decode_object(fenced.strip(), 0)
+    blocks = _fenced_blocks(text)
+    for block in blocks:
+        parsed = _decode_object(text[block.body_start : block.body_end].strip(), 0)
         if parsed is not None:
             return parsed
     # Fenced blocks were tried above; blank them so an unclosed `{` in one cannot
     # swallow a later top-level object.
-    return _first_bare_object(FENCED_JSON_PATTERN.sub(" ", text))
+    return _first_bare_object(_blank_fenced_blocks(text, blocks))
+
+
+@dataclass(frozen=True)
+class _FencedBlock:
+    start: int
+    body_start: int
+    body_end: int
+    end: int
+
+
+def _fenced_blocks(text: str) -> list[_FencedBlock]:
+    """Each fenced block, in order; a body ends at the first closing fence after it.
+
+    With no closing fence after an opener there is none after any later opener
+    either, so the scan stops there.
+    """
+    blocks = []
+    position = 0
+    while (opener := FENCE_OPEN_PATTERN.search(text, position)) is not None:
+        closer = FENCE_CLOSE_PATTERN.search(text, opener.end())
+        if closer is None:
+            break
+        blocks.append(
+            _FencedBlock(opener.start(), opener.end(), closer.start(), closer.end())
+        )
+        position = closer.end()
+    return blocks
+
+
+def _blank_fenced_blocks(text: str, blocks: list[_FencedBlock]) -> str:
+    """`text` with each whole fenced block, both fences included, replaced by a space."""
+    parts = []
+    position = 0
+    for block in blocks:
+        parts.extend((text[position : block.start], " "))
+        position = block.end
+    parts.append(text[position:])
+    return "".join(parts)
 
 
 def _iter_events(stdout: str):

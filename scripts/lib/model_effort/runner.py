@@ -78,8 +78,7 @@ def run_cli_process(
     and raises `KeyboardInterrupt`.
     A binary that cannot be started yields exit code 127 with the OS error as stderr.
     """
-    previous_mask = interrupts.block()
-    try:
+    with interrupts.held_signals() as previous_mask:
         # The child must start with the interrupt signals free, whatever the parent holds.
         child_mask = previous_mask - interrupts.INTERRUPT_SIGNALS
         try:
@@ -119,8 +118,6 @@ def run_cli_process(
         # that window is the residual.
         _kill_process_group(process)
         return record
-    finally:
-        interrupts.restore(previous_mask)
 
 
 def _wait_for_exit(
@@ -183,8 +180,7 @@ def _read_output(
     pending_input = stdin_text
     while True:
         if stop_at_exit:
-            if interrupts.take_pending():
-                raise KeyboardInterrupt
+            interrupts.raise_if_pending()
         elif interrupts.pending():
             return None
         remaining = deadline - time.monotonic()
@@ -423,14 +419,11 @@ def _new_real_dir(path: Path) -> Path:
 def _with_own_knowledge(
     config: invocation.TrialConfig, plugin_root: Path
 ) -> invocation.TrialConfig:
-    knowledge_dir = plugin_root / config.eval_paths.knowledge_dir.name
-    shutil.copytree(config.eval_paths.knowledge_dir, knowledge_dir, symlinks=True)
-    return dataclasses.replace(
-        config,
-        eval_paths=dataclasses.replace(
-            config.eval_paths, plugin_root=plugin_root, knowledge_dir=knowledge_dir
-        ),
+    own = dataclasses.replace(config.snapshot_paths, plugin_root=plugin_root)
+    shutil.copytree(
+        config.snapshot_paths.knowledge_dir, own.knowledge_dir, symlinks=True
     )
+    return dataclasses.replace(config, snapshot_paths=own)
 
 
 SANDBOX_GIT_IDENTITY = ("-c", "user.name=model-effort-ab", "-c", "user.email=ab@example.com")

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import AbstractContextManager
 
 import pytest
-from _model_effort_support import NOW, FixedRng, World, _eval_paths
+from ab_constants import NOW
+from ab_inputs import FixedRng, eval_paths_with
+from ab_world import World
 from model_effort import external, paths, plan, snapshot
 from model_effort.errors import UsageError
 
@@ -44,6 +47,25 @@ class TestValidateCandidate:
         assert "cannot read the agent contract" in str(excinfo.value)
         assert "agent-contract.json" in str(excinfo.value)
 
+    def test_a_contract_of_another_shape_is_refused_naming_the_file(self, monkeypatch):
+        monkeypatch.setattr(
+            external.agent_contract_validator(), "load_contract", lambda: {"fields": {}}
+        )
+
+        with pytest.raises(UsageError, match="agent-contract.json"):
+            plan.validate_candidate("haiku", None)
+
+    def test_a_model_validator_that_drifted_is_refused_naming_the_drift(
+        self, monkeypatch
+    ):
+        def drifted(_value, _enum):
+            raise external.ExternalContractError("_model_is_valid drifted")
+
+        monkeypatch.setattr(external, "model_is_valid", drifted)
+
+        with pytest.raises(UsageError, match="_model_is_valid drifted"):
+            plan.validate_candidate("haiku", None)
+
     @pytest.mark.parametrize("effort", ["hgih", "ultracode", ""])
     def test_effort_outside_the_contract_is_refused_listing_valid_values(self, effort):
         with pytest.raises(UsageError) as excinfo:
@@ -73,7 +95,7 @@ class TestPlanSnapshot:
     def test_the_shipped_knowledge_dir_is_recorded_relative_to_the_repo(
         self, world, private_tmp
     ):
-        shipped_knowledge = _eval_paths(
+        shipped_knowledge = eval_paths_with(
             agents_dir=world.deps.eval_paths.agents_dir,
             expected_dir=world.deps.eval_paths.expected_dir,
             fixtures_dir=world.deps.eval_paths.fixtures_dir,
@@ -177,3 +199,61 @@ class TestPlanLoadsTheScriptsTrialsUse:
 
         assert list(private_tmp.iterdir()) == []
         assert world.artifacts == []
+
+
+class TestPlanChecksExpectedEntries:
+    def test_an_entry_the_grader_cannot_use_is_refused_before_anything_is_copied(
+        self, world, private_tmp
+    ):
+        entry = {
+            "fixture": "clean-form",
+            "applicableAgents": ["scout"],
+            "agents": {"scout": {"expectedStatus": "pass", "issueCount": 0}},
+        }
+        (world.expected_dir / "clean-form.json").write_text(
+            json.dumps(entry), encoding="utf-8"
+        )
+
+        with (
+            pytest.raises(UsageError, match=r"clean-form\.json.*'scout'"),
+            plan.plan_run(
+                "scout",
+                candidate_model="haiku",
+                candidate_effort=None,
+                fixture_stems=None,
+                runs_dir=world.runs_dir,
+                now=NOW,
+                rng=FixedRng(),
+                git_sha=None,
+                eval_paths=world.deps.eval_paths,
+            ),
+        ):
+            pass
+
+        assert list(private_tmp.iterdir()) == []
+        assert world.artifacts == []
+
+    def test_a_grader_whose_return_shape_changed_is_refused_at_plan_time(
+        self, world, monkeypatch, private_tmp
+    ):
+        monkeypatch.setattr(
+            external.eval_grade(), "run_grading", lambda **_kwargs: "drifted"
+        )
+
+        with (
+            pytest.raises(UsageError, match="run_grading no longer returns"),
+            plan.plan_run(
+                "scout",
+                candidate_model="haiku",
+                candidate_effort=None,
+                fixture_stems=None,
+                runs_dir=world.runs_dir,
+                now=NOW,
+                rng=FixedRng(),
+                git_sha=None,
+                eval_paths=world.deps.eval_paths,
+            ),
+        ):
+            pass
+
+        assert list(private_tmp.iterdir()) == []

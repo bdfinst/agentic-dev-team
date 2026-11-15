@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from _model_effort_support import _write_agent
+from ab_inputs import write_agent_file
 from model_effort import agent_file, agent_spec, external, paths, tools
 
 
 class TestAgentSpec:
     def test_reads_baseline_model_effort_and_body_as_system_prompt(self, agents_dir):
-        _write_agent(
+        write_agent_file(
             agents_dir,
             "scout",
             model="sonnet",
@@ -26,7 +26,7 @@ class TestAgentSpec:
         assert built.system_prompt == "You are scout.\n"
 
     def test_missing_model_raises_naming_the_key(self, agents_dir):
-        _write_agent(agents_dir, "scout", effort="high")
+        write_agent_file(agents_dir, "scout", effort="high")
         loaded = agent_file.load_agent_file("scout", agents_dir)
 
         with pytest.raises(agent_file.AgentFrontmatterError) as excinfo:

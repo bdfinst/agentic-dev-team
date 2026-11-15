@@ -12,22 +12,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import _model_effort_support  # noqa: F401  (puts the harness on sys.path first)
+import ab_harness_path  # noqa: F401  (puts the harness on sys.path first)
 import model_effort_ab
 import pytest
-from _model_effort_support import (
-    NOW,
-    SONNET_MODEL_ID,
-    TEST_PRICING,
-    FixedRng,
-    StubClaude,
-    _eval_paths,
-    _flag_value,
-    _init_event,
-    _result_event,
-    _stream,
-    _write_agent,
-)
+from ab_constants import NOW, SONNET_MODEL_ID, TEST_PRICING
+from ab_inputs import FixedRng, eval_paths_with, snapshot_paths_with, write_agent_file
+from ab_stub_claude import StubClaude, flag_value, init_event, result_event, stream_of
 from model_effort import (
     answer_key,
     arm_totals,
@@ -108,10 +98,10 @@ def gworld(tmp_path: Path) -> GraderWorld:
     )
     for directory in (agents, expected, fixtures, runs):
         directory.mkdir()
-    _write_agent(agents, "thinker", "Read, Grep", model="sonnet", effort="high")
-    _write_agent(agents, "builder", "Read, Edit, Bash", model="sonnet", effort="high")
-    _write_agent(agents, "router", "Read, Agent, Skill", model="sonnet", effort="high")
-    _write_agent(agents, "unmapped-writer", "Read, Write", model="sonnet", effort="high")
+    write_agent_file(agents, "thinker", "Read, Grep", model="sonnet", effort="high")
+    write_agent_file(agents, "builder", "Read, Edit, Bash", model="sonnet", effort="high")
+    write_agent_file(agents, "router", "Read, Agent, Skill", model="sonnet", effort="high")
+    write_agent_file(agents, "unmapped-writer", "Read, Write", model="sonnet", effort="high")
     graders = tmp_path / "graders"
     (graders / "rubrics").mkdir(parents=True)
     (graders / "rubrics" / "thinker.md").write_text(RUBRIC_TEXT, encoding="utf-8")
@@ -175,12 +165,11 @@ def gworld(tmp_path: Path) -> GraderWorld:
         clock=lambda: NOW,
         rng=FixedRng(),
         read_git_sha=lambda: "abc123",
-        eval_paths=_eval_paths(
+        eval_paths=eval_paths_with(
             agents_dir=agents,
             expected_dir=expected,
             fixtures_dir=fixtures,
             plugin_root=knowledge.parent,
-            knowledge_dir=knowledge,
             grader_map=graders / "graders.json",
         ),
         pricing_table=PRICING,
@@ -207,17 +196,17 @@ def _run(gworld: GraderWorld, stub: StubClaude, *args: str) -> int:
 
 
 def _answer_call(text: str, *events: dict, **result_fields) -> dict:
-    result = _result_event(text, model_usage={SONNET_MODEL_ID: {}}, **result_fields)
-    return {"stdout": _stream(_init_event(SONNET_MODEL_ID), *events, result)}
+    result = result_event(text, model_usage={SONNET_MODEL_ID: {}}, **result_fields)
+    return {"stdout": stream_of(init_event(SONNET_MODEL_ID), *events, result)}
 
 
 def _judge_call(criteria: list[dict]) -> dict:
-    result = _result_event(
+    result = result_event(
         json.dumps({"criteria": criteria}),
         model_usage={OPUS_JUDGE: {}},
         total_cost_usd=JUDGE_COST,
     )
-    return {"stdout": _stream(result)}
+    return {"stdout": stream_of(result)}
 
 
 def _met(*ids: str) -> list[dict]:
@@ -461,7 +450,7 @@ class TestInvocation:
 class TestTranscriptDispatches:
     def test_the_agent_type_of_every_dispatch_tool_call_is_recorded(self):
         parsed = transcript.parse_stream(
-            _stream(
+            stream_of(
                 _dispatch_event("dev-team:architect"),
                 {
                     "type": "assistant",
@@ -476,7 +465,7 @@ class TestTranscriptDispatches:
                         ]
                     },
                 },
-                _result_event("done"),
+                result_event("done"),
             )
         )
 
@@ -490,7 +479,7 @@ class TestOutcomeWithoutAgentJson:
         )
 
     def test_prose_is_graded_when_the_grader_does_not_need_json(self):
-        parsed = transcript.parse_stream(_stream(_result_event("Plain prose answer.")))
+        parsed = transcript.parse_stream(stream_of(result_event("Plain prose answer.")))
 
         result = outcome.resolve_outcome(
             self._record(),
@@ -503,7 +492,7 @@ class TestOutcomeWithoutAgentJson:
         assert result.outcome is Outcome.PASS
 
     def test_a_grader_that_cannot_reach_a_verdict_is_a_judge_error(self):
-        parsed = transcript.parse_stream(_stream(_result_event("{}")))
+        parsed = transcript.parse_stream(stream_of(result_event("{}")))
 
         def unavailable(_agent_json):
             raise rubric_judge.JudgeError("judge down")
@@ -554,9 +543,9 @@ class TestRubricJudge:
         argv = rubric_judge.build_judge_argv(self._judge(), "claude")
 
         assert argv[1] == "-p" and argv[2].startswith("--")
-        assert _flag_value(argv, "--model") == OPUS_JUDGE
-        assert _flag_value(argv, "--effort") == "high"
-        assert _flag_value(argv, "--tools") == ""
+        assert flag_value(argv, "--model") == OPUS_JUDGE
+        assert flag_value(argv, "--effort") == "high"
+        assert flag_value(argv, "--tools") == ""
         assert "--restricted" in argv
 
     def test_the_judge_prompt_carries_rubric_points_task_and_answer(self):
@@ -624,7 +613,7 @@ class TestRubricJudge:
             )
             return process_record.TrialProcessRecord(
                 exit_code=0,
-                stdout=_stream(_result_event(json.dumps({"criteria": _met("commits")}))),
+                stdout=stream_of(result_event(json.dumps({"criteria": _met("commits")}))),
                 stderr="",
                 timed_out=False,
             )
@@ -663,10 +652,10 @@ class TestRubricJudge:
             ({"timed_out": True}, "exceeded the time limit"),
             ({"exit_code": 1, "stderr": "overloaded"}, r"failed \(exit 1\): overloaded"),
             (
-                {"stdout": _stream(_result_event("boom", is_error=True))},
+                {"stdout": stream_of(result_event("boom", is_error=True))},
                 r"failed \(exit 0\): boom",
             ),
-            ({"stdout": _stream(_init_event())}, "no result event"),
+            ({"stdout": stream_of(init_event())}, "no result event"),
         ],
     )
     def test_each_failure_raises_judge_error(self, record_fields, message):
@@ -677,10 +666,10 @@ class TestRubricJudge:
             self._run(lambda *_args, **_kwargs: process_record.TrialProcessRecord(**fields))
 
     def test_a_judge_reporting_no_cost_yields_a_judgement_with_no_cost(self):
-        result = _result_event(json.dumps({"criteria": _met("commits")}))
+        result = result_event(json.dumps({"criteria": _met("commits")}))
         del result["total_cost_usd"]
         record = process_record.TrialProcessRecord(
-            exit_code=0, stdout=_stream(result), stderr="", timed_out=False
+            exit_code=0, stdout=stream_of(result), stderr="", timed_out=False
         )
 
         judgement = self._run(lambda *_args, **_kwargs: record)
@@ -715,7 +704,7 @@ class TestRubricRun:
         assert any("picks-queue" in m for m in candidate_trial["grader_messages"])
         assert candidate_trial["judge_cost_usd"] == JUDGE_COST
         judge_argv = stub.calls[1]["argv"]
-        assert _flag_value(judge_argv, "--model") == OPUS_JUDGE
+        assert flag_value(judge_argv, "--model") == OPUS_JUDGE
         assert "Use the queue." in stub.calls[1]["stdin"]
 
     def test_summary_artifact_and_echo_agree_on_the_judge_figures(self, gworld, capsys):
@@ -826,7 +815,7 @@ class TestTestsPassRun:
                 arm=Arm("candidate", "haiku", "low"),
                 system_prompt="p",
                 profile=tools.ToolProfile(("Read",), (), ()),
-                eval_paths=_eval_paths(),
+                snapshot_paths=snapshot_paths_with(),
                 claude_bin=str(stub.path),
             ),
             test_commands=("{python} marker.py",),
@@ -884,10 +873,10 @@ class TestDispatchSetRun:
         assert written["grader"] == "dispatch-set"
         assert _trial_outcomes(written) == ["pass", "graded_fail"]
         argv = stub.calls[0]["argv"]
-        assert _flag_value(argv, "--tools") == "Read,Agent"
-        stubs = json.loads(_flag_value(argv, "--agents"))
+        assert flag_value(argv, "--tools") == "Read,Agent"
+        stubs = json.loads(flag_value(argv, "--agents"))
         assert set(stubs) == {"builder", "router", "thinker", "unmapped-writer"}
-        assert _flag_value(argv, "-p") == "Route `route-me/REQUEST.md`."
+        assert flag_value(argv, "-p") == "Route `route-me/REQUEST.md`."
 
 
 
@@ -1078,7 +1067,7 @@ class TestBashSandbox:
                 arm=Arm("candidate", "haiku", "low"),
                 system_prompt="p",
                 profile=tools.ToolProfile(("Read", "Bash"), (), ()),
-                eval_paths=_eval_paths(),
+                snapshot_paths=snapshot_paths_with(),
             ),
             **overrides,
         )
@@ -1090,7 +1079,7 @@ class TestBashSandbox:
 
         argv = invocation.build_argv(config, "task")
 
-        assert json.loads(_flag_value(argv, "--settings")) == {
+        assert json.loads(flag_value(argv, "--settings")) == {
             "sandbox": {
                 "enabled": True,
                 "failIfUnavailable": True,
@@ -1103,8 +1092,8 @@ class TestBashSandbox:
                 },
             }
         }
-        assert _flag_value(argv, "--permission-mode") == "acceptEdits"
-        assert _flag_value(argv, "--permission-prompts") == "none"
+        assert flag_value(argv, "--permission-mode") == "acceptEdits"
+        assert flag_value(argv, "--permission-prompts") == "none"
         assert "--dangerously-skip-permissions" not in argv
         assert "--restricted" in argv
 
@@ -1115,7 +1104,7 @@ class TestBashSandbox:
 
     def test_a_sandboxed_trial_with_permission_denials_fails_as_a_tool_violation(self):
         parsed = transcript.parse_stream(
-            _stream(_result_event("done", permission_denials=[{"tool_name": "Bash"}]))
+            stream_of(result_event("done", permission_denials=[{"tool_name": "Bash"}]))
         )
         record = process_record.TrialProcessRecord(
             exit_code=0, stdout="", stderr="", timed_out=False
@@ -1135,7 +1124,7 @@ class TestBashSandbox:
 
     def test_denials_do_not_fail_a_trial_outside_the_sandbox(self):
         parsed = transcript.parse_stream(
-            _stream(_result_event("done", permission_denials=[{"tool_name": "Bash"}]))
+            stream_of(result_event("done", permission_denials=[{"tool_name": "Bash"}]))
         )
         record = process_record.TrialProcessRecord(
             exit_code=0, stdout="", stderr="", timed_out=False
@@ -1152,7 +1141,7 @@ class TestBashSandbox:
     ):
         stub = _stub(
             tmp_path,
-            stdout=_stream(_result_event("Done.", permission_denials=[{"tool": "Bash"}])),
+            stdout=stream_of(result_event("Done.", permission_denials=[{"tool": "Bash"}])),
         )
 
         _run(gworld, stub, "builder", "--model", "haiku")
@@ -1177,10 +1166,10 @@ class TestBashSandbox:
 
         _run(gworld, stub, "builder", "--model", "haiku")
 
-        first, second = (_flag_value(call["argv"], "--add-dir") for call in stub.calls[:2])
+        first, second = (flag_value(call["argv"], "--add-dir") for call in stub.calls[:2])
         assert first != second
         for call in stub.calls[:2]:
-            add_dir = Path(_flag_value(call["argv"], "--add-dir"))
+            add_dir = Path(flag_value(call["argv"], "--add-dir"))
             assert Path(call["cwd"]) not in add_dir.parents
             assert "model-effort-inputs-" not in str(add_dir)
 
@@ -1192,11 +1181,11 @@ class TestBashSandbox:
         _run(gworld, stub, "builder", "--model", "haiku")
 
         argv = stub.calls[0]["argv"]
-        settings = json.loads(_flag_value(argv, "--settings"))
+        settings = json.loads(flag_value(argv, "--settings"))
         denied = settings["sandbox"]["filesystem"]["denyRead"]
         answer_dir = Path(denied[0])
         assert answer_dir.name == "expected"
-        visible = [arg for arg in argv if arg != _flag_value(argv, "--settings")]
+        visible = [arg for arg in argv if arg != flag_value(argv, "--settings")]
         assert not any(str(answer_dir.parent) in arg for arg in visible)
         assert str(Path(stub.calls[0]["cwd"])) not in str(answer_dir)
 
@@ -1207,7 +1196,7 @@ class TestBashSandbox:
 
         _run(gworld, stub, "builder", "--model", "haiku")
 
-        settings = json.loads(_flag_value(stub.calls[0]["argv"], "--settings"))
+        settings = json.loads(flag_value(stub.calls[0]["argv"], "--settings"))
         denied = settings["sandbox"]["filesystem"]["denyRead"]
         assert str(tmp_path / "repo" / ".git") in denied
         assert str(tmp_path / "repo" / "evals" / "expected") in denied
@@ -1296,7 +1285,7 @@ class TestWorkDiff:
             arm=Arm("candidate", "haiku", "low"),
             system_prompt="p",
             profile=tools.ToolProfile(("Read",), (), ()),
-            eval_paths=_eval_paths(),
+            snapshot_paths=snapshot_paths_with(),
             claude_bin=str(stub.path),
         )
 
@@ -1619,9 +1608,9 @@ class TestJudgeCost:
         assert self._estimate().charged_judge_usd(self._result()) == 0.0
 
     def test_arm_totals_sum_reported_judge_costs_and_estimate_the_unreported(self):
-        from _model_effort_support import _arm_run
+        from ab_results import arm_run_of
 
-        arm_run = _arm_run(
+        arm_run = arm_run_of(
             "baseline",
             [self._result(judge_cost_usd=0.3, judged=True), self._result(judged=True)],
         )
@@ -1632,11 +1621,11 @@ class TestJudgeCost:
         assert totals.unreported_trials_estimate_usd == pytest.approx(0.1)
 
     def test_a_failed_judge_carries_the_cost_it_reported(self):
-        result = _result_event("boom", is_error=True, total_cost_usd=0.07)
+        result = result_event("boom", is_error=True, total_cost_usd=0.07)
 
         def run_process(argv, cwd, timeout, env, **_kwargs):
             return process_record.TrialProcessRecord(
-                exit_code=0, stdout=_stream(result), stderr="", timed_out=False
+                exit_code=0, stdout=stream_of(result), stderr="", timed_out=False
             )
 
         with pytest.raises(rubric_judge.JudgeError) as raised:
@@ -1666,7 +1655,7 @@ class TestJudgeCost:
             _answer_call("Use the queue."),
             _judge_call(_met("commits", "grounded", "picks-queue")),
             _answer_call("Use the queue."),
-            {"stdout": _stream(_result_event("not json", total_cost_usd=0.05)), "exit_code": 0},
+            {"stdout": stream_of(result_event("not json", total_cost_usd=0.05)), "exit_code": 0},
         )
 
         _run(gworld, stub, "thinker", "--model", "opus")
@@ -1700,14 +1689,14 @@ class TestJudgeCost:
 
     def test_judge_spend_alone_can_cross_the_spend_limit(self, gworld, tmp_path, capsys):
         stub = _stub(tmp_path)
-        expensive_judge = _result_event(
+        expensive_judge = result_event(
             json.dumps({"criteria": _met("commits", "grounded", "picks-queue")}),
             model_usage={OPUS_JUDGE: {}},
             total_cost_usd=5.0,
         )
         stub.queue(
             _answer_call("Use the queue.", total_cost_usd=0.0),
-            {"stdout": _stream(expensive_judge)},
+            {"stdout": stream_of(expensive_judge)},
         )
 
         code = _run(gworld, stub, "thinker", "--model", "opus", "--max-cost", "1")
@@ -1721,10 +1710,10 @@ class TestJudgeCost:
 
 class TestTierChangeEligibility:
     def _arm_runs(self, counts: dict[str, int]):
-        from _model_effort_support import _arm_run
+        from ab_results import arm_run_of
 
         return [
-            _arm_run(label, [TestJudgeCost()._result() for _ in range(count)])
+            arm_run_of(label, [TestJudgeCost()._result() for _ in range(count)])
             for label, count in counts.items()
         ]
 
@@ -1747,31 +1736,31 @@ class TestTierChangeEligibility:
         assert artifact.tier_change_eligible(runs, self.RUBRIC, [stem, "never-ran"]) is False
 
     def test_judge_errors_do_not_count_toward_the_rubric_floor(self):
-        from _model_effort_support import _arm_run
+        from ab_results import arm_run_of
 
         judged = [TestJudgeCost()._result() for _ in range(9)]
         errored = TestJudgeCost()._result()
         errored = dataclasses.replace(errored, outcome=Outcome.JUDGE_ERROR)
         runs = [
-            _arm_run("baseline", [*judged, errored]),
-            _arm_run("candidate", [TestJudgeCost()._result() for _ in range(10)]),
+            arm_run_of("baseline", [*judged, errored]),
+            arm_run_of("candidate", [TestJudgeCost()._result() for _ in range(10)]),
         ]
 
         assert artifact.tier_change_eligible(runs, self.RUBRIC) is False
 
     def test_graded_fail_counts_toward_the_rubric_floor(self):
-        from _model_effort_support import _arm_run
+        from ab_results import arm_run_of
 
         failed = dataclasses.replace(TestJudgeCost()._result(), outcome=Outcome.GRADED_FAIL)
-        runs = [_arm_run(label, [failed] * 10) for label in ("baseline", "candidate")]
+        runs = [arm_run_of(label, [failed] * 10) for label in ("baseline", "candidate")]
 
         assert artifact.tier_change_eligible(runs, self.RUBRIC) is True
 
     def test_a_fixture_with_only_timeouts_is_not_eligible_for_any_grader(self):
-        from _model_effort_support import _arm_run
+        from ab_results import arm_run_of
 
         timed_out = dataclasses.replace(TestJudgeCost()._result(), outcome=Outcome.TIMEOUT)
-        runs = [_arm_run(label, [timed_out]) for label in ("baseline", "candidate")]
+        runs = [arm_run_of(label, [timed_out]) for label in ("baseline", "candidate")]
 
         assert artifact.tier_change_eligible(runs, grader_config.DEFAULT_GRADING) is False
 

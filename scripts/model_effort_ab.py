@@ -362,6 +362,7 @@ def _plan_from(
         find_check_jail=deps.find_check_jail,
         find_answer_key_paths=deps.find_answer_key_paths,
         stress_axis=args.axis if args.stress else None,
+        pricing_table=deps.pricing_table,
     )
 
 

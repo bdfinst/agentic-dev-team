@@ -10,24 +10,23 @@ import time
 
 import model_effort_ab
 import pytest
-from _model_effort_support import (
-    CLEAN_FORM_ARGS,
+from ab_constants import CLEAN_FORM_ARGS, MAX_COST_MID_RUN, TIMEOUT_SECONDS
+from ab_inputs import make_file_fixture, trial_config
+from ab_results import flat_run_estimate
+from ab_signals import (
     INTERRUPT_SIGNALS,
-    MAX_COST_MID_RUN,
-    TIMEOUT_SECONDS,
-    StubClaude,
-    World,
-    _blocked_signals,
-    _cli,
-    _config,
-    _deps_signalling_after,
-    _make_file_fixture,
-    _outcomes,
-    _passing_stub,
-    _raise_keyboard_interrupt,
-    _run_estimate,
-    _written,
+    blocked_signals,
+    raise_keyboard_interrupt,
     signal_own_thread,
+)
+from ab_stub_claude import StubClaude
+from ab_world import (
+    World,
+    cli,
+    deps_signalling_after,
+    outcomes_of,
+    passing_stub,
+    read_artifact,
 )
 from model_effort import (
     artifact,
@@ -116,9 +115,9 @@ class TestInterruptsAreHeldForTheRun:
     def test_signal_after_the_process_exited_keeps_the_completed_trial(
         self, world, capsys, signum
     ):
-        stub = _passing_stub(world)
+        stub = passing_stub(world)
 
-        code = _cli(
+        code = cli(
             world,
             stub,
             *CLEAN_FORM_ARGS,
@@ -127,15 +126,15 @@ class TestInterruptsAreHeldForTheRun:
             deps=_deps_signalling_with_trial_run(world, 3, signum),
         )
 
-        written = _written(world)
+        written = read_artifact(world)
         assert code == 1
         assert len(stub.calls) == 4
         assert (written["status"], written["abort_reason"]) == (
             "incomplete",
             "interrupt",
         )
-        assert _outcomes(written, BASELINE_LABEL) == ["pass", "pass"]
-        assert _outcomes(written, CANDIDATE_LABEL) == ["pass", "pass"]
+        assert outcomes_of(written, BASELINE_LABEL) == ["pass", "pass"]
+        assert outcomes_of(written, CANDIDATE_LABEL) == ["pass", "pass"]
         assert (
             "run stopped early (interrupt): no trial was in flight; "
             "4 completed trials were kept"
@@ -145,7 +144,7 @@ class TestInterruptsAreHeldForTheRun:
     def test_signal_during_a_trial_kills_its_process_and_drops_only_that_trial(
         self, world, signum
     ):
-        stub = _passing_stub(world)
+        stub = passing_stub(world)
         stub.queue({}, {}, {"sleep": 30})
 
         def signal_once_the_third_trial_runs() -> None:
@@ -160,16 +159,16 @@ class TestInterruptsAreHeldForTheRun:
             signal.pthread_kill(threading.main_thread().ident, signum)
 
         threading.Thread(target=signal_once_the_third_trial_runs, daemon=True).start()
-        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+        code = cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
 
-        written = _written(world)
+        written = read_artifact(world)
         assert code == 1
         assert (written["status"], written["abort_reason"]) == (
             "incomplete",
             "interrupt",
         )
-        assert _outcomes(written, BASELINE_LABEL) == ["pass"]
-        assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
+        assert outcomes_of(written, BASELINE_LABEL) == ["pass"]
+        assert outcomes_of(written, CANDIDATE_LABEL) == ["pass"]
         with pytest.raises(ProcessLookupError):
             os.kill(stub.calls[2]["pid"], 0)
 
@@ -177,7 +176,7 @@ class TestInterruptsAreHeldForTheRun:
     def test_signal_while_a_descendant_holds_the_pipes_after_the_exit_keeps_the_finished_trial(
         self, world, signum
     ):
-        stub = _passing_stub(world, holder_sleep=30)
+        stub = passing_stub(world, holder_sleep=30)
 
         def signal_once_the_first_process_exited() -> None:
             deadline = time.monotonic() + 20
@@ -199,24 +198,61 @@ class TestInterruptsAreHeldForTheRun:
         threading.Thread(
             target=signal_once_the_first_process_exited, daemon=True
         ).start()
-        started = time.monotonic()
-        code = _cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
+        code = cli(world, stub, *CLEAN_FORM_ARGS, "--trials", "5")
 
-        written = _written(world)
+        written = read_artifact(world)
         assert code == 1
-        assert time.monotonic() - started < runner.KILL_COLLECT_TIMEOUT_SECONDS * 3
         assert len(stub.calls) == 1
         assert (written["status"], written["abort_reason"]) == (
             "incomplete",
             "interrupt",
         )
-        assert _outcomes(written, BASELINE_LABEL) == ["pass"]
+        assert outcomes_of(written, BASELINE_LABEL) == ["pass"]
+
+    @pytest.mark.slow
+    def test_signal_during_the_output_grace_ends_the_wait_early_and_stays_pending(
+        self, stub_dir, fixture_root, monkeypatch
+    ):
+        # A grace as long as the holder's sleep: only the signal can end it early.
+        holder_seconds = 30
+        monkeypatch.setattr(runner, "KILL_COLLECT_TIMEOUT_SECONDS", holder_seconds)
+        stub = StubClaude(stub_dir, stdout="result", holder_sleep=holder_seconds)
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
+        # Call-through spy on `_read_output`: the grace wait is its call without
+        # `stop_at_exit`, and the signal lands just before it starts.
+        real_read = runner._read_output
+        grace_started = []
+
+        def signal_then_read(process, deadline, *, stop_at_exit, stdin_text=None):
+            if not stop_at_exit:
+                signal_own_thread(signal.SIGTERM)
+                grace_started.append(time.monotonic())
+            return real_read(
+                process, deadline, stop_at_exit=stop_at_exit, stdin_text=stdin_text
+            )
+
+        monkeypatch.setattr(runner, "_read_output", signal_then_read)
+        guard = interrupts.RunGuard()
+        with guard.held():
+            record = runner.run_trial(
+                fixture, trial_config(stub), trial_timeout_seconds=holder_seconds
+            )
+        still_pending = guard.arrived
+
+        assert grace_started, "the process never reached the output grace"
+        assert time.monotonic() - grace_started[0] < holder_seconds / 2
+        assert (record.exit_code, record.stdout, record.timed_out) == (
+            0,
+            "result",
+            False,
+        )
+        assert still_pending, "the signal was dropped instead of left for the run"
 
     def test_signal_while_the_timeout_is_handled_still_kills_the_group(
         self, stub_dir, fixture_root, monkeypatch
     ):
         stub = StubClaude(stub_dir, sleep=30)
-        fixture = _make_file_fixture(fixture_root, "a.txt", "a")
+        fixture = make_file_fixture(fixture_root, "a.txt", "a")
         # Call-through spy on `_kill_process_group`: it sends a signal just before
         # the real kill. The public API cannot time a signal to that step of the
         # timeout handler.
@@ -229,12 +265,12 @@ class TestInterruptsAreHeldForTheRun:
             real_kill(process)
 
         monkeypatch.setattr(runner, "_kill_process_group", signal_then_kill)
-        held = interrupts.block()
-        try:
-            record = runner.run_trial(fixture, _config(stub), trial_timeout_seconds=1)
-            still_pending = interrupts.take_pending()
-        finally:
-            interrupts.restore(held)
+        guard = interrupts.RunGuard()
+        with guard.held():
+            record = runner.run_trial(
+                fixture, trial_config(stub), trial_timeout_seconds=1
+            )
+        still_pending = guard.arrived
 
         assert record.timed_out is True
         assert still_pending, "the signal was dropped instead of left for the run"
@@ -248,18 +284,18 @@ class TestInterruptsAreHeldForTheRun:
         real_trial, real_write = runner.run_trial, artifact_store.write_artifact
 
         def spy_trial(*args, **kwargs):
-            blocked.setdefault("trial", _blocked_signals())
+            blocked.setdefault("trial", blocked_signals())
             return real_trial(*args, **kwargs)
 
         def spy_write(path, text):
-            blocked["write"] = _blocked_signals()
+            blocked["write"] = blocked_signals()
             return real_write(path, text)
 
         monkeypatch.setattr(artifact_store, "write_artifact", spy_write)
 
-        _cli(
+        cli(
             world,
-            _passing_stub(world),
+            passing_stub(world),
             *CLEAN_FORM_ARGS,
             "--trials",
             "1",
@@ -268,7 +304,7 @@ class TestInterruptsAreHeldForTheRun:
 
         assert set(INTERRUPT_SIGNALS) <= blocked["trial"]
         assert set(INTERRUPT_SIGNALS) <= blocked["write"]
-        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+        assert not set(INTERRUPT_SIGNALS) & blocked_signals()
 
     def test_signal_pending_before_the_first_trial_starts_no_trial(
         self, world, scout_plan
@@ -282,20 +318,17 @@ class TestInterruptsAreHeldForTheRun:
         def must_not_run(*_args):
             raise AssertionError("a trial started")
 
-        held = interrupts.block()
-        try:
+        with interrupts.RunGuard().held():
             signal_own_thread(signal.SIGTERM)
             run = execution.run_trials(
-                scout_plan, settings, _run_estimate(), run_trial=must_not_run
+                scout_plan, settings, flat_run_estimate(), run_trial=must_not_run
             )
-        finally:
-            interrupts.restore(held)
 
         assert (run.abort_reason, run.started_trials) == (AbortReason.INTERRUPT, 0)
 
     def test_held_signals_finish_the_body_and_deliver_the_signal_after_it(self):
         finished = []
-        previous_handler = signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
+        previous_handler = signal.signal(signal.SIGTERM, raise_keyboard_interrupt)
         try:
             with pytest.raises(KeyboardInterrupt), interrupts.held_signals():
                 signal_own_thread(signal.SIGTERM)
@@ -304,56 +337,56 @@ class TestInterruptsAreHeldForTheRun:
             signal.signal(signal.SIGTERM, previous_handler)
 
         assert finished == ["body"]
-        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+        assert not set(INTERRUPT_SIGNALS) & blocked_signals()
 
-    def test_a_pending_signal_is_consumed_so_it_is_not_delivered_later(self):
-        held = interrupts.block()
-        try:
+    def test_a_pending_signal_is_raised_once_so_it_is_not_delivered_later(self):
+        guard = interrupts.RunGuard()
+        with guard.held():
             signal_own_thread(signal.SIGTERM)
-            first, second = interrupts.take_pending(), interrupts.take_pending()
-        finally:
-            interrupts.restore(held)
+            with pytest.raises(KeyboardInterrupt):
+                interrupts.raise_if_pending()
+            interrupts.raise_if_pending()
 
-        assert (first, second) == (True, False)
+        assert guard.arrived is False
 
     def test_a_signal_landing_just_before_the_restore_is_reported_not_raised(
         self, monkeypatch
     ):
-        held = interrupts.block()
+        held = interrupts._block()
 
         def consume_then_receive_one_more() -> bool:
             signal_own_thread(signal.SIGTERM)
             return False
 
-        # Fault injected: `take_pending` is replaced so a SIGTERM lands after the
+        # Fault injected: `_take_pending` is replaced so a SIGTERM lands after the
         # consume and before the restore. That window is a few bytecodes wide; the
         # public API gives a test no way to send a signal into it.
-        monkeypatch.setattr(interrupts, "take_pending", consume_then_receive_one_more)
-        previous_handler = signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
+        monkeypatch.setattr(interrupts, "_take_pending", consume_then_receive_one_more)
+        previous_handler = signal.signal(signal.SIGTERM, raise_keyboard_interrupt)
         try:
-            arrived = interrupts.restore_reporting(held)
+            arrived = interrupts._restore_reporting(held)
         finally:
             signal.signal(signal.SIGTERM, previous_handler)
 
         assert arrived is True
-        assert not set(INTERRUPT_SIGNALS) & _blocked_signals()
+        assert not set(INTERRUPT_SIGNALS) & blocked_signals()
 
     def test_a_sighup_the_process_ignores_does_not_stop_the_run(self, world):
-        stub = _passing_stub(world)
+        stub = passing_stub(world)
         original = signal.signal(signal.SIGHUP, signal.SIG_IGN)
         try:
-            code = _cli(
+            code = cli(
                 world,
                 stub,
                 *CLEAN_FORM_ARGS,
                 "--trials",
                 "3",
-                deps=_deps_signalling_after(world, 2, signal.SIGHUP),
+                deps=deps_signalling_after(world, 2, signal.SIGHUP),
             )
         finally:
             signal.signal(signal.SIGHUP, original)
 
-        written = _written(world)
+        written = read_artifact(world)
         assert code == 0
         assert len(stub.calls) == 6
         assert (written["status"], written["abort_reason"]) == ("complete", None)
@@ -368,9 +401,9 @@ class TestSignalWhileFinishing:
         calls = _signal_during(monkeypatch, owner, step, signal.SIGTERM)
         writes = _spy_on_writes(monkeypatch)
 
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
 
-        written = _written(world)
+        written = read_artifact(world)
         err = capsys.readouterr().err
         assert code == 1
         assert calls == [step]
@@ -386,9 +419,9 @@ class TestSignalWhileFinishing:
         _signal_during(monkeypatch, owner, step, signal.SIGINT)
         writes = _spy_on_writes(monkeypatch)
 
-        code = _cli(
+        code = cli(
             world,
-            _passing_stub(world),
+            passing_stub(world),
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
@@ -396,15 +429,15 @@ class TestSignalWhileFinishing:
             str(MAX_COST_MID_RUN),
         )
 
-        written = _written(world)
+        written = read_artifact(world)
         assert code == 1
         assert len(writes) == 1
         assert (written["status"], written["abort_reason"]) == (
             "incomplete",
             "max-cost",
         )
-        assert _outcomes(written, BASELINE_LABEL) == ["pass", "pass"]
-        assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
+        assert outcomes_of(written, BASELINE_LABEL) == ["pass", "pass"]
+        assert outcomes_of(written, CANDIDATE_LABEL) == ["pass"]
 
     @pytest.mark.parametrize(("owner", "step"), FINISH_STEPS)
     def test_a_second_signal_while_finishing_an_interrupted_run_loses_nothing(
@@ -413,16 +446,16 @@ class TestSignalWhileFinishing:
         _signal_during(monkeypatch, owner, step, signal.SIGHUP)
         writes = _spy_on_writes(monkeypatch)
 
-        code = _cli(
+        code = cli(
             world,
-            _passing_stub(world),
+            passing_stub(world),
             *CLEAN_FORM_ARGS,
             "--trials",
             "5",
-            deps=_deps_signalling_after(world, 3, signal.SIGTERM),
+            deps=deps_signalling_after(world, 3, signal.SIGTERM),
         )
 
-        written = _written(world)
+        written = read_artifact(world)
         err = capsys.readouterr().err
         assert code == 1
         assert len(writes) == 1
@@ -430,17 +463,17 @@ class TestSignalWhileFinishing:
             "incomplete",
             "interrupt",
         )
-        assert _outcomes(written, BASELINE_LABEL) == ["pass", "pass"]
-        assert _outcomes(written, CANDIDATE_LABEL) == ["pass"]
+        assert outcomes_of(written, BASELINE_LABEL) == ["pass", "pass"]
+        assert outcomes_of(written, CANDIDATE_LABEL) == ["pass"]
         assert f"artifact written: {world.artifact_path}" in err
 
     def test_a_signal_landing_as_the_signals_are_released_is_reported_as_finishing(
         self, world, capsys, monkeypatch
     ):
-        # Fault injected: one more SIGTERM as `restore_reporting` hands the mask
+        # Fault injected: one more SIGTERM as `_restore_reporting` hands the mask
         # back, still inside the session's guarded region. The public API cannot
         # reach that window: no step of the run runs there.
-        real_restore = interrupts.restore_reporting
+        real_restore = interrupts._restore_reporting
 
         def restore_then_receive_one_more(previous_mask):
             arrived = real_restore(previous_mask)
@@ -448,12 +481,12 @@ class TestSignalWhileFinishing:
             return arrived
 
         monkeypatch.setattr(
-            interrupts, "restore_reporting", restore_then_receive_one_more
+            interrupts, "_restore_reporting", restore_then_receive_one_more
         )
 
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
 
-        written = _written(world)
+        written = read_artifact(world)
         err = capsys.readouterr().err
         assert code == 1
         assert (written["status"], written["abort_reason"]) == ("complete", None)
@@ -476,9 +509,9 @@ class TestSignalWhileFinishing:
 
         monkeypatch.setattr(session, "run_session", run_then_receive_one_more)
 
-        code = _cli(world, _passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
+        code = cli(world, passing_stub(world), *CLEAN_FORM_ARGS, "--trials", "1")
 
-        written = _written(world)
+        written = read_artifact(world)
         err = capsys.readouterr().err
         assert code == 1
         assert (written["status"], written["abort_reason"]) == ("complete", None)

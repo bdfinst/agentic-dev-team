@@ -5,7 +5,7 @@ the entries it withholds, and the write-capable entries that make it refuse the 
 from __future__ import annotations
 
 import pytest
-from _model_effort_support import SCOUT_TOOLS
+from ab_constants import SCOUT_TOOLS
 from model_effort import agent_file, tools
 
 

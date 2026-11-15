@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import _model_effort_gate as gate
-import _model_effort_support  # noqa: F401  (puts the harness on sys.path first)
+import ab_harness_path  # noqa: F401  (puts the harness on sys.path first)
 import pytest
-from _model_effort_support import _trial_result
+from ab_results import trial_result
 from model_effort import fixtures as fixture_resolution
 from model_effort import run_types
 from model_effort.arm import BASELINE_LABEL, Arm
@@ -333,7 +333,7 @@ def _arm_run(label, model, outcomes_by_stem, clean_stems=()):
                 stem=stem,
                 kind=fixture_resolution.FixtureKind.FILE,
                 expected_clean=stem in clean_stems,
-                results=[_trial_result(outcome) for outcome in outcomes],
+                results=[trial_result(outcome) for outcome in outcomes],
             )
             for stem, outcomes in outcomes_by_stem.items()
         ],
@@ -460,7 +460,7 @@ def test_a_fixture_whose_every_trial_failed_to_parse_blocks_the_run():
 
 def test_a_judge_error_in_a_ten_trial_rubric_run_leaves_too_few_graded_trials():
     runs = _runs(10)
-    runs[1].fixture_trials[0].results[0] = _trial_result(Outcome.JUDGE_ERROR)
+    runs[1].fixture_trials[0].results[0] = trial_result(Outcome.JUDGE_ERROR)
 
     verdict = stress_verdict("scout", runs, RUBRIC, [FINDING], None)
 

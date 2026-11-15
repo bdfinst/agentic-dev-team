@@ -4,13 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from _model_effort_support import (
-    StubClaude,
-    _config,
-    _eval_paths,
-    _flag_value,
-    _make_file_fixture,
-)
+from ab_inputs import make_file_fixture, snapshot_paths_with, trial_config
+from ab_stub_claude import StubClaude, flag_value
 from model_effort import invocation, paths, runner
 
 from _repo_root import REPO_ROOT
@@ -19,8 +14,8 @@ from _repo_root import REPO_ROOT
 class TestTrialArgv:
     def _run(self, stub_dir, fixture_root, **config_overrides) -> dict:
         stub = StubClaude(stub_dir)
-        fixture = _make_file_fixture(fixture_root)
-        runner.run_trial(fixture, _config(stub, **config_overrides))
+        fixture = make_file_fixture(fixture_root)
+        runner.run_trial(fixture, trial_config(stub, **config_overrides))
         return stub.calls[0]
 
     def test_tools_flag_carries_the_enabled_tools_comma_joined(
@@ -28,12 +23,12 @@ class TestTrialArgv:
     ):
         call = self._run(stub_dir, fixture_root, enabled_tools=("Read", "Grep", "Glob"))
 
-        assert _flag_value(call["argv"], "--tools") == "Read,Grep,Glob"
+        assert flag_value(call["argv"], "--tools") == "Read,Grep,Glob"
 
     def test_no_enabled_tools_passes_an_empty_tools_value(self, stub_dir, fixture_root):
         call = self._run(stub_dir, fixture_root, enabled_tools=())
 
-        assert _flag_value(call["argv"], "--tools") == ""
+        assert flag_value(call["argv"], "--tools") == ""
 
     def test_argv_enables_no_mcp_tools(self, stub_dir, fixture_root):
         call = self._run(stub_dir, fixture_root)
@@ -52,13 +47,13 @@ class TestTrialArgv:
             "--verbose",
         ):
             assert flag in argv
-        assert _flag_value(argv, "--output-format") == "stream-json"
+        assert flag_value(argv, "--output-format") == "stream-json"
 
     def test_model_and_effort_are_passed(self, stub_dir, fixture_root):
         call = self._run(stub_dir, fixture_root, model="sonnet", effort="high")
 
-        assert _flag_value(call["argv"], "--model") == "sonnet"
-        assert _flag_value(call["argv"], "--effort") == "high"
+        assert flag_value(call["argv"], "--model") == "sonnet"
+        assert flag_value(call["argv"], "--effort") == "high"
 
     def test_add_dir_is_only_the_plugin_knowledge_dir_and_never_answer_files(
         self, stub_dir, fixture_root
@@ -80,14 +75,16 @@ class TestTrialArgv:
     def test_add_dir_follows_a_redirected_knowledge_dir(
         self, stub_dir, fixture_root, tmp_path
     ):
-        knowledge = tmp_path / "other-knowledge"
-        knowledge.mkdir()
+        knowledge = tmp_path / "other-plugin" / "knowledge"
+        knowledge.mkdir(parents=True)
 
         call = self._run(
-            stub_dir, fixture_root, eval_paths=_eval_paths(knowledge_dir=knowledge)
+            stub_dir,
+            fixture_root,
+            snapshot_paths=snapshot_paths_with(plugin_root=knowledge.parent),
         )
 
-        assert _flag_value(call["argv"], "--add-dir") == str(knowledge)
+        assert flag_value(call["argv"], "--add-dir") == str(knowledge)
 
     def test_cwd_is_the_staged_dir_outside_the_repo(self, stub_dir, fixture_root):
         call = self._run(stub_dir, fixture_root)
@@ -104,10 +101,10 @@ class TestTrialArgv:
             stub_dir,
             fixture_root,
             system_prompt="Read ${CLAUDE_PLUGIN_ROOT}/knowledge/x.md then ${CLAUDE_PLUGIN_ROOT}/y.md",
-            eval_paths=_eval_paths(plugin_root=plugin_root),
+            snapshot_paths=snapshot_paths_with(plugin_root=plugin_root),
         )
 
-        assert _flag_value(call["argv"], "--system-prompt") == (
+        assert flag_value(call["argv"], "--system-prompt") == (
             f"Read {plugin_root}/knowledge/x.md then {plugin_root}/y.md"
         )
 
@@ -116,13 +113,13 @@ class TestTrialArgv:
     ):
         call = self._run(stub_dir, fixture_root)
 
-        prompt = _flag_value(call["argv"], "-p")
+        prompt = flag_value(call["argv"], "-p")
         assert "`form.html`" in prompt
         assert str(fixture_root) not in prompt
         assert "only the JSON object" in prompt
 
     def test_argv_starts_with_the_injected_binary(self):
-        config = _config(claude_bin="/opt/bin/claude-x")
+        config = trial_config(claude_bin="/opt/bin/claude-x")
 
         argv = invocation.build_argv(config, "go")
 

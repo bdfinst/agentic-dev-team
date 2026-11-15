@@ -14,6 +14,9 @@ Layout under the snapshot root:
 Under the answer root (a separate temp dir):
   expected/             `<stem>.json` for each of those fixtures
 
+A symlink in the knowledge directory or in a directory fixture is copied as a
+link, never as its target's content, so nothing outside those trees is copied.
+
 No prompt or CLI flag names the answer root, apart from the Bash sandbox's
 deny-read list for a write-capable trial, so the expected entries stay out of
 the agent's reach.
@@ -31,7 +34,7 @@ from types import TracebackType
 from typing import Self
 
 from .fixtures import ResolvedFixture, copy_fixture
-from .paths import EvalPaths
+from .paths import KNOWLEDGE_SUBDIR, EvalPaths, SnapshotPaths
 from .temp_tree import remove_tree
 
 SNAPSHOT_DIR_PREFIX = "model-effort-inputs-"
@@ -39,7 +42,6 @@ ANSWER_DIR_PREFIX = "model-effort-grading-"
 FIXTURES_SUBDIR = "fixtures"
 EXPECTED_SUBDIR = "expected"
 PLUGIN_SUBDIR = "plugin"
-KNOWLEDGE_SUBDIR = "knowledge"
 
 
 @dataclass(frozen=True)
@@ -50,7 +52,7 @@ class InputSnapshot:
     """
 
     root: Path
-    eval_paths: EvalPaths
+    paths: SnapshotPaths
     fixtures: tuple[ResolvedFixture, ...]
     # Where the expected entries are, apart from everything a trial reads.
     answer_root: Path | None = None
@@ -77,8 +79,7 @@ def take_snapshot(
 ) -> InputSnapshot:
     """Copy `fixtures`, their expected entries and the knowledge dir into a new temp dir.
 
-    The returned paths keep `source.agents_dir`, which is not copied. If copying
-    fails the partial copy is removed before the error propagates.
+    The agent file is read at plan time and not copied. If copying fails the partial copy is removed before the error propagates.
 
     Raises:
         OSError: a source file cannot be read or the copy cannot be written.
@@ -116,12 +117,10 @@ def _copy_inputs(
         copied.append(dataclasses.replace(fixture, path=target))
     return InputSnapshot(
         root=root,
-        eval_paths=dataclasses.replace(
-            source,
+        paths=SnapshotPaths(
             expected_dir=expected_dir,
             fixtures_dir=fixtures_dir,
             plugin_root=plugin_root,
-            knowledge_dir=knowledge_dir,
         ),
         fixtures=tuple(copied),
         answer_root=answer_root,

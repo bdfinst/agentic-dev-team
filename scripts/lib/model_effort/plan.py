@@ -25,6 +25,7 @@ from .answer_key import repo_answer_key_paths
 from .arm import BASELINE_LABEL, CANDIDATE_LABEL, Arm
 from .check_jail import CheckJail, find_working_jail
 from .errors import UsageError
+from .estimate import require_rates
 from .fixtures import ResolvedFixture, resolve_fixtures
 from .grader_config import (
     DEFAULT_GRADING,
@@ -33,6 +34,7 @@ from .grader_config import (
     GraderKind,
     resolve_agent_grading,
 )
+from .grading import check_expected_entries
 from .judge_tier import check_judge_tier
 from .paths import EvalPaths
 from .run_id import make_run_id
@@ -91,6 +93,7 @@ def plan_run(
     find_check_jail: Callable[[], CheckJail | None] = find_working_jail,
     find_answer_key_paths: Callable[[], tuple[Path, ...]] = repo_answer_key_paths,
     stress_axis: Axis | None = None,
+    pricing_table: dict | None = None,
 ) -> Iterator[RunPlan]:
     """Yield the plan, with the artifact path reserved; the reservation is the last step.
 
@@ -103,7 +106,8 @@ def plan_run(
     explicit candidate values are checked against the agent contract before the
     run ID, which names the artifact file, is built from them. `rng` needs
     `getrandbits`. `eval_paths` names the directories the agent file, expected
-    entries, fixtures and knowledge are read from.
+    entries, fixtures and knowledge are read from. With `pricing_table`, a model
+    it has no rate for is refused before the inputs are copied.
 
     The grader and the environment scrub the trials use are loaded here, so the
     ones in place at approval are the ones every trial uses.
@@ -119,7 +123,9 @@ def plan_run(
             the agent is unknown, write-capable or has unusable
             frontmatter (a missing or invalid `model:` or `effort:` included); a
             candidate value is invalid or leaves the candidate identical to the
-            baseline; fixtures cannot be resolved or copied; or the artifact
+            baseline; fixtures cannot be resolved or copied; an expected entry
+            makes the grader raise on a well-formed answer; a model has no rate in
+            `pricing_table`; or the artifact
             path is unavailable.
     """
     _load_external_scripts()
@@ -141,10 +147,13 @@ def plan_run(
         agent, fixture_stems, eval_paths.expected_dir, eval_paths.fixtures_dir
     )
     _refuse_fixtures_the_grader_cannot_use(agent, grading, fixtures)
+    _check_expected_entries(agent, fixtures, eval_paths)
     arms = _arms_for(agent, agent_spec, candidate_model, candidate_effort, stress_axis)
     named = arms[0] if stress_axis is not None else arms[-1]
     if grading.judge is not None:
         check_judge_tier(grading.judge, [arm.model for arm in arms])
+    if pricing_table is not None:
+        require_rates(arms, grading.judge, pricing_table)
     stub_agents = (
         build_stub_agents(list_agent_names(eval_paths.agents_dir))
         if grading.kind is GraderKind.DISPATCH_SET
@@ -243,6 +252,20 @@ def _refuse_fixtures_the_grader_cannot_use(
         )
 
 
+def _check_expected_entries(
+    agent: str, fixtures: list[ResolvedFixture], eval_paths: EvalPaths
+) -> None:
+    try:
+        check_expected_entries(
+            agent, [fixture.stem for fixture in fixtures], eval_paths.expected_dir
+        )
+    except (ImportError, OSError) as error:
+        raise UsageError(
+            f"cannot check the fixtures' expected entries with the grader: {error}. "
+            "Restore the grader or the entries, or update the harness to match"
+        ) from error
+
+
 def _check_jail_for(
     fixtures: list[ResolvedFixture],
     allow_unjailed: bool,
@@ -304,14 +327,22 @@ def _refuse_invalid_values(
     Raises:
         UsageError: a value is not in the contract, or the contract is unreadable.
     """
-    enums = external.contract_enums()
-    if enums is None:
+    try:
+        enums = external.contract_enums()
+        if enums is None:
+            raise UsageError(
+                "cannot read the agent contract (plugins/marketplace-dev/knowledge/"
+                "agent-contract.json) to validate model and effort values: "
+                "restore the file"
+            )
+        models, efforts = enums
+        model_valid = model is None or external.model_is_valid(model, models)
+    except external.ExternalContractError as error:
         raise UsageError(
-            "cannot read the agent contract (plugins/marketplace-dev/knowledge/"
-            "agent-contract.json) to validate model and effort values: restore the file"
-        )
-    models, efforts = enums
-    if model is not None and not external.model_is_valid(model, models):
+            f"the agent contract no longer has the shape the harness reads: {error}. "
+            "Update the harness to match it"
+        ) from error
+    if not model_valid:
         raise UsageError(
             f"{model_label} {model!r} is not valid: use one of "
             f"{', '.join(models)}, or a full model ID such as claude-opus-4-8"

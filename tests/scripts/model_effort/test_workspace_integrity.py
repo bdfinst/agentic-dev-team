@@ -18,9 +18,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-import _model_effort_support  # noqa: F401  (puts the harness on sys.path first)
+import ab_harness_path  # noqa: F401  (puts the harness on sys.path first)
 import pytest
-from _model_effort_support import _config
+from ab_inputs import trial_config
 from model_effort import outcome, runner, transcript
 from model_effort.outcome import Outcome
 
@@ -86,7 +86,7 @@ def _snapshot(root: Path) -> dict[str, str]:
 
 def _test_graded(fake: Path, *, sandbox: bool = False):
     return dataclasses.replace(
-        _config(claude_bin=str(fake)),
+        trial_config(claude_bin=str(fake)),
         sandbox=sandbox,
         test_commands=("{python} check.py",),
         protected_paths=("tests/t.py",),

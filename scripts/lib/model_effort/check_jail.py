@@ -26,6 +26,7 @@ plan then refuses a test-graded run unless the operator passes
 from __future__ import annotations
 
 import os
+import secrets
 import shutil
 import socket
 import subprocess
@@ -168,8 +169,9 @@ def candidate_jail(
 
 # A harmless Launch Services open: Finder always runs, and `-g` keeps it in the background.
 _LSOPEN_PROBE_ARGV = ("/usr/bin/open", "-g", "-a", "Finder")
-# A preference domain the probe tries to write; removed again whatever happens.
-PREFERENCE_PROBE_DOMAIN = "com.example.model-effort-jail-probe"
+# Prefix of the preference domain the probe tries to write. Each probe adds a
+# random suffix so concurrent probes never share, or delete, each other's domain.
+PREFERENCE_PROBE_DOMAIN_PREFIX = "com.example.model-effort-jail-probe"
 _DEFAULTS = "/usr/bin/defaults"
 _SESSION_BUS_TEMPLATE = "/run/user/{uid}/bus"
 _DOCKER_SOCKET = "/var/run/docker.sock"
@@ -180,6 +182,7 @@ def _probe_script(
     session_bus: str | None,
     docker: bool,
     sleeper_pid: int,
+    preference_domain: str,
 ) -> str:
     """The jailed half of `probe`: exit 0 only when every escape it tries is refused.
 
@@ -210,7 +213,7 @@ def _probe_script(
             f"if subprocess.run({list(_LSOPEN_PROBE_ARGV)!r}, capture_output=True,"
             " timeout=20).returncode == 0:\n"
             "    sys.exit(5)\n"
-            f"if subprocess.run([{_DEFAULTS!r}, 'write', {PREFERENCE_PROBE_DOMAIN!r},"
+            f"if subprocess.run([{_DEFAULTS!r}, 'write', {preference_domain!r},"
             " 'probe', 'x'], capture_output=True, timeout=20).returncode == 0:\n"
             "    sys.exit(8)\n"
             if lsopen
@@ -243,6 +246,7 @@ def probe(jail: CheckJail) -> bool:
     when the host has one.
     """
     session_bus = _SESSION_BUS_TEMPLATE.format(uid=os.getuid())
+    preference_domain = new_preference_probe_domain()
     with (
         tempfile.TemporaryDirectory(prefix="model-effort-jail-") as root,
         socket.create_server(("127.0.0.1", 0)) as listener,
@@ -261,6 +265,7 @@ def probe(jail: CheckJail) -> bool:
             else None,
             docker=jail.tool == BWRAP and os.path.exists(_DOCKER_SOCKET),
             sleeper_pid=sleeper.pid,
+            preference_domain=preference_domain,
         )
         argv = jail.wrap([sys.executable, "-c", code], inside, inside)
         try:
@@ -275,7 +280,7 @@ def probe(jail: CheckJail) -> bool:
             return False
         finally:
             if jail.tool == SANDBOX_EXEC:
-                _delete_probe_domain()
+                _delete_probe_domain(preference_domain)
         return (
             completed.returncode == 0
             and (inside / "ok").exists()
@@ -299,10 +304,15 @@ def _sleeper() -> Iterator[subprocess.Popen]:
         process.wait()
 
 
-def _delete_probe_domain() -> None:
+def new_preference_probe_domain() -> str:
+    """A preference domain name no other probe uses."""
+    return f"{PREFERENCE_PROBE_DOMAIN_PREFIX}.{secrets.token_hex(8)}"
+
+
+def _delete_probe_domain(domain: str) -> None:
     try:
         subprocess.run(
-            [_DEFAULTS, "delete", PREFERENCE_PROBE_DOMAIN],
+            [_DEFAULTS, "delete", domain],
             capture_output=True,
             timeout=PROBE_TIMEOUT_SECONDS,
             check=False,

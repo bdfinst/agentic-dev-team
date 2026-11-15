@@ -6,22 +6,20 @@ import json
 import time
 
 import pytest
-from _model_effort_support import (
-    HAIKU_MODEL_ID,
-    TRANSCRIPT_FIXTURES,
-    TRUNCATED_OUTER_OBJECT,
-    _expected_session_config,
-    _fixture_text,
-    _init_event,
-    _result_event,
-    _stream,
-    _tool_use_event,
+from ab_constants import HAIKU_MODEL_ID, TRANSCRIPT_FIXTURES, TRUNCATED_OUTER_OBJECT
+from ab_stub_claude import (
+    expected_session_config,
+    fixture_text,
+    init_event,
+    result_event,
+    stream_of,
+    tool_use_event,
 )
 from model_effort import transcript
 
 
 def _read_transcript(name: str) -> transcript.ParsedTranscript:
-    return transcript.parse_stream(_fixture_text(f"{name}.jsonl"))
+    return transcript.parse_stream(fixture_text(f"{name}.jsonl"))
 
 
 class TestParseStream:
@@ -94,19 +92,19 @@ class TestParseStream:
 
     def test_blank_and_unparseable_lines_are_skipped(self):
         parsed = transcript.parse_stream(
-            _stream("", "not json", "[1, 2]", _result_event("hi"), "   ")
+            stream_of("", "not json", "[1, 2]", result_event("hi"), "   ")
         )
 
         assert (parsed.has_result, parsed.result_text) == (True, "hi")
 
     def test_rate_limit_and_system_events_are_ignored(self):
         parsed = transcript.parse_stream(
-            _stream(
+            stream_of(
                 {"type": "system", "subtype": "init", "tools": ["Read"]},
                 {"type": "rate_limit_event", "rate_limit_info": {}},
-                _tool_use_event("Read"),
+                tool_use_event("Read"),
                 {"type": "rate_limit_event", "rate_limit_info": {}},
-                _result_event("done"),
+                result_event("done"),
             )
         )
 
@@ -114,7 +112,7 @@ class TestParseStream:
         assert parsed.result_text == "done"
 
     def test_missing_result_event_reports_has_result_false(self):
-        parsed = transcript.parse_stream(_stream(_tool_use_event("Grep")))
+        parsed = transcript.parse_stream(stream_of(tool_use_event("Grep")))
 
         assert parsed.has_result is False
         assert parsed.result_text is None
@@ -122,7 +120,7 @@ class TestParseStream:
         assert parsed.cost_usd is None
 
     def test_zero_cost_is_reported_not_unknown(self):
-        parsed = transcript.parse_stream(_stream(_result_event(total_cost_usd=0)))
+        parsed = transcript.parse_stream(stream_of(result_event(total_cost_usd=0)))
 
         assert parsed.cost_usd == 0
 
@@ -132,25 +130,25 @@ class TestParseStream:
         ids=["nan", "inf", "-inf", "negative", "string", "bool", "null"],
     )
     def test_cost_that_is_not_a_finite_non_negative_number_is_unreported(self, cost):
-        parsed = transcript.parse_stream(_stream(_result_event(total_cost_usd=cost)))
+        parsed = transcript.parse_stream(stream_of(result_event(total_cost_usd=cost)))
 
         assert parsed.has_result is True
         assert parsed.cost_usd is None
 
     def test_result_event_without_a_cost_field_is_unreported(self):
-        event = _result_event()
+        event = result_event()
         del event["total_cost_usd"]
 
-        assert transcript.parse_stream(_stream(event)).cost_usd is None
+        assert transcript.parse_stream(stream_of(event)).cost_usd is None
 
     def test_empty_stdout_has_no_result(self):
         assert transcript.parse_stream("").has_result is False
 
     def test_missing_model_usage_gives_no_model_id_and_a_note(self):
-        event = _result_event()
+        event = result_event()
         del event["modelUsage"]
 
-        parsed = transcript.parse_stream(_stream(event))
+        parsed = transcript.parse_stream(stream_of(event))
 
         assert parsed.model_id is None
         assert parsed.model_id_note
@@ -158,7 +156,7 @@ class TestParseStream:
     def test_multiple_models_in_model_usage_are_ambiguous_and_noted(self):
         usage = {"claude-haiku-5-5": {}, "claude-sonnet-5-5": {}}
 
-        parsed = transcript.parse_stream(_stream(_result_event(model_usage=usage)))
+        parsed = transcript.parse_stream(stream_of(result_event(model_usage=usage)))
 
         assert parsed.model_id is None
         assert "claude-haiku-5-5" in parsed.model_id_note
@@ -171,11 +169,11 @@ class TestParseStream:
         }
 
         parsed = transcript.parse_stream(
-            _stream(
-                _tool_use_event("Read", "Grep"),
+            stream_of(
+                tool_use_event("Read", "Grep"),
                 text_block,
-                _tool_use_event("WebFetch"),
-                _result_event(),
+                tool_use_event("WebFetch"),
+                result_event(),
             )
         )
 
@@ -206,37 +204,40 @@ class TestSessionConfig:
         assert "/private" not in dumped and "/Users" not in dumped
 
     def test_init_event_is_scrubbed_of_cwd_session_id_and_plugin_paths(self):
-        parsed = transcript.parse_stream(_stream(_init_event(), _result_event()))
+        parsed = transcript.parse_stream(stream_of(init_event(), result_event()))
 
-        assert parsed.session_config == _expected_session_config(HAIKU_MODEL_ID)
+        assert parsed.session_config == expected_session_config(HAIKU_MODEL_ID)
         dumped = json.dumps(parsed.session_config)
         assert "/home/someone" not in dumped and "1111" not in dumped
 
     def test_mcp_servers_are_reported_by_name_only(self):
-        init = _init_event(
+        init = init_event(
             mcp_servers=[{"name": "codegraph", "status": "connected"}, "plain"]
         )
 
-        parsed = transcript.parse_stream(_stream(init, _result_event()))
+        parsed = transcript.parse_stream(stream_of(init, result_event()))
 
         assert parsed.session_config["mcp_servers"] == ["codegraph", "plain"]
 
     def test_stream_without_an_init_event_has_no_session_config(self):
-        parsed = transcript.parse_stream(_stream(_result_event()))
+        parsed = transcript.parse_stream(stream_of(result_event()))
 
         assert parsed.session_config is None
 
     def test_a_stream_cut_off_after_init_still_reports_the_session_config(self):
-        parsed = transcript.parse_stream(_stream(_init_event()))
+        parsed = transcript.parse_stream(stream_of(init_event()))
 
         assert parsed.has_result is False
-        assert parsed.session_config == _expected_session_config(HAIKU_MODEL_ID)
+        assert parsed.session_config == expected_session_config(HAIKU_MODEL_ID)
 
 
-# The unclosed-fence text below took about 3 s while either fence could match the
-# newlines around it, and well under 0.1 s once neither does.
+# Each input is sized so a quadratic scan takes at least ten times the budget, and
+# the linear scan well under a tenth of it. Blank lines: a closing fence that can
+# match the newlines before it takes about 18 s. Unclosed openers: rescanning the
+# rest of the text after each one takes about 24 s.
 FENCE_SCAN_BUDGET_SECONDS = 1.5
-BLANK_LINES_AFTER_FENCE = 20_000
+BLANK_LINES_AFTER_FENCE = 80_000
+UNCLOSED_FENCES = 40_000
 
 
 class TestExtractAgentJson:
@@ -284,6 +285,25 @@ class TestExtractAgentJson:
 
         assert result is None
         assert time.monotonic() - started < FENCE_SCAN_BUDGET_SECONDS
+
+    def test_many_unclosed_fences_opened_mid_line_are_scanned_in_bounded_time(self):
+        text = "see ```json\n" * UNCLOSED_FENCES
+
+        started = time.monotonic()
+        result = transcript.extract_agent_json(text)
+
+        assert result is None
+        assert time.monotonic() - started < FENCE_SCAN_BUDGET_SECONDS
+
+    def test_unclosed_fences_after_a_closed_one_leave_its_object(self):
+        text = '```json\n{"status": "pass"}\n```\n' + "see ```json\n" * 3
+
+        assert transcript.extract_agent_json(text) == {"status": "pass"}
+
+    def test_an_object_after_an_unclosed_fence_is_still_found(self):
+        text = 'a fenced block\n```json\n{"broken": \n```\nthen {"status": "fail"}'
+
+        assert transcript.extract_agent_json(text) == {"status": "fail"}
 
     def test_fence_opened_with_trailing_spaces_and_a_carriage_return_is_parsed(self):
         text = '```json \t\r\n{"status": "pass"}\n```'

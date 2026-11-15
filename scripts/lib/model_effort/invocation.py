@@ -39,7 +39,7 @@ class TrialConfig:
     arm: Arm
     system_prompt: str
     profile: ToolProfile
-    eval_paths: paths.EvalPaths
+    snapshot_paths: paths.SnapshotPaths
     claude_bin: str = DEFAULT_CLAUDE_BIN
     task: str | None = None
     stub_agents: str | None = None
@@ -120,7 +120,7 @@ def build_argv(config: TrialConfig, user_prompt: str) -> list[str]:
     A sandboxed trial adds the Bash sandbox (`sandbox_args`).
     """
     system_prompt = config.system_prompt.replace(
-        PLUGIN_ROOT_PLACEHOLDER, str(config.eval_paths.plugin_root)
+        PLUGIN_ROOT_PLACEHOLDER, str(config.snapshot_paths.plugin_root)
     )
     stub_agent_args = (
         ["--agents", config.stub_agents] if config.stub_agents is not None else []
@@ -142,7 +142,7 @@ def build_argv(config: TrialConfig, user_prompt: str) -> list[str]:
         "--tools",
         ",".join(config.profile.enabled_tools),
         "--add-dir",
-        str(config.eval_paths.knowledge_dir),
+        str(config.snapshot_paths.knowledge_dir),
         "--restricted",
         *sandbox_args(config),
         *stub_agent_args,

@@ -532,8 +532,12 @@ A + judge B` when a judge ran. The judge estimates add up to the figure the
 configuration echo printed before the run, and the artifact records the same
 numbers.
 
-The estimate is a rough heuristic. The real cost can be several times higher or
-lower: in the one real run, the estimate was 4.6 to 13.6 times the reported cost.
+The estimate is a rough heuristic that ignores effort. Its constants are fitted
+so that every arm of the committed runs in `evals/model-effort/runs/` cost no
+more than its estimate and no less than an eighth of it;
+`tests/scripts/model_effort/test_estimate_calibration.py` fails when a committed
+run breaks either bound. A low-effort arm on a small fixture lands furthest below
+its estimate. The rubric judge's estimate is not fitted to reported costs.
 
 ### Exit codes
 
@@ -541,7 +545,7 @@ lower: in the one real run, the estimate was 4.6 to 13.6 times the reported cost
 | --- | --- |
 | 0 | The run completed and the artifact was written. |
 | 1 | The run was declined, stopped early, or a signal arrived while the finished run was being saved (the artifact is still written), or the artifact could not be written. When the write fails, the artifact JSON goes to stdout so the paid results survive. A run interrupted before its first trial writes no artifact and exits 1. |
-| 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, an agent file that cannot be read or has no valid frontmatter (no `---` block at the top, invalid YAML, or a block that is not a key: value mapping), a missing, blank or invalid `model:` or `effort:` in the agent's frontmatter, identical arms, a write-capable agent `graders.json` does not sandbox, a fixture whose grader does not match the agent's, a `protectedPaths` entry that is absolute or uses `..`, a `tests-pass` run with no working jail and no `--allow-unjailed-checks`, a rubric judge below the required tier, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
+| 2 | Usage error or refusal before the run. For an invalid argument, an unknown agent or fixture, an agent file that cannot be read or has no valid frontmatter (no `---` block at the top, invalid YAML, or a block that is not a key: value mapping), a missing, blank or invalid `model:` or `effort:` in the agent's frontmatter, identical arms, a write-capable agent `graders.json` does not sandbox, a fixture whose grader does not match the agent's, an expected entry the grader raises on for a well-formed answer, a `protectedPaths` entry that is absolute or uses `..`, a `tests-pass` run with no working jail and no `--allow-unjailed-checks`, a rubric judge below the required tier, or an unpriced model, the harness prints no configuration and no estimate. For an estimate above `--max-cost`, the harness prints the configuration and the estimate first. No trial runs and no artifact is written. |
 
 Messages go to stderr.
 
@@ -731,7 +735,11 @@ deterministic grader in `scripts/eval_graders/`, selected by the expected entry'
 An expected entry's `task` replaces the default review prompt; `{fixture}` in it
 is the staged fixture's name. The harness refuses a fixture whose expected entry
 names a grader (default `verdict`) that the agent's `graders.json` kind does not
-accept. It refuses a rubric run whose judge is
+accept. It also refuses an expected entry the grader raises on when given a
+well-formed answer (for example, an `issueCount` that is a number, not a
+`{min, max}` window), before anything is paid for. If a grader still raises
+during a trial, the run stops with a harness error when the entry is at fault;
+the trial is `graded_fail` only when the agent's answer caused it. It refuses a rubric run whose judge is
 not at least one tier above both arms (capped at opus). Rubric-judged agents
 default to 10 trials, and rubric evidence can justify a tier change only with 10
 graded trials per arm (`trial_count.can_justify_tier_change`); the artifact's

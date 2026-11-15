@@ -6,7 +6,8 @@ import io
 import json
 
 import pytest
-from _model_effort_support import ARM_COUNT, _arm_run, _run_estimate, _trial_result
+from ab_constants import ARM_COUNT
+from ab_results import arm_run_of, flat_run_estimate, trial_result
 from model_effort import run_types, session
 from model_effort.arm import BASELINE_LABEL, CANDIDATE_LABEL
 from model_effort.outcome import Outcome
@@ -14,9 +15,9 @@ from model_effort.run_status import AbortReason
 
 
 def _run_with_one_trial_each(abort_reason: AbortReason | None) -> run_types.RunResult:
-    passed = [_trial_result(Outcome.PASS)]
+    passed = [trial_result(Outcome.PASS)]
     return run_types.RunResult(
-        arm_runs=[_arm_run(BASELINE_LABEL, passed), _arm_run(CANDIDATE_LABEL, passed)],
+        arm_runs=[arm_run_of(BASELINE_LABEL, passed), arm_run_of(CANDIDATE_LABEL, passed)],
         abort_reason=abort_reason,
         started_trials=ARM_COUNT,
         stopping_trial=None,
@@ -46,7 +47,7 @@ class TestFinishRun:
             stopping_trial=None,
         )
 
-        code = session.finish_run(scout_plan, run, _run_estimate(), console)
+        code = session.finish_run(scout_plan, run, flat_run_estimate(), console)
 
         assert code == 1
         assert scout_plan.artifact_path.read_text(encoding="utf-8") == ""
@@ -59,7 +60,7 @@ class TestFinishRun:
         run = _run_with_one_trial_each(AbortReason.MAX_COST)
 
         with pytest.raises(BrokenPipeError):
-            session.finish_run(scout_plan, run, _run_estimate(), console)
+            session.finish_run(scout_plan, run, flat_run_estimate(), console)
 
         saved = json.loads(scout_plan.artifact_path.read_text(encoding="utf-8"))
         assert (saved["status"], saved["abort_reason"]) == ("incomplete", "max-cost")

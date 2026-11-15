@@ -6,7 +6,8 @@ import os
 import stat
 
 import pytest
-from _model_effort_support import RUN_ID, _store_with_failing_replace
+from ab_constants import RUN_ID
+from ab_results import store_with_failing_replace
 from model_effort import artifact_store
 from model_effort.errors import UsageError
 
@@ -75,7 +76,7 @@ class TestArtifactStore:
     ):
         path = tmp_path / "a.json"
         path.write_text("original", encoding="utf-8")
-        _store_with_failing_replace(monkeypatch)
+        store_with_failing_replace(monkeypatch)
 
         with pytest.raises(OSError, match="disk full"):
             artifact_store.write_artifact(path, "replacement")
