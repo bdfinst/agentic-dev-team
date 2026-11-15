@@ -4,7 +4,7 @@ name: sql-review
 description: SQL anti-patterns that break under schema or data change - positional INSERT, correctness traps, index-defeating predicates, unsafe migrations
 tools: Read, Grep, Glob
 model: haiku
-effort: medium
+effort: low
 color: green
 ---
 

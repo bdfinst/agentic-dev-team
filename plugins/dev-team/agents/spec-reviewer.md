@@ -3,7 +3,7 @@ name: spec-reviewer
 description: Verifies a freshly-implemented unit of work against its acceptance criteria and Gherkin scenarios before quality review runs
 tools: Read, Grep, Glob
 model: haiku
-effort: high
+effort: medium
 color: cyan
 ---
 

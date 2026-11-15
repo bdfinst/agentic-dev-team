@@ -4,7 +4,7 @@ name: refactor-opportunity-review
 description: Assesses refactoring opportunities after tests pass (TDD REFACTOR phase), distinguishing semantic duplication from structural similarity
 tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__get_dead_code, mcp__plugin_repowise_repowise__get_health
 model: haiku
-effort: high
+effort: medium
 color: green
 ---
 
