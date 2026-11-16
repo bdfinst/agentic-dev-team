@@ -1,0 +1,658 @@
+{
+  "run_id": "20261115T133151Z-quality-reviewer-sonnet-high-69e9",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-15T13:31:51Z",
+  "git_sha": "b76df0bf4167ce0995fdb28247f9d450cb8226d2",
+  "agent": "quality-reviewer",
+  "grader": "dispatch-set",
+  "judge": null,
+  "tier_change_eligible": true,
+  "fidelity": "sandboxed-write-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Bash",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Bash",
+        "Agent"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 2.5758825,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Task",
+          "Bash",
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "qr-complex-python-auth",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.213772375,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.143379885,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.13100036,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.12578335999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.139353435,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "qr-standard-ts-pricing",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.12176263,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.12997445,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1378149,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.28585981,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.12430125000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "qr-trivial-rename",
+          "kind": "directory",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0479745,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.04825260000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0483908,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.048207700000000006,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.04820820000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 2,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 0,
+        "pass": 13,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 1.794036255,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Bash",
+        "Agent"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 0.12879412499999998,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Task",
+          "Bash",
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "qr-complex-python-auth",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.015731619999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.011830795000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.02125283,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.02101462,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.011210665,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "qr-standard-ts-pricing",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.009781789999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.011981545,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.011929310000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.01580665,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.010467075000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "qr-trivial-rename",
+          "kind": "directory",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.004609530000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.004343960000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0027556100000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00428316,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00437271,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 5,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 0,
+        "pass": 10,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.16137187,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Bash",
+        "Agent"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 5.151765,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Task",
+          "Bash",
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "qr-complex-python-auth",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.34818571000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.34279042499999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.354769555,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.31883544499999994,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.26030135,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "qr-standard-ts-pricing",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.23325799,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3033966,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.29238725000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.25186912499999997,
+              "cost_reported": true,
+              "grader_messages": [
+                "dispatch: expected structure-review to be dispatched"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.30899265,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "qr-trivial-rename",
+          "kind": "directory",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1025406,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0967954,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0968682,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0972546,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09783440000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 4,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 1,
+        "pass": 10,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 3.5060793,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "keep",
+    "reason": "downgrade: recall 5/10 below the current tier's 8/10; 5 trial(s) with no gradeable output (tool_violation 5). upgrade: step-up catches no expected finding in at least half its trials that the current tier misses in every trial",
+    "arm": null,
+    "model": null,
+    "effort": null,
+    "downgrade": {
+      "passes": false,
+      "reason": "recall 5/10 below the current tier's 8/10; 5 trial(s) with no gradeable output (tool_violation 5)"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "step-up catches no expected finding in at least half its trials that the current tier misses in every trial"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 8,
+        "trials": 10
+      },
+      "step-down": {
+        "passes": 5,
+        "trials": 10
+      },
+      "step-up": {
+        "passes": 5,
+        "trials": 10
+      }
+    }
+  }
+}

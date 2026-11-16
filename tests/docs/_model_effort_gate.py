@@ -63,6 +63,8 @@ REASON_DIRECTORY_FIXTURES_ONLY = "directory fixtures only"
 REASON_NOT_SELECTED = "not selected"
 REASON_OPUS_NOT_RUN = "opus: not run"
 REASON_HARNESS_GAP = "harness gap: Phase 0 not reproduced"
+# The CLI sandbox denied the agent's own tool calls in too many trials to grade.
+REASON_SANDBOX_DENIALS = "harness gap: sandbox denials"
 REASON_FAILED_EVAL = "failed eval"
 REASON_TOOLS_WITHHELD = "weak evidence: tools withheld"
 # Keep-row reasons that mean the agent was evaluated and not changed.
@@ -76,6 +78,7 @@ KEEP_REASONS = {
     REASON_NOT_SELECTED,
     REASON_OPUS_NOT_RUN,
     REASON_HARNESS_GAP,
+    REASON_SANDBOX_DENIALS,
 } | EVALUATED_KEEP_REASONS
 RECALL_GAP_SENTENCE = (
     "correctness-review recall gap is known and unfixed; "

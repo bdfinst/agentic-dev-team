@@ -1,0 +1,657 @@
+{
+  "run_id": "20261115T133150Z-plan-review-strategic-sonnet-high-541d",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-15T13:31:50Z",
+  "git_sha": "b76df0bf4167ce0995fdb28247f9d450cb8226d2",
+  "agent": "plan-review-strategic",
+  "grader": "expected-findings",
+  "judge": null,
+  "tier_change_eligible": true,
+  "fidelity": "read-only-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "default",
+    "tools": [
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 2.59455,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "prs-clean-webhook-retry",
+          "kind": "directory",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.054111599999999996,
+              "cost_reported": true,
+              "grader_messages": [
+                "verdict: expected 'approve', got 'needs-revision'",
+                "maxFindings: expected at most 3, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.039661300000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "verdict: expected 'approve', got 'needs-revision'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.042688399999999994,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.036276499999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.042274599999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "prs-irreversible-rename",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.046372199999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.039098100000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0390843,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.039884300000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0372881,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "prs-vague-problem",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.04123399999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0426211,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0435775,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0409916,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0436775,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 2,
+        "pass": 13,
+        "clean_fixture_false_positives": 2,
+        "actual_cost_usd": 0.6288411,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 0.1297275,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "prs-clean-webhook-retry",
+          "kind": "directory",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00457926,
+              "cost_reported": true,
+              "grader_messages": [
+                "verdict: expected 'approve', got 'needs-revision'",
+                "maxFindings: expected at most 3, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00474906,
+              "cost_reported": true,
+              "grader_messages": [
+                "verdict: expected 'approve', got 'needs-revision'",
+                "maxFindings: expected at most 3, got 6"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00460108,
+              "cost_reported": true,
+              "grader_messages": [
+                "verdict: expected 'approve', got 'needs-revision'",
+                "maxFindings: expected at most 3, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00500037,
+              "cost_reported": true,
+              "grader_messages": [
+                "verdict: expected 'approve', got 'needs-revision'",
+                "maxFindings: expected at most 3, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00430578,
+              "cost_reported": true,
+              "grader_messages": [
+                "verdict: expected 'approve', got 'needs-revision'",
+                "maxFindings: expected at most 3, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "prs-irreversible-rename",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0032242200000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00512802,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00614933,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00553641,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0050417199999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "prs-vague-problem",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00489373,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0046234,
+              "cost_reported": true,
+              "grader_messages": [
+                "maxFindings: expected at most 8, got 9"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00455708,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.004232479999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "maxFindings: expected at most 8, got 9"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00511611,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 7,
+        "pass": 8,
+        "clean_fixture_false_positives": 5,
+        "actual_cost_usd": 0.07173805,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 5.1891,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "prs-clean-webhook-retry",
+          "kind": "directory",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.11552180000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "verdict: expected 'approve', got 'needs-revision'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0862364,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08124400000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0821202,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0784764,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "prs-irreversible-rename",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08822400000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0888834,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.09548339999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "expectedFindingIds: no finding matches 'unresolved-payments-team-decision' (keywords ['Payments team', 'awaiting', 'unresolved', 'pending decision'])"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09331579999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09360339999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "prs-vague-problem",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0939476,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1026226,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1030388,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09877499999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08429880000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 2,
+        "pass": 13,
+        "clean_fixture_false_positives": 1,
+        "actual_cost_usd": 1.3857916,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "keep",
+    "reason": "downgrade: recall 8/10 below the current tier's 10/10; 5 clean-fixture false positives, above the current tier's 2. upgrade: step-up catches no expected finding in at least half its trials that the current tier misses in every trial",
+    "arm": null,
+    "model": null,
+    "effort": null,
+    "downgrade": {
+      "passes": false,
+      "reason": "recall 8/10 below the current tier's 10/10; 5 clean-fixture false positives, above the current tier's 2"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "step-up catches no expected finding in at least half its trials that the current tier misses in every trial"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 10,
+        "trials": 10
+      },
+      "step-down": {
+        "passes": 8,
+        "trials": 10
+      },
+      "step-up": {
+        "passes": 9,
+        "trials": 10
+      }
+    }
+  }
+}

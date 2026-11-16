@@ -1,0 +1,1068 @@
+{
+  "run_id": "20261115T133151Z-platform-engineer-sonnet-high-8961",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-15T13:31:51Z",
+  "git_sha": "b76df0bf4167ce0995fdb28247f9d450cb8226d2",
+  "agent": "platform-engineer",
+  "grader": "rubric",
+  "judge": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "rubric": "evals/model-effort/rubrics/platform-engineer.md",
+    "criteria": [
+      "leads-with-impact-and-rollback",
+      "grounded-in-fixture",
+      "reversible-incremental",
+      "health-verification"
+    ]
+  },
+  "tier_change_eligible": false,
+  "fidelity": "sandboxed-write-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Bash",
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk",
+        "mcp__plugin_repowise_repowise__get_why"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 5.055765,
+      "estimated_judge_cost_usd": 1.08045,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "plat-big-bang-deploy",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1433537,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 The answer twice cites a `database-change-management.md` file (including a 'no roll-back script' signal in it) that is not in the provided material, so it invents a source."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.059620000000000006
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1189914,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.066236
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1002465,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.071188
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1043907,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.069388
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09937669999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0664
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1016473,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1041827,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0686
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.10794039999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.071904
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.10369310000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.067188
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1006397,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "plat-cpu-paging",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.10574020000000002,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'slo-targets' not met \u2014 The answer sets 99.9% availability and 99% under 800 ms, but never explicitly states the 30-day measurement window; it only appears implicitly in the 'budget gone in ~5 days' annotation."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08888399999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0954265,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07886800000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.09182449999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'slo-targets' not met \u2014 It encodes a 0.1% error budget and a 99% under 800 ms target but never states the 30-day measurement window the criterion requires."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07102
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1033452,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08010400000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1241796,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.082784
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.10544120000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07984000000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11224029999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.081248
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11327,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07861599999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1083955,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.076324
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1196961,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07900399999999999
+            }
+          ]
+        },
+        {
+          "stem": "plat-v2-pricing-release-hard",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08656449999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0624
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0838216,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'canary-gate-liveness-only' not met \u2014 It identifies that the gate only proves pods started and recommends gating on error rate and p99 latency, but it never explicitly says to compare canary metrics against the baseline, as the criterion requires."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.0693
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.077704,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.064288
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08757809999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06064
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08960389999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.064892
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08334269999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.063536
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0861113,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.061427999999999996
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0655444,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.068644
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09275359999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.063692
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0847318,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'canary-gate-liveness-only' not met \u2014 It identifies the liveness-only gate and recommends gating on 5xx rate and p99 latency, but it never says to compare the canary's error rate and latency with the baseline, as the criterion requires."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06812
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 2,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 5,
+        "pass": 23,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 3.0017772,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 1.984156
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk",
+        "mcp__plugin_repowise_repowise__get_why"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 0.25278825,
+      "estimated_judge_cost_usd": 1.08045,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "plat-big-bang-deploy",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.010699630000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.065736
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.01335252,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.074124
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.012299729999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0088521,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07056
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.01333088,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.01193949,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00956727,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.077488
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.0151171,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.009958709999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00931357,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.066148
+            }
+          ]
+        },
+        {
+          "stem": "plat-cpu-paging",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01280386,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'slo-targets' not met \u2014 It sets 99.9% success and 99% under 800 ms budgets but never states the 30-day measurement window, leaving it implicit in the 14.4x/6x burn factors."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.081948
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.011578399999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 The named problems trace to alerts.yaml and oncall-report.md, but the answer also introduces details absent from the material: a specific commit hash (20ee07d) and /healthz and /readyz route exclusions built into every SLI expression."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.082872
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.017379360000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08455599999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01254193,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 Most points cite the report and alerts.yaml, but the answer states as fact that 'Average CPU hid a hot instance', and nothing in the provided material supports that."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08443200000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.021126849999999996,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 Most problems cite the report and alerts.yaml, but the answer also brings in infrastructure and context that appear nowhere in the material: a container limit ('ignores the container limit'), a quality-gate skill file, and a Thanksgiving peak freeze."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08776800000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.016957940000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07564799999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01315961,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 The answer invents infrastructure not in the material: a git commit hash `cbdd380`, an Alertmanager routing setup and pod limits, and it treats the 40-minute incident as a third incident separate from the two real ones."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08044
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01365301,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'reversible-incremental' not met \u2014 Although rollback is easy and replay tests are proposed, the answer says 'Deploy as one change' and swaps the whole alert set at once, with no shadow or staged rollout."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.075224
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.01892412,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.022075740000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.09458
+            }
+          ]
+        },
+        {
+          "stem": "plat-v2-pricing-release-hard",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00790493,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.061268
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.008141909999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 Item 6 cites a 'governance policy' requiring human approval for production deploys, and no such policy appears in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.0638
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.00963898,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00858571,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 Item 8 rests on 'this agent's policy' requiring production approval, and the 'Not verified' section cites a 'quality-gate skill's Phase 1 check'; neither appears in the provided material.",
+                "rubric: 'canary-gate-liveness-only' not met \u2014 It identifies that `rollout status` checks only readiness and that the sleep is not a check, but it gates on error rate and p99 against explicit abort thresholds rather than comparing canary to baseline."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.071852
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0085977,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 Finding 7 rests on an invented claim that 'production deployments require human approval under policy', and no such policy appears in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.062172000000000005
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00922953,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 Several points are not in the provided material: a change-approval 'policy', a Thanksgiving/Black Friday change calendar, a 99.9% SLO error budget, and the claim that `cart_recommendations` is riding along in this change; it also cites release-plan.md line 10, which is a blank line.",
+                "rubric: 'migration-after-canary' not met \u2014 It mentions that the canary runs against the pre-migration schema and places migrate-expand before the canary in the target pipeline, "
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07472400000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00932276,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'flag-on-at-start' not met \u2014 It notes the flag is already true and is read at process start, but it never says the deploy is therefore also the release, and it does not recommend shipping the flag off; it only suggests considering a runtime-reloadable flag."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.068092
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.0079112,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00901685,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.063188
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00919204,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06444
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 8,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 11,
+        "pass": 11,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.36217343,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 1.63106
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk",
+        "mcp__plugin_repowise_repowise__get_why"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 10.11153,
+      "estimated_judge_cost_usd": 1.08045,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "plat-big-bang-deploy",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1912934,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.18871939999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.20142339999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.19011479999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2023452,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1991326,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1828844,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2007484,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.19028820000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1993046,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "plat-cpu-paging",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.2887728,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08652
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.28648880000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08732000000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.29914700000000005,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'reversible-incremental' not met \u2014 The answer explicitly recommends 'Ship it all in one change' rather than a gradual or shadow rollout; the October replay and easy revert do not make the rollout itself incremental."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.0945
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.2399302,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0798
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.3024816,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08698800000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.24811460000000002,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'leads-with-impact-and-rollback' not met \u2014 The answer opens with a testing caveat ('I couldn't test any of this...') rather than the operational impact or rollback path, and rollback appears only near the end."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07904
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.3116296,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.097212
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.2728106,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08268400000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.24740520000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07750800000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.24872700000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.073052
+            }
+          ]
+        },
+        {
+          "stem": "plat-v2-pricing-release-hard",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1819612,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.17150359999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1636206,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.173868,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.17666579999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1713086,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1690814,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.19191979999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.16969279999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.16828320000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 20,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 2,
+        "pass": 8,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 6.4296668,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.844624
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "keep",
+    "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier",
+    "arm": null,
+    "model": null,
+    "effort": null,
+    "downgrade": {
+      "passes": null,
+      "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 23,
+        "trials": 30
+      },
+      "step-down": {
+        "passes": 11,
+        "trials": 30
+      },
+      "step-up": {
+        "passes": 8,
+        "trials": 30
+      }
+    }
+  }
+}

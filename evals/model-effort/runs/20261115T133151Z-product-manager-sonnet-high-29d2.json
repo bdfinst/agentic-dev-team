@@ -1,0 +1,1126 @@
+{
+  "run_id": "20261115T133151Z-product-manager-sonnet-high-29d2",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-15T13:31:51Z",
+  "git_sha": "b76df0bf4167ce0995fdb28247f9d450cb8226d2",
+  "agent": "product-manager",
+  "grader": "rubric",
+  "judge": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "rubric": "evals/model-effort/rubrics/product-manager.md",
+    "criteria": [
+      "grounded-in-material",
+      "no-bare-menus",
+      "outcome-framing",
+      "approval-flagged",
+      "concise-structure"
+    ]
+  },
+  "tier_change_eligible": true,
+  "fidelity": "read-only-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "default",
+    "tools": [
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 5.090355,
+      "estimated_judge_cost_usd": 0.86225,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "pm-export-underspecified",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0681887,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer cites an 'approach-contract screen' from `decision-defaults.md`, a file that is not in the provided material, and adds an unrelated auto-merge/PR claim.",
+                "rubric: 'concise-structure' not met \u2014 The answer is well structured but opens with a lengthy findings section, including an irrelevant approach-contract screen, and states the decision only at the end."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.071736
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.09430909999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer cites a `decision-defaults.md` file that is not in the provided material, and it claims T-1157 needs the full 4,000 SKUs when only T-1131 mentions that number."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.071208
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.05291320000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'concise-structure' not met \u2014 The answer opens with a findings section and a largely not-applicable decision-defaults table instead of leading with the decision or deliverable, and the recommendation only appears at the end."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.072128
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.05957319999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'no-bare-menus' not met \u2014 Question 5 asks whether 'this sprint' is tied to a hard date, such as a board deck or ERP cutover, without giving a recommended default for that question.",
+                "rubric: 'concise-structure' not met \u2014 The answer is well structured but opens with a findings section, including an internal 'decision-defaults screen', instead of the decision, which only appears at the end.",
+                "rubric: 'every-question-has-default' not met \u2014 The hard-date question in Q5 has no recommended default, "
+              ],
+              "error": null,
+              "judge_cost_usd": 0.079776
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0531562,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07810800000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.05238620000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'no-bare-menus' not met \u2014 Question 6 (how will we know it worked) gives a recommended default but no rationale, so not every question has a default plus a one-line rationale.",
+                "rubric: 'every-question-has-default' not met \u2014 Question 6 has a recommended default but no short rationale, unlike the other questions."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.073136
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.04917320000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.069456
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0563632,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most claims match the material, but the answer invents unsupported details: sales_summary being 'the simpler data shape' and a delivery process of 'a PR with auto-merge gated on green checks'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.073576
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0520032,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.066208
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0882421,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.079516
+            }
+          ]
+        },
+        {
+          "stem": "pm-settings-import-replace",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.048519400000000004,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'no-bare-menus' not met \u2014 Q4 gives a default ('existing admin permission, with no new role') but no rationale for it, so not every question pairs its default with a one-line reason."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.060488
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.04620450000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0669
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.04936429999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'no-bare-menus' not met \u2014 Q7 (file size cap) gives a default of 1 MB with no rationale, and Q4's default has no real rationale, so not every question carries a one-line justification."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.061444000000000006
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.04549460000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer says notes.md reports customers set up '20+ custom fields', but notes.md gives no count; the '20+' comes from a generic comment in model.py, so the claim misstates the material.",
+                "rubric: 'no-bare-menus' not met \u2014 Q2 gives a default (accept and merge by key) and an alternative but no rationale for preferring the default, so not every question has a one-line rationale."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.064916
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.04205450000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.060904
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.05033460000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'no-bare-menus' not met \u2014 Question 7 (who owns the history/undo follow-up) gives a default but no explicit rationale, unlike the other questions, which each have a 'Why' line."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06897600000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.045004600000000006,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'concise-structure' not met \u2014 The answer opens with an unnecessary preamble sentence ('I couldn't write files in this run, so the full answer is below.') before the decision, although the rest is well structured."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.064172
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.050523900000000004,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer says migrating customers 'already set SSO enforcement and 20+ custom fields during their trial,' but the '20+' comes from a general code comment in model.py and is not stated for those customers in notes.md, so it combines two sources into an unsupported claim.",
+                "rubric: 'no-bare-menus' not met \u2014 Q8 asks whether the 40-customer date is hard but gives no recommended default answer or rationale, only a plan for one branch."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.062888
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.05315429999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer cites a `decision-defaults.md` file as the source of the merge default, but no such file is in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.058684
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0502244,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.057328000000000004
+            }
+          ]
+        },
+        {
+          "stem": "pm-stakeholder-conflict",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.039390800000000004,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer states facts the material does not contain: it turns '28th of next month' into a firm 'Dec 28', and it repeatedly says the refund bug has 'no workaround', which the metrics never state.",
+                "rubric: 'no-bare-menus' not met \u2014 The answer asks finance to choose between 'recovering funds versus correcting the books' without recommending a default or giving a rationale."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.062956
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0366791,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.070232
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.040917,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'mediates-before-escalating' not met \u2014 It proposes a resolution and asks both leads for a yes, but never says escalation is held in reserve if they reject it; no escalation path is mentioned at all."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.080708
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0412091,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'tradeoff-in-open' not met \u2014 It frames the delay as costing Sales '$0 now' and says codes can wait 'without losing the deals', and never states what Sales gives up or risks beyond a conditional date check.",
+                "rubric: 'mediates-before-escalating' not met \u2014 It proposes a resolution directly to both leads but never says it would escalate if they reject it; it only offers to revisit."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.080152
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0387649,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'no-bare-menus' not met \u2014 The question to Raj about whether prospect 2 needs codes before signing or only before the event is asked with no recommended default or rationale."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.072752
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.036747,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'approval-flagged' not met \u2014 The answer treats the reprioritization as settled ('I made the prioritization call myself', 'only things I'm waiting on' are factual confirmations) and never says the priority change needs human approval.",
+                "rubric: 'tradeoff-in-open' not met \u2014 It names the cost to Mei's team but never states what Sales gives up or risks, such as the enterprise push going ahead without bulk codes or the $30k deal depending on the workaround and the sprint timing.",
+                "rubric: 'mediates"
+              ],
+              "error": null,
+              "judge_cost_usd": 0.080808
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.038221200000000004,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'tradeoff-in-open' not met \u2014 The message argues that 'waiting doesn't hurt the deals' and never explicitly names what Sales gives up or risks, so the delay is presented as essentially cost-free to Sales."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.071644
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0379449,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.066828
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0347292,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07433200000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.038439100000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.067928
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 19,
+        "pass": 11,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 1.4902297,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 2.089888
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 0.25451775000000004,
+      "estimated_judge_cost_usd": 0.86225,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "pm-export-underspecified",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.007056070000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer says CSV 'is what the ERP import in T-1157 consumes', but T-1157 only asks for an 'inventory levels download for our ERP import' and names no format, so this claim is invented."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.059988
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0064005699999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06392400000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00621907,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06917999999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00580983,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It says T-1102, T-1140 and T-1163 all want 'a spreadsheet for a board deck', but only T-1102 mentions a board deck and T-1163 asks only for 'a file'; it also adds process claims not in the material (PR with auto-merge)."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07292799999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.007320750000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most claims check out (seat totals 35 and 550, release 4.2, streaming CSV), but the answer presumes report 'current filters' exist (AC3) and adds a 'security sign-off' stakeholder, neither of which appears in the material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.067196
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.006626379999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'concise-structure' not met \u2014 The answer opens with investigation findings, an aside about the skill file being unreadable, and an internal 'decision-defaults screen' of irrelevant items (auto-merge, re-capture) before the question batch and scope, so it does not lead with the deliverable."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.072768
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00646163,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.069464
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00637142,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.064352
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.006195689999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.060936
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.007988019999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most claims check out (35 vs 550 seats, about 94%, the 500-row cap, CSV being the only export), but it says two sales-summary accounts 'asked for Excel' when only T-1140 says Excel and T-1102 says 'spreadsheet'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07517599999999999
+            }
+          ]
+        },
+        {
+          "stem": "pm-settings-import-replace",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.006797760000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.064572
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00937758,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.063856
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00948235,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.075536
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.008000769999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.068428
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00837347,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.069272
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00974675,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.071956
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.010499399999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08122
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.006394459999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most claims match the material, but the answer adds process details found nowhere in it: a 'Decision Defaults screen', 'PR with auto-merge gated on green checks' applied at `/pr`, and the assertion that this is 'the first bulk settings write'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.068244
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.007607760000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.061544
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.007949349999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.066972
+            }
+          ]
+        },
+        {
+          "stem": "pm-stakeholder-conflict",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0065209199999999995,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer asserts details not in the material, such as an existing 'daily refund reconciliation' and a PR auto-merge process ('Approach screen'), alongside otherwise accurate figures."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.075252
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.004928930000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'no-bare-menus' not met \u2014 Several open items have a default but no rationale: item 2 just says 'Default: yes' and item 4 (merge path) gives a default with no reason."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.071156
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00483581,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'approval-flagged' not met \u2014 The priority change and the deferral of bulk codes are presented as 'Decided' and settled; only objections and Finance recovery are routed elsewhere, and the core decision is never flagged as needing human approval."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.081648
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00536152,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'prospect-one-not-blocked-by-codes' not met \u2014 It notes Prospect 1 is blocked by security review and calls codes 'nice to have', but it never restates the at-risk revenue tied to bulk codes as about $30k rather than the claimed $90k."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.077344
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00643042,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer invents specifics not in the material: sprint start and end dates (Nov 16, Nov 30\u2013Dec 11), a Nov 27 deadline, a Thanksgiving capacity concern, and a PR auto-merge integration process, and the message to the leads presents the Dec 11 commitment as firm.",
+                "rubric: 'mediates-before-escalating' not met \u2014 It proposes a resolution to both leads but never reserves escalation to leadership for the case where they reject it."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07574
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00807952,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'mediates-before-escalating' not met \u2014 It proposes a resolution to both leads but never states an escalation path if they reject it, so it does not clearly reserve escalation for that case."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.082452
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.004987709999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.060868000000000005
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00479071,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer adds details the material does not contain: concrete sprint dates (Nov 23, Dec 7, Dec 18, Fri Nov 20), a 'year-end crunch', a 'decision-defaults' policy, and engineering constraints (no UI changes, PR auto-merge), and some of these are stated as plan facts in the message.",
+                "rubric: 'no-bare-menus' not met \u2014 Several questions lack a default or a rationale: Raj's ask has a bare 'Default: yes' with no reason, the security-review timeline has no defau"
+              ],
+              "error": null,
+              "judge_cost_usd": 0.065476
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.005743719999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.072876
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00626523,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07514799999999999
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 13,
+        "pass": 17,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.20862357,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 2.105472
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 10.18071,
+      "estimated_judge_cost_usd": 0.86225,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "pm-export-underspecified",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1589968,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer makes claims the material does not support: that export permission 'matches how the invoice export works' (the invoice code has no permission logic), that reports have 'current filters', that all three sales-summary tickets ask for 'decks' (only T-1102 does), and that code goes through 'auto-merge once checks pass'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.061824
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1227318,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer states things the material does not support: user 'current filters' (render() has none), that viewer-based permissions match 'how the reports work today', and that churn is the 'most sensitive data'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.065908
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1223602,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most claims match the material, including the seat counts (35 vs 550), the 500-row cap and the three report types, but two do not: the answer says the invoice export 'works the same way' on permissions, which nothing in the provided code supports, and it cites an unprovided 'standard decision-defaults list'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.065476
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11405180000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07084
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.11886339999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most claims match the material, but the answer invents process details absent from it: work landing 'through a normal PR with auto-merge once checks pass', 'our standard checks', and report 'current filters'.",
+                "rubric: 'concise-structure' not met \u2014 It opens with a long findings section and the decision appears only at the end, so it does not lead with the decision or deliverable."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06747600000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.12072859999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The answer cites a `decision-defaults.md` screen that is not in the provided material, and it claims the large accounts 'carry the most revenue', which the material does not state."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.060632000000000005
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1204686,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'concise-structure' not met \u2014 It opens with a meta preamble about being unable to write files and where the file would normally go, and it puts the scope decision at the end rather than leading with it."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.076148
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.12199179999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06889999999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.121247,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.060404
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1256486,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most facts match the material (three report types, ticket counts, 550 and 35 seats, the 500-row cap, CSV streaming), but the risk claim that the inventory query 'has never run at large-account size' is unsupported, since render.py receives the full rows list and only slices it for display.",
+                "rubric: 'no-bare-menus' not met \u2014 Every question has a recommended default, but Q8 ('How do we know it worked?') gives a metric with no rationale.",
+                "rubric: 'concise-struct"
+              ],
+              "error": null,
+              "judge_cost_usd": 0.086744
+            }
+          ]
+        },
+        {
+          "stem": "pm-settings-import-replace",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11410559999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06142
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.095076,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'approval-flagged' not met \u2014 Merge vs. replace is flagged for confirmation, but added scope (preview, SSO acknowledgement, audit logging, admin-only) and the out-of-scope cuts are treated as settled, and 'If you don't reply, these are what we'll build' makes the defaults binding without approval."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.0679
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1064564,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 AC4.1 claims the Settings page today enforces specific rules (valid IANA timezone, supported locale, well-formed email, positive integer retention), but the provided material does not support this."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.069928
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1018964,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.072636
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.12039599999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 AC 3.2 presents specific validation rules (valid IANA zone, supported locale, an allowed retention range) as the 'current Settings-page rules', but model.py and the other material describe no such rules, so this is an unsupported claim about the code."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.073812
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.098936,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 AC5 says the timezone, locale and email validation rules are 'the same rules the Settings page enforces today', but model.py contains no validation, so this claim about the code is invented."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06603600000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11273639999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06978400000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1057562,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06978400000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.100676,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'approval-flagged' not met \u2014 The answer treats merge-vs-replace as settled ('Decision: import merges', 'Decided: the import merges') and adds scope (preview, audit) on an opt-out basis, without saying these decisions need human approval."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06595999999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.118158,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.059359999999999996
+            }
+          ]
+        },
+        {
+          "stem": "pm-stakeholder-conflict",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06348400000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.06325339999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most figures match the material, but the message asserts that manually created codes 'work exactly like bulk-created ones', a product claim the material never makes, since the bulk feature does not exist yet."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.062488
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0808654,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'no-bare-menus' not met \u2014 The note on the 3 leftover days gives engineering two options (start bulk codes or keep buffer) with no recommended default."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.05896
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0911612,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most figures match the material, but the comparison table states the bulk-codes trend is 'Flat', which the material never says. The message also tells Raj as fact that bulk codes 'should also ship before the 28th', which depends on assumed sprint dates."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.068056
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0826496,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'prospect-one-not-blocked-by-codes' not met \u2014 It notes the $60k prospect's blocker is the security review but never states that the revenue tied to bulk codes is therefore about $30k rather than $90k, and it still uses the full $90k pipeline as its comparison point."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.073436
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0911096,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The message to the leads says 'Mei has agreed in principle to have them ready at least a week early', but no such agreement appears in the provided material, so the answer invents a stakeholder commitment."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.061268
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.084617,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.070656
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1585062,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The table says partial refunds are 'up 22% each quarter', but the material gives a single quarter-over-quarter figure, and the '$6.9k more written off' per sprint figure assumes a half-month sprint length the material never states.",
+                "rubric: 'approval-flagged' not met \u2014 The answer treats deferring bulk codes as settled ('I've chosen the refund fix', 'this is the plan for the sprint') and asks the leads only for operational confirmations, not approval of the "
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07549600000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0922854,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most figures match the material, but the answer invents an 'engineering manager' approver who is not in the material and gives a '$6\u20137k more written off' per sprint figure that assumes a sprint length the material never states."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.072756
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0889454,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most figures match the material, but the answer invents claims the material does not support: that hand-made codes are 'identical' to bulk-generated ones with 'no difference' to the customer, and that a following-sprint delivery 'should land before Prospect 2's event'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.064092
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 20,
+        "pass": 10,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 3.2546752,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 2.031664
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "downgrade",
+    "reason": "recall, clean-fixture false positives and parse all hold",
+    "arm": "step-down",
+    "model": "haiku",
+    "effort": "high",
+    "downgrade": {
+      "passes": true,
+      "reason": "recall, clean-fixture false positives and parse all hold"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "step-up catches no expected finding in at least half its trials that the current tier misses in every trial"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 11,
+        "trials": 30
+      },
+      "step-down": {
+        "passes": 17,
+        "trials": 30
+      },
+      "step-up": {
+        "passes": 10,
+        "trials": 30
+      }
+    }
+  }
+}

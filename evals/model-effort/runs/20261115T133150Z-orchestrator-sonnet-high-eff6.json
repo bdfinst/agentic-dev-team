@@ -1,0 +1,646 @@
+{
+  "run_id": "20261115T133150Z-orchestrator-sonnet-high-eff6",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-15T13:31:50Z",
+  "git_sha": "b76df0bf4167ce0995fdb28247f9d450cb8226d2",
+  "agent": "orchestrator",
+  "grader": "dispatch-set",
+  "judge": null,
+  "tier_change_eligible": false,
+  "fidelity": "read-only-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "default",
+    "tools": [
+      "Task",
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "sonnet",
+      "model_id": null,
+      "model_id_note": "modelUsage has several models: claude-haiku-5-5, claude-sonnet-5-5",
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Agent"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 2.9165475,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Task",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "orch-research-csv-order",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.16158109499999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.10048825500000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11642408,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09329560500000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.07021171500000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "dispatch: expected data-flow-tracer to be dispatched"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "orch-research-oauth-login",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.12163544,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08849759,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08536634,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.10018434000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.10656076500000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "orch-route-test-strategy",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.040972934999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.035528535,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.036744785,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.037049385000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.036698209999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 1,
+        "pass": 14,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 1.231239075,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Agent"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 0.145827375,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Task",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "orch-research-csv-order",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.012061315000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "tools outside the enabled set: Write",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.011461299999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "tools outside the enabled set: Bash, Write",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.02131835,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "tools outside the enabled set: Write",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.005649204999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "tools outside the enabled set: Write",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01126406,
+              "cost_reported": true,
+              "grader_messages": [
+                "dispatch: expected architect, data-flow-tracer to be dispatched"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "orch-research-oauth-login",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.013124325,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "tools outside the enabled set: Write",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.00807766,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "tools outside the enabled set: Write",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.022685779999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "tools outside the enabled set: Write",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.012302200000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "tools outside the enabled set: Write",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.019969325,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "tools outside the enabled set: Write",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "orch-route-test-strategy",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.004804465,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.0139605,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "tools outside the enabled set: Bash",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.018143245000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.007424855000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.010686455,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 10,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 1,
+        "pass": 4,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.19293304,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": null,
+      "model_id_note": "modelUsage has several models: claude-haiku-5-5, claude-opus-5-5",
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Agent"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 5.833095,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Task",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "orch-research-csv-order",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.348749365,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.17792365500000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.19874235499999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.213071255,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.18404240500000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "orch-research-oauth-login",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.239592065,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.26265426500000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.25220316500000006,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.19607559000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.168674865,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "orch-route-test-strategy",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.07783611,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.100004935,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.096837535,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.10239461,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.090059685,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 0,
+        "pass": 15,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 2.7088618600000003,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "keep",
+    "reason": "some arm has no graded trial on some fixture",
+    "arm": null,
+    "model": null,
+    "effort": null,
+    "downgrade": {
+      "passes": null,
+      "reason": "some arm has no graded trial on some fixture"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "some arm has no graded trial on some fixture"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 14,
+        "trials": 15
+      },
+      "step-down": {
+        "passes": 4,
+        "trials": 15
+      },
+      "step-up": {
+        "passes": 15,
+        "trials": 15
+      }
+    }
+  }
+}
