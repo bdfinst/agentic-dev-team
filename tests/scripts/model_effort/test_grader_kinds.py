@@ -1699,7 +1699,7 @@ class TestJudgeCost:
             {"stdout": stream_of(expensive_judge)},
         )
 
-        code = _run(gworld, stub, "thinker", "--model", "opus", "--max-cost", "1")
+        code = _run(gworld, stub, "thinker", "--model", "opus", "--max-cost", "2")
 
         written = gworld.written()
         assert code == 1

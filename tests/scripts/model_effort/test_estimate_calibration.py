@@ -27,13 +27,13 @@ from model_effort.grader_config import GraderKind
 
 # An arm may cost less than estimated, never more.
 MIN_ESTIMATE_TO_ACTUAL = 1.0
-# The estimate ignores effort, so a low-effort arm on a small fixture lands
-# furthest above its cost; this bounds how far.
-MAX_ESTIMATE_TO_ACTUAL = 8.0
+# The estimate ignores effort and how much an agent writes, so an agent with
+# short answers lands furthest above its cost; this bounds how far.
+MAX_ESTIMATE_TO_ACTUAL = 16.0
 # The flat per-trial output allowance fits a review agent's findings report. A
 # rubric-graded agent answers in a few hundred tokens, so its estimate lands
-# 35x to 55x above its cost; this looser ceiling still catches a runaway.
-MAX_RUBRIC_ESTIMATE_TO_ACTUAL = 100.0
+# 55x to 95x above its cost; this looser ceiling still catches a runaway.
+MAX_RUBRIC_ESTIMATE_TO_ACTUAL = 150.0
 # Fewer arms than this means the guard is checking almost nothing.
 MIN_ARMS_CHECKED = 10
 # Fewer arms under the tight ceiling than this means arms have silently moved
@@ -77,7 +77,13 @@ def _artifact_ratios(artifact: Path, pricing: dict) -> list[tuple[str, float, bo
     ratios = []
     for arm in written["arms"]:
         totals = arm["totals"]
-        if totals["unreported_trials_estimate_usd"] or not totals["actual_cost_usd"]:
+        # An arm whose trials spent on several models (an agent that dispatches
+        # subagents) records no single model ID, so no one rate prices it.
+        if (
+            totals["unreported_trials_estimate_usd"]
+            or not totals["actual_cost_usd"]
+            or not arm["model_id"]
+        ):
             continue
         ratio = (
             _arm_estimate_usd(agent, system_prompt, arm, pricing)

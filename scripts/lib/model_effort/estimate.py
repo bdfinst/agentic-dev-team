@@ -41,10 +41,11 @@ TOOL_TURN_MULTIPLIER = 3
 # own context (its system prompt and tool definitions, cached or not), which the
 # input count leaves out. Fitted as output because the per-model spread of the
 # reported costs follows the output rate better than the input rate. The lowest
-# estimate sits only about 5% above its arm's cost, so after editing this constant,
+# estimate, a haiku/high arm of a tool-heavy agent, sits only about 3% above its
+# arm's cost, so after editing this constant,
 # the others above or the pricing file, re-run
 # tests/scripts/model_effort/test_estimate_calibration.py.
-OUTPUT_TOKENS_PER_TRIAL = 16_000
+OUTPUT_TOKENS_PER_TRIAL = 28_000
 # The size of the answer a rubric judge reads, in tokens: a findings JSON.
 ANSWER_TOKENS_FOR_JUDGE = 2000
 TOKENS_PER_RATE_UNIT = 1_000_000
