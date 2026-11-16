@@ -1,0 +1,1059 @@
+{
+  "run_id": "20261115T133152Z-tech-writer-sonnet-high-e94a",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-15T13:31:52Z",
+  "git_sha": "b76df0bf4167ce0995fdb28247f9d450cb8226d2",
+  "agent": "tech-writer",
+  "grader": "rubric",
+  "judge": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "rubric": "evals/model-effort/rubrics/tech-writer.md",
+    "criteria": [
+      "reports-changes",
+      "facts-preserved",
+      "one-term-per-concept",
+      "scope-respected",
+      "plain-language"
+    ]
+  },
+  "tier_change_eligible": true,
+  "fidelity": "sandboxed-write-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Edit",
+      "Glob",
+      "Grep",
+      "Read",
+      "Write"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Write"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 5.038200000000001,
+      "estimated_judge_cost_usd": 1.0762800000000001,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read",
+          "Write"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "tw-jargon-quickstart",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0427848,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.051272
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.030903000000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.053452
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.031138,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'facts-preserved' not met \u2014 The answer adds a new command (`curl -i http://localhost:8000/healthz`) that was not in the source, which adds a technical fact even though the answer discloses it."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.053264
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.031728,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'facts-preserved' not met \u2014 The answer adds a new `curl -i http://localhost:8000/healthz` command that the original did not contain, which introduces a technical fact not in the source."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.051948
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.032433000000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.050196000000000005
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.031031000000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.050964
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0302167,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.049624
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.031168,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.05157200000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0287243,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'one-term-per-concept' not met \u2014 The edited text calls the same seeded content both 'sample data' (intro and step 2) and 'seed data', and switches between 'application server', 'server' and 'application', so it does not keep one term per concept."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.055708
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.030698699999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.049808000000000005
+            }
+          ]
+        },
+        {
+          "stem": "tw-stale-readme-cli",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0391823,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.040156
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.036067100000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.040452
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0363895,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.039080000000000004
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.036454799999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.039495999999999996
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.035747299999999996,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'one-term-per-concept' not met \u2014 The rewritten heading calls them 'options' while the rewritten table header calls them 'flag', so one concept gets two terms in the edited text."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.047563999999999995
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.036203,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.038736
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0351239,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.042852
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0368232,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.040352
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0379028,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.040416
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0361344,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.03918
+            }
+          ]
+        },
+        {
+          "stem": "tw-terminology-drift",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.046845300000000006,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.044192
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0529318,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.045196
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.046420199999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.043608
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.051323900000000006,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.043796
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.046348,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.043244
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.046981300000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.047116000000000005
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0510686,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.045432
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0459136,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.044936000000000004
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.053711100000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.04518
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.046479700000000006,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.039876
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 4,
+        "pass": 26,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 1.1748773000000001,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 1.368668
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Write"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 0.25191,
+      "estimated_judge_cost_usd": 1.0762800000000001,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read",
+          "Write"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "tw-jargon-quickstart",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00645945,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'facts-preserved' not met \u2014 The rewrite adds unsupported claims, such as 'Each step depends on the step before it' and that a 200 response 'shows that the app runs normally', which overstates the original heuristic health check.",
+                "rubric: 'one-term-per-concept' not met \u2014 The text adds 'PostgreSQL' as a second name for Postgres and uses 'sample data', 'seed' and 'fake customer records' interchangeably for one concept."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.063416
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.006440640000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'one-term-per-concept' not met \u2014 The seed data is called both 'sample data' ('Seeding loads sample data') and 'seed data' ('The seed data includes'), so one concept has two terms."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.062172000000000005
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00597164,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.058567999999999995
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.005543450000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.058572
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00595341,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'ordered-steps' not met \u2014 The steps appear in the right order but as unnumbered headings, not as an ordered (numbered) list as the criterion requires."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.057116
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00644667,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'one-term-per-concept' not met \u2014 The text mixes 'application' and 'app' for the same concept ('the program that runs the app' versus 'the application') and also varies between 'Postgres database' and 'Postgres installation'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.057524000000000006
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00594008,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'one-term-per-concept' not met \u2014 The heading says 'start the app' while the body consistently says 'application server', so two terms name the same concept."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.0577
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00504544,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.058564000000000005
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00794716,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'ordered-steps' not met \u2014 The steps are presented as unnumbered section headings rather than an ordered (numbered) list, though they appear in the order deps, seed, run."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.063096
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00611668,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'ordered-steps' not met \u2014 The steps appear as sequential section headings, not as a numbered list, which the criterion explicitly requires."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.0503
+            }
+          ]
+        },
+        {
+          "stem": "tw-stale-readme-cli",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0032062899999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.043772000000000005
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0029595999999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.040244
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0040200800000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.041896
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00404541,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'one-term-per-concept' not met \u2014 The new heading 'Arguments and options' treats arguments and options as two concepts, but the column header 'Argument' labels both the positional `paths` and the option flags, so the terms are mixed."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.046804
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00391415,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.043872
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00386617,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.04038
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0028374000000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.041632
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00340673,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.042808
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00379986,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.042224
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0032508500000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.04916
+            }
+          ]
+        },
+        {
+          "stem": "tw-terminology-drift",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00532313,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.043608
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00452411,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.04542
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00506124,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.044736
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0044110799999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.045744
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00559183,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.04568
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.004481430000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.045324
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00611618,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.045231999999999994
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00519263,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.044228
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0049315800000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.044604000000000005
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00462447,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.044927999999999996
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 8,
+        "pass": 22,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.14742884,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 1.469324
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Write"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 10.076400000000001,
+      "estimated_judge_cost_usd": 1.0762800000000001,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read",
+          "Write"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "tw-jargon-quickstart",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09257019999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0537
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0706084,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'facts-preserved' not met \u2014 The answer adds a new command, `curl -i http://localhost:8000/healthz`, that was not in the original, and the criterion forbids adding commands.",
+                "rubric: 'one-term-per-concept' not met \u2014 The text uses both 'local environment' (intro) and 'development environment' (step 1) for the same concept, and mixes 'app', 'app server', and 'server'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.055772
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0641824,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'one-term-per-concept' not met \u2014 The same concept is called both 'your local environment' and 'the development environment', which is two terms for one thing."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.051232
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0743312,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'facts-preserved' not met \u2014 The answer adds a new command and flag (`curl -i http://localhost:8000/healthz`) and a new claim ('It does not test every part of the app') that are not in the source, which goes beyond the original facts."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06043200000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.08535899999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'facts-preserved' not met \u2014 The answer adds a new command not in the source, `curl -i http://localhost:8000/healthz` with an `-i` flag, which counts as an added technical fact even though the answer flags it."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.054196
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.06976960000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'facts-preserved' not met \u2014 The answer adds a new technical command, `curl -i http://localhost:8000/healthz`, that was not in the source; it is disclosed but still an added fact.",
+                "rubric: 'one-term-per-concept' not met \u2014 The text calls the same thing 'local environment' in the intro and 'development environment' in step 1, and uses both 'the app' and 'the app server'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.055508
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0692064,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.054492
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.07307179999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.062079999999999996
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0656144,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.054492
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0714806,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'facts-preserved' not met \u2014 The answer adds a new technical command (`curl -i http://localhost:8000/healthz`) that is not in the original, which is an added fact even though the agent flagged it."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.054860000000000006
+            }
+          ]
+        },
+        {
+          "stem": "tw-stale-readme-cli",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0738874,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.039504
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0690946,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.041412000000000004
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.07044819999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.040720000000000006
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.07084099999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.04006
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.06889880000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.040132
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0690794,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.039312
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0725686,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.040608
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0771472,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.040836
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0707448,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.042588
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0698828,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.040424
+            }
+          ]
+        },
+        {
+          "stem": "tw-terminology-drift",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.096882,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.045672000000000004
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.112101,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.046984000000000005
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09943479999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.044955999999999996
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.10098280000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.041496
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1108202,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.045804
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.111979,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.047268000000000004
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1009832,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.04677200000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0995164,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.042512
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11372499999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.045076000000000005
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1036542,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0455
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 6,
+        "pass": 24,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 2.4988654,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 1.4144
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "keep",
+    "reason": "downgrade: recall 22/30 below the current tier's 26/30. upgrade: step-up catches no expected finding in at least half its trials that the current tier misses in every trial",
+    "arm": null,
+    "model": null,
+    "effort": null,
+    "downgrade": {
+      "passes": false,
+      "reason": "recall 22/30 below the current tier's 26/30"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "step-up catches no expected finding in at least half its trials that the current tier misses in every trial"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 26,
+        "trials": 30
+      },
+      "step-down": {
+        "passes": 22,
+        "trials": 30
+      },
+      "step-up": {
+        "passes": 24,
+        "trials": 30
+      }
+    }
+  }
+}

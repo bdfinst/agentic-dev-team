@@ -1,0 +1,1368 @@
+{
+  "run_id": "20261115T133153Z-test-smell-review-sonnet-high-a9d1",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-15T13:31:53Z",
+  "git_sha": "b76df0bf4167ce0995fdb28247f9d450cb8226d2",
+  "agent": "test-smell-review",
+  "grader": "expected-findings",
+  "judge": null,
+  "tier_change_eligible": true,
+  "fidelity": "read-only-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "default",
+    "tools": [
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 6.632734999999999,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "test-assertion-roulette.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0670253,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.035103499999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0331216,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0328035,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.040137400000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-clean-doubles.test",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0273397,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0256894,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0252794,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.025839400000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0251894,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-internal-collaborator-mock.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0461779,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'same component'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.036586099999999996,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'same component'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0456482,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'same component'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.046868200000000006,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'same component'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0446782,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'same component'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-mystery-guest.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0337856,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0326734,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0319653,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.032351500000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0337572,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-overspecified-mocks.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.058029899999999995,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0337139,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0340477,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0349158,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0521299,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-password-reset-notifier.test",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0314537,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.030821799999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.028383699999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0281599,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.028419899999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-subscription-renewal.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.037425599999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0353757,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.036989499999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0338476,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0339557,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 12,
+        "pass": 23,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 1.2596905,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 0.33163675000000004,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "test-assertion-roulette.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00447114,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00275478,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00315077,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00484219,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00309867,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-clean-doubles.test",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00181067,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00244795,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00194771,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00162495,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustNotMention: found forbidden 'Assertion Roulette'",
+                "mustNotMention: found forbidden 'Overspecified'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00226779,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-internal-collaborator-mock.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.005427990000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0041327199999999994,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "severities.warning: expected 1-2, got 0",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.004612440000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.005009670000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'same component'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0027595600000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-mystery-guest.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0027585599999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0030970499999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00282266,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00141165,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00261152,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-overspecified-mocks.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00498027,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "mustMention: missing 'Overspecified'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0038267500000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00299868,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00717543,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00408408,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "mustMention: missing 'Overspecified'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-password-reset-notifier.test",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0031119499999999996,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 1"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00390308,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 2"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00591032,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 1"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00331073,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 1"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00309147,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 1"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-subscription-renewal.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00495462,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0039522,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.005586010000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.004519789999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'Erratic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00453832,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 22,
+        "pass": 13,
+        "clean_fixture_false_positives": 6,
+        "actual_cost_usd": 0.12900414,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 13.265469999999999,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "test-assertion-roulette.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.15727580000000002,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09534580000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1046332,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0952652,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1045012,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-clean-doubles.test",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0604304,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustNotMention: found forbidden 'Assertion Roulette'",
+                "mustNotMention: found forbidden 'Mystery Guest'",
+                "mustNotMention: found forbidden 'Overspecified'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0558336,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustNotMention: found forbidden 'Assertion Roulette'",
+                "mustNotMention: found forbidden 'Mystery Guest'",
+                "mustNotMention: found forbidden 'Overspecified'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.070689,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustNotMention: found forbidden 'Assertion Roulette'",
+                "mustNotMention: found forbidden 'Mystery Guest'",
+                "mustNotMention: found forbidden 'Overspecified'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.056889800000000004,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustNotMention: found forbidden 'Assertion Roulette'",
+                "mustNotMention: found forbidden 'Mystery Guest'",
+                "mustNotMention: found forbidden 'Overspecified'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0553622,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-internal-collaborator-mock.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1126966,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1551136,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "mustMention: missing 'same component'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1109422,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "mustMention: missing 'same component'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1386452,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "mustMention: missing 'same component'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.11665360000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "mustMention: missing 'component-test-patterns'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-mystery-guest.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11945700000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1570074,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1088136,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1252422,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0991542,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-overspecified-mocks.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.11326360000000002,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "mustMention: missing 'Overspecified'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.10285899999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.113351,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1182938,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'",
+                "mustMention: missing 'Overspecified'",
+                "mustMention: missing 'state'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.10020699999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'warn', got 'fail'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-password-reset-notifier.test",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1006688,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 0-0, got 1"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.07789679999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0640136,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 1"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.07731080000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 0-0, got 1"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0974208,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 0-0, got 1"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "test-subscription-renewal.test",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1107128,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-3, got 4",
+                "mustMention: missing 'Erratic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.110876,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.11476339999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-3, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1137686,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.096704,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 24,
+        "pass": 11,
+        "clean_fixture_false_positives": 8,
+        "actual_cost_usd": 3.6120618,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "keep",
+    "reason": "downgrade: recall 9/25 below the current tier's 13/25; 6 clean-fixture false positives, above the current tier's 0. upgrade: step-up catches no expected finding in at least half its trials that the current tier misses in every trial",
+    "arm": null,
+    "model": null,
+    "effort": null,
+    "downgrade": {
+      "passes": false,
+      "reason": "recall 9/25 below the current tier's 13/25; 6 clean-fixture false positives, above the current tier's 0"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "step-up catches no expected finding in at least half its trials that the current tier misses in every trial"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 13,
+        "trials": 25
+      },
+      "step-down": {
+        "passes": 9,
+        "trials": 25
+      },
+      "step-up": {
+        "passes": 9,
+        "trials": 25
+      }
+    }
+  }
+}

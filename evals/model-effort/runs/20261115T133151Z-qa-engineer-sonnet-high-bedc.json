@@ -1,0 +1,1171 @@
+{
+  "run_id": "20261115T133151Z-qa-engineer-sonnet-high-bedc",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-15T13:31:51Z",
+  "git_sha": "b76df0bf4167ce0995fdb28247f9d450cb8226d2",
+  "agent": "qa-engineer",
+  "grader": "rubric",
+  "judge": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "rubric": "evals/model-effort/rubrics/qa-engineer.md",
+    "criteria": [
+      "six-test-type-vocabulary",
+      "deterministic-gate-only",
+      "risk-rated",
+      "grounded-in-material",
+      "advisory-stance"
+    ]
+  },
+  "tier_change_eligible": false,
+  "fidelity": "sandboxed-write-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Bash",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Read",
+      "Write"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Write",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "Bash(npx playwright *)",
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 5.596125,
+      "estimated_judge_cost_usd": 1.10043,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read",
+          "Write"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "qae-discount-criteria",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1087944,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.072228
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0950927,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It wrongly claims the Gold $200/$20 row is the only one that fails if loyalty is applied before the coupon, when the Gold $120/$15 row and the threshold rows also fail under that ordering."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.074984
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0979052,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The automation recommendations are justified by catching boundary mutations and by the rules being deterministic, but none is explicitly tied to a named delivery risk such as change failure rate, pipeline time, lead time or flakiness."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06700400000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.09610269999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The test-placement recommendations rest on determinism and catching bugs but never name a specific delivery risk such as lead time, pipeline time, flakiness, or change failure rate."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07466400000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09969420000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.082172
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0921409,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The test-layer recommendations give rationales like 'deterministic and cheap' and 'confirms the calculation is actually invoked', but none names a delivery risk such as lead time, change failure rate, pipeline time, or flakiness."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.080276
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08468110000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.068352
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0902708,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The test-strategy recommendations (unit tests, one component test, no E2E) carry rationale but are not paired with a named delivery risk such as lead time, change failure rate, pipeline time, or flakiness."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.066076
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0954575,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The automation recommendations cite determinism and speed but never tie each choice to a named delivery risk such as lead time, change failure rate, pipeline time or flakiness, and the decision against E2E rests on an unexplained 'E2E justification gate' rather than a stated risk."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.074712
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.09418119999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 Only the unit-test recommendation is tied to a delivery risk (fast, deterministic); the component and contract recommendations name no delivery risk such as lead time, change failure rate, pipeline time or flakiness."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06390799999999999
+            }
+          ]
+        },
+        {
+          "stem": "qae-e2e-merge-gate",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1373113,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It claims to have read a fourth 'architecture reference' file and cites an 'E2E justification gate' with four conditions and an 'Adapter Rule', none of which appear in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.09312799999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.134603,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It claims to have read a 'CD test architecture reference' and cites the 'first three conditions' and 'fourth condition' of an 'E2E justification gate', none of which appear in the provided material, so the grounding cannot be verified and looks invented."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.09358
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.129877,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'deterministic-gate-only' not met \u2014 The 'Sequencing: don't remove the E2E gate first' section tells the team to merge new tests 'with the existing E2E gate still in place', which recommends E2E keep gating merges during the transition.",
+                "rubric: 'grounded-in-material' not met \u2014 It mislabels the 38-min median pipeline time as 'median lead time', cites an undefined 'four-condition gate' and its 'condition 1, 2, or 3' that appear nowhere in the material, and assumes an inventory service the ma"
+              ],
+              "error": null,
+              "judge_cost_usd": 0.085064
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1297472,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 The answer mostly uses the six MinimumCD types, but it also introduces 'resilience test' as a peer type ('a unit, component, contract or resilience test') and uses 'characterization tests' and 'post-deploy smoke' without mapping them to the six types.",
+                "rubric: 'risk-rated' not met \u2014 The major gate change is tied to lead time, change failure rate and flakiness, but several recommended changes (baseURL instead of localhost, page-object style, `if: always("
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08378
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.12933519999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 The answer mostly uses the six MinimumCD types, but it introduces 'characterization tests' and a 'post-deploy smoke test' without mapping either to one of the six types."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08411199999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1350538,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It invokes a 'four-condition gate' with 'Conditions 1\u20133' and the 'team's CD test architecture', neither of which appears in the material, and it treats an inventory service as a known provider when the material never names one."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.085564
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1352859,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.086632
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1367636,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 The answer mostly uses the six MinimumCD types and glosses 'resilience' as a component test, but it introduces 'characterization tests' without mapping them to one of the six types."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08210799999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.11349879999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 The answer mostly uses the MinimumCD types, but it introduces 'characterization tests' as a test category without saying which of the six types they belong to.",
+                "rubric: 'grounded-in-material' not met \u2014 It cites a 'CD test architecture reference' and its 'outside-in sequence' and 'E2E justification gate', none of which are in the provided material, and it misstates the share of time as 97% when 35 of 38 minutes is about 92%.",
+                "rubric: 'no-layer-quota' not m"
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08549999999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1398189,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.104204
+            }
+          ]
+        },
+        {
+          "stem": "qae-payment-adapter-seam",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1328743,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 Several changes are tied to delivery risks such as lead time, flakiness and change failure rate, but others are not. The adapter extraction is justified by citing an 'Adapter Rule', and the added static-analysis step has no stated risk."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.084632
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0987537,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08028
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1352785,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.082968
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1450593,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It claims to have read a 'CD test-architecture knowledge file' and cites an 'Adapter Rule' and a 'four-condition justification gate', none of which appear in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08457200000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.13609670000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.092884
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1259368,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It cites material that was not provided, including a file 'cd-test-architecture.md' it claims to have read, an 'Adapter Rule', 'Phase 4 discipline', and 'E2E gate conditions 1\u20133 met and 4 isn't'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.080752
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1332627,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It claims to have read `cd-test-architecture.md` and cites an 'Adapter Rule' and the 'four conditions' of an 'E2E justification gate', none of which appear in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.081176
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1403457,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It quotes a 'CD test-architecture knowledge file', a rule ('needs environment secrets \u2192 mis-typed') and an 'Adapter Rule' that are not in the provided material, and it states unsupported facts such as the sandbox being unable to produce a 5xx or timeout on demand."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.082552
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1421686,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.085948
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1473534,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.089668
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 20,
+        "pass": 10,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 3.6127451,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 2.45348
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Write",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "Bash(npx playwright *)",
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 0.27980625,
+      "estimated_judge_cost_usd": 1.10043,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read",
+          "Write"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "qae-discount-criteria",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00848836,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The test-layering recommendations name no delivery risk such as lead time, pipeline time, flakiness or change failure rate; E2E is declined only because the rules are expressible at lower levels."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06833600000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00858766,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The test-layering recommendations give technical rationales such as 'Pure pricing function' and 'keep the doubles honest' but do not name the delivery risk each one addresses (lead time, change failure rate, pipeline time, flakiness)."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.069044
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0067967900000000005,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The suggested test layers are justified only as 'deterministic, pre-merge eligible' and are never paired with a named delivery risk such as lead time, change failure rate, pipeline time or flakiness."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.061432
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.007934769999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The test placement recommendations are not tied to a delivery risk such as pipeline time, flakiness, lead time or change failure rate; for example, it moves integration tests out of the gate without saying why."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.074536
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.007236439999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The test-layer mapping recommendations are not paired with named delivery risks such as lead time, change failure rate, pipeline time or flakiness, and the severity ratings point to testability and money defects rather than delivery risk.",
+                "rubric: 'grounded-in-material' not met \u2014 Its scenarios and arithmetic match story.md, but the answer cites an 'E2E justification gate reference' and a 'four-condition check' that do not appear in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06925200000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.007282970000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 Only some recommendations name a delivery risk (E2E flakiness, unit speed), while the contract and component recommendations and the High/Medium severity table give no specific delivery risk such as lead time, change failure rate or pipeline time."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.072116
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00791602,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 Pipeline time is cited for unit tests and flakiness for the clock, but the component and contract placements carry no stated delivery risk, and the E2E rejection cites unspecified 'justification conditions' rather than a delivery risk."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.072476
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.007474509999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The test-type placement recommendations give technical reasons ('pure arithmetic, deterministic', 'keeps the double honest', 'covered at lower layers') but never name a delivery risk such as flakiness, pipeline time, lead time, or change failure rate."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.073624
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00877591,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The per-behavior test-layer recommendations are not paired with delivery risks such as lead time, change failure rate, pipeline time or flakiness; only 'float drift' is mentioned, which is a correctness concern."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.067388
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00725356,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 The unit, component and contract placements are justified by coverage or wiring rather than a named delivery risk such as lead time, change failure rate or pipeline time; only the E2E rejection implicitly cites non-determinism."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.066208
+            }
+          ]
+        },
+        {
+          "stem": "qae-e2e-merge-gate",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01648575,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It invents a 'QA-owned repo' and 'out-of-repo testing' finding that the material contradicts, since the tests sit in the same repo as the workflow, and it cites an external 'CD test architecture reference' and maturity levels that are not in the material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.09592400000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.017308860000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.09752
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0191776,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It cites `cd-test-architecture.md`, `cd-maturity-model.md`, a 'knowledge base', 'four E2E gate conditions' and an 'Adapter Rule', none of which appear in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08788000000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01289654,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It cites 'your own knowledge base' and an 'E2E justification gate' with numbered 'Conditions 1\u20133' and 'condition 4', none of which appear in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08304800000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.011876250000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Line references and numbers are accurate, but it cites a 'cd-test-architecture, Pre-Merge Gate Rule' and an 'E2E Justification Gate' that are not in the provided material, and it claims leaked containers on self-hosted runners when the workflow uses GitHub-hosted ubuntu-latest."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.098556
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.019392309999999996,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Line references and figures are accurate, but the answer cites a 'cd-test-architecture' reference, an 'Adapter Rule', a 'legacy-code procedure' and 'maturity references' as authorities, and none of these appear in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.10021200000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01479431,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 The answer mostly uses the six MinimumCD types, but it names 'Resilience test' as a separate layer and 'post-deploy smoke test' without glossing either as one of the six types."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08582000000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.013016530000000002,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It repeatedly cites `cd-test-architecture.md` with section names ('The Pre-Merge Gate Rule', 'The E2E Justification Gate') and claims to have reviewed that file, but the file is not in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07992
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.015442780000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0963
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.01571548,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "qae-payment-adapter-seam",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01277291,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It cites material not provided, including 'knowledge files', an 'Adapter Rule', a 'blocker rule', 'conditions 1\u20133 of the E2E justification gate', a '/test-design dispatch' and 'Farley score', plus unverifiable git ls-files results."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.083588
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.015567360000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01617161,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It cites material that is not provided, including a 'blocker table' with B1/B2 waivers, 'the catalog's default', 'Phase 4 of systematic debugging', an 'E2E justification gate', 'referenced knowledge files' and git ls-files results, while skills were unavailable."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.083688
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.01820807,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.015862559999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.01766949,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.021685069999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.014359479999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It cites `cd-test-architecture.md`, `internal-collaborator-doubling.md` and B1/B2 waiver rules that are not in the provided material, and reports `git ls-files` and pytest results that cannot be checked against it.",
+                "rubric: 'advisory-stance' not met \u2014 It claims to have run a collection-only pytest run and reports its result (0 of 2 tests ran), which is a claim of having run tests in an advisory-only task."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08778
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01334692,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It cites rules and conventions absent from the material ('Condition 1'/'Condition 4', doubling rules 'B1'/'B2', a '# double-waiver' convention) and names a `mutation-testing` tool and `security-engineer` role that do not appear in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.092104
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0106957,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.090152
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 6,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 21,
+        "pass": 3,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.39019257,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 1.956904
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Write",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "Bash(npx playwright *)",
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 11.19225,
+      "estimated_judge_cost_usd": 1.10043,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Edit",
+          "Glob",
+          "Grep",
+          "Read",
+          "Write"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "qae-discount-criteria",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.24796979999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06525600000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.17831960000000002,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The closing summary claims 22 concrete examples, but the Gherkin contains 21 (4+3+3+5+2+3+1), so it misstates its own result."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.093688
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.18172359999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08176
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1953566,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 The answer mostly uses unit, component, contract, integration and E2E, but it introduces a 'checkout smoke test after deploy' without mapping or glossing it to one of the six MinimumCD types."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07622000000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.190367,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.079656
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.17353039999999997,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 Only the injected-clock advice implicitly addresses flakiness; the component, contract and no-E2E recommendations are not tied to a named delivery risk such as lead time, change failure rate or pipeline time."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.0754
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1788642,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.065816
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.18751659999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'risk-rated' not met \u2014 Unit tests are tied to speed and determinism, but the component and contract test recommendations only say what they prove and name no delivery risk such as change failure rate, lead time or flakiness."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.080152
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.20485199999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 The worked amounts all follow correctly from the PO's rules, but the closing claim of '13 scenarios' is wrong: the Gherkin has 11 scenarios/outlines (19 expanded examples), so the answer misstates its own result."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08866399999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1877782,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07744000000000001
+            }
+          ]
+        },
+        {
+          "stem": "qae-e2e-merge-gate",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3179768,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3029358,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2843514,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most citations are accurate, but it states an invented input ('Pin the $100 \u2192 $108.25 case (8.25%)') as fact when the material gives no subtotal or rate, and it cites an 'E2E justification gate' with 'four E2E gate conditions' that appear nowhere in the material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08483199999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2927816,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 The answer mostly uses the six MinimumCD types and glosses 'narrow integration test' as a contract test, but it introduces 'post-deploy smoke tests' without explicitly mapping them to one of the six types, leaving a non-standard name unglossed."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08641599999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2784076,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 The answer glosses contract tests as 'also called narrow integration tests', which conflates two distinct MinimumCD types, and it adds 'resilience test', 'scheduled provider check' and 'characterization tests' as types alongside the six.",
+                "rubric: 'grounded-in-material' not met \u2014 It cites an 'E2E Justification Gate' section of `cd-test-architecture.md`, a file not in the provided material, and assumes a `calculateTax` export that the material never shows"
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08615600000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.281002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.088344
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.30502019999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3115036,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2649041999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 It invents details absent from the material: it says the E2E asserts a '$100 \u2192 $108.25' case (the spec only checks $108.25) and cites 'the four conditions an E2E test has to meet' without any source."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.083912
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2982978,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "qae-payment-adapter-seam",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.3492968,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-material' not met \u2014 Most citations are accurate, but the answer refers to a nonexistent 'blocker B1' and to 'the four E2E conditions', neither of which appears in the provided material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.101632
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2735912,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 It uses component, contract and E2E correctly and glosses 'narrow integration test', but it introduces 'characterization tests' and 'scheduled provider-contract verification' without mapping them to one of the six MinimumCD types.",
+                "rubric: 'advisory-stance' not met \u2014 It explicitly claims to have run the test suite ('What I found when I ran the suite', 'I ran the existing suite') and reports the output."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08438799999999999
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.28234600000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.3282222,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 Most labels map to the six MinimumCD types, but 'resilience' is used as a test type ('Contract + resilience', 'resilience tests') without being glossed as one of the six.",
+                "rubric: 'grounded-in-material' not met \u2014 It reports a test-run result (ModuleNotFoundError) that is not in the material and cites invented items such as 'blocker B1 (the real repository holds a database handle)', 'the catalogue's Python entry' and 'the first gate conditions'.",
+                "rubric: '"
+              ],
+              "error": null,
+              "judge_cost_usd": 0.090436
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3853026,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.3523036,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 It uses the six MinimumCD types and glosses 'narrow integration test', but it also introduces 'resilience tests' and 'characterization tests' without mapping either to one of the six types.",
+                "rubric: 'grounded-in-material' not met \u2014 It invents a pytest run and output, and cites a 'blocker table', 'blocker B1' and an 'E2E justification gate's conditions 1\u20133', none of which appear in the provided material.",
+                "rubric: 'advisory-stance' not met \u2014 It claims to ha"
+              ],
+              "error": null,
+              "judge_cost_usd": 0.080296
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.3507534,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: rubric judge answer has no `criteria` list"
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08734
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.3191784,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.105932
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.29484679999999996,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'six-test-type-vocabulary' not met \u2014 The answer glosses 'narrow integration tests' as contract tests, but it introduces 'Resilience tests' as a separate category without mapping it to any of the six MinimumCD types.",
+                "rubric: 'grounded-in-material' not met \u2014 It reports a test-run output (ModuleNotFoundError for tests.fakes) that is not in the provided material, and it cites a `security-engineer` agent and a 'regulated path' that the material never mentions.",
+                "rubric: 'advisory-stance' not met "
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07956
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3010182,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 8,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 15,
+        "pass": 7,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 8.1003182,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 1.843296
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "keep",
+    "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier",
+    "arm": null,
+    "model": null,
+    "effort": null,
+    "downgrade": {
+      "passes": null,
+      "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 10,
+        "trials": 30
+      },
+      "step-down": {
+        "passes": 3,
+        "trials": 30
+      },
+      "step-up": {
+        "passes": 7,
+        "trials": 30
+      }
+    }
+  }
+}

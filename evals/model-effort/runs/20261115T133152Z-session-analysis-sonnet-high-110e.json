@@ -1,0 +1,364 @@
+{
+  "run_id": "20261115T133152Z-session-analysis-sonnet-high-110e",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-15T13:31:52Z",
+  "git_sha": "b76df0bf4167ce0995fdb28247f9d450cb8226d2",
+  "agent": "session-analysis",
+  "grader": "expected-findings",
+  "judge": null,
+  "tier_change_eligible": true,
+  "fidelity": "read-only-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "default",
+    "tools": [
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read"
+      ],
+      "tools_withheld": [],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 0.8459224999999999,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "sess-token-rework",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0783476,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0705034,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0689053,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.06786339999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0654034,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 5,
+        "pass": 0,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.3510231,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read"
+      ],
+      "tools_withheld": [],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 0.042296125000000004,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "sess-token-rework",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01046457,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00620213,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.007327029999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.00625275,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.006463039999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 5,
+        "pass": 0,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.036709519999999995,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read"
+      ],
+      "tools_withheld": [],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 1.6918449999999998,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "sess-token-rework",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.20306240000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.17765779999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'",
+                "issueCount: expected 2-8, got 9"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.16599399999999997,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.162454,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.17563779999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'fail', got 'warn'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 5,
+        "pass": 0,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.884806,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "downgrade",
+    "reason": "recall, clean-fixture false positives and parse all hold",
+    "arm": "step-down",
+    "model": "haiku",
+    "effort": "high",
+    "downgrade": {
+      "passes": true,
+      "reason": "recall, clean-fixture false positives and parse all hold"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "step-up catches no expected finding in at least half its trials that the current tier misses in every trial"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 0,
+        "trials": 5
+      },
+      "step-down": {
+        "passes": 0,
+        "trials": 5
+      },
+      "step-up": {
+        "passes": 0,
+        "trials": 5
+      }
+    }
+  }
+}

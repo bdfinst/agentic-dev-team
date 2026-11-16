@@ -1,0 +1,1050 @@
+{
+  "run_id": "20261115T133153Z-ui-ux-designer-sonnet-high-9956",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-15T13:31:53Z",
+  "git_sha": "b76df0bf4167ce0995fdb28247f9d450cb8226d2",
+  "agent": "ui-ux-designer",
+  "grader": "rubric",
+  "judge": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "rubric": "evals/model-effort/rubrics/ui-ux-designer.md",
+    "criteria": [
+      "user-need-first",
+      "evidence-grounded",
+      "wcag-cited",
+      "concrete-spec",
+      "no-fabrication"
+    ]
+  },
+  "tier_change_eligible": true,
+  "fidelity": "read-only-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "default",
+    "tools": [
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 4.96554,
+      "estimated_judge_cost_usd": 0.84644,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "uxd-checkout-form",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0555834,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07464799999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.039283700000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.067276
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0395558,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07697599999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0420716,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.067036
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0418437,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.067048
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.051975799999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.079596
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0448558,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.074356
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0420858,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'evidence-grounded' not met \u2014 The analytics figures (33%, 52%, 38%, 71%) match, but the answer misstates the form: it says 12 of 16 fields are required when 14 carry asterisks, and says guest checkout 'removes 3 fields' when only password and password2 are removed."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06573999999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.043103699999999995,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'evidence-grounded' not met \u2014 The analytics figures (52%, 38%, 71%, phone/dob/password2, survey themes) are cited correctly, but it says 13 of the 16 fields are required when checkout.html marks 14 with an asterisk, so not all numbers match the material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.080472
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0467179,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'evidence-grounded' not met \u2014 Most analytics figures are cited correctly, but the answer says 12 of the 16 fields are marked required when the HTML marks 14, so not all numbers match the material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.076736
+            }
+          ]
+        },
+        {
+          "stem": "uxd-destructive-delete",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0568317,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'brand-red-pushback' not met \u2014 It pushes back and checks contrast, but its main recommendation makes Save red with a darker red for Delete, which recreates the Save/Delete blur it warns about; red-for-destructive-only appears only as an alternative."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.088616
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0526742,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07958000000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0593903,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.088496
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.051114099999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.087432
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.05574219999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.085732
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.05331219999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.085152
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0670703,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08587600000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0585922,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.086604
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.042755999999999995,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'brand-red-pushback' not met \u2014 It raises the contrast check and the danger-semantics problem, but it accepts brand red for Save and other primary buttons and moves Delete to a different treatment, rather than keeping red for destructive actions only."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08154
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0531622,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08479999999999999
+            }
+          ]
+        },
+        {
+          "stem": "uxd-onboarding-dropoff",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.051478899999999994,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06558
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0489963,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.069404
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0419827,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06198000000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.042888800000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.066492
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.047192700000000004,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'evidence-grounded' not met \u2014 Most figures match the funnel and notes, but the answer says the other steps lose 2,950 users combined, when the material gives 900+200+1,300+50+550 = 3,000."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.071072
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0430927,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06334400000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0417888,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06647600000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.049528800000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08262800000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.050848800000000006,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.068256
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.04193269999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.067268
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 6,
+        "pass": 24,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 1.4574538,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 2.266212
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "haiku",
+      "model_id": "claude-haiku-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 0.24827700000000003,
+      "estimated_judge_cost_usd": 0.84644,
+      "session_config": {
+        "model": "claude-haiku-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "uxd-checkout-form",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00732994,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07592
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.005580689999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.078028
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00889909,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.092976
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.005548389999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.067276
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00951309,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.080488
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.004520199999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.065044
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.009380300000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'user-need-first' not met \u2014 P1, P2 and P5 state a user need, and P3 gives per-field reasons, but P4 and P6 do not state a user need or friction point, so not every recommendation leads with one."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.079516
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00619099,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.073044
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00826418,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0791
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.007700479999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.081132
+            }
+          ]
+        },
+        {
+          "stem": "uxd-destructive-delete",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.005603769999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.071912
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00611942,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.078596
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.005807569999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'brand-red-pushback' not met \u2014 It argues red signals danger and checks contrast, but its alternative still maps the primary action token (Save) to the campaign red, so it does not keep red for destructive actions only."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.074736
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00549794,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.079824
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.005873239999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.080112
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.006665839999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.080336
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01010722,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'brand-red-pushback' not met \u2014 It raises the danger semantics and contrast, but its preferred option adopts red as the primary color and its alternative reserves red for primary CTAs, so it never proposes keeping red for destructive actions only."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.089404
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.010283819999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.084532
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0065375,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.078996
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00680538,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08318
+            }
+          ]
+        },
+        {
+          "stem": "uxd-onboarding-dropoff",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00445331,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06753200000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00659149,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07441600000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00969284,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.070964
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0067352,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'activation-evidence' not met \u2014 The answer cites 61% vs 64% but explicitly argues it does not show skipping is harmless, so it does not use the data as evidence that deferring has little activation cost."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.075672
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0069416899999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.072688
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0076804199999999994,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'no-fabrication' not met \u2014 It says the contextual re-prompt 'is the path the 61% group used', but the material only says those users connected a calendar later, and it also cites 'escalation criteria' that the provided material does not contain."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.077364
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.01003747,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'progress-indicator' not met \u2014 The flow does not explicitly add a visible indicator of the current step and steps remaining; it only mentions a \"Step 2 of 3 saved\" live-region announcement and contrast for progress indicators in passing."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.074796
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0079936,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'activation-evidence' not met \u2014 The answer cites the 61% figure only to argue it cannot establish activation for the new population, rather than using the 61% vs 64% comparison as evidence that deferring does not hurt activation much."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.067884
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00622089,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.070284
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.00895572,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07130800000000001
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 7,
+        "pass": 23,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 0.21753168,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 2.29706
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 9.93108,
+      "estimated_judge_cost_usd": 0.84644,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "uxd-checkout-form",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.114754,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'evidence-grounded' not met \u2014 The analytics figures (33%, 52%, 38%, 71%, the failing fields and the survey themes) are cited correctly, but the claim that 13 of the 16 inputs are required is wrong: the HTML marks 14 required, so not every cited number matches the material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08083599999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.09493879999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.072732
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.10337879999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07708799999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0893746,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06970799999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.100443,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.075908
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.19723960000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.090556
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11975879999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07653599999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.10301459999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'no-fabrication' not met \u2014 It states as fact that 'most format failures here come from the form being strict about formatting, not from users entering wrong data', which the analytics do not show, and gives a #d00 contrast figure of about 5.9:1 when the actual ratio is about 5.1:1."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.076564
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.11149459999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'evidence-grounded' not met \u2014 It cites the analytics accurately (52%, 38%, 71%, 33%, survey themes, top failing fields), but it says the form has '16 fields, 13 of them required' when checkout.html marks 14 fields required, so not all its numbers match the material."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.08635599999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11241459999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.074204
+            }
+          ]
+        },
+        {
+          "stem": "uxd-destructive-delete",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.25055120000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.097936
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.22123779999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.088612
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.2855274,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.111508
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.22879780000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.09029600000000002
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1925704,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.10145200000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11827559999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.085232
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.22638520000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.09892
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1750756,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.09653199999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.2263904,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.08974399999999999
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.24967219999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.100672
+            }
+          ]
+        },
+        {
+          "stem": "uxd-onboarding-dropoff",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.131325,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.076104
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.136997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06522
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.12534479999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.066424
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.11959260000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'activation-evidence' not met \u2014 It never presents the 61% vs 64% comparison as evidence that deferring has little activation cost; instead it calls the 61% figure biased and non-predictive and uses 64% only in a metric calculation."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.075688
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1057726,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.07423199999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1198726,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'activation-evidence' not met \u2014 It mentions the 61% figure only as a caveat that skipping is not proven safe, and never cites the 61% vs 64% comparison as evidence that deferring has little effect on activation."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.073408
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.118177,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'activation-evidence' not met \u2014 It mentions the 61% figure for the skip cohort but never cites the 64% figure for finishers, so the comparison showing deferral barely hurts activation is not made explicit."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.074476
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1234126,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'activation-evidence' not met \u2014 The answer cites the 61% (n=140) figure but never states the 64% finisher comparison, and mainly treats the 61% as biased rather than as evidence that deferring the calendar costs little activation."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07355600000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.10720479999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'activation-evidence' not met \u2014 It mentions the 61% skipper activation but never states the 64% finisher baseline, so the comparison the criterion requires is not explicitly cited."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.079028
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1207448,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'activation-evidence' not met \u2014 The answer never mentions the 64% finisher activation rate and explicitly tells readers not to use the 61% skipper figure, so it does not cite the comparison as evidence that deferring has little effect on activation."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07165200000000001
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 9,
+        "pass": 21,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 4.5297388,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 2.47118
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "keep",
+    "reason": "downgrade: recall 23/30 below the current tier's 24/30. upgrade: step-up catches no expected finding in at least half its trials that the current tier misses in every trial",
+    "arm": null,
+    "model": null,
+    "effort": null,
+    "downgrade": {
+      "passes": false,
+      "reason": "recall 23/30 below the current tier's 24/30"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "step-up catches no expected finding in at least half its trials that the current tier misses in every trial"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 24,
+        "trials": 30
+      },
+      "step-down": {
+        "passes": 23,
+        "trials": 30
+      },
+      "step-up": {
+        "passes": 21,
+        "trials": 30
+      }
+    }
+  }
+}

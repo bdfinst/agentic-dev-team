@@ -4,7 +4,7 @@ Per-agent record of the Haiku 5.5 re-evaluation (issues #2250, #2251). Agent fro
 
 ## Feasibility findings (2026-10-08)
 
-- Candidates evaluated: 21
+- Candidates evaluated: 32
 - Alias resolved: claude-haiku-5-5
 - Alias check: `claude -p --model haiku` reports `modelUsage` key `claude-haiku-5-5`.
 - Effort variable: yes
@@ -16,11 +16,11 @@ correctness-review recall gap is known and unfixed; its results are excluded fro
 
 ## Method
 
-A/B per candidate, run outside `/agent-eval`: each fixture in `evals/expected` that names the agent and is a single file (directory fixtures count in `Fixtures` but are not run), 3 trials per arm (5 for the five agents re-run with tools; see Notes). Baseline arm = current frontmatter, candidate arm = proposed model/effort, same session. Each run is `claude -p --model <m> --effort <e>` with the agent definition as the system prompt and the fixture file inline, with no tools for the tool-less rows and with tools for the five re-run agents (`scripts/model_effort_ab.py`); output is graded by `scripts/eval_grade.py`. Evidence is therefore not directly comparable to `evals/baseline.json`, which `/agent-eval` produces.
+Run outside `/agent-eval` by `scripts/model_effort_ab.py`, on each fixture in `evals/expected` that names the agent. Each trial is `claude -p --model <m> --effort <e>` with the agent definition as the system prompt. The 2026-10 A/B runs had two arms (current frontmatter and the proposed tier), 3 trials per arm, single-file fixtures only, and no tools except for the five agents re-run with tools (see Notes). The 2026-11 stress batches had three arms (current tier, one rung down where one exists, one rung up), the agent's read-only tools (plus its write tools in a sandboxed temp copy), and 5 trials per fixture, or 10 for rubric-judged agents. Output is graded by the agent's grader (`evals/model-effort/graders.json`). Evidence is therefore not directly comparable to `evals/baseline.json`, which `/agent-eval` produces.
 
 A downgrade rule is relative to the current tier: the proposed tier must have recall equal to or better than the current tier, no increase in clean-fixture false positives, and 100% parse. `delta:0` in an evidence cell means the proposed tier lost no recall relative to the current tier, not that every trial passed. An upgrade needs the higher tier to pass an expected finding in at least half its trials that the current tier misses in every trial; its evidence cell records `delta:+N`, the number of such findings. Rubric-judged evidence moves a tier only with 10 graded trials per arm per fixture. The stress harness (`scripts/model_effort_ab.py --stress`, or `--batch <tier>` for every agent at one tier) computes this verdict and records it in the run artifact; see `evals/README.md`.
 
-Cost is the USD the CLI reported, summed over all trials of one arm, not a figure computed from `model-pricing.json`. `Eval cost saving (USD)` is the baseline arm's cost minus the candidate arm's; it measures the eval run, not a forecast of production spend. `Fixtures` counts every fixture naming the agent; `directory fixtures only` means none could be run by this harness.
+Cost is the USD the CLI reported, summed over all trials of one arm, not a figure computed from `model-pricing.json`. `Eval cost saving (USD)` is the baseline arm's cost minus the candidate arm's; it measures the eval run, not a forecast of production spend. `Fixtures` counts the fixtures the cited evidence run used, or for a row with no evidence run, every fixture naming the agent; `directory fixtures only` means none could be run by this harness.
 
 ## Notes
 
@@ -31,7 +31,7 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 - `test-smell-review` (sonnet/high to haiku/high), run `20261009T132115Z-test-smell-review-sonnet-high-d4d5`: haiku passed 10 with 1 parse failure, FP 1, cost 0.089; sonnet passed 11, FP 1, cost 1.077. Parse and recall both failed, so reason `failed eval`; stays sonnet/high keep.
 - `token-efficiency-review` (haiku/high to haiku/medium), run `20261009T134443Z-token-efficiency-review-haiku-high-5b08`: medium passed 4, failed 21, FP 7, cost 0.108; high passed 4, failed 21, FP 6, cost 0.156. The clean-fixture false positives rose, so reason `failed eval`; stays haiku/high keep. Both arms pass 4 of 25 trials, so the fixtures or the grader need a look.
 - `structure-review` (sonnet/high to haiku/high): candidate passed 27 of 30 trials; three `st-duplicate-code` trials returned unparseable JSON. Reason `failed eval`; stays keep.
-- `data-flow-tracer`: candidate passed 9 of 9 at cost 0.239 to 0.027, but the agent traces code with tools the harness withheld. Reason `weak evidence: tools withheld`; stays keep.
+- `data-flow-tracer`: candidate passed 9 of 9 at cost 0.239 to 0.027, but the agent traces code with tools the harness withheld, so the 2026-10 run counted as `weak evidence: tools withheld`. The sonnet stress batch, with tools, replaced it: the haiku arm lost recall, so reason `failed eval`.
 - `not selected`: the agent has 3 or more fixtures but was not run. The 2026-10-08 run capped candidates at 8 (issue #2250) and left `a11y-review`, `component-architecture-review`, `doc-review`, `progress-guardian` and `refactor-opportunity-review` unselected; the haiku stress batch below evaluated all five. `not selected` means untested, not disproven.
 - `evals/model-effort/runs/20261008T213541Z-doc-review-haiku-low-8569.json` is a harness smoke run, not a candidate evaluation.
 - Haiku stress batch (`scripts/model_effort_ab.py --batch haiku`, 2026-11-15, actual cost $25.80 plus $1.48 of opus judge cost): each haiku agent ran its current tier, one rung up and, where a lower rung exists, one rung down; 5 trials per fixture, 10 for the rubric-graded `autoship-batch-proposer`; artifacts `evals/model-effort/runs/20261115T0129*Z-*.json`. Each row follows the artifact's `verdict`. Ten agents moved: nine downgrades and one upgrade (`angular-reactivity-review` to sonnet/medium; sonnet catches `ang-reactivity-long-order-dashboard`, which haiku/medium misses in every trial). Seven stay as they were, with reason `failed eval`:
@@ -40,8 +40,16 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
   - `token-efficiency-review`: the step-down arm's clean-fixture false positives rose.
   - `autoship-batch-proposer`, `js-fp-review`: already at haiku/low, and the step-up arm caught nothing new. `js-fp-review` keeps its earlier downgrade evidence, which predates its tenth fixture, so its row still counts 9.
 - `a11y-upload-form-icons` fails in every arm, sonnet included (status `warn`, 2 to 6 issues against an expected clean pass), and both haiku arms of `angular-reactivity-review` fail most of its fixtures (3 and 6 of 25 trials passed; sonnet/medium passed 17). Their fixtures or expected entries need a look before the next re-run.
+- Sonnet stress batch (`--batch sonnet`, 2026-11-15, actual cost $141.74 plus $28.78 of opus judge cost, against a $331.57 estimate), artifacts `evals/model-effort/runs/20261115T13*Z-*.json`:
+  - Downgraded to haiku/high: `plan-review-parallelization`, `product-manager`.
+  - `session-analysis`: the verdict was a downgrade to haiku/high, but it has 1 fixture, below the 3 a tier change needs, so the row stays `insufficient fixtures`.
+  - `harness gap: sandbox denials`: `adr-author` (57 of 90 trials denied; 26 more, 23 of them haiku, used `Edit`, which the harness did not enable), `software-engineer` (25 of 45), `platform-engineer` (30 of 90) and `qa-engineer` (14 of 90).
+  - `orchestrator`: 10 of 15 haiku trials used tools outside its enabled set (9 of them `Write`), so reason `failed eval`.
+  - `angular-reactivity-review` ran at its new sonnet/medium tier; the verdict was keep, so its haiku-batch upgrade row stands.
+  - Every other agent kept its tier with reason `failed eval`: the haiku arm lost recall or raised clean-fixture false positives, and the opus arm caught nothing new, except for `structure-review`. Its opus arm caught `st-mixed-concerns`, which sonnet/high misses in every trial, but the upgrade was blocked because its clean-fixture false positives rose from 0 to 8.
 - `opus: not run`: opus agents, including the high-stakes set (`correctness-review`, `security-review`), were not run. `correctness-review` results would also carry its known recall gap.
-- `harness gap: Phase 0 not reproduced`: `test-review` was not run because its Phase 0 mechanical pre-phase is not reproduced by this harness.
+- `harness gap: Phase 0 not reproduced`: `test-review`'s Phase 0 mechanical pre-phase is not reproduced by this harness. The sonnet stress batch ran it anyway: its verdict was keep (the haiku arm lost recall, 11/55 against 20/55), so the row is unchanged.
+- `harness gap: sandbox denials`: the CLI sandbox denied the agent's own tool calls in too many trials to grade the rubric or every fixture, so the run cannot move the tier.
 - A blank reason is accepted only on a keep row with fewer than 3 fixtures.
 
 ## Decisions
@@ -50,7 +58,7 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 |---|---|---|---|---|---|---|---|---|---|
 | a11y-review | plugins/dev-team/agents/a11y-review.md | haiku | medium | haiku | low | downgrade | 5 | eval:20261115T012929Z-a11y-review-haiku-medium-65d1; model:claude-haiku-5-5; effort:low; fixtures:5; trials:5; delta:0; cost:0.0931->0.0772 | 0.0159 |
 | acceptance-examiner | plugins/dev-team/agents/acceptance-examiner.md | opus | high | opus | high | keep | 0 | no fixture |  |
-| adr-author | plugins/dev-team/agents/adr-author.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
+| adr-author | plugins/dev-team/agents/adr-author.md | sonnet | high | sonnet | high | keep | 3 | harness gap: sandbox denials |  |
 | ai-provenance-review | plugins/dev-team/agents/ai-provenance-review.md | opus | high | opus | high | keep | 2 | insufficient fixtures |  |
 | angular-reactivity-review | plugins/dev-team/agents/angular-reactivity-review.md | haiku | medium | sonnet | medium | upgrade | 5 | eval:20261115T012929Z-angular-reactivity-review-haiku-medium-b468; model:claude-sonnet-5-5; effort:medium; fixtures:5; trials:5; delta:+1; cost:0.0731->0.9452 |  |
 | arch-review | plugins/dev-team/agents/arch-review.md | opus | high | opus | high | keep | 2 | insufficient fixtures |  |
@@ -61,40 +69,40 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 | component-architecture-review | plugins/dev-team/agents/component-architecture-review.md | haiku | high | haiku | medium | downgrade | 5 | eval:20261115T012930Z-component-architecture-review-haiku-high-928b; model:claude-haiku-5-5; effort:medium; fixtures:5; trials:5; delta:0; cost:0.1309->0.0983 | 0.0326 |
 | concurrency-review | plugins/dev-team/agents/concurrency-review.md | haiku | high | haiku | medium | downgrade | 12 | eval:20261115T012930Z-concurrency-review-haiku-high-6f6c; model:claude-haiku-5-5; effort:medium; fixtures:12; trials:5; delta:0; cost:0.2128->0.1610 | 0.0519 |
 | correctness-review | plugins/dev-team/agents/correctness-review.md | opus | high | opus | high | keep | 12 | opus: not run |  |
-| data-flow-tracer | plugins/dev-team/agents/data-flow-tracer.md | sonnet | high | sonnet | high | keep | 3 | weak evidence: tools withheld |  |
+| data-flow-tracer | plugins/dev-team/agents/data-flow-tracer.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
 | doc-review | plugins/dev-team/agents/doc-review.md | haiku | medium | haiku | low | downgrade | 8 | eval:20261115T012930Z-doc-review-haiku-medium-d12f; model:claude-haiku-5-5; effort:low; fixtures:8; trials:5; delta:0; cost:0.0862->0.0683 | 0.0179 |
 | domain-review | plugins/dev-team/agents/domain-review.md | opus | high | opus | high | keep | 5 | opus: not run |  |
-| gherkin-quality-critic | plugins/dev-team/agents/gherkin-quality-critic.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
+| gherkin-quality-critic | plugins/dev-team/agents/gherkin-quality-critic.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
 | js-fp-review | plugins/dev-team/agents/js-fp-review.md | haiku | medium | haiku | low | downgrade | 9 | eval:20261009T122901Z-js-fp-review-haiku-medium-9363; model:claude-haiku-5-5; effort:low; fixtures:9; trials:5; delta:0; cost:0.146->0.126 | 0.020 |
 | mutation-kill | plugins/dev-team/agents/mutation-kill.md | opus | high | opus | high | keep | 0 | no fixture |  |
-| naming-review | plugins/dev-team/agents/naming-review.md | sonnet | high | sonnet | high | keep | 6 | failed eval |  |
-| orchestrator | plugins/dev-team/agents/orchestrator.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
+| naming-review | plugins/dev-team/agents/naming-review.md | sonnet | high | sonnet | high | keep | 8 | failed eval |  |
+| orchestrator | plugins/dev-team/agents/orchestrator.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
 | performance-review | plugins/dev-team/agents/performance-review.md | haiku | high | haiku | high | keep | 5 | failed eval |  |
-| plan-review-acceptance | plugins/dev-team/agents/plan-review-acceptance.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
-| plan-review-design | plugins/dev-team/agents/plan-review-design.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
-| plan-review-parallelization | plugins/dev-team/agents/plan-review-parallelization.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
-| plan-review-strategic | plugins/dev-team/agents/plan-review-strategic.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
-| plan-review-ux | plugins/dev-team/agents/plan-review-ux.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
-| platform-engineer | plugins/dev-team/agents/platform-engineer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
-| product-manager | plugins/dev-team/agents/product-manager.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
+| plan-review-acceptance | plugins/dev-team/agents/plan-review-acceptance.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
+| plan-review-design | plugins/dev-team/agents/plan-review-design.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
+| plan-review-parallelization | plugins/dev-team/agents/plan-review-parallelization.md | sonnet | high | haiku | high | downgrade | 3 | eval:20261115T133150Z-plan-review-parallelization-sonnet-high-6d41; model:claude-haiku-5-5; effort:high; fixtures:3; trials:5; delta:0; cost:0.5043->0.0461 | 0.4583 |
+| plan-review-strategic | plugins/dev-team/agents/plan-review-strategic.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
+| plan-review-ux | plugins/dev-team/agents/plan-review-ux.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
+| platform-engineer | plugins/dev-team/agents/platform-engineer.md | sonnet | high | sonnet | high | keep | 3 | harness gap: sandbox denials |  |
+| product-manager | plugins/dev-team/agents/product-manager.md | sonnet | high | haiku | high | downgrade | 3 | eval:20261115T133151Z-product-manager-sonnet-high-29d2; model:claude-haiku-5-5; effort:high; fixtures:3; trials:10; delta:0; cost:1.4902->0.2086 | 1.2816 |
 | progress-guardian | plugins/dev-team/agents/progress-guardian.md | haiku | high | haiku | medium | downgrade | 3 | eval:20261115T012930Z-progress-guardian-haiku-high-a425; model:claude-haiku-5-5; effort:medium; fixtures:3; trials:5; delta:0; cost:0.0581->0.0430 | 0.0152 |
-| qa-engineer | plugins/dev-team/agents/qa-engineer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
-| quality-reviewer | plugins/dev-team/agents/quality-reviewer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
+| qa-engineer | plugins/dev-team/agents/qa-engineer.md | sonnet | high | sonnet | high | keep | 3 | harness gap: sandbox denials |  |
+| quality-reviewer | plugins/dev-team/agents/quality-reviewer.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
 | react-reactivity-review | plugins/dev-team/agents/react-reactivity-review.md | haiku | medium | haiku | low | downgrade | 5 | eval:20261115T012930Z-react-reactivity-review-haiku-medium-c1b4; model:claude-haiku-5-5; effort:low; fixtures:5; trials:5; delta:0; cost:0.1112->0.0854 | 0.0258 |
 | refactor-opportunity-review | plugins/dev-team/agents/refactor-opportunity-review.md | haiku | high | haiku | medium | downgrade | 6 | eval:20261115T012930Z-refactor-opportunity-review-haiku-high-ccc8; model:claude-haiku-5-5; effort:medium; fixtures:6; trials:5; delta:0; cost:0.1618->0.1203 | 0.0416 |
 | security-engineer | plugins/dev-team/agents/security-engineer.md | opus | high | opus | high | keep | 0 | no fixture |  |
 | security-review | plugins/dev-team/agents/security-review.md | opus | high | opus | high | keep | 6 | opus: not run |  |
 | session-analysis | plugins/dev-team/agents/session-analysis.md | sonnet | high | sonnet | high | keep | 1 | insufficient fixtures |  |
-| software-engineer | plugins/dev-team/agents/software-engineer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
+| software-engineer | plugins/dev-team/agents/software-engineer.md | sonnet | high | sonnet | high | keep | 3 | harness gap: sandbox denials |  |
 | spec-compliance-review | plugins/dev-team/agents/spec-compliance-review.md | haiku | medium | haiku | medium | keep | 5 | failed eval |  |
 | spec-reviewer | plugins/dev-team/agents/spec-reviewer.md | haiku | high | haiku | medium | downgrade | 3 | eval:20261115T012930Z-spec-reviewer-haiku-high-5204; model:claude-haiku-5-5; effort:medium; fixtures:3; trials:5; delta:0; cost:0.0564->0.0394 | 0.0171 |
 | sql-review | plugins/dev-team/agents/sql-review.md | haiku | medium | haiku | low | downgrade | 16 | eval:20261115T012930Z-sql-review-haiku-medium-b0f7; model:claude-haiku-5-5; effort:low; fixtures:16; trials:5; delta:0; cost:0.2037->0.1708 | 0.0329 |
-| structure-review | plugins/dev-team/agents/structure-review.md | sonnet | high | sonnet | high | keep | 12 | failed eval |  |
-| tech-writer | plugins/dev-team/agents/tech-writer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
+| structure-review | plugins/dev-team/agents/structure-review.md | sonnet | high | sonnet | high | keep | 14 | failed eval |  |
+| tech-writer | plugins/dev-team/agents/tech-writer.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
 | test-review | plugins/dev-team/agents/test-review.md | sonnet | high | sonnet | high | keep | 13 | harness gap: Phase 0 not reproduced |  |
-| test-smell-review | plugins/dev-team/agents/test-smell-review.md | sonnet | high | sonnet | high | keep | 5 | failed eval |  |
+| test-smell-review | plugins/dev-team/agents/test-smell-review.md | sonnet | high | sonnet | high | keep | 7 | failed eval |  |
 | token-efficiency-review | plugins/dev-team/agents/token-efficiency-review.md | haiku | high | haiku | high | keep | 5 | failed eval |  |
-| ui-ux-designer | plugins/dev-team/agents/ui-ux-designer.md | sonnet | high | sonnet | high | keep | 0 | no fixture |  |
+| ui-ux-designer | plugins/dev-team/agents/ui-ux-designer.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
 | vue-reactivity-review | plugins/dev-team/agents/vue-reactivity-review.md | haiku | medium | haiku | medium | keep | 5 | failed eval |  |
 | co-evolution-audit | plugins/dev-team/skills/co-evolution-audit/SKILL.md | n/a | low | n/a | low | keep | 0 | no fixture |  |
 | autoship | plugins/dev-team/skills/autoship/SKILL.md | n/a | medium | n/a | medium | keep | 0 | no fixture |  |
