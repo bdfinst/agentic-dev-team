@@ -43,10 +43,10 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 - Sonnet stress batch (`--batch sonnet`, 2026-11-15, actual cost $141.74 plus $28.78 of opus judge cost, against a $331.57 estimate), artifacts `evals/model-effort/runs/20261115T13*Z-*.json`:
   - Downgraded to haiku/high: `plan-review-parallelization`, `product-manager`.
   - `session-analysis`: the verdict was a downgrade to haiku/high, but it has 1 fixture, below the 3 a tier change needs, so the row stays `insufficient fixtures`.
-  - `harness gap: sandbox denials`: `adr-author` (83 of 90 trials), `software-engineer` (25 of 45), `platform-engineer` (30 of 90) and `qa-engineer` (14 of 90).
-  - `orchestrator`: 10 of 15 haiku trials wrote with `Write`, outside its enabled tools, so reason `failed eval`.
+  - `harness gap: sandbox denials`: `adr-author` (57 of 90 trials denied; 26 more, 23 of them haiku, used `Edit`, which the harness did not enable), `software-engineer` (25 of 45), `platform-engineer` (30 of 90) and `qa-engineer` (14 of 90).
+  - `orchestrator`: 10 of 15 haiku trials used tools outside its enabled set (9 of them `Write`), so reason `failed eval`.
   - `angular-reactivity-review` ran at its new sonnet/medium tier; the verdict was keep, so its haiku-batch upgrade row stands.
-  - Every other agent kept its tier with reason `failed eval`: the haiku arm lost recall or raised clean-fixture false positives, and the opus arm caught nothing new.
+  - Every other agent kept its tier with reason `failed eval`: the haiku arm lost recall or raised clean-fixture false positives, and the opus arm caught nothing new, except for `structure-review`. Its opus arm caught `st-mixed-concerns`, which sonnet/high misses in every trial, but the upgrade was blocked because its clean-fixture false positives rose from 0 to 8.
 - `opus: not run`: opus agents, including the high-stakes set (`correctness-review`, `security-review`), were not run. `correctness-review` results would also carry its known recall gap.
 - `harness gap: Phase 0 not reproduced`: `test-review`'s Phase 0 mechanical pre-phase is not reproduced by this harness. The sonnet stress batch ran it anyway: its verdict was keep (the haiku arm lost recall, 11/55 against 20/55), so the row is unchanged.
 - `harness gap: sandbox denials`: the CLI sandbox denied the agent's own tool calls in too many trials to grade the rubric or every fixture, so the run cannot move the tier.

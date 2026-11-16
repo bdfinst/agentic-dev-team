@@ -68,7 +68,7 @@ REASON_SANDBOX_DENIALS = "harness gap: sandbox denials"
 REASON_FAILED_EVAL = "failed eval"
 REASON_TOOLS_WITHHELD = "weak evidence: tools withheld"
 # Keep-row reasons that mean the agent was evaluated and not changed.
-# Other reasons ("not selected" included) mean no evaluation ran.
+# Other reasons ("not selected" included) mean no usable evaluation ran.
 EVALUATED_KEEP_REASONS = {REASON_FAILED_EVAL, REASON_TOOLS_WITHHELD}
 KEEP_REASONS = {
     REASON_BLANK,

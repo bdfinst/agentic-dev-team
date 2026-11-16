@@ -4,8 +4,9 @@ The estimate models the text the agent is given and an allowance per trial for
 everything else it is billed for. It ignores effort. Its constants are fitted to
 the costs the committed run artifacts in `evals/model-effort/runs/` reported:
 tests/scripts/model_effort/test_estimate_calibration.py checks that every arm
-there cost no more than its estimate and no less than an eighth of it. A
-low-effort arm on a small fixture lands furthest below its estimate.
+there cost no more than its estimate and no less than a sixteenth of it, except
+for agents that answer in a few hundred tokens, which get a looser ceiling. An
+agent with short answers lands furthest below its estimate.
 
 Pure functions: the pricing table is a parameter and the only file access is
 measuring fixture sizes.
