@@ -38,7 +38,6 @@ Context needs: full-file
 Return `{"status": "skip", "issues": [], "summary": "No Angular files in target"}` when:
 
 - No `@angular/core` dependency is found in the project manifest (`package.json`, `package-lock.json`, `yarn.lock`, etc.) **and** no target file imports from `@angular/core`. An import from `@angular/core` in a target file is enough to review it, even when no manifest is available.
-- No Angular files in the target set: no component, service or directive, and no other file importing from `@angular/core`
 
 ## Detect
 

@@ -78,14 +78,16 @@ export class Account {
     this.balance = this.balance.add(amount);
   }
 
-  // Returns false when this transfer was already sent, so a retry is a no-op
-  sendTransfer(transferId: string, amount: Money): boolean {
-    if (this.sentTransferIds.has(transferId)) {
-      return false;
+  hasSent(transferId: string): boolean {
+    return this.sentTransferIds.has(transferId);
+  }
+
+  sendTransfer(transferId: string, amount: Money): void {
+    if (this.hasSent(transferId)) {
+      throw new Error(`transfer ${transferId} was already sent`);
     }
     this.withdraw(amount);
     this.sentTransferIds.add(transferId);
-    return true;
   }
 
   receiveTransfer(transferId: string, amount: Money): void {
@@ -174,11 +176,13 @@ export class TransferFunds {
     if (!source || !destination) {
       throw new Error("account not found");
     }
-    const today = this.clock.today();
-    await this.policy.assertPermitted(source, destination, amount, today);
-    if (!source.sendTransfer(transferId, amount)) {
+    // A retried command is a no-op, checked before the policy counts it twice
+    if (source.hasSent(transferId)) {
       return;
     }
+    const today = this.clock.today();
+    await this.policy.assertPermitted(source, destination, amount, today);
+    source.sendTransfer(transferId, amount);
     await this.accounts.save(source, [
       new FundsTransferred(transferId, sourceId, destinationId, amount, today),
     ]);

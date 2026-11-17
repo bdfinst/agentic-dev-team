@@ -51,7 +51,13 @@ export class Membership {
     tier: MembershipTier,
     expiresOn: Date,
   ): Membership {
-    return new Membership(membershipId, memberId, tier, expiresOn, false);
+    return new Membership(
+      membershipId,
+      memberId,
+      tier,
+      new Date(expiresOn),
+      false,
+    );
   }
 
   get currentTier(): MembershipTier {
@@ -94,7 +100,7 @@ export class Membership {
       this.membershipId,
       this.tier,
       price,
-      nextExpiry,
+      new Date(nextExpiry),
     );
   }
 }
