@@ -1,6 +1,6 @@
 {
   "fixture": "dm-transfer-limits.ts",
-  "description": "Funds transfer where a TransferPolicy domain service owns the daily-limit rule that spans two Account aggregates and the transfer history; the Account raises TransferSent itself, and a handler credits the destination or returns the funds",
+  "description": "Funds transfer where a TransferPolicy domain service owns the daily-limit rule that spans two Account aggregates and the transfer history; TransferFunds withdraws and records FundsTransferred in one aggregate transaction, and a handler credits the destination",
   "applicableAgents": [
     "domain-review"
   ],
@@ -9,7 +9,7 @@
       "expectedStatus": "pass",
       "issueCount": {
         "min": 0,
-        "max": 2
+        "max": 0
       },
       "hard": {
         "reason": "distractor",
@@ -17,7 +17,7 @@
       },
       "_calibration": {
         "source": "measured",
-        "note": "Clean counterpart to dm-logic-in-ui; up to two suggestions allowed, since the agent reasonably proposes design alternatives such as moving the limit check into the aggregate. Stress run 20261117T112433Z failed every arm: the account let its balance and limit currencies differ, the application service built the transfer event, and a failed credit had no refund path; all three fixed"
+        "note": "Clean counterpart to dm-logic-in-ui; zero findings expected. Opus stress run 20261116T110405Z reported 3-6 issues on the earlier fixture, which never recorded the transfer (the daily limit never accumulated) and saved two aggregates in one transaction; both fixed"
       }
     }
   }
