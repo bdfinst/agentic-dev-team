@@ -33,7 +33,7 @@
     <rect x="214" y="190" width="180" height="52" rx="12" fill="#EEF2FF" stroke="#6366F1" stroke-width="1.5"/>
     <rect x="214" y="190" width="5" height="52" rx="2.5" fill="#6366F1"/>
     <text x="304" y="213" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">spec-compliance</text>
-    <text x="304" y="229" text-anchor="middle" font-size="10" fill="#6366F1">sonnet</text>
+    <text x="304" y="229" text-anchor="middle" font-size="10" fill="#6366F1">haiku</text>
   </g>
 
   <!-- Pass arrow to Quality Gate -->
