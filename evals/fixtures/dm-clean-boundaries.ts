@@ -5,13 +5,16 @@ class Order {
   private items: OrderItem[] = [];
   private status: OrderStatus = OrderStatus.Draft;
 
+  constructor(readonly id: string) {}
+
   addItem(product: Product, quantity: number): void {
+    if (this.status !== OrderStatus.Draft) throw new OrderNotEditableError(this.status);
     if (quantity <= 0) throw new InvalidQuantityError(quantity);
     const existing = this.items.find((i) => i.productId === product.id);
     if (existing) {
       existing.increaseQuantity(quantity);
     } else {
-      this.items.push(new OrderItem(product.id, product.price, quantity));
+      this.items.push(new OrderItem(product.id, product.priceCents, quantity));
     }
   }
 
@@ -21,8 +24,16 @@ class Order {
     this.status = OrderStatus.Submitted;
   }
 
-  get total(): number {
-    return this.items.reduce((sum, item) => sum + item.lineTotal, 0);
+  get totalCents(): number {
+    return this.items.reduce((sum, item) => sum + item.lineTotalCents, 0);
+  }
+
+  get itemCount(): number {
+    return this.items.length;
+  }
+
+  get statusLabel(): string {
+    return this.status;
   }
 }
 
@@ -43,6 +54,7 @@ class OrderService {
 
   async submitOrder(orderId: string): Promise<OrderResponseDto> {
     const order = await this.orderRepo.findById(orderId);
+    if (!order) throw new OrderNotFoundError(orderId);
     order.submit();
     await this.orderRepo.save(order);
     return this.mapper.toDto(order);
@@ -54,7 +66,7 @@ class OrderMapper {
   toDto(order: Order): OrderResponseDto {
     return {
       orderId: order.id,
-      totalCents: order.total,
+      totalCents: order.totalCents,
       itemCount: order.itemCount,
       status: order.statusLabel,
     };

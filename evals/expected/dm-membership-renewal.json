@@ -26,7 +26,7 @@
       },
       "_calibration": {
         "source": "estimated-by-analogy",
-        "note": "Single planted infrastructure-in-domain leak, which makes the entity untestable without the network (error per the agent's Severity line); a second finding tolerated if the agent reports the axios import and the call separately"
+        "note": "Single planted infrastructure-in-domain leak, which makes the entity untestable without the network (error per the agent's Severity line); a second finding tolerated if the agent reports the axios import and the call separately; the expiry getter leaked the mutable internal Date and renew() accepted any renewalTermMonths, both fixed after the opus stress run 20261116T110405Z reported 3-7 issues"
       }
     }
   }

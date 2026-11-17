@@ -5,7 +5,11 @@
   "agents": {
     "domain-review": {
       "expectedStatus": "pass",
-      "issueCount": { "min": 0, "max": 1 }
+      "issueCount": { "min": 0, "max": 1 },
+      "_calibration": {
+        "source": "measured",
+        "note": "Opus stress run 20261116T110405Z: every arm reported 2-5 issues; the fixture had real gaps (save-then-publish dual write, Order-context ShippingAddress type in the event, unhandled null order, non-idempotent handlers), now fixed with an outbox, a snapshot type and redelivery guards"
+      }
     }
   }
 }

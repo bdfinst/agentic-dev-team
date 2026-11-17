@@ -5,9 +5,15 @@
   "agents": {
     "naming-review": {
       "expectedStatus": "fail",
-      "issueCount": { "min": 3, "max": 7 },
-      "severities": { "error": { "min": 1, "max": 4 } },
-      "mustMention": ["misleading"]
+      "issueCount": { "min": 3, "max": 10 },
+      "severities": {
+        "error": { "min": 1, "max": 4 }
+      },
+      "mustMention": ["misleading"],
+      "_calibration": {
+        "source": "measured",
+        "note": "issueCount max raised to the fixture's true defect count. Distinct naming problems: data (noun as function, error), temp (permanent value named temporary), val (vague), flag (meaningless boolean param), list1/list2 (sequential suffix), processItems (generic verb hiding a filter), handleStuff (vague), x (meaningless), Item.active (boolean missing is/has prefix) = 9, plus an optional generic 'result'. Run 20261115T133150Z-naming-review-sonnet-high-06c1 measured 8-10 issues on haiku/high and opus/high; max 7 undercounted. mustMention 'misleading' kept: it is the agent's own term for error-severity findings and only 1/5 trials per arm omitted it."
+      }
     }
   }
 }

@@ -1,6 +1,6 @@
 {
   "fixture": "dm-transfer-limits.ts",
-  "description": "Funds transfer where a TransferPolicy domain service owns the daily-limit rule that spans two Account aggregates and the transfer history, and the TransferFunds application service only loads, checks, applies and saves",
+  "description": "Funds transfer where a TransferPolicy domain service owns the daily-limit rule that spans two Account aggregates and the transfer history; TransferFunds withdraws and records FundsTransferred in one aggregate transaction, and a handler credits the destination",
   "applicableAgents": [
     "domain-review"
   ],
@@ -16,8 +16,8 @@
         "note": "Business rules in a service class look like an anemic model or logic in an application service, but the rule spans two aggregates, so a domain service legitimately owns it, and the entities keep their own invariants"
       },
       "_calibration": {
-        "source": "estimated-by-analogy",
-        "note": "Clean counterpart to dm-logic-in-ui; zero findings expected"
+        "source": "measured",
+        "note": "Clean counterpart to dm-logic-in-ui; zero findings expected. Opus stress run 20261116T110405Z reported 3-6 issues on the earlier fixture, which never recorded the transfer (the daily limit never accumulated) and saved two aggregates in one transaction; both fixed"
       }
     }
   }

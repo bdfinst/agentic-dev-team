@@ -59,7 +59,7 @@ export class Membership {
   }
 
   get expiry(): Date {
-    return this.expiresOn;
+    return new Date(this.expiresOn);
   }
 
   upgradeToPremium(): void {
@@ -76,6 +76,9 @@ export class Membership {
   async renew(renewalTermMonths: number): Promise<MembershipRenewed> {
     if (this.cancelled) {
       throw new Error("a cancelled membership cannot be renewed");
+    }
+    if (!Number.isInteger(renewalTermMonths) || renewalTermMonths <= 0) {
+      throw new RangeError("renewalTermMonths must be a positive integer");
     }
     const response = await axios.get<{ amountCents: number; currency: string }>(
       `https://pricing.internal/api/tiers/${this.tier}/price`,

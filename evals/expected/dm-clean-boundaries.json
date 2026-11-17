@@ -5,7 +5,11 @@
   "agents": {
     "domain-review": {
       "expectedStatus": "pass",
-      "issueCount": { "min": 0, "max": 1 }
+      "issueCount": { "min": 0, "max": 1 },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Opus stress run 20261116T110405Z: every arm reported 2-5 issues; the fixture had real gaps (the mapper read Order fields that did not exist, addItem accepted edits to a submitted order, submitOrder ignored a null order), now fixed. The expectation is unchanged"
+      }
     }
   }
 }

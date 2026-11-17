@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Upload documents</title>
+    <title>Error: Upload documents</title>
     <style>
       body {
         color: #1a1a1a;
@@ -19,6 +19,13 @@
       input:focus-visible,
       a:focus-visible {
         box-shadow: 0 0 0 3px #005fcc;
+      }
+      @media (forced-colors: active) {
+        button:focus-visible,
+        input:focus-visible,
+        a:focus-visible {
+          outline: 3px solid CanvasText;
+        }
       }
       .visually-hidden {
         position: absolute;
@@ -73,6 +80,8 @@
         enctype="multipart/form-data"
         novalidate
       >
+        <p>Fields marked with an asterisk (*) are required.</p>
+
         <p>
           <label for="docTitle"
             >Title <span aria-hidden="true">*</span
@@ -100,7 +109,10 @@
         </p>
 
         <p>
-          <label for="docFile">File</label>
+          <label for="docFile"
+            >File (PDF) <span aria-hidden="true">*</span
+            ><span class="visually-hidden">(required)</span></label
+          >
           <input id="docFile" name="file" type="file" accept=".pdf" required />
         </p>
 

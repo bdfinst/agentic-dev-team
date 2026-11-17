@@ -43,6 +43,7 @@ export class Account {
     readonly ownerId: string,
     private balance: Money,
     readonly dailyTransferLimit: Money,
+    private readonly receivedTransferIds: Set<string>,
   ) {}
 
   static open(
@@ -51,7 +52,13 @@ export class Account {
     openingBalance: Money,
     dailyTransferLimit: Money,
   ): Account {
-    return new Account(accountId, ownerId, openingBalance, dailyTransferLimit);
+    return new Account(
+      accountId,
+      ownerId,
+      openingBalance,
+      dailyTransferLimit,
+      new Set(),
+    );
   }
 
   get availableBalance(): Money {
@@ -68,10 +75,31 @@ export class Account {
   deposit(amount: Money): void {
     this.balance = this.balance.add(amount);
   }
+
+  receiveTransfer(transferId: string, amount: Money): void {
+    if (this.receivedTransferIds.has(transferId)) {
+      return;
+    }
+    this.deposit(amount);
+    this.receivedTransferIds.add(transferId);
+  }
+}
+
+// ---- domain/funds-transferred.ts ----
+
+export class FundsTransferred {
+  constructor(
+    readonly transferId: string,
+    readonly sourceId: string,
+    readonly destinationId: string,
+    readonly amount: Money,
+    readonly on: Date,
+  ) {}
 }
 
 // ---- domain/transfer-policy.ts ----
 
+// Totals the recorded FundsTransferred events for one source account and day
 export interface TransferHistory {
   totalTransferredToday(accountId: string, day: Date): Promise<Money>;
 }
@@ -89,7 +117,8 @@ export class TransferPolicy {
       throw new Error("source and destination must differ");
     }
     if (
-      source.availableBalance.currency !== destination.availableBalance.currency
+      amount.currency !== source.availableBalance.currency ||
+      amount.currency !== destination.availableBalance.currency
     ) {
       throw new Error("cross-currency transfers are not supported");
     }
@@ -107,7 +136,8 @@ export class TransferPolicy {
 
 export interface AccountRepository {
   findById(accountId: string): Promise<Account | null>;
-  saveAll(accounts: readonly Account[]): Promise<void>;
+  // Saves one account and appends its events to the outbox in one transaction
+  save(account: Account, events: readonly FundsTransferred[]): Promise<void>;
 }
 
 export interface Clock {
@@ -122,6 +152,7 @@ export class TransferFunds {
   ) {}
 
   async execute(
+    transferId: string,
     sourceId: string,
     destinationId: string,
     amount: Money,
@@ -131,14 +162,27 @@ export class TransferFunds {
     if (!source || !destination) {
       throw new Error("account not found");
     }
-    await this.policy.assertPermitted(
-      source,
-      destination,
-      amount,
-      this.clock.today(),
-    );
+    const today = this.clock.today();
+    await this.policy.assertPermitted(source, destination, amount, today);
     source.withdraw(amount);
-    destination.deposit(amount);
-    await this.accounts.saveAll([source, destination]);
+    await this.accounts.save(source, [
+      new FundsTransferred(transferId, sourceId, destinationId, amount, today),
+    ]);
+  }
+}
+
+// ---- application/credit-transfer-destination.ts ----
+
+// Credits the destination in its own transaction after the withdrawal commits
+export class CreditTransferDestination {
+  constructor(private readonly accounts: AccountRepository) {}
+
+  async on(event: FundsTransferred): Promise<void> {
+    const destination = await this.accounts.findById(event.destinationId);
+    if (!destination) {
+      throw new Error("account not found");
+    }
+    destination.receiveTransfer(event.transferId, event.amount);
+    await this.accounts.save(destination, []);
   }
 }
