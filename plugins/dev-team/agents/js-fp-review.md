@@ -11,6 +11,7 @@ color: green
 # JS FP Review
 
 Scope:
+
 - **/*.js
 - **/*.ts
 - **/*.jsx
@@ -25,7 +26,7 @@ Skip this agent entirely if the project has no JS/TS files.
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=no mutations or impure patterns, warn=only style/point-free suggestions, fail=external mutation or a buried side effect
-Severity: error=external state mutation or a side effect buried inside a value-returning computation, warning=local mutation, suggestion=style (point-free/composition)
+Severity: error=external state mutation (module-level state or an argument the caller owns, whatever the return type) or a side effect buried inside a value-returning computation, warning=local mutation (a value the function itself created), suggestion=style (point-free/composition)
 Confidence: high=mechanical substitution (push→spread, let→const); medium=pattern clear but spread vs clone depends on usage, or extracting a console/DOM side effect; none=requires human judgment (intentional mutation for performance, or removing a non-deterministic read whose value is actually used downstream)
 
 Context needs: diff-only
