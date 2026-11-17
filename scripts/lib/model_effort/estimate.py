@@ -4,8 +4,8 @@ The estimate models the text the agent is given and an allowance per trial for
 everything else it is billed for. It ignores effort. Its constants are fitted to
 the costs the committed run artifacts in `evals/model-effort/runs/` reported:
 tests/scripts/model_effort/test_estimate_calibration.py checks that every arm
-there cost no more than its estimate and no less than a sixteenth of it, except
-for agents that answer in a few hundred tokens, which get a looser ceiling. An
+there cost no more than its estimate and no less than a twenty-second of it,
+except for agents that answer in a few hundred tokens, which get a looser ceiling. An
 agent with short answers lands furthest below its estimate.
 
 Pure functions: the pricing table is a parameter and the only file access is
@@ -42,11 +42,11 @@ TOOL_TURN_MULTIPLIER = 3
 # own context (its system prompt and tool definitions, cached or not), which the
 # input count leaves out. Fitted as output because the per-model spread of the
 # reported costs follows the output rate better than the input rate. The lowest
-# estimate, a haiku/high arm of a tool-heavy agent, sits only about 3% above its
-# arm's cost, so after editing this constant,
+# estimate, an opus/high arm of an agent that explores a whole repository, sits
+# only about 3% above its arm's cost, so after editing this constant,
 # the others above or the pricing file, re-run
 # tests/scripts/model_effort/test_estimate_calibration.py.
-OUTPUT_TOKENS_PER_TRIAL = 28_000
+OUTPUT_TOKENS_PER_TRIAL = 38_000
 # The size of the answer a rubric judge reads, in tokens: a findings JSON.
 ANSWER_TOKENS_FOR_JUDGE = 2000
 TOKENS_PER_RATE_UNIT = 1_000_000

@@ -4,7 +4,7 @@ Per-agent record of the Haiku 5.5 re-evaluation (issues #2250, #2251). Agent fro
 
 ## Feasibility findings (2026-10-08)
 
-- Candidates evaluated: 32
+- Candidates evaluated: 37
 - Alias resolved: claude-haiku-5-5
 - Alias check: `claude -p --model haiku` reports `modelUsage` key `claude-haiku-5-5`.
 - Effort variable: yes
@@ -46,8 +46,13 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
   - `harness gap: sandbox denials`: `adr-author` (57 of 90 trials denied; 26 more, 23 of them haiku, used `Edit`, which the harness did not enable), `software-engineer` (25 of 45), `platform-engineer` (30 of 90) and `qa-engineer` (14 of 90).
   - `orchestrator`: 10 of 15 haiku trials used tools outside its enabled set (9 of them `Write`), so reason `failed eval`.
   - `angular-reactivity-review` ran at its new sonnet/medium tier; the verdict was keep, so its haiku-batch upgrade row stands.
-  - Every other agent kept its tier with reason `failed eval`: the haiku arm lost recall or raised clean-fixture false positives, and the opus arm caught nothing new, except for `structure-review`. Its opus arm caught `st-mixed-concerns`, which sonnet/high misses in every trial, but the upgrade was blocked because its clean-fixture false positives rose from 0 to 8.
-- `opus: not run`: opus agents, including the high-stakes set (`correctness-review`, `security-review`), were not run. `correctness-review` results would also carry its known recall gap.
+  - Every other agent except `test-review` (see `harness gap: Phase 0 not reproduced` below) kept its tier with reason `failed eval`: the haiku arm lost recall or raised clean-fixture false positives, and the opus arm caught nothing new, except for `structure-review`. Its opus arm caught `st-mixed-concerns`, which sonnet/high misses in every trial, but the upgrade was blocked because its clean-fixture false positives rose from 0 to 8.
+- Opus stress batch (`--batch opus`, 2026-11-16, actual cost $203.11 plus $9.96 of opus judge cost, against a $462.87 estimate), artifacts `evals/model-effort/runs/20261116T*Z-*.json`:
+  - Downgraded to sonnet/high: `domain-review`. Every arm passes few of its trials (baseline 5 of 35, sonnet 6 of 35), so its fixtures or expected entries need a look.
+  - `harness gap: sandbox denials`: `acceptance-examiner` (89 of 90 trials denied), `codebase-recon` (88 of 90), `architect` (47 of 90) and `mutation-kill` (28 of 45).
+  - Kept with reason `failed eval`: `ai-provenance-review` (sonnet lost recall), `arch-review` (sonnet lost recall and raised clean-fixture false positives from 0 to 3), `security-review` (sonnet raised clean-fixture false positives from 18 to 20) and `security-engineer` (rubric evidence short of 10 graded trials per arm per fixture; nearly every trial failed the rubric in every arm).
+  - `codebase-recon` trials cost more than the estimate (baseline $23.43 against $18.07), so `OUTPUT_TOKENS_PER_TRIAL` rose from 28,000 to 38,000 and the calibration ceilings widened to 22x, or 160x for short-answer agents.
+- `opus: not run`: `correctness-review` was skipped by the opus stress batch; its results would carry its known recall gap.
 - `harness gap: Phase 0 not reproduced`: `test-review`'s Phase 0 mechanical pre-phase is not reproduced by this harness. The sonnet stress batch ran it anyway: its verdict was keep (the haiku arm lost recall, 11/55 against 20/55), so the row is unchanged.
 - `harness gap: sandbox denials`: the CLI sandbox denied the agent's own tool calls in too many trials to grade the rubric or every fixture, so the run cannot move the tier.
 - A blank reason is accepted only on a keep row with fewer than 3 fixtures.
@@ -57,24 +62,24 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 | Agent | Source | Baseline model | Baseline effort | Final model | Final effort | Decision | Fixtures | Evidence or reason | Eval cost saving (USD) |
 |---|---|---|---|---|---|---|---|---|---|
 | a11y-review | plugins/dev-team/agents/a11y-review.md | haiku | medium | haiku | low | downgrade | 5 | eval:20261115T012929Z-a11y-review-haiku-medium-65d1; model:claude-haiku-5-5; effort:low; fixtures:5; trials:5; delta:0; cost:0.0931->0.0772 | 0.0159 |
-| acceptance-examiner | plugins/dev-team/agents/acceptance-examiner.md | opus | high | opus | high | keep | 0 | no fixture |  |
+| acceptance-examiner | plugins/dev-team/agents/acceptance-examiner.md | opus | high | opus | high | keep | 3 | harness gap: sandbox denials |  |
 | adr-author | plugins/dev-team/agents/adr-author.md | sonnet | high | sonnet | high | keep | 3 | harness gap: sandbox denials |  |
-| ai-provenance-review | plugins/dev-team/agents/ai-provenance-review.md | opus | high | opus | high | keep | 2 | insufficient fixtures |  |
+| ai-provenance-review | plugins/dev-team/agents/ai-provenance-review.md | opus | high | opus | high | keep | 5 | failed eval |  |
 | angular-reactivity-review | plugins/dev-team/agents/angular-reactivity-review.md | haiku | medium | sonnet | medium | upgrade | 5 | eval:20261115T012929Z-angular-reactivity-review-haiku-medium-b468; model:claude-sonnet-5-5; effort:medium; fixtures:5; trials:5; delta:+1; cost:0.0731->0.9452 |  |
-| arch-review | plugins/dev-team/agents/arch-review.md | opus | high | opus | high | keep | 2 | insufficient fixtures |  |
-| architect | plugins/dev-team/agents/architect.md | opus | high | opus | high | keep | 0 | no fixture |  |
+| arch-review | plugins/dev-team/agents/arch-review.md | opus | high | opus | high | keep | 5 | failed eval |  |
+| architect | plugins/dev-team/agents/architect.md | opus | high | opus | high | keep | 3 | harness gap: sandbox denials |  |
 | autoship-batch-proposer | plugins/dev-team/agents/autoship-batch-proposer.md | haiku | low | haiku | low | keep | 3 | failed eval |  |
 | claude-setup-review | plugins/dev-team/agents/claude-setup-review.md | haiku | high | haiku | high | keep | 8 | failed eval |  |
-| codebase-recon | plugins/dev-team/agents/codebase-recon.md | opus | high | opus | high | keep | 0 | no fixture |  |
+| codebase-recon | plugins/dev-team/agents/codebase-recon.md | opus | high | opus | high | keep | 3 | harness gap: sandbox denials |  |
 | component-architecture-review | plugins/dev-team/agents/component-architecture-review.md | haiku | high | haiku | medium | downgrade | 5 | eval:20261115T012930Z-component-architecture-review-haiku-high-928b; model:claude-haiku-5-5; effort:medium; fixtures:5; trials:5; delta:0; cost:0.1309->0.0983 | 0.0326 |
 | concurrency-review | plugins/dev-team/agents/concurrency-review.md | haiku | high | haiku | medium | downgrade | 12 | eval:20261115T012930Z-concurrency-review-haiku-high-6f6c; model:claude-haiku-5-5; effort:medium; fixtures:12; trials:5; delta:0; cost:0.2128->0.1610 | 0.0519 |
 | correctness-review | plugins/dev-team/agents/correctness-review.md | opus | high | opus | high | keep | 12 | opus: not run |  |
 | data-flow-tracer | plugins/dev-team/agents/data-flow-tracer.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
 | doc-review | plugins/dev-team/agents/doc-review.md | haiku | medium | haiku | low | downgrade | 8 | eval:20261115T012930Z-doc-review-haiku-medium-d12f; model:claude-haiku-5-5; effort:low; fixtures:8; trials:5; delta:0; cost:0.0862->0.0683 | 0.0179 |
-| domain-review | plugins/dev-team/agents/domain-review.md | opus | high | opus | high | keep | 5 | opus: not run |  |
+| domain-review | plugins/dev-team/agents/domain-review.md | opus | high | sonnet | high | downgrade | 7 | eval:20261116T110405Z-domain-review-opus-high-a988; model:claude-sonnet-5-5; effort:high; fixtures:7; trials:5; delta:0; cost:5.9257->2.6769 | 3.2488 |
 | gherkin-quality-critic | plugins/dev-team/agents/gherkin-quality-critic.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
 | js-fp-review | plugins/dev-team/agents/js-fp-review.md | haiku | medium | haiku | low | downgrade | 9 | eval:20261009T122901Z-js-fp-review-haiku-medium-9363; model:claude-haiku-5-5; effort:low; fixtures:9; trials:5; delta:0; cost:0.146->0.126 | 0.020 |
-| mutation-kill | plugins/dev-team/agents/mutation-kill.md | opus | high | opus | high | keep | 0 | no fixture |  |
+| mutation-kill | plugins/dev-team/agents/mutation-kill.md | opus | high | opus | high | keep | 3 | harness gap: sandbox denials |  |
 | naming-review | plugins/dev-team/agents/naming-review.md | sonnet | high | sonnet | high | keep | 8 | failed eval |  |
 | orchestrator | plugins/dev-team/agents/orchestrator.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
 | performance-review | plugins/dev-team/agents/performance-review.md | haiku | high | haiku | high | keep | 5 | failed eval |  |
@@ -90,8 +95,8 @@ Cost is the USD the CLI reported, summed over all trials of one arm, not a figur
 | quality-reviewer | plugins/dev-team/agents/quality-reviewer.md | sonnet | high | sonnet | high | keep | 3 | failed eval |  |
 | react-reactivity-review | plugins/dev-team/agents/react-reactivity-review.md | haiku | medium | haiku | low | downgrade | 5 | eval:20261115T012930Z-react-reactivity-review-haiku-medium-c1b4; model:claude-haiku-5-5; effort:low; fixtures:5; trials:5; delta:0; cost:0.1112->0.0854 | 0.0258 |
 | refactor-opportunity-review | plugins/dev-team/agents/refactor-opportunity-review.md | haiku | high | haiku | medium | downgrade | 6 | eval:20261115T012930Z-refactor-opportunity-review-haiku-high-ccc8; model:claude-haiku-5-5; effort:medium; fixtures:6; trials:5; delta:0; cost:0.1618->0.1203 | 0.0416 |
-| security-engineer | plugins/dev-team/agents/security-engineer.md | opus | high | opus | high | keep | 0 | no fixture |  |
-| security-review | plugins/dev-team/agents/security-review.md | opus | high | opus | high | keep | 6 | opus: not run |  |
+| security-engineer | plugins/dev-team/agents/security-engineer.md | opus | high | opus | high | keep | 3 | failed eval |  |
+| security-review | plugins/dev-team/agents/security-review.md | opus | high | opus | high | keep | 8 | failed eval |  |
 | session-analysis | plugins/dev-team/agents/session-analysis.md | sonnet | high | sonnet | high | keep | 1 | insufficient fixtures |  |
 | software-engineer | plugins/dev-team/agents/software-engineer.md | sonnet | high | sonnet | high | keep | 3 | harness gap: sandbox denials |  |
 | spec-compliance-review | plugins/dev-team/agents/spec-compliance-review.md | haiku | medium | haiku | medium | keep | 5 | failed eval |  |
