@@ -1,6 +1,6 @@
 {
   "fixture": "dm-transfer-limits.ts",
-  "description": "Funds transfer where a TransferPolicy domain service owns the daily-limit rule that spans two Account aggregates and the transfer history; TransferFunds withdraws and records FundsTransferred in one aggregate transaction, and a handler credits the destination",
+  "description": "Withdrawal where a WithdrawalPolicy domain service owns the ownership and limit rule that spans the Customer and Account aggregates; WithdrawFunds loads both, applies the policy, and changes and saves only the Account",
   "applicableAgents": [
     "domain-review"
   ],
@@ -13,11 +13,11 @@
       },
       "hard": {
         "reason": "distractor",
-        "note": "Business rules in a service class look like an anemic model or logic in an application service, but the rule spans two aggregates, so a domain service legitimately owns it, and the entities keep their own invariants"
+        "note": "Business rules in a service class look like an anemic model or logic in an application service, but the rule reads two aggregates, so a domain service legitimately owns it, and each entity guards its own invariants"
       },
       "_calibration": {
         "source": "measured",
-        "note": "Clean counterpart to dm-logic-in-ui; zero findings expected. Opus stress run 20261116T110405Z reported 3-6 issues on the earlier fixture, which never recorded the transfer (the daily limit never accumulated) and saved two aggregates in one transaction; both fixed"
+        "note": "Redesigned: the eventually consistent transfer drew 3-9 issues in every arm of stress runs 20261117T112433Z and 20261117T152932Z. 3 unarchived local domain-review trials on the new design reported 0 issues, after a first draft drew a Customer constructor that skipped the ceiling check (fixed)"
       }
     }
   }

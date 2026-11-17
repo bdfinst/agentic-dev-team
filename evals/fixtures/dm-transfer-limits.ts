@@ -1,36 +1,55 @@
 // ---- domain/money.ts ----
 
+// The ledger runs in one currency, so Money carries cents only
 export class Money {
-  private constructor(
-    readonly amountCents: number,
-    readonly currency: string,
-  ) {}
+  private constructor(readonly cents: number) {}
 
-  static ofCents(amountCents: number, currency: string): Money {
-    if (!Number.isInteger(amountCents) || amountCents < 0) {
-      throw new RangeError("amountCents must be a non-negative integer");
+  static ofCents(cents: number): Money {
+    if (!Number.isInteger(cents) || cents < 0) {
+      throw new RangeError("cents must be a non-negative integer");
     }
-    return new Money(amountCents, currency);
-  }
-
-  add(other: Money): Money {
-    this.assertSameCurrency(other);
-    return Money.ofCents(this.amountCents + other.amountCents, this.currency);
+    return new Money(cents);
   }
 
   subtract(other: Money): Money {
-    this.assertSameCurrency(other);
-    return Money.ofCents(this.amountCents - other.amountCents, this.currency);
+    return Money.ofCents(this.cents - other.cents);
   }
 
   isGreaterThan(other: Money): boolean {
-    this.assertSameCurrency(other);
-    return this.amountCents > other.amountCents;
+    return this.cents > other.cents;
+  }
+}
+
+// ---- domain/customer.ts ----
+
+export class Customer {
+  private constructor(
+    readonly customerId: string,
+    private limit: Money,
+    private readonly limitCeiling: Money,
+  ) {}
+
+  static create(
+    customerId: string,
+    withdrawalLimit: Money,
+    limitCeiling: Money,
+  ): Customer {
+    Customer.assertWithinCeiling(withdrawalLimit, limitCeiling);
+    return new Customer(customerId, withdrawalLimit, limitCeiling);
   }
 
-  private assertSameCurrency(other: Money): void {
-    if (other.currency !== this.currency) {
-      throw new Error("amounts must share a currency");
+  get withdrawalLimit(): Money {
+    return this.limit;
+  }
+
+  changeWithdrawalLimit(newLimit: Money): void {
+    Customer.assertWithinCeiling(newLimit, this.limitCeiling);
+    this.limit = newLimit;
+  }
+
+  private static assertWithinCeiling(limit: Money, ceiling: Money): void {
+    if (limit.isGreaterThan(ceiling)) {
+      throw new Error("withdrawal limit cannot exceed the customer's ceiling");
     }
   }
 }
@@ -38,30 +57,11 @@ export class Money {
 // ---- domain/account.ts ----
 
 export class Account {
-  private constructor(
+  constructor(
     readonly accountId: string,
     readonly ownerId: string,
     private balance: Money,
-    readonly dailyTransferLimit: Money,
-    private readonly sentTransferIds: Set<string>,
-    private readonly receivedTransferIds: Set<string>,
   ) {}
-
-  static open(
-    accountId: string,
-    ownerId: string,
-    openingBalance: Money,
-    dailyTransferLimit: Money,
-  ): Account {
-    return new Account(
-      accountId,
-      ownerId,
-      openingBalance,
-      dailyTransferLimit,
-      new Set(),
-      new Set(),
-    );
-  }
 
   get availableBalance(): Money {
     return this.balance;
@@ -73,134 +73,51 @@ export class Account {
     }
     this.balance = this.balance.subtract(amount);
   }
-
-  deposit(amount: Money): void {
-    this.balance = this.balance.add(amount);
-  }
-
-  hasSent(transferId: string): boolean {
-    return this.sentTransferIds.has(transferId);
-  }
-
-  sendTransfer(transferId: string, amount: Money): void {
-    if (this.hasSent(transferId)) {
-      throw new Error(`transfer ${transferId} was already sent`);
-    }
-    this.withdraw(amount);
-    this.sentTransferIds.add(transferId);
-  }
-
-  receiveTransfer(transferId: string, amount: Money): void {
-    if (this.receivedTransferIds.has(transferId)) {
-      return;
-    }
-    this.deposit(amount);
-    this.receivedTransferIds.add(transferId);
-  }
 }
 
-// ---- domain/funds-transferred.ts ----
+// ---- domain/withdrawal-policy.ts ----
 
-export class FundsTransferred {
-  constructor(
-    readonly transferId: string,
-    readonly sourceId: string,
-    readonly destinationId: string,
-    readonly amount: Money,
-    readonly on: Date,
-  ) {}
-}
-
-// ---- domain/transfer-policy.ts ----
-
-// Totals the recorded FundsTransferred events for one source account and day
-export interface TransferHistory {
-  totalTransferredToday(accountId: string, day: Date): Promise<Money>;
-}
-
-export class TransferPolicy {
-  constructor(private readonly history: TransferHistory) {}
-
-  async assertPermitted(
-    source: Account,
-    destination: Account,
-    amount: Money,
-    day: Date,
-  ): Promise<void> {
-    if (source.accountId === destination.accountId) {
-      throw new Error("source and destination must differ");
+export class WithdrawalPolicy {
+  assertPermitted(owner: Customer, account: Account, amount: Money): void {
+    if (account.ownerId !== owner.customerId) {
+      throw new Error("customer does not own the account");
     }
-    if (
-      amount.currency !== source.availableBalance.currency ||
-      amount.currency !== destination.availableBalance.currency
-    ) {
-      throw new Error("cross-currency transfers are not supported");
-    }
-    const transferredToday = await this.history.totalTransferredToday(
-      source.accountId,
-      day,
-    );
-    if (transferredToday.add(amount).isGreaterThan(source.dailyTransferLimit)) {
-      throw new Error("daily transfer limit exceeded");
+    if (amount.isGreaterThan(owner.withdrawalLimit)) {
+      throw new Error("amount exceeds the customer's withdrawal limit");
     }
   }
 }
 
-// ---- application/transfer-funds.ts ----
+// ---- application/withdraw-funds.ts ----
+
+export interface CustomerRepository {
+  findById(customerId: string): Promise<Customer | null>;
+}
 
 export interface AccountRepository {
   findById(accountId: string): Promise<Account | null>;
-  // Saves one account and appends its events to the outbox in one transaction
-  save(account: Account, events: readonly FundsTransferred[]): Promise<void>;
+  save(account: Account): Promise<void>;
 }
 
-export interface Clock {
-  today(): Date;
-}
-
-export class TransferFunds {
+export class WithdrawFunds {
   constructor(
+    private readonly customers: CustomerRepository,
     private readonly accounts: AccountRepository,
-    private readonly policy: TransferPolicy,
-    private readonly clock: Clock,
+    private readonly policy: WithdrawalPolicy,
   ) {}
 
   async execute(
-    transferId: string,
-    sourceId: string,
-    destinationId: string,
+    customerId: string,
+    accountId: string,
     amount: Money,
   ): Promise<void> {
-    const source = await this.accounts.findById(sourceId);
-    const destination = await this.accounts.findById(destinationId);
-    if (!source || !destination) {
-      throw new Error("account not found");
+    const owner = await this.customers.findById(customerId);
+    const account = await this.accounts.findById(accountId);
+    if (!owner || !account) {
+      throw new Error("customer or account not found");
     }
-    // A retried command is a no-op, checked before the policy counts it twice
-    if (source.hasSent(transferId)) {
-      return;
-    }
-    const today = this.clock.today();
-    await this.policy.assertPermitted(source, destination, amount, today);
-    source.sendTransfer(transferId, amount);
-    await this.accounts.save(source, [
-      new FundsTransferred(transferId, sourceId, destinationId, amount, today),
-    ]);
-  }
-}
-
-// ---- application/credit-transfer-destination.ts ----
-
-// Credits the destination in its own transaction after the withdrawal commits
-export class CreditTransferDestination {
-  constructor(private readonly accounts: AccountRepository) {}
-
-  async on(event: FundsTransferred): Promise<void> {
-    const destination = await this.accounts.findById(event.destinationId);
-    if (!destination) {
-      throw new Error("account not found");
-    }
-    destination.receiveTransfer(event.transferId, event.amount);
-    await this.accounts.save(destination, []);
+    this.policy.assertPermitted(owner, account, amount);
+    account.withdraw(amount);
+    await this.accounts.save(account);
   }
 }
