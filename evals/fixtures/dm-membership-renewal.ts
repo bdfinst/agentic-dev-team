@@ -103,18 +103,15 @@ export class Membership {
 
 export interface MembershipRepository {
   findById(membershipId: string): Promise<Membership | null>;
-  save(membership: Membership): Promise<void>;
-}
-
-export interface EventPublisher {
-  publish(event: MembershipRenewed): Promise<void>;
+  // Saves the membership and appends its events to the outbox in one transaction
+  save(
+    membership: Membership,
+    events: readonly MembershipRenewed[],
+  ): Promise<void>;
 }
 
 export class RenewMembership {
-  constructor(
-    private readonly memberships: MembershipRepository,
-    private readonly events: EventPublisher,
-  ) {}
+  constructor(private readonly memberships: MembershipRepository) {}
 
   async execute(
     membershipId: string,
@@ -125,7 +122,6 @@ export class RenewMembership {
       throw new Error(`membership ${membershipId} not found`);
     }
     const renewed = await membership.renew(renewalTermMonths);
-    await this.memberships.save(membership);
-    await this.events.publish(renewed);
+    await this.memberships.save(membership, [renewed]);
   }
 }

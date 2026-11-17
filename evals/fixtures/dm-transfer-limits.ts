@@ -43,6 +43,7 @@ export class Account {
     readonly ownerId: string,
     private balance: Money,
     readonly dailyTransferLimit: Money,
+    private readonly sentTransferIds: Set<string>,
     private readonly receivedTransferIds: Set<string>,
   ) {}
 
@@ -57,6 +58,7 @@ export class Account {
       ownerId,
       openingBalance,
       dailyTransferLimit,
+      new Set(),
       new Set(),
     );
   }
@@ -74,6 +76,16 @@ export class Account {
 
   deposit(amount: Money): void {
     this.balance = this.balance.add(amount);
+  }
+
+  // Returns false when this transfer was already sent, so a retry is a no-op
+  sendTransfer(transferId: string, amount: Money): boolean {
+    if (this.sentTransferIds.has(transferId)) {
+      return false;
+    }
+    this.withdraw(amount);
+    this.sentTransferIds.add(transferId);
+    return true;
   }
 
   receiveTransfer(transferId: string, amount: Money): void {
@@ -164,7 +176,9 @@ export class TransferFunds {
     }
     const today = this.clock.today();
     await this.policy.assertPermitted(source, destination, amount, today);
-    source.withdraw(amount);
+    if (!source.sendTransfer(transferId, amount)) {
+      return;
+    }
     await this.accounts.save(source, [
       new FundsTransferred(transferId, sourceId, destinationId, amount, today),
     ]);

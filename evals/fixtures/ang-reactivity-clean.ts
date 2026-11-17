@@ -15,7 +15,7 @@ interface Config {
   template: `
     <span>{{ doubled() }}</span>
     <ul>
-      @for (item of items(); track item) {
+      @for (item of items(); track $index) {
         <li>{{ item }}</li>
       }
     </ul>

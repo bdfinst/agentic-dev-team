@@ -19,7 +19,7 @@ Cites: [adversarial-review-protocol]
 
 Scope: Angular component, directive, and service files (`.component.ts`,
 `.component.html`, `.service.ts`, and general `.ts` files in Angular projects).
-Skip this agent only when neither the project manifest nor any target file
+Skip this agent when neither the project manifest nor any target file
 shows Angular: no `@angular/core` dependency in `package.json` (or equivalent
 manifest) and no target file importing from `@angular/core`.
 Covers Zone.js-based Angular (Angular 2–17) and Angular Signals (Angular 16+
@@ -38,7 +38,7 @@ Context needs: full-file
 Return `{"status": "skip", "issues": [], "summary": "No Angular files in target"}` when:
 
 - No `@angular/core` dependency is found in the project manifest (`package.json`, `package-lock.json`, `yarn.lock`, etc.) **and** no target file imports from `@angular/core`. An import from `@angular/core` in a target file is enough to review it, even when no manifest is available.
-- No Angular component/service/directive files in the target set
+- No Angular files in the target set: no component, service or directive, and no other file importing from `@angular/core`
 
 ## Detect
 

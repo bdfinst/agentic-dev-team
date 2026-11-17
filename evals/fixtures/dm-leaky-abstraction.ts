@@ -89,6 +89,8 @@ class PaymentProcessor {
         invoice.markDeclined();
       } else if (err.response?.status === 429) {
         invoice.markRetryLater();
+      } else {
+        throw err;
       }
     }
   }
