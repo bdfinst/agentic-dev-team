@@ -25,7 +25,7 @@ Skip this agent entirely if the project has no JS/TS files.
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=no mutations or impure patterns, warn=only local mutations or style/point-free suggestions, fail=external mutation or a buried side effect
-Severity: error=external state mutation (module-level or global state, a captured outer variable, or an argument the caller owns, whatever the return type) or a side effect buried inside a value-returning computation, warning=local mutation (a value the function itself created, except the Detect exceptions such as spread copies), suggestion=style (point-free/composition)
+Severity: error=external state mutation (module-level or global state, a captured outer variable, or an argument the caller owns, whatever the return type) or a side effect buried inside a value-returning computation, warning=local mutation (a value the function itself created, including when its own callback writes that value, except the Detect exceptions such as spread copies), suggestion=style (point-free/composition)
 Confidence: high=mechanical substitution (push→spread, let→const); medium=pattern clear but spread vs clone depends on usage, or extracting a console/DOM side effect; none=requires human judgment (intentional mutation for performance, or removing a non-deterministic read whose value is actually used downstream)
 
 Context needs: diff-only

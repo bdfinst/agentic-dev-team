@@ -76,7 +76,10 @@ function validateFilter(
     filter = { ...filter, limit: limit.value };
   }
   if (raw.assigneeId !== undefined) {
-    filter = { ...filter, assigneeId: String(raw.assigneeId) };
+    if (typeof raw.assigneeId !== "string" || raw.assigneeId === "") {
+      return err("Assignee id must be a non-empty string");
+    }
+    filter = { ...filter, assigneeId: raw.assigneeId };
   }
   return ok(filter);
 }
