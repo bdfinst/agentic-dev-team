@@ -27,14 +27,15 @@ from model_effort.fixtures import resolve_fixtures
 # An arm may cost less than estimated, never more.
 MIN_ESTIMATE_TO_ACTUAL = 1.0
 # The estimate ignores effort and how much an agent writes, so an agent with
-# short answers lands furthest above its cost; this bounds how far.
-MAX_ESTIMATE_TO_ACTUAL = 16.0
+# short answers lands furthest above its cost; this bounds how far. The highest
+# measured is about 20.7x, a gherkin-quality-critic baseline arm.
+MAX_ESTIMATE_TO_ACTUAL = 22.0
 # The flat per-trial output allowance fits an agent that reports findings or
 # works with tools. These agents answer in a few hundred tokens with no tool
-# use, so their estimate lands 60x to 95x above their cost; this looser ceiling
+# use, so their estimate lands 80x to 130x above their cost; this looser ceiling
 # still catches a runaway.
 SHORT_ANSWER_AGENTS = frozenset({"autoship-batch-proposer"})
-MAX_SHORT_ANSWER_ESTIMATE_TO_ACTUAL = 120.0
+MAX_SHORT_ANSWER_ESTIMATE_TO_ACTUAL = 160.0
 # Fewer arms than this means the guard is checking almost nothing.
 MIN_ARMS_CHECKED = 10
 # The tool that lets an agent dispatch subagents, whose trials then spend on

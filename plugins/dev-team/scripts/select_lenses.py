@@ -171,7 +171,7 @@ _REVIEW_AGENTS_HEADING_MARKER = "review agent"
 # an all-non-executable diff, so dispatching an opus, high-effort model
 # just to hear "skip" is pure waste.
 #
-# Deliberately ONE member today, not "every opus-tier always lens" —
+# Deliberately ONE member today, not "every expensive always lens" —
 # `security-review`, `arch-review`, and `domain-review` were considered and
 # REJECTED: their own Skip clauses do not authorize this. security-review's
 # clause covers only "static assets, images, or documentation", not

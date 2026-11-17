@@ -1,0 +1,1067 @@
+{
+  "run_id": "20261116T110405Z-architect-opus-high-1b0e",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-16T11:04:05Z",
+  "git_sha": "54f4fec9f69acf4e5ecb3a08f145387dc0b32b73",
+  "agent": "architect",
+  "grader": "rubric",
+  "judge": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "rubric": "evals/model-effort/rubrics/architect.md",
+    "criteria": [
+      "leads-with-decision",
+      "commits",
+      "grounded-in-fixture",
+      "trade-offs-named"
+    ]
+  },
+  "tier_change_eligible": false,
+  "fidelity": "sandboxed-write-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-opus-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Bash",
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk",
+        "mcp__plugin_repowise_repowise__get_why"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 17.431620000000002,
+      "estimated_judge_cost_usd": 1.0834,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "arc-column-rename-hard",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.23131279999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2059346,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1851184,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.18761860000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1804702,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.167567,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1898726,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2068006,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1856642,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1902912,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "arc-shared-invoices",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.14926520000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1421374,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1391142,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1582238,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1389288,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.14353739999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1367302,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1373574,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.16538280000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1419936,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "arc-sync-checkout",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.12224360000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.052424
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.11176259999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'keep-reserve-and-price-sync' not met \u2014 It only implies inventory and pricing stay in the path, via the remark that p99 drops to the inventory + pricing + save path, and never states the decision or the rationale that the response depends on them and they meet their targets."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.051948
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1217266,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.048208
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1156954,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.052624000000000004
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.12366379999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0552
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1211354,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'keep-reserve-and-price-sync' not met \u2014 The answer only implies inventory and pricing stay in the request path, via the latency estimate; it never states that decision or justifies it by the response depending on them and their meeting targets."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.058588
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.11494660000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.051868000000000004
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.11282600000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'keep-reserve-and-price-sync' not met \u2014 The design leaves reserve and quote in the request path only implicitly; it never states the decision to keep them synchronous or the rationale (the response depends on them and they meet their targets)."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.051192
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1156432,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.053884
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1240366,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.051680000000000004
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 20,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 3,
+        "pass": 7,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 4.5670008,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.527616
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk",
+        "mcp__plugin_repowise_repowise__get_why"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 8.715810000000001,
+      "estimated_judge_cost_usd": 1.0834,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "arc-column-rename-hard",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.0970574,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.08784810000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.08520269999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.0870968,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.0820529,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.09199109999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.07434410000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.09203410000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.0796901,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.07884379999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "arc-shared-invoices",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0714571,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'single-owner-billing' not met \u2014 Billing becomes sole owner and orders calls its interface, but the answer deliberately puts refunds in a separate `refunds` module rather than in billing, so it does not satisfy 'puts refunds in billing'."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.07272799999999999
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0827436,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'single-owner-billing' not met \u2014 Billing is made the sole invoice writer and orders goes through billing, but the answer explicitly puts refunds in a separate app/refunds module rather than in billing."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.0643
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0762851,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'trade-offs-named' not met \u2014 It gives rationales and benefits for the chosen design but never states an explicit cost or downside of it.",
+                "rubric: 'single-owner-billing' not met \u2014 It makes billing the sole owner and routes orders through billing's API, but it puts refunds in a separate new `refunds` module rather than in billing as the criterion requires."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.064816
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0784239,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'single-owner-billing' not met \u2014 It makes billing the sole invoice owner and has orders call billing, but it places refunds in a new `app/refunds/` module rather than in billing as the criterion requires."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.060096
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.077152,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'single-owner-billing' not met \u2014 It makes billing the sole invoice owner with orders calling billing, but it puts refunds in a new separate `app/refunds/` module that owns a refunds table, not in billing as the criterion requires."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.067484
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0807715,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 It points the reader to `database-change-management.md` for the expand/contract pattern, but that file is not in the provided material, so the answer cites an invented artifact."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.05766
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0740638,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'single-owner-billing' not met \u2014 It makes billing the sole invoice owner with orders calling its API, but it explicitly rejects putting refunds in billing and puts them in a separate refunds module instead."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.06811600000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.07824220000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06764400000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0790931,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'grounded-in-fixture' not met \u2014 It cites `database-change-management.md` and a 'single-commit history', neither of which is in the provided material, so it references invented artifacts."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.055976
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.07032830000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'single-owner-billing' not met \u2014 It makes billing the sole invoices writer with orders calling a billing API, but it puts refunds in a separate app/refunds module and explicitly rejects placing refunds inside billing, contrary to the criterion."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.063224
+            }
+          ]
+        },
+        {
+          "stem": "arc-sync-checkout",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0612852,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'email-is-root-cause' not met \u2014 It identifies the synchronous 2 s email call after the order is committed as the cause of 81% of failures, but it never explicitly ties the 2.4 s p99 latency to that call and only mentions p99 in passing when rejecting a longer timeout."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.057092000000000004
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0575753,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.047388
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0574765,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.059120000000000006
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0583134,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'keep-reserve-and-price-sync' not met \u2014 Inventory and pricing stay synchronous only implicitly; the answer never explicitly decides to keep them in the request path or justifies this by the response depending on them."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.056536
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0587404,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.050752
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.059297800000000005,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'keep-reserve-and-price-sync' not met \u2014 Reserve and quote stay in the request path only implicitly; the answer never states the decision or justifies it by the response depending on them and their meeting reliability targets (the 99.98% figure appears only in the availability arithmetic)."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.049992
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0612699,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.056628
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.058961400000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.059095999999999996
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.056427000000000005,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.0534
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0607914,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.057796
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 10,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 12,
+        "pass": 8,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 2.21486,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 1.189844
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "xhigh",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk",
+        "mcp__plugin_repowise_repowise__get_why"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 17.431620000000002,
+      "estimated_judge_cost_usd": 1.0834,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "arc-column-rename-hard",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.35564480000000004,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3558174,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.35810899999999996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.47867459999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.060572
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.34838020000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3796256,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.379376,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.31749120000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.34522200000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.38818300000000006,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "arc-shared-invoices",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2454054,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.278771,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.26872419999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.29212499999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.241444,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2961396,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'trade-offs-named' not met \u2014 It explains the downsides of the rejected alternatives but never explicitly states a cost or downside of its own chosen design, such as the coupling that synchronous calls create."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.065184
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.23167780000000002,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'trade-offs-named' not met \u2014 It explains why alternatives were rejected but never states an explicit cost or downside of its own chosen design."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.061364
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.31961280000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2490172,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2504700000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 1 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "arc-sync-checkout",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.195594,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.057932
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.174089,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06258
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.18069439999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.062624
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.178042,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.055404
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.19933220000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.06328800000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.2276228,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.05298800000000001
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.170226,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.060996
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1543468,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.053072
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.21956499999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": 0.05822000000000001
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.168023,
+              "cost_reported": true,
+              "grader_messages": [
+                "rubric: 'keep-reserve-and-price-sync' not met \u2014 The answer removes only notify and so implicitly leaves inventory and pricing in place, but it never states that they stay synchronous or why (the response depends on them and they meet their targets)."
+              ],
+              "error": null,
+              "judge_cost_usd": 0.056943999999999995
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 17,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 3,
+        "pass": 10,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 8.247446,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.7711680000000001
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "keep",
+    "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier",
+    "arm": null,
+    "model": null,
+    "effort": null,
+    "downgrade": {
+      "passes": null,
+      "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 7,
+        "trials": 30
+      },
+      "step-down": {
+        "passes": 8,
+        "trials": 30
+      },
+      "step-up": {
+        "passes": 10,
+        "trials": 30
+      }
+    }
+  }
+}

@@ -33,7 +33,7 @@
     <rect x="214" y="190" width="180" height="52" rx="12" fill="#EEF2FF" stroke="#6366F1" stroke-width="1.5"/>
     <rect x="214" y="190" width="5" height="52" rx="2.5" fill="#6366F1"/>
     <text x="304" y="213" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">spec-compliance</text>
-    <text x="304" y="229" text-anchor="middle" font-size="10" fill="#6366F1">sonnet</text>
+    <text x="304" y="229" text-anchor="middle" font-size="10" fill="#6366F1">haiku</text>
   </g>
 
   <!-- Pass arrow to Quality Gate -->
@@ -67,12 +67,12 @@
   <text x="588" y="340" text-anchor="middle" font-size="8" fill="#94A3B8">All</text>
 
   <!-- Review agents (right column) -->
-  <!-- naming-review (haiku) -->
+  <!-- naming-review (sonnet) -->
   <g filter="url(#shadow)">
-    <rect x="630" y="20" width="180" height="44" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1"/>
-    <rect x="630" y="20" width="4" height="44" rx="2" fill="#94A3B8"/>
+    <rect x="630" y="20" width="180" height="44" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
+    <rect x="630" y="20" width="4" height="44" rx="2" fill="#3B82F6"/>
     <text x="720" y="40" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">naming-review</text>
-    <text x="720" y="54" text-anchor="middle" font-size="9" fill="#94A3B8">haiku</text>
+    <text x="720" y="54" text-anchor="middle" font-size="9" fill="#3B82F6">sonnet</text>
   </g>
 
   <!-- test-review (sonnet) -->
@@ -91,20 +91,20 @@
     <text x="720" y="174" text-anchor="middle" font-size="9" fill="#EF4444">opus</text>
   </g>
 
-  <!-- domain-review (opus) -->
+  <!-- domain-review (sonnet) -->
   <g filter="url(#shadow)">
-    <rect x="630" y="200" width="180" height="44" rx="10" fill="#FEF2F2" stroke="#EF4444" stroke-width="1"/>
-    <rect x="630" y="200" width="4" height="44" rx="2" fill="#EF4444"/>
+    <rect x="630" y="200" width="180" height="44" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
+    <rect x="630" y="200" width="4" height="44" rx="2" fill="#3B82F6"/>
     <text x="720" y="220" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">domain-review</text>
-    <text x="720" y="234" text-anchor="middle" font-size="9" fill="#EF4444">opus</text>
+    <text x="720" y="234" text-anchor="middle" font-size="9" fill="#3B82F6">sonnet</text>
   </g>
 
-  <!-- a11y-review (sonnet) -->
+  <!-- a11y-review (haiku) -->
   <g filter="url(#shadow)">
-    <rect x="630" y="260" width="180" height="44" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
-    <rect x="630" y="260" width="4" height="44" rx="2" fill="#3B82F6"/>
+    <rect x="630" y="260" width="180" height="44" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1"/>
+    <rect x="630" y="260" width="4" height="44" rx="2" fill="#94A3B8"/>
     <text x="720" y="280" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">a11y-review</text>
-    <text x="720" y="294" text-anchor="middle" font-size="9" fill="#3B82F6">sonnet</text>
+    <text x="720" y="294" text-anchor="middle" font-size="9" fill="#94A3B8">haiku</text>
   </g>
 
   <!-- structure-review (sonnet) -->

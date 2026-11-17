@@ -200,7 +200,7 @@ log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-v
 diff *size* (change-size), and architectural *signal* (change-impact). None of
 them exploits a fourth, structurally-guaranteed shape: under `/test-improve`'s
 default `refactor-mode: no-refactor`, Phase 5's diff **cannot** contain
-production code, because `/build` rejects it — yet the four opus-tier
+production code, because `/build` rejects it — yet the three opus-tier
 `Scope: always` lenses run on it anyway, per Story and again at phase end.
 
 Whether any of them can be dropped there is an empirical question, so answer

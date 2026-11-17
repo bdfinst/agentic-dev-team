@@ -1,0 +1,1459 @@
+{
+  "run_id": "20261116T110405Z-domain-review-opus-high-a988",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-16T11:04:05Z",
+  "git_sha": "54f4fec9f69acf4e5ecb3a08f145387dc0b32b73",
+  "agent": "domain-review",
+  "grader": "expected-findings",
+  "judge": null,
+  "tier_change_eligible": true,
+  "fidelity": "read-only-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-opus-5-5",
+    "permissionMode": "default",
+    "tools": [
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 20.625144999999996,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "dm-clean-boundaries",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.184631,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1582316,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 2"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1393318,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 2"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1393718,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 2"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1469078,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-leaky-abstraction",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.19325219999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 8"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.18034,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 8",
+                "mustMention: missing 'infrastructure'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1986362,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'abstraction'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.20172020000000002,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 9"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1807162,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-logic-in-ui",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.18975619999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-6, got 7",
+                "severities.error: expected 2-4, got 1",
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.16532799999999997,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.17148799999999997,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.18506779999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-6, got 8",
+                "severities.error: expected 2-4, got 5",
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1803556,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-6, got 7",
+                "severities.error: expected 2-4, got 5",
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-membership-renewal",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1612442,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.17307519999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1606954,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.15654759999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.15783919999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-missing-dtos",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.158484,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1563636,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1552274,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 8"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.17329499999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 9"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1700436,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-proper-events",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1616154,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1651344,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.1257706,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1514144,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 2"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1462982,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-transfer-limits",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.18225999999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 6"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.19729080000000002,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 6"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.17784719999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.20936339999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'fail'",
+                "issueCount: expected 0-0, got 6"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.1707434,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 30,
+        "pass": 5,
+        "clean_fixture_false_positives": 14,
+        "actual_cost_usd": 5.9256874,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 10.312572499999998,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "dm-clean-boundaries",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08479,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0669104,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.06395419999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 2"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0659223,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 2"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0656142,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-leaky-abstraction",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.08166059999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0842564,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'infrastructure'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0821626,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'abstraction'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0789983,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'abstraction'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.08748829999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'abstraction'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-logic-in-ui",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.07646449999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0729042,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.07721229999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-6, got 7",
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.07355229999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "severities.error: expected 2-4, got 1",
+                "mustMention: missing 'business logic'",
+                "mustMention: missing 'controller'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.07532610000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-membership-renewal",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0784223,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0759002,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0713721,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0748621,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0709421,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-missing-dtos",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0729484,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0709182,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.071582,
+              "cost_reported": true,
+              "grader_messages": [
+                "mustMention: missing 'DTO'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.0705901,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.072662,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-proper-events",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0716903,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0753617,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0736417,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0704798,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.07925360000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-transfer-limits",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0926583,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0847381,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0869362,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.0805481,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.09416809999999999,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 29,
+        "pass": 6,
+        "clean_fixture_false_positives": 14,
+        "actual_cost_usd": 2.6768921,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "xhigh",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "tools_withheld": [
+        "Skill",
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk"
+      ],
+      "trials_per_fixture": 5,
+      "estimated_cost_usd": 20.625144999999996,
+      "estimated_judge_cost_usd": 0.0,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "default",
+        "tools": [
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "dm-clean-boundaries",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.19554359999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.196272,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.239836,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.24013980000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2750594,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-leaky-abstraction",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.5783552000000001,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 10"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.3887918,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 10"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.45066419999999996,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 10"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.285268,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 9"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.5043722,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 10",
+                "mustMention: missing 'abstraction'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-logic-in-ui",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2255598,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-6, got 7",
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.3040398,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-6, got 8",
+                "severities.error: expected 2-4, got 5",
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.29621600000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-6, got 8",
+                "severities.error: expected 2-4, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2958598,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-6, got 8",
+                "severities.error: expected 2-4, got 5",
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.246436,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-6, got 7",
+                "mustMention: missing 'business logic'"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-membership-renewal",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2557956,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 6"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2973556,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 7"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.20276319999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 3"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2513594,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 5"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2432594,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 1-2, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-missing-dtos",
+          "kind": "file",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "pass",
+              "cost_usd": 0.2677658,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2776778,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 10"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "pass",
+              "cost_usd": 0.2314792,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.21305539999999998,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 8"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.22081539999999997,
+              "cost_reported": true,
+              "grader_messages": [
+                "issueCount: expected 3-7, got 8"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-proper-events",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.27703259999999996,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2585386,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.22321860000000002,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2858252,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.3143258,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-1, got 2"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "dm-transfer-limits",
+          "kind": "file",
+          "expected_clean": true,
+          "trials": [
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.41877139999999996,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'fail'",
+                "issueCount: expected 0-0, got 6"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.36203399999999997,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 6"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.3587314,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.2857476,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'warn'",
+                "issueCount: expected 0-0, got 6"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "graded_fail",
+              "cost_usd": 0.29960760000000003,
+              "cost_reported": true,
+              "grader_messages": [
+                "status: expected 'pass', got 'fail'",
+                "issueCount: expected 0-0, got 4"
+              ],
+              "error": null,
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 0,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 33,
+        "pass": 2,
+        "clean_fixture_false_positives": 15,
+        "actual_cost_usd": 10.2675732,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "downgrade",
+    "reason": "recall, clean-fixture false positives and parse all hold",
+    "arm": "step-down",
+    "model": "sonnet",
+    "effort": "high",
+    "downgrade": {
+      "passes": true,
+      "reason": "recall, clean-fixture false positives and parse all hold"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "step-up catches no expected finding in at least half its trials that the current tier misses in every trial"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 4,
+        "trials": 20
+      },
+      "step-down": {
+        "passes": 5,
+        "trials": 20
+      },
+      "step-up": {
+        "passes": 2,
+        "trials": 20
+      }
+    }
+  }
+}

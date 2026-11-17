@@ -154,9 +154,9 @@ _LARGE_PR_BODY_FIXTURE = "filler line\n" * 6000 + "This does not close #7\n"
 ORCHESTRATOR_RUNS_STDERR = "INFO: dispatching persona codebase-recon\n"
 
 _SELECT_LENSES_OUTPUT = (
-    '{"lenses": ["concurrency-review", "doc-review", "naming-review", '
-    '"performance-review", "spec-compliance-review", "structure-review", '
-    '"test-review", "arch-review", "correctness-review", "domain-review", '
+    '{"lenses": ["concurrency-review", "doc-review", "domain-review", '
+    '"naming-review", "performance-review", "spec-compliance-review", '
+    '"structure-review", "test-review", "arch-review", "correctness-review", '
     '"security-review"], "warnings": []}\n'
 )
 

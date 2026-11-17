@@ -1,0 +1,1027 @@
+{
+  "run_id": "20261116T110405Z-codebase-recon-opus-high-4662",
+  "status": "complete",
+  "abort_reason": null,
+  "created": "2026-11-16T11:04:05Z",
+  "git_sha": "54f4fec9f69acf4e5ecb3a08f145387dc0b32b73",
+  "agent": "codebase-recon",
+  "grader": "rubric",
+  "judge": {
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "rubric": "evals/model-effort/rubrics/codebase-recon.md",
+    "criteria": [
+      "envelope-present",
+      "rationale-per-entry-point",
+      "no-fabricated-paths",
+      "surface-not-findings"
+    ]
+  },
+  "tier_change_eligible": false,
+  "fidelity": "sandboxed-write-profile",
+  "knowledge_dir": "plugins/dev-team/knowledge",
+  "session_config": {
+    "model": "claude-opus-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Bash",
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "mcp_servers": [],
+    "plugins": [
+      "cc-plugin-agents-md",
+      "cc-plugin-telemetry",
+      "cc-plugin-privacy",
+      "cc-plugin-plugin-authoring"
+    ],
+    "cwd": "<staged>"
+  },
+  "arms": [
+    {
+      "label": "baseline",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk",
+        "mcp__plugin_repowise_repowise__get_why"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 18.06957,
+      "estimated_judge_cost_usd": 1.1156199999999998,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "recon-flask-api",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.6870464,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.5775275999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.5781596,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.7880446,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.6669476000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.7390168000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 4 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.5725194,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.5316182,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.753007,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.6303424000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "recon-ml-service-hard",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.0000394,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.4898364,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 5 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.8337694000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.858182,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 4 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.8604038,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.9817466,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.580012,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.683234,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.7807154000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.7790906,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "recon-pnpm-monorepo",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.9192766,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 4 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.8581635999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.6881288000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.7062644,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.7487126,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.8187312,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.9329315999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.7951804,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.9002162,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.6958884000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 30,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 0,
+        "pass": 0,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 23.434753,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-down",
+      "model": "sonnet",
+      "model_id": "claude-sonnet-5-5",
+      "model_id_note": null,
+      "effort": "high",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk",
+        "mcp__plugin_repowise_repowise__get_why"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 9.034785,
+      "estimated_judge_cost_usd": 1.1156199999999998,
+      "session_config": {
+        "model": "claude-sonnet-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "recon-flask-api",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.18734299999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1611722,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.18092750000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.18750630000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2749239,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1503447,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2830392,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.16399270000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1507199,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2546387,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "recon-ml-service-hard",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2212354,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2442819,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3903757,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2113775,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2171304,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.23779099999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.23750140000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3456851,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2985276,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.27211019999999997,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "recon-pnpm-monorepo",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.1866652,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2451972,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.22703050000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3032455,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.24734589999999995,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2289394,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2090583,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.2099648,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.3393151,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.32161670000000003,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 0,
+        "cli_error": 0,
+        "tool_violation": 30,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 0,
+        "pass": 0,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 7.1890029,
+        "unreported_trials_estimate_usd": 0.0,
+        "judge_cost_usd": 0.0
+      }
+    },
+    {
+      "label": "step-up",
+      "model": "opus",
+      "model_id": "claude-opus-5-5",
+      "model_id_note": null,
+      "effort": "xhigh",
+      "tools_enabled": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "tools_withheld": [
+        "mcp__codegraph__*",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        "mcp__plugin_repowise_repowise__get_risk",
+        "mcp__plugin_repowise_repowise__get_why"
+      ],
+      "trials_per_fixture": 10,
+      "estimated_cost_usd": 18.06957,
+      "estimated_judge_cost_usd": 1.1156199999999998,
+      "session_config": {
+        "model": "claude-opus-5-5",
+        "permissionMode": "acceptEdits",
+        "tools": [
+          "Bash",
+          "Glob",
+          "Grep",
+          "Read"
+        ],
+        "mcp_servers": [],
+        "plugins": [
+          "cc-plugin-agents-md",
+          "cc-plugin-telemetry",
+          "cc-plugin-privacy",
+          "cc-plugin-plugin-authoring"
+        ],
+        "cwd": "<staged>"
+      },
+      "fixtures": [
+        {
+          "stem": "recon-flask-api",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.1169744000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.5636628,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.0472974,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.0586048,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 0.9752428000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.0197998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.1882776,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "timeout",
+              "cost_usd": 0.0,
+              "cost_reported": false,
+              "grader_messages": [],
+              "error": "trial exceeded the time limit",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.3233527999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.3159542000000002,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "recon-ml-service-hard",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.421856,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.2197438,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.2174559999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.3126466,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 5 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.2226347999999998,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 4 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.0144666,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.372328,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.0147556,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 2.2591374,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 5 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.2432136,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        },
+        {
+          "stem": "recon-pnpm-monorepo",
+          "kind": "directory",
+          "expected_clean": false,
+          "trials": [
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.3917462,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.6576732,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 4 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.4607068,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 4 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.5298218,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 5 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "timeout",
+              "cost_usd": 1.1563996,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "trial exceeded the time limit",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.1993719999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.7949954000000001,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 5 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.1003711999999999,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 2 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.1169376,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            },
+            {
+              "outcome": "tool_violation",
+              "cost_usd": 1.264799,
+              "cost_reported": true,
+              "grader_messages": [],
+              "error": "the CLI denied 3 tool call(s) in the sandbox",
+              "judge_cost_usd": null
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "timeout": 2,
+        "cli_error": 0,
+        "tool_violation": 28,
+        "parse_failure": 0,
+        "judge_error": 0,
+        "graded_fail": 0,
+        "pass": 0,
+        "clean_fixture_false_positives": 0,
+        "actual_cost_usd": 37.5802278,
+        "unreported_trials_estimate_usd": 0.6023189999999999,
+        "judge_cost_usd": 0.0
+      }
+    }
+  ],
+  "mode": "stress",
+  "verdict": {
+    "decision": "keep",
+    "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier",
+    "arm": null,
+    "model": null,
+    "effort": null,
+    "downgrade": {
+      "passes": null,
+      "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier"
+    },
+    "upgrade": {
+      "findings": [],
+      "reason": "rubric-judged evidence needs 10 graded trials per arm per fixture to move a tier"
+    },
+    "recall": {
+      "baseline": {
+        "passes": 0,
+        "trials": 30
+      },
+      "step-down": {
+        "passes": 0,
+        "trials": 30
+      },
+      "step-up": {
+        "passes": 0,
+        "trials": 30
+      }
+    }
+  }
+}

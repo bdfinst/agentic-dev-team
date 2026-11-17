@@ -33,7 +33,7 @@ If `Complexity: trivial`, return `status: skip` immediately. The final `/code-re
 
 Apply the **Inline Review Checkpoint** dispatch table from `${CLAUDE_PLUGIN_ROOT}/knowledge/three-phase-workflow.md#inline-review-checkpoint`, Step 1 — that table is the single source of truth for which agents run on which changed-file classes; do not re-duplicate it here, it drifts.
 
-If `Complexity: complex`, also add the opus-tier agents: `security-review`, `domain-review`, `arch-review` (regardless of file type).
+If `Complexity: complex`, also add `security-review`, `domain-review` and `arch-review` (regardless of file type).
 
 When this selection would dispatch 5+ agents in one wave, note the coordination-cost signal and consider batching high-overlap lenses per `${CLAUDE_PLUGIN_ROOT}/knowledge/wave-consolidation-guidance.md#when-it-applies` — advisory only; dispatch still proceeds.
 
