@@ -17,7 +17,7 @@
       },
       "_calibration": {
         "source": "measured",
-        "note": "Redesigned: the eventually consistent transfer drew 3-8 legitimate findings in every arm of stress runs 20261117T112433Z and 20261117T152932Z. 3 local domain-review trials on the new design reported 0 issues, after a first draft drew a Customer constructor that skipped the ceiling check (fixed)"
+        "note": "Redesigned: the eventually consistent transfer drew 3-9 issues in every arm of stress runs 20261117T112433Z and 20261117T152932Z. 3 unarchived local domain-review trials on the new design reported 0 issues, after a first draft drew a Customer constructor that skipped the ceiling check (fixed)"
       }
     }
   }
