@@ -67,12 +67,12 @@
   <text x="588" y="340" text-anchor="middle" font-size="8" fill="#94A3B8">All</text>
 
   <!-- Review agents (right column) -->
-  <!-- naming-review (haiku) -->
+  <!-- naming-review (sonnet) -->
   <g filter="url(#shadow)">
-    <rect x="630" y="20" width="180" height="44" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1"/>
-    <rect x="630" y="20" width="4" height="44" rx="2" fill="#94A3B8"/>
+    <rect x="630" y="20" width="180" height="44" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
+    <rect x="630" y="20" width="4" height="44" rx="2" fill="#3B82F6"/>
     <text x="720" y="40" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">naming-review</text>
-    <text x="720" y="54" text-anchor="middle" font-size="9" fill="#94A3B8">haiku</text>
+    <text x="720" y="54" text-anchor="middle" font-size="9" fill="#3B82F6">sonnet</text>
   </g>
 
   <!-- test-review (sonnet) -->
@@ -99,12 +99,12 @@
     <text x="720" y="234" text-anchor="middle" font-size="9" fill="#3B82F6">sonnet</text>
   </g>
 
-  <!-- a11y-review (sonnet) -->
+  <!-- a11y-review (haiku) -->
   <g filter="url(#shadow)">
-    <rect x="630" y="260" width="180" height="44" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
-    <rect x="630" y="260" width="4" height="44" rx="2" fill="#3B82F6"/>
+    <rect x="630" y="260" width="180" height="44" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1"/>
+    <rect x="630" y="260" width="4" height="44" rx="2" fill="#94A3B8"/>
     <text x="720" y="280" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">a11y-review</text>
-    <text x="720" y="294" text-anchor="middle" font-size="9" fill="#3B82F6">sonnet</text>
+    <text x="720" y="294" text-anchor="middle" font-size="9" fill="#94A3B8">haiku</text>
   </g>
 
   <!-- structure-review (sonnet) -->
