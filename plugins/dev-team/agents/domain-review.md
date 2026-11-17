@@ -20,7 +20,7 @@ Cites:
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
-Status: pass=clean model, warn=minor issues, fail=boundary violations
+Status: pass=clean model, warn=warnings or suggestions only, fail=any error-severity finding
 Severity: error=violation that causes data exposure, cross-context coupling, or untestable code, including a business rule in a UI or controller layer, testable only through the transport; warning=misplaced logic between domain and application layers or missing abstraction that adds friction; suggestion=modeling improvement with no immediate harm
 Confidence: high=mechanical (add missing DTO, rename to domain term); medium=direction clear, entity/service split may have tradeoffs; none=requires human judgment (aggregate boundary decisions, bounded context design)
 
