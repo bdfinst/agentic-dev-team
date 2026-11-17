@@ -1,6 +1,6 @@
 // PASS: OnPush + immutable updates, takeUntilDestroyed cleanup, correct Signal usage
 
-import { Component, ChangeDetectionStrategy, Input, inject, DestroyRef } from "@angular/core";
+import { Component, ChangeDetectionStrategy, input, inject, DestroyRef } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { signal, computed, effect } from "@angular/core";
 import { interval } from "rxjs";
@@ -12,23 +12,29 @@ interface Config {
 @Component({
   selector: "app-counter",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<span>{{ doubled() }}</span>`,
+  template: `
+    <span>{{ doubled() }}</span>
+    <ul>
+      @for (item of items(); track $index) {
+        <li>{{ item }}</li>
+      }
+    </ul>
+  `,
 })
 export class CounterComponent {
-  @Input() config!: Config;
+  // Correct: signal input, so computed() below re-runs when the parent passes a new config
+  config = input<Config>({ multiplier: 1 });
 
   private destroyRef = inject(DestroyRef);
 
   // Correct: signal wraps a primitive, updated via set()/update() with a new value
   count = signal(0);
-  doubled = computed(() => this.count() * (this.config?.multiplier ?? 1));
+  doubled = computed(() => this.count() * this.config().multiplier);
+  items = signal<readonly string[]>([]);
 
-  // Correct: effect only reads `count`, writes to a *different* signal
-  lastUpdated = signal<number | null>(null);
-  private logEffect = effect(() => {
-    const value = this.count();
-    this.lastUpdated.set(Date.now());
-    void value;
+  // Correct: effect reads `count` and performs a non-signal side effect — no signal writes
+  private persistEffect = effect(() => {
+    sessionStorage.setItem("counter", String(this.count()));
   });
 
   // Correct: RxJS subscription cleaned up via takeUntilDestroyed — no manual
@@ -41,9 +47,8 @@ export class CounterComponent {
       });
   }
 
-  // Correct: replaces the reference instead of mutating in place, so OnPush
-  // change detection sees a new identity
-  addItem(items: readonly string[], next: string): string[] {
-    return [...items, next];
+  // Correct: replaces the array reference instead of mutating in place
+  addItem(next: string): void {
+    this.items.update((items) => [...items, next]);
   }
 }

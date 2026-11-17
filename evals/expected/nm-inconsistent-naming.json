@@ -5,9 +5,15 @@
   "agents": {
     "naming-review": {
       "expectedStatus": "fail",
-      "issueCount": { "min": 3, "max": 7 },
-      "severities": { "warning": { "min": 2, "max": 5 } },
-      "mustMention": ["inconsistent"]
+      "issueCount": { "min": 3, "max": 10 },
+      "severities": {
+        "warning": { "min": 2, "max": 8 }
+      },
+      "mustMention": ["inconsistent"],
+      "_calibration": {
+        "source": "measured",
+        "note": "Range raised to the fixture's true defect count. Grouped per the agent's Phase 3 rules, the fixture holds 8 warning-level findings: (1) booleans missing is/has prefix: active, enabled, debugMode; (2) abbreviations: Mgr, Acct, rm, Cfg/loadCfg, db; inconsistent naming, one per concept: (3) User/member/account entity, (4) name/memberName, (5) email/contactEmail, (6) id/accountId, (7) active/enabled; (8) vague checkUser. Optional suggestions (AccountInfo 'Info' suffix, lambda param 'a') can push the total to 10. Run 20261115T133150Z-naming-review-sonnet-high-06c1 measured 8-10 issues and 6-8 warnings across sonnet/high, haiku/high and opus/high; 3-7/2-5 undercounted."
+      }
     }
   }
 }

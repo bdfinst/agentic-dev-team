@@ -8,7 +8,19 @@ class Invoice {
   id: string;
   customerId: string;
   totalCents: number;
-  status: string;
+  private status: "unpaid" | "paid" | "declined" | "retry_later" = "unpaid";
+
+  markPaid(): void {
+    this.status = "paid";
+  }
+
+  markDeclined(): void {
+    this.status = "declined";
+  }
+
+  markRetryLater(): void {
+    this.status = "retry_later";
+  }
 
   async save(pool: Pool): Promise<void> {
     await pool.query(
@@ -30,8 +42,6 @@ class Invoice {
 
 // Issue 2: Business logic depends on HTTP implementation details
 class PricingService {
-  constructor(private readonly pool: Pool) {}
-
   async calculateDiscount(customerId: string, subtotal: number): Promise<number> {
     // Fetches loyalty tier from external service using raw HTTP
     const response = await axios.get(
@@ -50,6 +60,7 @@ class PricingService {
 
 // Issue 3: Repository mixed into domain entity as a method
 class Customer {
+  id: string;
   name: string;
   email: string;
 
@@ -71,13 +82,15 @@ class PaymentProcessor {
         amount: invoice.totalCents,
         currency: "usd",
       });
-      invoice.status = "paid";
+      invoice.markPaid();
     } catch (err: any) {
       // HTTP status codes driving business logic
       if (err.response?.status === 402) {
-        invoice.status = "declined";
+        invoice.markDeclined();
       } else if (err.response?.status === 429) {
-        invoice.status = "retry_later";
+        invoice.markRetryLater();
+      } else {
+        throw err;
       }
     }
   }

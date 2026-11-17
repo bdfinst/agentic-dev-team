@@ -51,7 +51,13 @@ export class Membership {
     tier: MembershipTier,
     expiresOn: Date,
   ): Membership {
-    return new Membership(membershipId, memberId, tier, expiresOn, false);
+    return new Membership(
+      membershipId,
+      memberId,
+      tier,
+      new Date(expiresOn),
+      false,
+    );
   }
 
   get currentTier(): MembershipTier {
@@ -59,7 +65,7 @@ export class Membership {
   }
 
   get expiry(): Date {
-    return this.expiresOn;
+    return new Date(this.expiresOn);
   }
 
   upgradeToPremium(): void {
@@ -77,6 +83,9 @@ export class Membership {
     if (this.cancelled) {
       throw new Error("a cancelled membership cannot be renewed");
     }
+    if (!Number.isInteger(renewalTermMonths) || renewalTermMonths <= 0) {
+      throw new RangeError("renewalTermMonths must be a positive integer");
+    }
     const response = await axios.get<{ amountCents: number; currency: string }>(
       `https://pricing.internal/api/tiers/${this.tier}/price`,
     );
@@ -91,7 +100,7 @@ export class Membership {
       this.membershipId,
       this.tier,
       price,
-      nextExpiry,
+      new Date(nextExpiry),
     );
   }
 }
@@ -100,18 +109,15 @@ export class Membership {
 
 export interface MembershipRepository {
   findById(membershipId: string): Promise<Membership | null>;
-  save(membership: Membership): Promise<void>;
-}
-
-export interface EventPublisher {
-  publish(event: MembershipRenewed): Promise<void>;
+  // Saves the membership and appends its events to the outbox in one transaction
+  save(
+    membership: Membership,
+    events: readonly MembershipRenewed[],
+  ): Promise<void>;
 }
 
 export class RenewMembership {
-  constructor(
-    private readonly memberships: MembershipRepository,
-    private readonly events: EventPublisher,
-  ) {}
+  constructor(private readonly memberships: MembershipRepository) {}
 
   async execute(
     membershipId: string,
@@ -122,7 +128,6 @@ export class RenewMembership {
       throw new Error(`membership ${membershipId} not found`);
     }
     const renewed = await membership.renew(renewalTermMonths);
-    await this.memberships.save(membership);
-    await this.events.publish(renewed);
+    await this.memberships.save(membership, [renewed]);
   }
 }

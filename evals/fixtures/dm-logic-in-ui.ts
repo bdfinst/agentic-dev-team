@@ -1,6 +1,7 @@
 // FAIL: Business rules implemented in the UI/controller layer
 
 import { Request, Response } from "express";
+import { catalog } from "./catalog";
 
 interface CartItem {
   productId: string;
@@ -12,7 +13,8 @@ interface CartItem {
 
 // Issue 1: Pricing rules embedded in a route handler
 export async function checkoutHandler(req: Request, res: Response) {
-  const cart: CartItem[] = req.body.items;
+  // Prices and weights come from the catalog, never from the request body
+  const cart: CartItem[] = await catalog.priceItems(req.body.items);
   const promoCode: string | undefined = req.body.promoCode;
 
   // Business rule: quantity discount tiers

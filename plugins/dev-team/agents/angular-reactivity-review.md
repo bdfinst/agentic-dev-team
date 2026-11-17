@@ -19,8 +19,9 @@ Cites: [adversarial-review-protocol]
 
 Scope: Angular component, directive, and service files (`.component.ts`,
 `.component.html`, `.service.ts`, and general `.ts` files in Angular projects).
-Skip this agent entirely if the project has no `@angular/core` dependency in
-`package.json` (or equivalent manifest).
+Skip this agent when neither the project manifest nor any target file
+shows Angular: no `@angular/core` dependency in `package.json` (or equivalent
+manifest) and no target file importing from `@angular/core`.
 Covers Zone.js-based Angular (Angular 2–17) and Angular Signals (Angular 16+
 `signal()`, `computed()`, `effect()`).
 
@@ -36,8 +37,7 @@ Context needs: full-file
 
 Return `{"status": "skip", "issues": [], "summary": "No Angular files in target"}` when:
 
-- No `@angular/core` dependency found in the project manifest (`package.json`, `package-lock.json`, `yarn.lock`, etc.)
-- No Angular component/service/directive files in the target set
+- No `@angular/core` dependency is found in the project manifest (`package.json`, `package-lock.json`, `yarn.lock`, etc.) **and** no target file imports from `@angular/core`. An import from `@angular/core` in a target file is enough to review it, even when no manifest is available.
 
 ## Detect
 
@@ -82,7 +82,7 @@ ExpressionChangedAfterItHasBeenCheckedError patterns:
 
 After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these angular-reactivity-review-specific challenges:
 
-- Did you confirm `@angular/core` is actually in the project's dependency tree before flagging any finding?
+- Did you confirm the code is Angular (an `@angular/core` dependency in the manifest, or an `@angular/core` import in the target file) before flagging any finding?
 - For each OnPush finding, did you verify the component actually uses `ChangeDetectionStrategy.OnPush` (not the default `Default` strategy)?
 - For each subscription-leak finding, did you check for `takeUntil`, `takeUntilDestroyed`, or `AsyncPipe` usage that already handles cleanup?
 - For each Zone.js finding, did you confirm the callback actually runs outside Zone.js (via `runOutsideAngular` or a non-patched async API), not just inside a plain `setTimeout`?

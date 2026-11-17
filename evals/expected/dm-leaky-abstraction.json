@@ -5,9 +5,15 @@
   "agents": {
     "domain-review": {
       "expectedStatus": "fail",
-      "issueCount": { "min": 3, "max": 7 },
-      "severities": { "error": { "min": 2, "max": 5 } },
-      "mustMention": ["abstraction", "infrastructure"]
+      "issueCount": { "min": 3, "max": 8 },
+      "severities": {
+        "error": { "min": 2, "max": 5 }
+      },
+      "mustMention": ["infrastructure"],
+      "_calibration": {
+        "source": "measured",
+        "note": "Opus stress run 20261116T110405Z reported 8-10 issues: each of the four planted classes carries two separable leaks (Invoice save and load SQL; HTTP call and env secret; Customer query and Object.assign hydration; HTTP call and status-code-driven decisions), so max is 8; unrelated anemic-status, unused-pool and missing-id gaps removed from the fixture. 'abstraction' dropped: correct answers say 'leak'/'infrastructure' without it"
+      }
     }
   }
 }
