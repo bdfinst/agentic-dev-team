@@ -11,7 +11,9 @@ interface Task {
   readonly updatedAt: Date;
 }
 
-type TaskStatus = "open" | "in_progress" | "done" | "cancelled";
+const TASK_STATUSES = ["open", "in_progress", "done", "cancelled"] as const;
+
+type TaskStatus = (typeof TASK_STATUSES)[number];
 
 interface CreateTaskInput {
   readonly title: string;
@@ -28,7 +30,6 @@ interface TaskFilter {
   readonly status?: TaskStatus;
   readonly assigneeId?: string;
   readonly limit?: number;
-  readonly offset?: number;
 }
 
 // --- Validation ---
@@ -40,32 +41,37 @@ function validateTitle(title: string): Result<string, string> {
   return ok(trimmed);
 }
 
+function isTaskStatus(value: string): value is TaskStatus {
+  return (TASK_STATUSES as readonly string[]).includes(value);
+}
+
 function validateStatus(status: string): Result<TaskStatus, string> {
-  const valid: ReadonlyArray<TaskStatus> = [
-    "open",
-    "in_progress",
-    "done",
-    "cancelled",
-  ];
-  if (!valid.includes(status as TaskStatus)) {
-    return err(`Invalid status: ${status}. Must be one of: ${valid.join(", ")}`);
+  if (!isTaskStatus(status)) {
+    const allowed = TASK_STATUSES.join(", ");
+    return err(`Invalid status: ${status}. Must be one of: ${allowed}`);
   }
-  return ok(status as TaskStatus);
+  return ok(status);
+}
+
+function validateLimit(raw: unknown): Result<number, string> {
+  const limit = Number(raw);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    return err("Limit must be an integer between 1 and 100");
+  }
+  return ok(limit);
 }
 
 function validateFilter(raw: Record<string, unknown>): Result<TaskFilter, string> {
-  const filter: TaskFilter = {};
+  let filter: TaskFilter = {};
   if (raw.status !== undefined) {
-    const result = validateStatus(String(raw.status));
-    if (!result.ok) return err(result.error);
-    return ok({ ...filter, status: result.value });
+    const status = validateStatus(String(raw.status));
+    if (!status.ok) return err(status.error);
+    filter = { ...filter, status: status.value };
   }
   if (raw.limit !== undefined) {
-    const limit = Number(raw.limit);
-    if (isNaN(limit) || limit < 1 || limit > 100) {
-      return err("Limit must be between 1 and 100");
-    }
-    return ok({ ...filter, limit });
+    const limit = validateLimit(raw.limit);
+    if (!limit.ok) return err(limit.error);
+    filter = { ...filter, limit: limit.value };
   }
   return ok(filter);
 }
@@ -91,36 +97,47 @@ class TaskService {
     id: string,
     input: UpdateTaskInput
   ): Promise<Result<Task, string>> {
-    const existing = await this.db.findById(id);
-    if (!existing) return err(`Task not found: ${id}`);
+    const existing = await this.findExisting(id);
+    if (!existing.ok) return err(existing.error);
 
+    let changes = input;
     if (input.title !== undefined) {
       const titleResult = validateTitle(input.title);
       if (!titleResult.ok) return err(titleResult.error);
+      changes = { ...changes, title: titleResult.value };
     }
 
     if (input.status !== undefined) {
-      const transition = validateTransition(existing.status, input.status);
+      const transition = validateTransition(existing.value.status, input.status);
       if (!transition.ok) return err(transition.error);
     }
 
-    const updated = await this.db.update(id, input);
+    const updated = await this.db.update(id, changes);
     return ok(updated);
   }
 
-  async list(filter: TaskFilter): Promise<Result<readonly Task[], string>> {
-    const tasks = await this.db.findMany(filter);
+  async list(
+    query: Record<string, unknown>
+  ): Promise<Result<readonly Task[], string>> {
+    const filter = validateFilter(query);
+    if (!filter.ok) return err(filter.error);
+    const tasks = await this.db.findMany(filter.value);
     return ok(tasks);
   }
 
   async remove(id: string): Promise<Result<void, string>> {
-    const existing = await this.db.findById(id);
-    if (!existing) return err(`Task not found: ${id}`);
-    if (existing.status === "in_progress") {
+    const existing = await this.findExisting(id);
+    if (!existing.ok) return err(existing.error);
+    if (existing.value.status === "in_progress") {
       return err("Cannot delete an in-progress task");
     }
     await this.db.delete(id);
     return ok(undefined);
+  }
+
+  private async findExisting(id: string): Promise<Result<Task, string>> {
+    const task = await this.db.findById(id);
+    return task ? ok(task) : err(`Task not found: ${id}`);
   }
 }
 
