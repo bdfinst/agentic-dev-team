@@ -40,17 +40,20 @@ interface EventBus {
   publish(event: DomainEvent): Promise<void>;
 }
 
-// Order aggregate API used here: markPaid(paidAt) records payment and returns the
-// OrderFulfillmentRequested it raises, built from its own address snapshot and line items
+// Order aggregate API used here: markPaid(paidAt) records payment and raises an
+// OrderFulfillmentRequested built from its own address snapshot and line items
 interface Order {
   readonly id: string;
   readonly isPaid: boolean;
-  markPaid(paidAt: Date): OrderFulfillmentRequested;
+  readonly raisedEvents: readonly DomainEvent[];
+  markPaid(paidAt: Date): void;
+  clearRaisedEvents(): void; // called by the repository once the events are in the outbox
 }
 
 interface OrderRepository {
   findById(orderId: string): Promise<Order | null>;
-  saveWithOutbox(order: Order, events: readonly DomainEvent[]): Promise<void>;
+  // Saves the order and appends its raised events to the outbox in one transaction
+  saveWithOutbox(order: Order): Promise<void>;
 }
 
 // Order context publishes events; does not call shipping directly
@@ -62,11 +65,10 @@ class OrderCompletionHandler {
     if (!order) throw new OrderNotFoundError(paymentEvent.orderId);
     if (order.isPaid) return; // redelivered event: already handled
 
-    // The aggregate changes state and raises the event it implies
-    const fulfillment = order.markPaid(paymentEvent.occurredAt);
-    // Saves the order and appends the event to the outbox in one transaction;
-    // an outbox relay hands it to the EventBus, so no event is lost or orphaned
-    await this.orderRepo.saveWithOutbox(order, [fulfillment]);
+    // The aggregate changes state and raises the event it implies; an outbox
+    // relay hands the event to the EventBus, so no event is lost or orphaned
+    order.markPaid(paymentEvent.occurredAt);
+    await this.orderRepo.saveWithOutbox(order);
   }
 }
 

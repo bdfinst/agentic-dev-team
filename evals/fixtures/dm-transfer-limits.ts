@@ -147,8 +147,13 @@ export class Account {
     );
   }
 
-  pullEvents(): AccountEvent[] {
-    return this.pendingEvents.splice(0);
+  get raisedEvents(): readonly AccountEvent[] {
+    return this.pendingEvents;
+  }
+
+  // Called by the repository once the raised events are in the outbox
+  clearRaisedEvents(): void {
+    this.pendingEvents.length = 0;
   }
 }
 
@@ -188,7 +193,9 @@ export class TransferPolicy {
 
 export interface AccountRepository {
   findById(accountId: string): Promise<Account | null>;
-  // Saves one account and appends its pulled events to the outbox in one transaction
+  // Saves one account and appends its raised events to the outbox in one
+  // transaction; rejects a stale account version, so two concurrent sends from
+  // one account cannot both pass the daily limit
   save(account: Account): Promise<void>;
 }
 
