@@ -42,9 +42,10 @@ TOOL_TURN_MULTIPLIER = 3
 # own context (its system prompt and tool definitions, cached or not), which the
 # input count leaves out. Fitted as output because the per-model spread of the
 # reported costs follows the output rate better than the input rate. The lowest
-# estimate, an opus/high arm of an agent that explores a whole repository, sits
-# only about 3% above its arm's cost, so after editing this constant,
-# the others above or the pricing file, re-run
+# estimate, the opus/high baseline arm of codebase-recon, which explores a whole
+# repository, sits only about 3% above its arm's cost. The CLI sandbox denied
+# tool calls in nearly every trial of that run, so re-fit once that gap closes.
+# After editing this constant, the others above or the pricing file, re-run
 # tests/scripts/model_effort/test_estimate_calibration.py.
 OUTPUT_TOKENS_PER_TRIAL = 38_000
 # The size of the answer a rubric judge reads, in tokens: a findings JSON.

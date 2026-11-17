@@ -91,12 +91,12 @@
     <text x="720" y="174" text-anchor="middle" font-size="9" fill="#EF4444">opus</text>
   </g>
 
-  <!-- domain-review (opus) -->
+  <!-- domain-review (sonnet) -->
   <g filter="url(#shadow)">
-    <rect x="630" y="200" width="180" height="44" rx="10" fill="#FEF2F2" stroke="#EF4444" stroke-width="1"/>
-    <rect x="630" y="200" width="4" height="44" rx="2" fill="#EF4444"/>
+    <rect x="630" y="200" width="180" height="44" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
+    <rect x="630" y="200" width="4" height="44" rx="2" fill="#3B82F6"/>
     <text x="720" y="220" text-anchor="middle" font-size="11" font-weight="600" fill="#1E293B">domain-review</text>
-    <text x="720" y="234" text-anchor="middle" font-size="9" fill="#EF4444">opus</text>
+    <text x="720" y="234" text-anchor="middle" font-size="9" fill="#3B82F6">sonnet</text>
   </g>
 
   <!-- a11y-review (sonnet) -->
