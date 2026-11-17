@@ -37,7 +37,7 @@ interface TaskFilter {
 function validateTitle(title: string): Result<string, string> {
   const trimmed = title.trim();
   if (trimmed.length === 0) return err("Title must not be empty");
-  if (trimmed.length > 200) return err("Title must be under 200 characters");
+  if (trimmed.length > 200) return err("Title must be at most 200 characters");
   return ok(trimmed);
 }
 
@@ -61,7 +61,9 @@ function validateLimit(raw: unknown): Result<number, string> {
   return ok(limit);
 }
 
-function validateFilter(raw: Record<string, unknown>): Result<TaskFilter, string> {
+function validateFilter(
+  raw: Record<string, unknown>,
+): Result<TaskFilter, string> {
   let filter: TaskFilter = {};
   if (raw.status !== undefined) {
     const status = validateStatus(String(raw.status));
@@ -72,6 +74,9 @@ function validateFilter(raw: Record<string, unknown>): Result<TaskFilter, string
     const limit = validateLimit(raw.limit);
     if (!limit.ok) return err(limit.error);
     filter = { ...filter, limit: limit.value };
+  }
+  if (raw.assigneeId !== undefined) {
+    filter = { ...filter, assigneeId: String(raw.assigneeId) };
   }
   return ok(filter);
 }
@@ -95,7 +100,7 @@ class TaskService {
 
   async update(
     id: string,
-    input: UpdateTaskInput
+    input: UpdateTaskInput,
   ): Promise<Result<Task, string>> {
     const existing = await this.findExisting(id);
     if (!existing.ok) return err(existing.error);
@@ -108,7 +113,10 @@ class TaskService {
     }
 
     if (input.status !== undefined) {
-      const transition = validateTransition(existing.value.status, input.status);
+      const transition = validateTransition(
+        existing.value.status,
+        input.status,
+      );
       if (!transition.ok) return err(transition.error);
     }
 
@@ -117,7 +125,7 @@ class TaskService {
   }
 
   async list(
-    query: Record<string, unknown>
+    query: Record<string, unknown>,
   ): Promise<Result<readonly Task[], string>> {
     const filter = validateFilter(query);
     if (!filter.ok) return err(filter.error);
@@ -152,7 +160,7 @@ const VALID_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
 
 function validateTransition(
   from: TaskStatus,
-  to: TaskStatus
+  to: TaskStatus,
 ): Result<TaskStatus, string> {
   const allowed = VALID_TRANSITIONS[from];
   if (!allowed.includes(to)) {
