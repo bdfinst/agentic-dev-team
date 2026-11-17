@@ -61,7 +61,7 @@ Keyboard navigation:
 - Click handlers without corresponding keyboard handlers (onkeydown/onkeyup)
 - Custom interactive elements missing tabindex
 - Focus traps without escape mechanism
-- Missing visible focus indicators (outline:none without replacement)
+- Missing visible focus indicators (outline:none with no replacement; a `:focus-visible` box-shadow or outline that meets 3:1 is a replacement, so do not flag it)
 
 Color and contrast:
 

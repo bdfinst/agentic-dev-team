@@ -8,7 +8,10 @@
       "issueCount": { "min": 2, "max": 5 },
       "severities": { "error": { "min": 2, "max": 5 } },
       "mustMention": ["OnPush"],
-      "mustNotMention": ["async pipe"]
+      "_calibration": {
+        "source": "measured",
+        "note": "Stress run 20261117T124223Z: the baseline found all three defects but failed 5/5 on a ban of 'async pipe', which the agent names as one way to close the leaked subscription; ban removed"
+      }
     }
   }
 }
