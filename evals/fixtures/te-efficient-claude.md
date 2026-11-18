@@ -8,28 +8,23 @@
 
 ## Commands
 
-| Action | Command |
-| ------ | ------- |
-| Dev server | `npm run dev` |
-| Test | `npm test` |
-| Lint | `npm run lint` |
-| Build | `npm run build` |
-| Migrate | `npx prisma migrate dev` |
+- Run scripts from `package.json`.
+- Migrate the database with `npx prisma migrate dev`.
 
 ## Code Style
 
-- Use `Result<T, E>` for all service returns. Never throw from services.
+- Return `Result<T, AppError>` from services. Never throw from services.
 - Prefer `readonly` arrays and `Readonly<T>` for shared data.
 - Name handlers `handleVerbNoun` (e.g., `handleCreateTask`).
 - Name validators `validateNoun` (e.g., `validateTask`).
-- One export per file for services and controllers.
+- Export one symbol per file in services and controllers.
 
 ## File Layout
 
 | Directory | Contents |
 | --------- | -------- |
 | `src/controllers/` | Express route handlers |
-| `src/services/` | Business logic, returns `Result` |
+| `src/services/` | Business logic |
 | `src/models/` | Prisma schema types |
 | `src/middleware/` | Auth, validation, error handling |
 | `src/utils/` | Pure helper functions |
@@ -46,11 +41,10 @@
 | Layer | Strategy |
 | ----- | -------- |
 | Controller | Catch `Result.err`, return HTTP status |
-| Service | Return `Result.err(AppError)` |
 | Middleware | Global error handler logs + 500 |
 
 ## Database
 
-- All queries go through Prisma. No raw SQL.
+- Query only through Prisma. Do not write raw SQL.
 - Use transactions for multi-table writes.
 - Index foreign keys and frequently filtered columns.
