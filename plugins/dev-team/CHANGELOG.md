@@ -1,5 +1,32 @@
 # Changelog
 
+## [14.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.2.1...dev-team-v14.3.0) (2026-11-18)
+
+
+### Features
+
+* **evals:** accept keyword alternatives in mustMention ([#2339](https://github.com/bdfinst/agentic-dev-team/issues/2339)) ([aa97b31](https://github.com/bdfinst/agentic-dev-team/commit/aa97b316d1bbb1996b3dee7c26a1316dd79338d4))
+* **evals:** give every review agent hard and clean fixtures ([#2323](https://github.com/bdfinst/agentic-dev-team/issues/2323)) ([5f4251c](https://github.com/bdfinst/agentic-dev-team/commit/5f4251c53a988963ad4b353248375bf65dbd9b08))
+* **evals:** record the fixture re-runs and repair the fixtures they still failed ([#2333](https://github.com/bdfinst/agentic-dev-team/issues/2333)) ([9c22d9a](https://github.com/bdfinst/agentic-dev-team/commit/9c22d9a98d7959b62d52315397e3e1a233fb64a3))
+* **evals:** repair weak model-effort fixtures and the angular skip clause ([#2331](https://github.com/bdfinst/agentic-dev-team/issues/2331)) ([6db6139](https://github.com/bdfinst/agentic-dev-team/commit/6db6139b65a1020c8da768f74376e3ba8b496b1f))
+* **marketplace-dev:** keep model/effort decision log as an ADR 0026 sync surface ([#2316](https://github.com/bdfinst/agentic-dev-team/issues/2316)) ([2fb82eb](https://github.com/bdfinst/agentic-dev-team/commit/2fb82eb97af94760428d58b49d604cc2a26c4ebf))
+* **metrics:** add session id to consult and checkpoint-abort rows ([#2317](https://github.com/bdfinst/agentic-dev-team/issues/2317)) ([5cd276e](https://github.com/bdfinst/agentic-dev-team/commit/5cd276e8256d909ebad9bc3913577eb6196760e6))
+* **metrics:** persist review report size per round ([#2321](https://github.com/bdfinst/agentic-dev-team/issues/2321)) ([f545097](https://github.com/bdfinst/agentic-dev-team/commit/f545097b07136127d40e322678281bf09e200d08))
+* **metrics:** record tiered-finding expansions (expand-rate) ([#2319](https://github.com/bdfinst/agentic-dev-team/issues/2319)) ([2f86151](https://github.com/bdfinst/agentic-dev-team/commit/2f8615121413c318fdcb14291cf9ec3bdd8bdcc0))
+
+
+### Bug Fixes
+
+* **evals:** repair weak model-effort fixtures and the js-fp-review severity rule ([#2337](https://github.com/bdfinst/agentic-dev-team/issues/2337)) ([2512755](https://github.com/bdfinst/agentic-dev-team/commit/2512755354c399aa62ca0aa274a0af197352964c))
+* **hooks:** stop SessionStart nudges re-firing on compaction ([#2318](https://github.com/bdfinst/agentic-dev-team/issues/2318)) ([cca024b](https://github.com/bdfinst/agentic-dev-team/commit/cca024b9e7aac5b8676a04efa76f6f8dd75b7a92))
+
+
+### Miscellaneous
+
+* **agents:** apply haiku stress-batch model/effort verdicts ([#2328](https://github.com/bdfinst/agentic-dev-team/issues/2328)) ([b76df0b](https://github.com/bdfinst/agentic-dev-team/commit/b76df0bf4167ce0995fdb28247f9d450cb8226d2))
+* **agents:** apply opus stress-batch verdicts and recalibrate the cost estimate ([#2330](https://github.com/bdfinst/agentic-dev-team/issues/2330)) ([c8c286a](https://github.com/bdfinst/agentic-dev-team/commit/c8c286aa97bb8fd4b099102ff1d02f4fd1ebd3bb))
+* **agents:** apply sonnet stress-batch verdicts and recalibrate the cost estimate ([#2329](https://github.com/bdfinst/agentic-dev-team/issues/2329)) ([54f4fec](https://github.com/bdfinst/agentic-dev-team/commit/54f4fec9f69acf4e5ecb3a08f145387dc0b32b73))
+
 ## [14.2.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.2.0...dev-team-v14.2.1) (2026-11-14)
 
 
