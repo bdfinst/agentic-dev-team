@@ -131,6 +131,38 @@ def test_missing_mustmention_keyword_fails(case: Path) -> None:
     assert "mustMention: missing 'layer'" in out
 
 
+def _grade_ar_demo_with_must_mention(case: Path, must_mention: list, message: str):
+    spec = json.loads(EXPECTED_AR_DEMO)
+    spec["agents"]["arch-review"]["mustMention"] = must_mention
+    (case / "expected" / "ar-demo.json").write_text(json.dumps(spec))
+    actual = {"ar-demo": {"agents": {"arch-review": {
+        "status": "fail",
+        "issues": [{"severity": "error", "message": message}],
+        "summary": ""}}}}
+    _write(case, "actuals.json", json.dumps(actual))
+    return _grade(
+        case,
+        "--expected-dir",
+        str(case / "expected"),
+        "--actuals",
+        str(case / "actuals.json"),
+    )
+
+
+def test_mustmention_alternatives_pass_when_any_one_appears(case: Path) -> None:
+    res = _grade_ar_demo_with_must_mention(
+        case, [["layer", "boundary"]], "crosses the domain Boundary")
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+def test_mustmention_alternatives_fail_when_none_appears(case: Path) -> None:
+    res = _grade_ar_demo_with_must_mention(
+        case, [["layer", "boundary"]], "bad import")
+    out = res.stdout + res.stderr
+    assert res.returncode == 1, out
+    assert "mustMention: missing ['layer', 'boundary']" in out
+
+
 def test_mustnotmention_violation_fails(case: Path) -> None:
     _write(
         case,
@@ -651,6 +683,39 @@ def test_registry_check_corpus_rejects_unknown_grader(case: Path) -> None:
     out = res.stdout + res.stderr
     assert res.returncode == 2, out
     assert "unknown grader 'nope'" in out
+
+
+@pytest.mark.parametrize("must_mention", [[[]], [""], [["layer", 3]], "layer"])
+def test_check_corpus_rejects_malformed_mustmention(case: Path, must_mention) -> None:
+    spec = json.loads(EXPECTED_AR_DEMO)
+    spec["agents"]["arch-review"]["mustMention"] = must_mention
+    (case / "expected" / "ar-demo.json").write_text(json.dumps(spec))
+    res = _grade(
+        case,
+        "--check-corpus",
+        "--expected-dir",
+        str(case / "expected"),
+        "--fixtures-dir",
+        str(case / "fixtures"),
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode == 2, out
+    assert "mustMention" in out
+
+
+def test_check_corpus_accepts_mustmention_alternatives(case: Path) -> None:
+    spec = json.loads(EXPECTED_AR_DEMO)
+    spec["agents"]["arch-review"]["mustMention"] = ["layer", ["boundary", "port"]]
+    (case / "expected" / "ar-demo.json").write_text(json.dumps(spec))
+    res = _grade(
+        case,
+        "--check-corpus",
+        "--expected-dir",
+        str(case / "expected"),
+        "--fixtures-dir",
+        str(case / "fixtures"),
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
 
 
 # --- Calibration provenance (#1466) -----------------------------------------

@@ -473,7 +473,8 @@ Compare agent output against expected JSON:
 **Keyword checks:**
 
 - For each keyword in `mustMention`: at least one issue message
-  contains keyword (case-insensitive) → PASS
+  contains keyword (case-insensitive) → PASS. An entry that is a list
+  of alternatives passes when any one of them appears.
 - For each keyword in `mustNotMention`: no issue message contains
   keyword → PASS
 - Violation → FAIL
