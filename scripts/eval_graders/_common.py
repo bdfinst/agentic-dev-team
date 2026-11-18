@@ -14,8 +14,14 @@ def in_range(n: int, rng: dict) -> bool:
     return lo <= n <= hi
 
 
-def mentions(haystack: str, needle: str) -> bool:
-    """Case-insensitive substring membership (the keyword-check primitive)."""
+def mentions(haystack: str, needle: str | list[str]) -> bool:
+    """Case-insensitive substring membership (the keyword-check primitive).
+
+    A list needle is a set of alternatives: any one of them matches. It lets an
+    expectation accept the synonyms a correct agent uses for one concept.
+    """
+    if isinstance(needle, list):
+        return any(mentions(haystack, alt) for alt in needle)
     return needle.lower() in haystack.lower()
 
 

@@ -33,8 +33,10 @@ means PASS:
   `--check-corpus` checks its shape and `scripts/eval_fixture_coverage.py` counts it.
 - **`issueCount: {min, max}`** — the number of reported issues must fall in range.
 - **`severities: {error: {min,max}, ...}`** — the count per severity must fall in range.
-- **`mustMention: [...]`** — every keyword must appear (case-insensitive
-  **substring**) in the issue messages and summary. **All-of.**
+- **`mustMention: [...]`** — every entry must appear (case-insensitive
+  **substring**) in the issue messages and summary. **All-of.** An entry can be a
+  list of alternatives, such as `["compose", "composition", "pipe"]`; any one of
+  them satisfies it.
 - **`mustNotMention: [...]`** — no keyword may appear. **All-of.**
 
 A hard marker sits inside one agent's entry:
@@ -70,7 +72,8 @@ not agent bugs**:
    `issueCount` (+ `error 0-0`) already encode "found clean."
 2. **`mustMention` too strict.** Requiring the exact token `"SRP"` fails when the
    agent says *"responsibilities"* or *"divergent change"*. **Fix:** use **stems**
-   (`"responsibilit"`) and the vocabulary agents emit. Avoid all-of lists
+   (`"responsibilit"`) and the vocabulary agents emit. When a concept has several
+   correct phrasings, list them as alternatives in one entry. Avoid all-of lists
    of rare tokens.
 
 **When a correct agent verdict fails grading, suspect the fixture first.** Verify

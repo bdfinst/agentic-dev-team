@@ -97,6 +97,33 @@ def _entry_grader(block: str, espec: dict) -> str:
 # Allowed `_calibration.source` values (#1466: calibration provenance).
 CALIBRATION_SOURCES = {"measured", "estimated-by-analogy"}
 
+def _is_keyword(kw) -> bool:
+    return isinstance(kw, str) and bool(kw.strip())
+
+
+def keyword_problems(label: str, espec: dict) -> list[str]:
+    """Shape-check `mustMention`/`mustNotMention`: a list whose entries are each a
+    keyword or a non-empty list of alternative keywords."""
+    problems = []
+    for field in ("mustMention", "mustNotMention"):
+        kws = espec.get(field)
+        if kws is None:
+            continue
+        if not isinstance(kws, list):
+            problems.append(f"{label}.{field} must be a list")
+            continue
+        for kw in kws:
+            ok = _is_keyword(kw) or (
+                isinstance(kw, list) and kw and all(_is_keyword(a) for a in kw)
+            )
+            if not ok:
+                problems.append(
+                    f"{label}.{field} entry {kw!r} must be a keyword or a "
+                    f"non-empty list of alternative keywords"
+                )
+    return problems
+
+
 # Allowed `hard.reason` values: why a weaker model tier plausibly misses the
 # expected verdict on this fixture. See evals/README.md "Hard and clean fixtures".
 HARD_REASONS = {"subtle-defect", "distractor", "long-file"}
@@ -220,6 +247,9 @@ def check_corpus(expected_dir: Path, fixtures_dir: Path):
                         )
                 problems.extend(
                     hard_problems(f"{ef.name}: {block}.{name}", espec.get("hard"))
+                )
+                problems.extend(
+                    keyword_problems(f"{ef.name}: {block}.{name}", espec)
                 )
         if fixture_stems and stem not in fixture_stems:
             warnings.append(
