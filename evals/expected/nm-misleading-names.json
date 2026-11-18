@@ -9,10 +9,10 @@
       "severities": {
         "error": { "min": 1, "max": 4 }
       },
-      "mustMention": [["mislead", "inaccurate", "does not describe", "doesn't describe", "does not match", "doesn't match"]],
+      "mustMention": [["mislead", "inaccurate"]],
       "_calibration": {
         "source": "measured",
-        "note": "issueCount max raised to the fixture's true defect count. Distinct naming problems: data (noun as function, error), temp (permanent value named temporary), val (vague), flag (meaningless boolean param), list1/list2 (sequential suffix), processItems (generic verb hiding a filter), handleStuff (vague), x (meaningless), Item.active (boolean missing is/has prefix) = 9, plus an optional generic 'result'. Run 20261115T133150Z-naming-review-sonnet-high-06c1 measured 8-10 issues on haiku/high and opus/high; max 7 undercounted. mustMention 'misleading' kept: it is the agent's own term for error-severity findings and only 1/5 trials per arm omitted it. mustMention now accepts synonyms: 'mislead' covers 'misleading' and 'misleads', and the other alternatives are the phrasings a correct finding uses for the same concept."
+        "note": "issueCount max raised to the fixture's true defect count. Distinct naming problems: data (noun as function, error), temp (permanent value named temporary), val (vague), flag (meaningless boolean param), list1/list2 (sequential suffix), processItems (generic verb hiding a filter), handleStuff (vague), x (meaningless), Item.active (boolean missing is/has prefix) = 9, plus an optional generic 'result'. Run 20261115T133150Z-naming-review-sonnet-high-06c1 measured 8-10 issues on haiku/high and opus/high; max 7 undercounted. mustMention 'misleading' kept: it is the agent's own term for error-severity findings and only 1/5 trials per arm omitted it. mustMention now also accepts 'inaccurate'; 'mislead' covers 'misleading' and 'misleads'. Broader phrasings such as 'does not describe' were left out because vague-name findings use them too."
       }
     }
   }

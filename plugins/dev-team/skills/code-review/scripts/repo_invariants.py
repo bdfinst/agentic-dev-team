@@ -342,7 +342,11 @@ def check_must_not_mention_terms_appear_in_fixture(changed_files=None) -> list[d
             # one --check-corpus already warns about). Nothing to prove here.
             continue
         for target, entry in _expectation_entries(spec):
-            for term in entry.get("mustNotMention") or []:
+            terms = []
+            for entry_term in entry.get("mustNotMention") or []:
+                # A list entry is a set of alternatives; each must earn its place.
+                terms.extend(entry_term if isinstance(entry_term, list) else [entry_term])
+            for term in terms:
                 if not isinstance(term, str) or not term.strip():
                     continue
                 if term.lower() in fixture_text:

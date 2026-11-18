@@ -264,6 +264,14 @@ class TestMustNotMentionTermsAppearInFixture:
         changed = self._setup(tmp_path, monkeypatch, "UseMemo()\n", ["usememo"])
         assert repo_invariants.check_must_not_mention_terms_appear_in_fixture(changed) == []
 
+    def test_each_alternative_in_a_list_entry_is_checked(self, tmp_path, monkeypatch):
+        changed = self._setup(
+            tmp_path, monkeypatch, "useMemo(() => 1, [])\n", [["useMemo", "useCallback"]]
+        )
+        findings = repo_invariants.check_must_not_mention_terms_appear_in_fixture(changed)
+        assert len(findings) == 1
+        assert "useCallback" in findings[0]["message"]
+
     def test_empty_must_not_mention_produces_nothing(self, tmp_path, monkeypatch):
         changed = self._setup(tmp_path, monkeypatch, "const a = 1\n", [])
         assert repo_invariants.check_must_not_mention_terms_appear_in_fixture(changed) == []

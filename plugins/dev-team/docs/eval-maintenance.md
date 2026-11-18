@@ -35,7 +35,7 @@ means PASS:
 - **`severities: {error: {min,max}, ...}`** — the count per severity must fall in range.
 - **`mustMention: [...]`** — every entry must appear (case-insensitive
   **substring**) in the issue messages and summary. **All-of.** An entry can be a
-  list of alternatives, such as `["compose", "composition", "pipe"]`; any one of
+  list of alternatives, such as `["wrapper", "wraps", "forwards"]`; any one of
   them satisfies it.
 - **`mustNotMention: [...]`** — no keyword may appear. **All-of.**
 
@@ -73,7 +73,8 @@ not agent bugs**:
 2. **`mustMention` too strict.** Requiring the exact token `"SRP"` fails when the
    agent says *"responsibilities"* or *"divergent change"*. **Fix:** use **stems**
    (`"responsibilit"`) and the vocabulary agents emit. When a concept has several
-   correct phrasings, list them as alternatives in one entry. Avoid all-of lists
+   correct phrasings, list them as alternatives in one entry. Each alternative must
+   name the finding itself, not the agent's label for its whole category. Avoid all-of lists
    of rare tokens.
 
 **When a correct agent verdict fails grading, suspect the fixture first.** Verify

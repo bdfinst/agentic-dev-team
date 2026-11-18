@@ -9,11 +9,11 @@
       "severities": {
         "suggestion": { "min": 2, "max": 3 }
       },
-      "mustMention": [["wrapper", "wraps", "forwards", "point-free"], ["compose", "composition", "pipe"]],
+      "mustMention": [["wrapper", "wraps", "forwards"], ["compose", "pipe("]],
       "mustNotMention": [],
       "_calibration": {
         "source": "estimated-by-analogy",
-        "note": "Bounds modeled on a live js-fp-review run against an earlier revision of this fixture (3 planted candidates flagged, the delayed-evaluation wrapper correctly excluded); not re-measured after the negative-control example was swapped several times (Date.now()-thunk -> Cache/this-binding -> Intl.NumberFormat/this-binding [rejected: format is a spec-bound getter per ECMA-402, so that example's this-loss claim was false] -> RegExp.prototype.test/this-binding [verified: ECMA-262 test step 2 throws a TypeError on an unbound receiver; the exact message text is engine-specific, not spec-mandated]), since a run against a superseded revision isn't 'measured' for this one per evals/README.md's definition. issueCount.max is pinned to 3 (the exact planted count) rather than relying on mustNotMention, which is negation-blind against the agent's summary text mustMention now accepts synonyms per concept: the wrapper findings may say 'wraps', 'forwards' or 'point-free', and the pipeline finding may say 'composition' or 'pipe'."
+        "note": "Bounds modeled on a live js-fp-review run against an earlier revision of this fixture (3 planted candidates flagged, the delayed-evaluation wrapper correctly excluded); not re-measured after the negative-control example was swapped several times (Date.now()-thunk -> Cache/this-binding -> Intl.NumberFormat/this-binding [rejected: format is a spec-bound getter per ECMA-402, so that example's this-loss claim was false] -> RegExp.prototype.test/this-binding [verified: ECMA-262 test step 2 throws a TypeError on an unbound receiver; the exact message text is engine-specific, not spec-mandated]), since a run against a superseded revision isn't 'measured' for this one per evals/README.md's definition. issueCount.max is pinned to 3 (the exact planted count) rather than relying on mustNotMention, which is negation-blind against the agent's summary text mustMention now accepts synonyms per concept: the wrapper findings may say 'wraps' or 'forwards', and the pipeline finding may name 'pipe('. 'point-free' and 'composition' are left out because they are the agent's label for every finding of this kind, and a bare 'pipe' would match 'pipeline'."
       }
     }
   }
