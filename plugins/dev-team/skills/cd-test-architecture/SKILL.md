@@ -31,11 +31,11 @@ Grounded in these knowledge references — read the first two before assessing:
 
 - Advisory only. Assess and recommend; do not edit production or test code. Hand the migration steps to `/plan` or `/build` — including Step 4b's build-vs-document ask: it proposes a downstream Story, it never invokes `/build` or edits code directly.
 - Use MinimumCD vocabulary (unit / component / contract / integration / E2E / static analysis) consistently; when the codebase uses other names, map them explicitly.
-- The pre-merge gate may contain **only deterministic** tests (static, unit, component, contract). Any test that needs a database, broker, downstream service, or environment secrets configured to run is, by definition, not a pre-merge test — flag it.
+- The pre-merge gate may contain **only deterministic** tests (static, unit, component, contract). Any test that needs a shared or externally owned database, broker, downstream service, or environment secrets is, by definition, not a pre-merge test — flag it. The one exception is a component test using a per-test isolated instance of a team-controlled engine (see `cd-test-architecture.md`, The Pre-Merge Gate Rule).
 - Recommend isolation via in-memory doubles (or, for downstream-service adapters, a record-and-replay virtual-service library per `virtual-service-libraries.md`) + owned adapters, validated by the double-validation loop. Do **not** recommend standing up the whole system (docker-compose of dependencies) for the gate — that is the configured-dependency problem this architecture removes.
 - **Do not assume provider cooperation.** For dependencies the team doesn't control, the defense against contract breakage is consumer-owned, scheduled verification against the provider's test environment (out-of-band) plus consumer resilience — not provider-side CDC verification. Recommend accordingly.
 - **Baseline before refactor (don't lead with refactoring).** For under-tested or legacy components, first recommend the best outside-in test achievable *at existing seams without changing the code* — a characterization baseline — then the refactor that improves testability under that green baseline. Never change behavior and structure in the same step. Defer the procedure to the `legacy-code` skill and use the DDD skills (`domain-driven-design`, `domain-analysis`) to suggest the target structure for the refactor.
-- Minimal tooling: prefer a record-and-replay virtual-service library (`virtual-service-libraries.md`) or in-memory doubles for the pre-merge gate, one real browser for UI, testcontainers only for off-gate adapter integration. Don't recommend a sprawl of frameworks.
+- Minimal tooling: prefer a record-and-replay virtual-service library (`virtual-service-libraries.md`) or in-memory doubles for the pre-merge gate, one real browser for UI, testcontainers for off-gate adapter integration or, where the gate rule allows, a per-test isolated instance. Don't recommend a sprawl of frameworks.
 - Be concise: tables and ordered steps, not prose. Cite the knowledge file instead of restating it.
 
 ## Parse Arguments
@@ -80,7 +80,7 @@ Flag, with evidence:
 
 - **Out-of-repo / third-party-runner testing** — the component's tests live in another repo, a separate QA runner, Postman collections, or manual scripts rather than alongside the code. **This is an anti-pattern**, even when that external coverage is extensive: the tests cannot gate the component's own merges, are not versioned with the code they verify, are usually non-deterministic and environment-coupled, and silently drift from the code. The goal state is deterministic tests co-located with the code and run in its pipeline. Flag this explicitly and treat the external suite as the *source material* (Step 2b — locate and harvest out-of-repo tests), not the destination.
 - **Manual / non-repeatable testing** — behavior verified only by humans following scripts. Non-repeatable, unsuitable for any gate; each such script is a behavior to automate.
-- **Mis-typed gate tests** — "unit/component" tests that require a real dependency or are non-deterministic (real clock/RNG/network/sleep). These cannot be a pre-merge gate.
+- **Mis-typed gate tests** — "unit/component" tests that require a shared, long-lived, or externally owned real dependency, or are non-deterministic (real clock/RNG/network/sleep). These cannot be a pre-merge gate. A per-test isolated instance of a team-controlled engine is not mis-typed.
 - **Configured-dependency tests** — tests that need the rest of the system stood up to run.
 - **Coverage gaps** — behavior (success + failure modes per the component pattern) not covered at any deterministic layer.
 - **Drift risk** — doubles with no validation loop. In particular, assume **no provider cooperation**: a contract that nobody runs against the real provider on a schedule is undefended. Flag the absence of *consumer-owned, scheduled provider-contract verification in a test environment* — relying on provider-side CDC verification is not sufficient for providers you don't control.
@@ -119,7 +119,7 @@ Repos with no such gap see no behavior change: no prompt is asked, and the repor
 
 For the database-IS-the-SUT band, the three-way answer directly determines the outcome per component:
 
-- **Build (testcontainers)** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`.
+- **Build (testcontainers)** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`. The Story states its placement by purpose: an adapter integration test that validates the double runs out-of-band on a schedule; a component test using a per-test isolated instance runs pre-merge (see `cd-test-architecture.md`, Component-test dependency exception).
 - **Build (Fake)** — propose a Story titled `[<component>] Add hand-rolled Fake database double`. Its description names the Fake as an in-memory repository implementing the same interface, per `test-doubles.md`'s Fake taxonomy, cites both `database-test-patterns.md` and `test-doubles.md`, and always carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
 - **Document-only** — the recommendation lands in the report only, as today; no further action.
 
@@ -155,7 +155,7 @@ Order the moves from current → target, lowest-risk first. The spine is **basel
 4. Add **contract tests** pinning request/response boundaries.
 5. Add **consumer resilience tests** (survive a provider break).
 6. Add **scheduled provider-contract verification** against a test environment.
-7. Move real-dependency tests **off the gate** to adapter-integration / out-of-band.
+7. Move tests that validate doubles, or depend on shared or external instances, **off the gate** to adapter-integration / out-of-band.
 8. Add **post-deploy checks**.
 9. **Decommission** the out-of-repo/manual suites and the coarse characterization tests as their behaviors land in the deterministic gate.
 
