@@ -1,0 +1,21 @@
+{
+  "fixture": "test-layer-scope-creep-stubbed.test",
+  "description": "Control: component test targets are stubbed with nock or loopback",
+  "applicableAgents": [
+    "test-smell-review"
+  ],
+  "agents": {
+    "test-smell-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 1
+      },
+      "severities": {},
+      "mustMention": [],
+      "mustNotMention": [
+        "Component E2E Scope Creep"
+      ]
+    }
+  }
+}

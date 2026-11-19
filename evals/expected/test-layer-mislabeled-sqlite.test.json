@@ -1,0 +1,21 @@
+{
+  "fixture": "test-layer-mislabeled-sqlite.test",
+  "description": "Control: unit-named test using in-memory SQLite is not flagged",
+  "applicableAgents": [
+    "test-smell-review"
+  ],
+  "agents": {
+    "test-smell-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 1
+      },
+      "severities": {},
+      "mustMention": [],
+      "mustNotMention": [
+        "Mislabeled Test Level"
+      ]
+    }
+  }
+}

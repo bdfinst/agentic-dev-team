@@ -51,7 +51,7 @@ Output JSON (extends the shared contract in `${CLAUDE_PLUGIN_ROOT}/knowledge/rev
 
 Status: pass=no smells, warn=minor smells, fail=behavior/project smell that undermines trust in the suite
 Severity: error=smell that makes the suite untrustworthy or unmaintainable (flaky, buggy test, false confidence), warning=should fix (fragile, obscure, overspecified), suggestion=improvement
-Confidence: high=named smell with a mechanical fix (add assertion message, inline mystery guest, downgrade mock to stub); medium=smell is clear but the redesign has options (split strategy, layer choice); none=requires human judgment (intended test level, whether a behavior is worth testing)
+Confidence: high=named smell with a mechanical fix (add assertion message, inline mystery guest, downgrade mock to stub); medium=smell is clear but the redesign has options (split strategy, layer choice); none=requires human judgment (whether a behavior is worth testing; the intended test level when the test shows none of the Mislabeled Test Level signals)
 
 ### remedyFamily and suggestedFix — the two-field contract
 
@@ -87,6 +87,7 @@ The mapping the agent uses to populate `remedyFamily`, grounded in
 | Obscure Test (Four-Phase visibility), Test Code Duplication (structure) | `test-organization` | Four-Phase Test, Test Utility Method, Parameterized Test |
 | Eager Test (Split Test), Fragile Test refactor sequences | `test-refactoring` | Split Test, Inline Mystery Guest, Introduce Expected Object |
 | Erratic Test, Slow Tests, pyramid-placement flags with no family fit | `null` | remedy is production-side or layer-relocation (no xUnit family cite) |
+| Component Permutation Re-test, Contract Business-Logic Leak, Component E2E Scope Creep, Mislabeled Test Level | `null` | layer relocation: move the test or assertion to the owning layer (`test-layer-ownership.md`) |
 
 When a finding fits no row, consult `${CLAUDE_PLUGIN_ROOT}/knowledge/test-smells.md#smell-categories` and pick the family from its remedy column; emit `null` if none applies.
 
@@ -155,6 +156,15 @@ Test double misuse (load `test-doubles.md`):
 
 Pyramid placement (load `test-pyramid.md`; use the MinimumCD six test types from `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-test-architecture.md#the-six-test-types` — static analysis / unit / component / contract / integration / E2E. Prefer "contract test" over "narrow integration test"; gloss once if the alias is needed: `contract test (also called narrow integration test)`):
 
+Layer smells (per file; remedy is layer relocation, `remedyFamily: null`; ownership rules in `${CLAUDE_PLUGIN_ROOT}/knowledge/test-layer-ownership.md#ownership-decision`). Cross-Layer Overlap needs pairing across files and belongs to `system-test-design`, not this agent.
+
+- **Component Permutation Re-test** — a component test that feeds 3 or more inputs to one rule with the same assertion shape. 2 inputs are not flagged. *Fix:* move the permutations to a unit (parameterized) test; keep the seam assertion in the component test.
+- **Contract Business-Logic Leak** — a contract test that asserts a computed business value or workflow outcome. Asserting only shape or type matchers is not flagged. *Fix:* keep one interaction per response structure; move the business assertion to a provider unit or component test (`microservice-testing.md`, Contract test checks).
+- **Component E2E Scope Creep** — a component test whose HTTP, gRPC, or socket target is a host outside the loopback set {`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`} and is not stubbed. *Stubbed* means interception configured in the test's own setup (WireMock, nock, MockHttpMessageHandler, VCR-style replay) or a contract mock (Pact). A compose hostname or an environment-resolved host is flagged with the message marked `inferred`. *Fix:* stub the dependency, or move the check to a contract or out-of-band integration test.
+- **Mislabeled Test Level** — a *unit-named* test (token `unit`, case-insensitive, in a path segment, class or fixture name, or test name) with a mechanical signal: a real SQL driver connection (in-memory SQLite and fakes are not flagged), a socket to a non-loopback host, or a disk write outside the OS temp directory → name `integration`; boots the in-process app host → name `component`. Report at confidence `medium`. *Fix:* rename and relocate to the named level.
+
+Other placement flags:
+
 - Unit test doing real I/O (mis-layered → Slow Tests); E2E asserting a single edge case (belongs at unit); suite-level ice-cream-cone / hourglass / cupcake shape (name the pathology and the behaviors it harms — never propose a numeric per-layer redistribution; the pyramid is a cost heuristic, not a target shape).
 
 ## Self-Challenge
@@ -184,5 +194,5 @@ Write-time reflexes for the software-engineer; `scripts/authoring_digest.py` sur
 
 Tactical mechanics owned by test-review (missing assertion entirely, missing await, mock-reset calls) — defer those there, per `${CLAUDE_PLUGIN_ROOT}/knowledge/test-review-division-of-labor.md#the-rule-in-one-line`.
 Code style, naming, complexity of production code (handled by other agents).
-Integration/E2E tests touching real resources by design — confirm the intended test level before flagging Slow Tests or Erratic Test.
+Integration/E2E tests touching real resources by design — confirm the intended test level before flagging Slow Tests or Erratic Test. This does not cover a unit-named test that shows a Mislabeled Test Level signal; flag that.
 A single Mock at a true side-effect boundary, or a Fake in-memory dependency — these are correct, not smells.
