@@ -62,7 +62,7 @@ A user should be able to point the assessment at where the external tests live (
 The component test is the workhorse of a CD gate. The pattern, consistent across every component type:
 
 1. **Assemble the real component** — the actual handlers, domain logic, and orchestration — in-process.
-2. **Replace what the team doesn't control** with in-memory doubles: a shared or externally owned database (in-memory repository), the message broker (in-memory bus), downstream services (stubbed adapter), the clock (injected fixed clock), the scheduler. The exception: for an engine the team controls (a database, for example), a per-test isolated instance may be used instead of its double (see the component-test dependency exception).
+2. **Replace external systems with in-memory doubles by default:** the database (in-memory repository), the message broker (in-memory bus), downstream services (stubbed adapter), the clock (injected fixed clock), the scheduler. The exception: for an engine the team controls (a database, for example), a per-test isolated instance may be used instead of its double (see the component-test dependency exception).
 3. **Drive it through its public interface** — HTTP handlers, the message handler, the job entrypoint, the UI via a real browser with the network stubbed.
 4. **Assert on observable outcomes** — status, persisted state, emitted event, rendered output — never on internal call sequences or private methods.
 
