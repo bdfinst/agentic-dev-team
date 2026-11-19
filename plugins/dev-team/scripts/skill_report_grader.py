@@ -45,9 +45,9 @@ _NUMBER_NEAR_TYPE = re.compile(
 )
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 _TABLE_SEPARATOR = re.compile(r"^\s*\|?[\s:|-]+\|[\s:|-]*$")
-# A list item or a bold-label field (`**Date**: ...`) starts its own block: it
+# A list item or a bold-label field (`**Date**: ...` or `**Date:** ...`) starts its own block: it
 # is a separate statement, not the continuation of a wrapped sentence.
-_BLOCK_START = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s|\*\*[^*]+\*\*:)")
+_BLOCK_START = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s|\*\*[^*]+(?:\*\*:|:\*\*))")
 _HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 
 

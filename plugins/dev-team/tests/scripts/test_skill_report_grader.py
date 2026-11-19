@@ -69,6 +69,7 @@ def test_current_vs_recommended_table_is_flagged(table: str) -> None:
         "The gap list is capped at 10 candidates.",
         "- Current: 12 unit tests\n- Recommendation: move the retry check to a component test",
         "**Date**: 2026-11-19\n**Target**: payments\n**Scope**: integration tests",
+        "**Date:** 2026-11-19\n**Target:** payments\n**Scope:** integration tests",
     ],
 )
 def test_descriptive_counts_and_unrelated_text_pass(text: str) -> None:
