@@ -45,6 +45,9 @@ _NUMBER_NEAR_TYPE = re.compile(
 )
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 _TABLE_SEPARATOR = re.compile(r"^\s*\|?[\s:|-]+\|[\s:|-]*$")
+# A list item or a bold-label field (`**Date**: ...`) starts its own block: it
+# is a separate statement, not the continuation of a wrapped sentence.
+_BLOCK_START = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s|\*\*[^*]+\*\*:)")
 _HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 
 
@@ -77,7 +80,8 @@ def _table_headers(lines: list[str]) -> list[list[str]]:
 def _paragraphs(lines: list[str]) -> list[str]:
     """Prose paragraphs: consecutive non-blank lines joined, so a sentence
     wrapped across lines is checked whole. Headings and table rows end a
-    paragraph and are not prose."""
+    paragraph and are not prose; list items and bold-label fields each start
+    a new one."""
     paragraphs: list[str] = []
     current: list[str] = []
     for line in lines:
@@ -86,6 +90,9 @@ def _paragraphs(lines: list[str]) -> list[str]:
                 paragraphs.append(" ".join(current))
                 current = []
             continue
+        if _BLOCK_START.match(line) and current:
+            paragraphs.append(" ".join(current))
+            current = []
         current.append(line.strip())
     if current:
         paragraphs.append(" ".join(current))
