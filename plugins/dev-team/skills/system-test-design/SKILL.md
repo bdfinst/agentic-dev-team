@@ -4,6 +4,16 @@ description: Test design for a distributed system — an entry-point deployable 
 role: worker
 user-invocable: true
 argument-hint: "<entry-repo> [related-repo...] [--coverage <repo>=<path>]... [--mutation <repo>=<path>]... [--aliases <path>] [--e2e-only] [--overlap-only]"
+allowed-tools: >-
+  Read, Write, Grep, Glob, mcp__codegraph__*,
+  mcp__plugin_repowise_repowise__get_overview,
+  mcp__plugin_repowise_repowise__search_codebase,
+  mcp__plugin_repowise_repowise__get_context,
+  mcp__plugin_repowise_repowise__get_answer,
+  Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/system_test_design_args.py" *,
+       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_evidence_detect.py" *,
+       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/skill_report_grader.py" *,
+       git rev-parse *)
 ---
 
 # System Test Design
