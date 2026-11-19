@@ -247,7 +247,7 @@
   },
   "plugins/dev-team/knowledge/cd-test-architecture.md": {
     "The Six Test Types": {
-      "summary": "| Type | Verifies | Dependencies | Deterministic?",
+      "summary": "| Type | Verifies | Owns | Dependencies | Deterministic?",
       "anchor": "the-six-test-types"
     },
     "The Pre-Merge Gate Rule": {
@@ -301,6 +301,10 @@
     "The E2E Justification Gate": {
       "summary": "E2E tests are non-deterministic and never gate a pre-merge build (see",
       "anchor": "the-e2e-justification-gate"
+    },
+    "E2E candidate criteria": {
+      "summary": "Apply these only after the gate above holds; they do not restate its four conditions.",
+      "anchor": "e2e-candidate-criteria"
     }
   },
   "plugins/dev-team/knowledge/ci-cd-file-scope.md": {
@@ -695,6 +699,24 @@
       "anchor": "ubiquitous-language-drift"
     }
   },
+  "plugins/dev-team/knowledge/entangled-workflows.md": {
+    "Shared table or schema": {
+      "summary": "Two or more deployables read or write the same table, view, stored procedure, or schema.",
+      "anchor": "shared-table-or-schema"
+    },
+    "Entangled value object": {
+      "summary": "Deployables share a domain type through a library, package, vendored module, or copied source, so a type change changes the behavior of each deployable.",
+      "anchor": "entangled-value-object"
+    },
+    "Lockstep deployment": {
+      "summary": "Two or more deployables must deploy together, or in a fixed order, to work.",
+      "anchor": "lockstep-deployment"
+    },
+    "Related": {
+      "summary": "`test-layer-ownership.md`: a shared table, shared domain type, or lockstep deployment is not an explicit interface, so ownership question 4 (contract) does not apply to it.",
+      "anchor": "related"
+    }
+  },
   "plugins/dev-team/knowledge/evidence-bundle.md": {
     "The four fixed sections": {
       "summary": "Always present, in this order, with these exact headers.",
@@ -937,6 +959,10 @@
     "Smells specific to distributed testing (flag these)": {
       "summary": "| Smell | Signal | Fix |",
       "anchor": "smells-specific-to-distributed-testing-flag-these"
+    },
+    "Contract test checks": {
+      "summary": "A contract test verifies the interface boundary with doubles, not business logic, database state, or deep journeys.",
+      "anchor": "contract-test-checks"
     },
     "Boundaries": {
       "summary": "Not every codebase is microservices.",
@@ -1771,6 +1797,36 @@
     "Redundancy check (business-critical only, after placement)": {
       "summary": "A business-critical behavior at only one layer → flag it, name a second layer with a **different failure mode**, and give a concrete recommendation.",
       "anchor": "redundancy-check-business-critical-only-after-placement"
+    }
+  },
+  "plugins/dev-team/knowledge/test-layer-ownership.md": {
+    "In band and out of band": {
+      "summary": "**In band:** deterministic, runs in the pipeline, and blocks a build or deploy on failure.",
+      "anchor": "in-band-and-out-of-band"
+    },
+    "What each type owns": {
+      "summary": "The per-type \"Owns\" column lives in *The Six Test Types* table in `cd-test-architecture.md`.",
+      "anchor": "what-each-type-owns"
+    },
+    "Ownership decision": {
+      "summary": "For each behavior, ask in order.",
+      "anchor": "ownership-decision"
+    },
+    "Do not test consumed services": {
+      "summary": "Test how the system parses the fields it needs.",
+      "anchor": "do-not-test-consumed-services"
+    },
+    "Duplication checks": {
+      "summary": "The same assertion in two types: keep it in the owner and remove it elsewhere.",
+      "anchor": "duplication-checks"
+    },
+    "Removal rule": {
+      "summary": "Recommend removing an E2E only after replacement component tests pass and their doubles are validated by a contract test and an out-of-band integration test.",
+      "anchor": "removal-rule"
+    },
+    "Antipatterns": {
+      "summary": "Report each with its fix.",
+      "anchor": "antipatterns"
     }
   },
   "plugins/dev-team/knowledge/test-organization.md": {
