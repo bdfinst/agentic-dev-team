@@ -147,7 +147,7 @@ If in-repo tests are sparse but no `--external-tests` location is given, the ski
 
 ### Pre-merge gate: deterministic tests only
 
-The gate that blocks a merge may contain **only** static analysis, unit, component, and contract tests. These are deterministic and need nothing configured. Integration and end-to-end tests are non-deterministic by nature and never gate a merge. A test that needs a database URL, broker, downstream service, or environment secrets to run is mis-typed — re-classify or convert it.
+The gate that blocks a merge may contain **only** static analysis, unit, component, and contract tests. These are deterministic and need nothing configured. Integration and end-to-end tests are non-deterministic by nature and never gate a merge. A unit test that needs a database URL, broker, downstream service, or environment secrets to run is mis-typed — re-type it as a component test using doubles, or using a per-test isolated instance of a team-controlled engine (see the component-test dependency exception in `knowledge/cd-test-architecture.md`).
 
 The corollary is that E2E is the last resort, not a quota. The [E2E justification gate](#the-e2e-justification-gate) ensures recommendations do not propose E2E "for completeness" or "to round out the pyramid". If a contract, component, or resilience test can cover a behavior, that is where it goes.
 
@@ -167,7 +167,7 @@ An E2E recommendation that fails any of (1)–(3) is replaced with the cheaper l
 The component test is the workhorse of a CD gate. The pattern is consistent across every component type:
 
 1. Assemble the **real component** — actual handlers, domain logic, orchestration — in-process.
-2. Replace only what the team does not control with **in-memory doubles**: in-memory repository for the database, in-memory bus for the broker, stubbed adapter for downstream services, injected fixed clock.
+2. Replace what the team does not control with **in-memory doubles**: in-memory repository for the database, in-memory bus for the broker, stubbed adapter for downstream services, injected fixed clock. For an engine the team controls, a per-test isolated instance may replace the double (see the component-test dependency exception in `knowledge/cd-test-architecture.md`); downstream services are always doubled.
 3. Drive it through its **public interface** — HTTP handlers, message handler, job entrypoint, UI via a real browser with the network stubbed.
 4. Assert **observable outcomes** — status, persisted state, emitted event, rendered output — never internal call sequences.
 
