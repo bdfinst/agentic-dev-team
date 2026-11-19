@@ -1,0 +1,16 @@
+[
+  {
+    "kind": "coverage",
+    "path": "evidence/coverage.json",
+    "format": "coveragepy-json",
+    "reason": null,
+    "repo": "orders"
+  },
+  {
+    "kind": "mutation",
+    "path": "evidence/mutation-report.json",
+    "format": "stryker",
+    "reason": null,
+    "repo": "orders"
+  }
+]

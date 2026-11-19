@@ -1,0 +1,30 @@
+{
+  "sections_present": [
+    "Scope",
+    "Current test architecture",
+    "Test-double validation",
+    "Overlap and misplacement",
+    "Contract-test findings",
+    "Test improvements",
+    "Open questions",
+    "Layer overlap (trim, not remove)"
+  ],
+  "sections_absent": [
+    "System map",
+    "Entangled workflows",
+    "Existing E2E triage",
+    "Minimum E2E set",
+    "Recommended E2E candidates",
+    "Rejected candidates"
+  ],
+  "regex_present": [
+    "\\[evidence:\\ static\\-judgment;\\ evidence\\-confidence:\\ high;\\ basis:\\ .+\\]\\ Cross\\-Layer\\ Overlap\\ \\|\\ tests/unit/test_pricing\\.py::test_discount \\+ tests/component/test_pricing_api\\.py::test_discount",
+    "basis:\\ unrecognised\\ format",
+    "severity\\ suggestion;\\ candidate;\\ confirm\\ with\\ coverage\\ before\\ trimming"
+  ],
+  "regex_absent": [
+    "coverage-backed",
+    "mutation-backed",
+    "(?i)not run"
+  ]
+}

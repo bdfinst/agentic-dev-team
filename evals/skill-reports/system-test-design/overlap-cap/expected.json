@@ -1,0 +1,31 @@
+{
+  "sections_present": [
+    "Scope",
+    "Current test architecture",
+    "Test-double validation",
+    "Overlap and misplacement",
+    "Contract-test findings",
+    "Test improvements",
+    "Open questions",
+    "Layer overlap (trim, not remove)"
+  ],
+  "sections_absent": [
+    "System map",
+    "Entangled workflows",
+    "Existing E2E triage",
+    "Minimum E2E set",
+    "Recommended E2E candidates",
+    "Rejected candidates"
+  ],
+  "regex_present": [
+    "capped at 20",
+    "test_f19",
+    "basis: missing\\] Cross-Layer Overlap \\| tests/unit/test_m\\.py::test_f19",
+    "candidate; confirm with coverage before trimming",
+    "evidence-confidence: medium; basis: missing"
+  ],
+  "regex_absent": [
+    "test_f20",
+    "(?i)not run"
+  ]
+}

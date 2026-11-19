@@ -1,0 +1,30 @@
+{
+  "sections_present": [
+    "Scope",
+    "System map",
+    "Entangled workflows",
+    "Current test architecture",
+    "Test-double validation",
+    "Existing E2E triage",
+    "Minimum E2E set",
+    "Recommended E2E candidates",
+    "Rejected candidates",
+    "Overlap and misplacement",
+    "Contract-test findings",
+    "Test improvements",
+    "Open questions"
+  ],
+  "sections_absent": [],
+  "regex_present": [
+    "Alias map: orders = checkout-svc",
+    "listed once",
+    "possibly same",
+    "(?m)^- Alias map: orders = checkout-svc",
+    "Stage: post-deploy",
+    "Stage: scheduled"
+  ],
+  "regex_absent": [
+    "Alias map: none",
+    "(?s)Place an order.*Place an order.*## Rejected"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "sections_present": [
+    "Scope",
+    "System map",
+    "Entangled workflows",
+    "Current test architecture",
+    "Test-double validation",
+    "Existing E2E triage",
+    "Minimum E2E set",
+    "Recommended E2E candidates",
+    "Rejected candidates",
+    "Overlap and misplacement",
+    "Contract-test findings",
+    "Test improvements",
+    "Open questions"
+  ],
+  "sections_absent": [],
+  "regex_present": [
+    "\\| KEEP \\|",
+    "async handoff",
+    "post-deploy or scheduled",
+    "(?s)## Minimum E2E set\\s+Order reaches billing"
+  ],
+  "regex_absent": [
+    "\\| (DELETE|PUSH DOWN)"
+  ]
+}

@@ -1,0 +1,50 @@
+{
+ "schemaVersion": "2",
+ "files": {
+  "src/pricing.py": {
+   "mutants": [
+    {
+     "id": "1",
+     "mutatorName": "ArithmeticOperator",
+     "status": "Killed",
+     "location": {
+      "start": {
+       "line": 3,
+       "column": 8
+      },
+      "end": {
+       "line": 3,
+       "column": 20
+      }
+     },
+     "killedBy": [
+      "t-unit",
+      "t-comp"
+     ],
+     "coveredBy": [
+      "t-unit",
+      "t-comp"
+     ]
+    }
+   ]
+  }
+ },
+ "testFiles": {
+  "tests/unit/test_pricing.py": {
+   "tests": [
+    {
+     "id": "t-unit",
+     "name": "test_discount"
+    }
+   ]
+  },
+  "tests/component/test_pricing_api.py": {
+   "tests": [
+    {
+     "id": "t-comp",
+     "name": "test_discount"
+    }
+   ]
+  }
+ }
+}

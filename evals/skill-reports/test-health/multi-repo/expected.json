@@ -1,0 +1,18 @@
+{
+  "sections_present": [
+    "System-level test design (via system-test-design)",
+    "Improvement plan (ordered)"
+  ],
+  "sections_absent": [
+    "Existing E2E triage"
+  ],
+  "regex_present": [
+    "Minimum E2E set",
+    "Overlap findings",
+    "system-test-design-orders\\.md"
+  ],
+  "regex_absent": [
+    "\\| (KEEP|DELETE) \\|",
+    "PUSH DOWN"
+  ]
+}

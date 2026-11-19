@@ -1,0 +1,27 @@
+{
+  "sections_present": [
+    "Scope",
+    "System map",
+    "Entangled workflows",
+    "Current test architecture",
+    "Test-double validation",
+    "Existing E2E triage",
+    "Minimum E2E set",
+    "Recommended E2E candidates",
+    "Rejected candidates",
+    "Contract-test findings",
+    "Open questions"
+  ],
+  "sections_absent": [
+    "Overlap and misplacement",
+    "Test improvements"
+  ],
+  "regex_present": [
+    "Mode: --e2e-only",
+    "(?m)^## Test-double validation",
+    "(?m)^## Contract-test findings"
+  ],
+  "regex_absent": [
+    "(?i)not run"
+  ]
+}
