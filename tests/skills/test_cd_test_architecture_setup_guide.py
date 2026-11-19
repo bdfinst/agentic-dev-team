@@ -266,7 +266,7 @@ def test_two_components_sharing_a_tool_each_get_their_own_section():
     )
 
 
-def test_non_off_gate_component_gets_no_section():
+def test_non_adapter_double_component_gets_no_section():
     sec = _section()
     assert grep(
         r"A non-adapter-double component \(no adapter-double recommendation at "
@@ -340,7 +340,7 @@ def test_chat_only_case_apply_test_doubles_has_no_path_to_substitute():
     )
 
 
-def test_no_off_gate_components_means_no_setup_guide_written():
+def test_no_adapter_double_components_means_no_setup_guide_written():
     # Positive companion: assert the section states this explicitly, not
     # just an absence check on the section text.
     sec = _section()

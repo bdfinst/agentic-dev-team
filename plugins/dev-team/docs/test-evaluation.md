@@ -100,7 +100,7 @@ Ordered lowest-risk first, each step independently shippable. The spine is **bas
 4. Add contract tests pinning request/response boundaries
 5. Add consumer resilience tests (verify the component survives a provider break)
 6. Add scheduled provider-contract verification against a test environment
-7. Move real-dependency tests off the gate to adapter integration or out-of-band
+7. Move tests that validate doubles, or that depend on shared or externally owned instances, off the gate to adapter integration or out-of-band
 8. Add post-deploy checks
 9. Decommission out-of-repo/manual suites and the coarse characterization tests as their behaviors land in the deterministic gate
 

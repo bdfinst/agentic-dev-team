@@ -15,7 +15,7 @@ Core principle: **independent deployability requires that no service can be brok
 | Layer | Scope | What it verifies | Doubles |
 |-------|-------|------------------|---------|
 | **Unit** | A single class/function | Internal logic, branches, edge cases | Collaborators doubled |
-| **Integration** | A module + one external it owns | The adapter works against a real DB/broker/HTTP peer (test container) | Real external, isolated instance |
+| **Integration** | A module + one external it owns | The adapter works against a real DB/broker/HTTP peer (test container) | Real external (e.g. test container); out-of-band |
 | **Component** | One whole service, in isolation | The service meets *its own* API contract end to end, internals real | The service's downstream deps stubbed (in-process or network-level) |
 | **Contract** | The consumer↔provider agreement | Both sides still agree on request/response shape & semantics | A pact, verified independently on each side |
 | **End-to-end** | Several real services together | A critical cross-service journey works | None — real deployments |

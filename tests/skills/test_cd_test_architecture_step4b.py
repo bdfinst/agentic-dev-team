@@ -310,7 +310,7 @@ def test_hand_rolled_fake_caveat_is_logged_explicitly():
 def test_story_titles_follow_the_bracketed_component_template():
     sec = _step_4b_section()
     assert grep(
-        r"\[<component>\]\s*Add testcontainers-based real-DB test", sec
+        r"\[<component>\]\s*Add testcontainers-based real-DB adapter integration test", sec
     )
     assert grep(
         r"\[<component>\]\s*Add hand-rolled Fake database double", sec

@@ -159,7 +159,7 @@ extracting into a new home touching every existing
 skill's actual scope doesn't require; citing it in place fully satisfies
 "don't duplicate the branching rules" without that blast radius.
 
-**Off-gate-eligibility parsing rule — cited from `cd-test-architecture`'s
+**Adapter-double-eligibility parsing rule — cited from `cd-test-architecture`'s
 own Output section, not independently derived.** `../cd-test-architecture/SKILL.md`'s
 Target architecture table documentation states that a row's
 `Build/Document status` cell is set to one of the three enum values only

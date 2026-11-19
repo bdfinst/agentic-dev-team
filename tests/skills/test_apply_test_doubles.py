@@ -280,7 +280,7 @@ def test_all_three_structural_markers_verified_against_cd_test_architecture_skil
     )
 
 
-def test_blank_cell_off_gate_eligibility_convention_documented_upstream():
+def test_blank_cell_adapter_double_eligibility_convention_documented_upstream():
     # This new skill's adapter-double-eligibility rule cites this exact upstream
     # sentence rather than asserting the blank-vs-set convention
     # independently — pin it here so a future edit to that sentence is
@@ -526,7 +526,7 @@ def test_cite_dont_restate_rationale_stated_inline():
 # --- Step 1.2: adapter-double-eligibility parsing rule ----------------------------
 
 
-def test_off_gate_eligibility_parsing_rule_cited_not_independently_derived():
+def test_adapter_double_eligibility_parsing_rule_cited_not_independently_derived():
     sec = _collapsed_decision_section()
     assert grep(
         r"cited from `?cd-test-architecture`?'s own Output section, not "
