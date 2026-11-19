@@ -25,7 +25,7 @@ Core principle: **a pre-merge gate may contain only deterministic tests.** A tes
 
 ## The Pre-Merge Gate Rule
 
-Pre-merge (the gate that blocks a merge) contains **only**: static analysis, unit, component, and contract tests. These are deterministic and need no shared or externally configured system.
+Pre-merge (the gate that blocks a merge) contains **only**: static analysis, unit, component, and contract tests. These are deterministic and need no shared or externally owned system.
 
 Integration and end-to-end tests are non-deterministic by nature (real systems, real network, shared state), and their purpose is to check doubles or journeys against real dependencies. They **never gate a merge**. They run:
 
@@ -62,7 +62,7 @@ A user should be able to point the assessment at where the external tests live (
 The component test is the workhorse of a CD gate. The pattern, consistent across every component type:
 
 1. **Assemble the real component** — the actual handlers, domain logic, and orchestration — in-process.
-2. **Replace only what the team doesn't control** with in-memory doubles: the database (in-memory repository), the message broker (in-memory bus), downstream services (stubbed adapter), the clock (injected fixed clock), the scheduler. Where the team controls the engine, a per-test isolated instance may stand in for its double (see the component-test dependency exception).
+2. **Replace what the team doesn't control** with in-memory doubles: the database (in-memory repository), the message broker (in-memory bus), downstream services (stubbed adapter), the clock (injected fixed clock), the scheduler. The exception: for an engine the team controls (a database, for example), a per-test isolated instance may be used instead of its double (see the component-test dependency exception).
 3. **Drive it through its public interface** — HTTP handlers, the message handler, the job entrypoint, the UI via a real browser with the network stubbed.
 4. **Assert on observable outcomes** — status, persisted state, emitted event, rendered output — never on internal call sequences or private methods.
 
