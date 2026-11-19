@@ -158,6 +158,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 3,792 | Orchestrator, `/code-review` |
 | Stryker xunit.v2 Shim | `skills/stryker-xunit-v2-shim/SKILL.md` | ~3,945 | `/mutation-testing`, `/test-improve` (mutation on .NET/xunit.v3), QA Engineer, standalone |
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 2,129 | Software Engineer, QA Engineer |
+| System Test Design | `skills/system-test-design/SKILL.md` | ~1,726 | QA Engineer, `/system-test-design` command, `/test-health` |
 | Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~1,619 | Standalone worker; QA Engineer |
 | Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~4,235 | QA Engineer, Software Engineer, `/test-design` command |
 | Test Health | `skills/test-health/SKILL.md` | ~3,709 | QA Engineer, `/test-health` command |

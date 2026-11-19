@@ -6395,6 +6395,32 @@
       "anchor": "teardown"
     }
   },
+  "plugins/dev-team/skills/system-test-design/SKILL.md": {
+    "Overview": {
+      "summary": "The system-level altitude: `test-health` audits one suite's strategy, `cd-test-architecture` one application, `test-design-advisor` one unit.",
+      "anchor": "overview"
+    },
+    "Constraints": {
+      "summary": "Advisory only.",
+      "anchor": "constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Run the validator first.",
+      "anchor": "parse-arguments"
+    },
+    "Discovery order": {
+      "summary": "repowise first (`get_overview` per repo, then `search_codebase`, `get_context`, `get_answer`), then CodeGraph, then Grep/Read.",
+      "anchor": "discovery-order"
+    },
+    "Steps": {
+      "summary": "`--e2e-only` runs 1, 2, 5, 6, 7.",
+      "anchor": "steps"
+    },
+    "Integration": {
+      "summary": "`test-health` invokes this skill for a multi-deployable target and summarizes its minimum E2E set and overlap findings.",
+      "anchor": "integration"
+    }
+  },
   "plugins/dev-team/skills/systematic-debugging/SKILL.md": {
     "Overview": {
       "summary": "When LLMs hit failures, they tend to guess at fixes — changing code, re-running, changing more code.",
