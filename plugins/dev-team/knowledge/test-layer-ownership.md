@@ -15,10 +15,10 @@ The per-type "Owns" column lives in *The Six Test Types* table in `cd-test-archi
 
 - **Static analysis:** type errors, security vulnerabilities, complexity, best-practice violations.
 - **Unit:** logic (calculations, branching, validation, mapping). Solitary (all collaborators doubled) or sociable (real in-process collaborators). All external I/O is doubled.
-- **Component:** seams between layers inside one component: persistence, serialization, status mapping, auth middleware, error handling, retries against stubbed failures, graceful degradation, message handling. Out-of-process dependencies are replaced by wire-level stubs, virtual services, in-memory equivalents, or team-controlled ephemeral containers.
+- **Component:** seams between layers inside one component: persistence, serialization, status mapping, auth middleware, error handling, retries against stubbed failures, graceful degradation, message handling. Out-of-process dependencies are replaced by wire-level stubs, virtual services, in-memory equivalents, or a per-test isolated instance of a team-controlled engine such as a database or broker. Downstream services are always doubled.
 - **Contract:** the interface boundary: request payloads, query parameters, headers, response schemas, status codes, message formats. The consumer side runs against the consumer code. The provider side runs against every published consumer expectation.
-- **Integration:** that doubles still match reality: driver and dialect mismatches, schema serialization, connection configuration, transport errors. Out of band unless the team fully controls and isolates the dependency.
-- **E2E:** critical business flows and entangled workflows that cannot be verified another way. Acceptance tests if deterministic, else out of band. Never pre-merge.
+- **Integration:** that doubles still match reality: driver and dialect mismatches, schema serialization, connection configuration, transport errors. Out of band, always, whatever instance it runs against (see `cd-test-architecture.md`, The Pre-Merge Gate Rule).
+- **E2E:** critical business flows and entangled workflows that cannot be verified another way. Acceptance tests, if deterministic, run in an ephemeral environment the run provisions and removes. They run post-deploy or scheduled, never pre-merge and never as a build gate (`cd-test-architecture.md`, Placement options).
 
 Smoke tests and synthetic monitoring run after deploy. Record them as E2E placement, not as owners of behavior.
 
