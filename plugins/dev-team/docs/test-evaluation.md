@@ -147,7 +147,7 @@ If in-repo tests are sparse but no `--external-tests` location is given, the ski
 
 ### Pre-merge gate: deterministic tests only
 
-The gate that blocks a merge may contain **only** static analysis, unit, component, and contract tests. These are deterministic and need nothing configured. Integration and end-to-end tests are non-deterministic by nature and never gate a merge. A unit test that needs a database URL, broker, downstream service, or environment secrets to run is mis-typed — re-type it as a component test using doubles, or using a per-test isolated instance of a team-controlled engine (see the component-test dependency exception in `knowledge/cd-test-architecture.md`).
+The gate that blocks a merge may contain **only** static analysis, unit, component, and contract tests. These are deterministic and need nothing configured. Integration and end-to-end tests are typically non-deterministic and never gate a merge; an adapter integration test stays out-of-band even against a deterministic instance (see the component-test dependency exception in `knowledge/cd-test-architecture.md`). A unit test that needs a database URL, broker, downstream service, or environment secrets to run is mis-typed — re-type it as a component test using doubles, or using a per-test isolated instance of a team-controlled engine (see the component-test dependency exception in `knowledge/cd-test-architecture.md`).
 
 The corollary is that E2E is the last resort, not a quota. The [E2E justification gate](#the-e2e-justification-gate) ensures recommendations do not propose E2E "for completeness" or "to round out the pyramid". If a contract, component, or resilience test can cover a behavior, that is where it goes.
 
@@ -171,7 +171,7 @@ The component test is the workhorse of a CD gate. The pattern is consistent acro
 3. Drive it through its **public interface** — HTTP handlers, message handler, job entrypoint, UI via a real browser with the network stubbed.
 4. Assert **observable outcomes** — status, persisted state, emitted event, rendered output — never internal call sequences.
 
-The result: fast (no I/O), deterministic (no real systems, controlled clock), zero configuration of the surrounding system — while still validating real behavior end-to-end within the component boundary.
+The result: fast (no shared I/O or network), deterministic (no shared or external systems, controlled clock), zero configuration of the surrounding system — while still validating real behavior end-to-end within the component boundary.
 
 ### The adapter rule
 
