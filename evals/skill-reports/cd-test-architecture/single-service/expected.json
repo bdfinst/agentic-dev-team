@@ -1,0 +1,11 @@
+{
+  "sections_present": [
+    "Components & patterns",
+    "Current tests (in-repo)",
+    "Target architecture (per component)",
+    "Pre-merge gate (deterministic, config-free)",
+    "Migration path"
+  ],
+  "regex_present": ["shared staging DB", "in-memory repository"],
+  "regex_absent": ["(?i)\\bshould have \\d+ (unit|component|e2e)"]
+}
