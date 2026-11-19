@@ -291,7 +291,7 @@
       "anchor": "terminology-reconciliation-read-this-if-you-also-use-the-fowler-files"
     },
     "Boundaries": {
-      "summary": "\"Minimal tooling\" means prefer in-memory doubles + a real browser + testcontainers for adapter checks — not a sprawl of test frameworks.",
+      "summary": "\"Minimal tooling\" means prefer in-memory doubles + a real browser + testcontainers for adapter checks (and, where the gate rule allows, per-test isolated instances) — not a sprawl of test frameworks.",
       "anchor": "boundaries"
     },
     "The Pyramid Is a Cost Heuristic, Not a Target Shape": {

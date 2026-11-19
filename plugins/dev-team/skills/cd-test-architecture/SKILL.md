@@ -129,7 +129,7 @@ Applies to API Consumer, Event Consumer, and Event Producer components (`compone
 
 Every row offers all three options identically, with no ownership-based distinction: `Build (testcontainers)`, `Build (Fake)`, `Document-only`.
 
-**All off-gate validation of a downstream-service test double runs out-of-band, on a schedule — never pre-merge/in-band — regardless of whether the dependency is team-controlled or third-party.** This applies uniformly to the testcontainers-based adapter-integration test, the hand-rolled Fake's companion provider-contract verification, and the library-backed double's re-record/diff companion action alike, per `component-test-patterns.md`'s and `cd-test-architecture.md`'s Integration-test placement rule: a real dependency is non-deterministic regardless of who owns it, so it never earns an in-band exception.
+**All off-gate validation of a downstream-service test double runs out-of-band, on a schedule — never pre-merge/in-band — regardless of whether the dependency is team-controlled or third-party.** This applies uniformly to the testcontainers-based adapter-integration test, the hand-rolled Fake's companion provider-contract verification, and the library-backed double's re-record/diff companion action alike, per `component-test-patterns.md`'s and `cd-test-architecture.md`'s Integration-test placement rule: these tests check a double against the real dependency, so they are out-of-band whoever owns it (the per-test isolated instance exception covers component-test dependencies only).
 
 An ambiguous or absent answer for a downstream-service row defaults to `Document-only`, the same ambiguous-answer rule as any other ambiguous answer above — not a new rule.
 

@@ -4,7 +4,7 @@ Reference file for the `cd-test-architecture` skill and the `test-design-advisor
 
 Source vocabulary: MinimumCD Practice Guide — Test Types (beyond.minimumcd.org/docs/testing/test-types/) and Applied Testing Strategies (beyond.minimumcd.org/docs/testing/applied-testing-strategies/). Component-specific patterns are in `component-test-patterns.md`.
 
-Core principle: **a pre-merge gate may contain only deterministic tests.** A test that depends on a system the team doesn't control — or that must be configured to run — is non-deterministic and belongs out of the merge path. The way to keep behavior coverage in the gate anyway is to replace uncontrolled systems with test doubles, and to keep those doubles honest with a separate validation loop.
+Core principle: **a pre-merge gate may contain only deterministic tests.** A test that depends on a system the team doesn't control — or that must be configured to run against shared state — is non-deterministic and belongs out of the merge path. The way to keep behavior coverage in the gate anyway is to replace uncontrolled systems with test doubles, and to keep those doubles honest with a separate validation loop.
 
 ---
 
@@ -29,10 +29,12 @@ Pre-merge (the gate that blocks a merge) contains **only**: static analysis, uni
 
 Integration and end-to-end tests are non-deterministic by nature (real systems, real network, shared state) and **never gate a merge**. They run:
 
-- **Out-of-band / scheduled, always** — regardless of whether the dependency is a shared or long-lived instance the team controls, a third-party API, a managed broker, or another team's service. Adapter integration tests, which check that a double still matches the real dependency, are always out-of-band. The one in-band exception is a real engine the team controls and isolates per test (for example a per-test container database with no shared state), used as a component test's dependency in place of a double: it is deterministic and team-controlled, so it is pre-merge-gate-eligible. A shared, long-lived, or externally owned instance never earns that exception. This is distinct from a record-and-replay virtual-service double *of* that dependency (WireMock, WireMock.Net, Nock, VCR.py, go-vcr — per `virtual-service-libraries.md`): a virtual-service double replays canned interactions with no real network call to the dependency, so it is deterministic and pre-merge-gate-eligible — only a shared, long-lived, or externally owned instance of the real dependency is out-of-band/scheduled.
+- **Out-of-band / scheduled, always** — regardless of whether the dependency is a shared or long-lived instance the team controls, a third-party API, a managed broker, or another team's service. Any adapter integration test, which checks that a double still matches the real dependency, is out-of-band whatever instance it runs against. This is distinct from a record-and-replay virtual-service double *of* that dependency (WireMock, WireMock.Net, Nock, VCR.py, go-vcr — per `virtual-service-libraries.md`): a virtual-service double replays canned interactions with no real network call to the dependency, so it is deterministic and pre-merge-gate-eligible.
 - **Post-deploy** for end-to-end smoke of critical journeys against real backends — blocking rollout, not the build.
 
-If a "unit test" needs a database URL, a broker, a downstream service, or environment secrets to run, it is mis-typed — it's an integration test wearing a unit test's name. Re-type it or convert it to a component test with doubles.
+**Component-test dependency exception.** The test's purpose decides its placement, not the instance. A component test may use a real engine the team controls and isolates per test (for example a per-test container database with no shared state) in place of a double. It stays a component test: it is deterministic and team-controlled, so it runs pre-merge. This exception governs where a component test gets its dependency. It does not move any integration test in-band, and a shared, long-lived, or externally owned instance never qualifies.
+
+If a "unit test" needs a database URL, a broker, a downstream service, or environment secrets to run, it is mis-typed. A test that checks a double against the real dependency is an integration test wearing a unit test's name. Otherwise re-type it as a component test, using doubles or a per-test isolated instance (see the exception above).
 
 ---
 
@@ -60,11 +62,11 @@ A user should be able to point the assessment at where the external tests live (
 The component test is the workhorse of a CD gate. The pattern, consistent across every component type:
 
 1. **Assemble the real component** — the actual handlers, domain logic, and orchestration — in-process.
-2. **Replace only what the team doesn't control** with in-memory doubles: the database (in-memory repository), the message broker (in-memory bus), downstream services (stubbed adapter), the clock (injected fixed clock), the scheduler.
+2. **Replace only what the team doesn't control** with in-memory doubles: the database (in-memory repository, or a per-test isolated instance of a team-controlled engine), the message broker (in-memory bus), downstream services (stubbed adapter), the clock (injected fixed clock), the scheduler.
 3. **Drive it through its public interface** — HTTP handlers, the message handler, the job entrypoint, the UI via a real browser with the network stubbed.
 4. **Assert on observable outcomes** — status, persisted state, emitted event, rendered output — never on internal call sequences or private methods.
 
-This yields tests that are fast (no I/O, no network), deterministic (no real systems, controlled clock), and need zero configuration of the surrounding system — while still validating real behavior end to end *within the component boundary*, including how it would interact with its collaborators (verified by contract, made real by integration).
+This yields tests that are fast (no shared I/O or network), deterministic (no shared or external systems, controlled clock), and need zero configuration of the surrounding system — while still validating real behavior end to end *within the component boundary*, including how it would interact with its collaborators (verified by contract, made real by integration).
 
 ---
 
@@ -110,7 +112,7 @@ So provider-side verification is a *nice-to-have if the provider offers it* — 
 
 1. **Contract test** (pre-merge) pins the request the consumer sends and the response shape it depends on, against the adapter double. Blocks the build. This keeps *your* side stable and documents exactly what you assume of the provider.
 2. **Scheduled provider-contract verification in a test environment** — *you* run your pinned contract against the provider's real (non-prod) endpoint **on a schedule, out-of-band**, decoupled from your deploy cadence. This is the primary defense: it detects a provider break **when it happens**, not when you next ship, so the break is attributed to the provider and not to your undelivered changes. Owned and run by your team; requires no provider cooperation.
-3. **Adapter integration test** (out-of-band, on a schedule — never in-band, regardless of ownership) runs the adapter against a real container of the production engine/broker (matching version + extensions) to confirm the double's protocol assumptions hold — see The Pre-Merge Gate Rule above.
+3. **Adapter integration test** (out-of-band, on a schedule — never in-band, regardless of ownership) runs the adapter against a real container of the production engine/broker (matching version + extensions) to confirm the double's protocol assumptions hold — see The Pre-Merge Gate Rule above. This out-of-band rule covers tests that check a double; a component test using a per-test isolated instance as its dependency is not an integration test.
 4. **Resilience verified by component tests** (pre-merge) — because you assume the provider *will* break, the consumer must be tested to **survive** it: timeouts enforce, retries/backoff/circuit-breaker behave, malformed or drifted responses are handled per Postel's Law, and the caller gets a documented response with no partial state. Detection (step 2) tells you it broke; resilience keeps you up until it's fixed.
 
 Doubles without steps 2 and 4 are a smell (see `microservice-testing.md` → "Stubs that lie", `test-smells.md` → behavior smells). The classic failure is a hand-written double that the team *assumes* still matches a provider nobody is checking.
@@ -123,7 +125,7 @@ Doubles without steps 2 and 4 are a smell (see `microservice-testing.md` → "St
 - **Inject randomness.** Same discipline for RNG and ID generation.
 - **No sleeps.** Never `sleep` to await; drive time and async deterministically.
 - **Real browser, stubbed network (UI).** Run UI component tests in a real engine (Chromium/Firefox/WebKit) with the backend stubbed at the network layer — not an in-memory DOM shim, which trades accuracy for speed and produces false positives on layout/timing.
-- **In-memory doubles over heavyweight test infra** for the gate. Reserve containers for adapter integration, off the merge path.
+- **In-memory doubles over heavyweight test infra** for the gate. Containers that check doubles (adapter integration) run off the merge path; the only pre-merge container is the per-test, team-controlled instance in The Pre-Merge Gate Rule.
 
 ---
 
@@ -142,7 +144,7 @@ When advising for a CD pipeline, **prefer this file's framing** — the determin
 
 ## Boundaries
 
-- "Minimal tooling" means prefer in-memory doubles + a real browser + testcontainers for adapter checks — not a sprawl of test frameworks. Don't recommend heavyweight orchestration (full docker-compose of the system) for the gate; that's exactly the configured-dependency dependency this architecture removes.
+- "Minimal tooling" means prefer in-memory doubles + a real browser + testcontainers for adapter checks (and, where the gate rule allows, per-test isolated instances) — not a sprawl of test frameworks. Don't recommend heavyweight orchestration (full docker-compose of the system) for the gate; that's exactly the configured-dependency dependency this architecture removes.
 - These are starting points, not mandates. Real components have details these layers don't capture; drop items that don't apply and add what a component clearly needs.
 - This file defines the *architecture*. Per-component specifics (what to double, which failure modes) are in `component-test-patterns.md`.
 
