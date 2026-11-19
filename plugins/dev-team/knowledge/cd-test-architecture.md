@@ -10,16 +10,20 @@ Core principle: **a pre-merge gate may contain only deterministic tests.** A tes
 
 ## The Six Test Types
 
-| Type | Verifies | Dependencies | Deterministic? | Pre-merge gate? | Pipeline stage |
-|------|----------|--------------|----------------|-----------------|----------------|
-| **Static analysis** | Non-running code: security, complexity, best-practice | none | yes | **yes** | Stage 1 |
-| **Unit** | A unit of behavior through its public interface (what it does, not how) | isolated (doubles) | yes | **yes** | Stage 1 |
-| **Component** | A single component through its public interface, with systems the team doesn't control replaced by doubles | doubles for uncontrolled systems (or a per-test isolated instance of a team-controlled engine) | yes | **yes** | Stage 1 |
-| **Contract** | Interface boundaries with external systems, using doubles (a.k.a. narrow integration). Pins the request sent + response shape depended on | doubles; *validated by integration* | yes | **yes** | Stage 1 |
-| **Integration** | That the contract's doubles still match the real system. Exercises real external dependencies | real systems | typically no | **never** | Out-of-band / scheduled, regardless of ownership |
-| **End-to-end** | Two or more real components up to the full system | real components | **no** | **never** | Post-deploy smoke; never gates the build |
+| Type | Verifies | Owns | Dependencies | Deterministic? | Pre-merge gate? | Pipeline stage |
+|------|----------|------|--------------|----------------|-----------------|----------------|
+| **Static analysis** | Non-running code: security, complexity, best-practice | Type errors, vulnerabilities, complexity, best-practice violations | none | yes | **yes** | Stage 1 |
+| **Unit** | A unit of behavior through its public interface (what it does, not how) | Logic: calculations, branching, validation, mapping | isolated (doubles) | yes | **yes** | Stage 1 |
+| **Component** | A single component through its public interface, with systems the team doesn't control replaced by doubles | Seams between layers inside one component (persistence, serialization, auth middleware, error handling, retries, degradation) | doubles for uncontrolled systems (or a per-test isolated instance of a team-controlled engine) | yes | **yes** | Stage 1 |
+| **Contract** | Interface boundaries with external systems, using doubles (a.k.a. narrow integration). Pins the request sent + response shape depended on | The interface boundary: payloads, headers, schemas, status codes, message formats | doubles; *validated by integration* | yes | **yes** | Stage 1 |
+| **Integration** | That the contract's doubles still match the real system. Exercises real external dependencies | That doubles still match reality (driver, dialect, serialization, connection, transport) | real systems | typically no | **never** | Out-of-band / scheduled, regardless of ownership |
+| **End-to-end** | Two or more real components up to the full system | Critical business flows and entangled workflows no other type can verify | real components | **no** | **never** | Post-deploy smoke; never gates the build |
+
+Ownership rules, the ownership decision, and duplication checks: `test-layer-ownership.md`.
 
 **Unit** has two shapes: *solitary* (all collaborators doubled) and *sociable* (real in-process collaborators, only true boundaries doubled). Both are deterministic and pre-merge, but **sociable is the default**: a solitary unit test is one whose every double names a blocker (B1/B2/B3), not a free choice — see `internal-collaborator-doubling.md` for the full rule.
+
+**Overlap resolution rule.** When a unit test and a component test assert the same behavior, keep the unit test. The component test keeps only seam assertions (wiring, persistence, boundary payload, internal workflow).
 
 ---
 
@@ -190,3 +194,19 @@ pre-merge).
 
 This is the canonical statement of the gate. Agents and skills cite this section
 rather than restating the four conditions.
+
+### E2E candidate criteria
+
+Apply these only after the gate above holds; they do not restate its four conditions.
+
+**Critical business flow candidate.** It crosses at least two deployables over a real network, queue, or shared store. Failure causes significant harm: lost revenue, lost or corrupted data, a security gap, or a broken must-have journey. Typical gate-passing cases: config and routing between deployables, auth token propagation, async hops with eventual consistency, idempotency across retries between deployables, and data that must stay correct across deployables. Happy path only; never edge cases, error handling, or validation.
+
+**Entangled workflow candidate.** It goes through a dependency that `entangled-workflows.md` identifies. A change on one side can break the other. No existing test exercises both sides together at deployed versions. It asserts the outcome that crosses the dependency (for example, "a row deployable A writes is read correctly by B"). Also report it as a design finding with its decoupling step, and mark it temporary until that step is done.
+
+**Taxonomy.** Each E2E carries exactly one category: async handoff; cross-service data consistency; identity or tenant propagation; deploy and config wiring; third-party sandbox flow.
+
+**Ranking.** Rank all candidates together by impact, then by coverage-gap size. Report at most 10. One E2E that covers both kinds counts once. For each, state what it must not assert because another type owns it. List considered-and-rejected candidates with the reason and the covering test type.
+
+**Placement options.** Acceptance test (only if deterministic, in an ephemeral environment the run provisions and removes); post-deploy smoke test (critical path after each deploy, rollback on failure); scheduled (non-deterministic; informs, never decides delivery); synthetic monitoring (production, on a schedule). Never pre-merge.
+
+See also `test-layer-ownership.md` and `entangled-workflows.md`.

@@ -64,6 +64,29 @@ Why this beats E2E for integration safety:
 | **Shared integration environment for correctness** | Tests pass/fail based on the state of a shared staging system | Isolate: component tests with stubbed downstreams + contract tests |
 | **Cross-service unit test** | A "unit" test spins up or calls a second real service to check this service's logic | Double the boundary; move true cross-service checks to contract/E2E |
 
+## Contract test checks
+
+A contract test verifies the interface boundary with doubles, not business logic, database state, or deep journeys.
+
+**Business-logic leak signs:**
+
+- Several interactions differ only in business input values and expect different computed results (for example, one per discount tier).
+- Interactions check authorization rules, complex workflows, or algorithms.
+- A consumer expectation asserts more than the subset of the response the consumer reads.
+- Exact-value matching where type matchers suffice (for example PactNet `Match.Type` or `Match.MinType`). Exact is correct only when the value is part of the interface, such as an enum value or status code.
+- Provider states describe business scenarios instead of the data the response needs.
+
+**Fix:** keep one interaction per response structure or status code the consumer handles differently. Move business logic to provider unit or component tests.
+
+**Weak-coverage signs:**
+
+- A consumer client or message handler has no contract test.
+- A published message has no message contract.
+- A provider has consumers but no provider verification in the pipeline.
+- Hand-crafted fixtures that nothing checks against the contract (generate doubles from the contract where tooling allows).
+- One large contract spans unrelated domains.
+- No pipeline gate stops a deploy that breaks a contract.
+
 ## Boundaries
 
 - Not every codebase is microservices. For a monolith or library, `test-pyramid.md` is sufficient — apply this file only when there are independently-deployable services with network boundaries between them.
