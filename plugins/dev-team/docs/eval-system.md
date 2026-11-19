@@ -274,7 +274,7 @@ A fixture is a directory, `evals/skill-reports/<skill>/<fixture>/`:
 
 `scripts/skill_report_grader.py grade --report <report.md> --expected <expected.json>` runs a fixture. Exit 0 passes, 1 means an assertion failed, and 2 means the check could not run (missing file or malformed JSON), which is never a pass.
 
-**No per-layer count targets.** `scripts/skill_report_grader.py count-targets <report.md>...` is the mechanical form of the rule in `cd-test-architecture.md`, *The Pyramid Is a Cost Heuristic, Not a Target Shape*. It fails a report that has a table whose header row has both a *current* column and a *recommended* or *target* column, or a sentence that pairs a number with a test-type word (`unit`, `component`, `contract`, `integration`, `E2E`, `end-to-end`) and `target`, `should have`, or `recommend`. Descriptive counts, such as "12 unit tests exist" in *Current test architecture*, pass. `test_skill_report_fixtures.py` runs both checks over every checked-in fixture report.
+**No per-layer count targets.** `scripts/skill_report_grader.py count-targets <report.md>...` is the mechanical form of the rule in `cd-test-architecture.md`, *The Pyramid Is a Cost Heuristic, Not a Target Shape*. It fails a report that has a table whose header row has both a *current* column and a *recommended* or *target* column, or a sentence that pairs a number with a test-type word (`unit`, `component`, `contract`, `integration`, `E2E`, `end-to-end`) and `target`, `should have`, or `recommend`. Descriptive counts, such as "12 unit tests exist" in *Current test architecture*, pass. `test_skill_report_fixtures.py` runs `grade` over every checked-in fixture and `count-targets` over the fixtures of the three test-architecture skills.
 
 ### `/agent-eval` command
 

@@ -138,3 +138,43 @@ def test_cli_count_targets_exit_codes(tmp_path, capsys) -> None:
     assert grader.main(["count-targets", str(tmp_path / "gone.md")]) == 2
     out = capsys.readouterr().out
     assert "FAIL" in out and "current-vs-recommended table" in out
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "We recommend\n12 unit tests per service.",
+        "Targets: 40 unit and 10 component tests.",
+        "The suite should\nhave 5 contract tests... wait. It should have 5 contract tests.",
+        "| Layer | Current | Recommendation |\n|---|---|---|\n| unit | 4 | 9 |",
+        "| Layer | Current | Targets |\n|---|---|---|\n| unit | 4 | 9 |",
+    ],
+)
+def test_wrapped_sentences_and_word_forms_are_flagged(text: str) -> None:
+    assert grader.check_count_targets(text)
+
+
+def test_table_inside_code_fence_is_ignored() -> None:
+    assert grader.check_count_targets("```\n" + CURRENT_VS_RECOMMENDED + "```\n") == []
+
+
+def test_validate_expected_rejects_unrunnable_shapes() -> None:
+    assert grader.validate_expected({"sections_present": "Scope"})
+    assert grader.validate_expected({"sections_present": [1]})
+    assert grader.validate_expected({"regex_present": ["("]})
+    assert grader.validate_expected({"sections_present": ["Scope"], "regex_absent": ["x"]}) is None
+
+
+def test_cli_did_not_run_on_bad_expected_or_undecodable_report(tmp_path, capsys) -> None:
+    report = _write(tmp_path, "r.md", "## Scope\n")
+    bad_regex = _write(tmp_path, "re.json", json.dumps({"regex_present": ["("]}))
+    bad_type = _write(tmp_path, "ty.json", json.dumps({"sections_present": "Scope"}))
+    binary = tmp_path / "bin.md"
+    binary.write_bytes(b"\xff\xfe\x00bad")
+    ok = _write(tmp_path, "ok.json", json.dumps({}))
+
+    assert grader.main(["grade", "--report", report, "--expected", bad_regex]) == 2
+    assert grader.main(["grade", "--report", report, "--expected", bad_type]) == 2
+    assert grader.main(["grade", "--report", str(binary), "--expected", ok]) == 2
+    assert grader.main(["count-targets", str(binary)]) == 2
+    capsys.readouterr()
