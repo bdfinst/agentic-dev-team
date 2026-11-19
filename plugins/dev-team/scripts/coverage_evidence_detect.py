@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""coverage_evidence_detect.py — classify a coverage or mutation evidence path.
+
+`/system-test-design` accepts per-test coverage and mutation evidence and
+falls back to `static-judgment` when it cannot use a path. This script makes
+that decision deterministic: it detects the format by CONTENT (never by file
+extension) and, when the path is unusable, returns the exact reason string the
+report quotes.
+
+Accepted formats (v1):
+
+    coverage  coveragepy-json   coverage.py JSON written with --show-contexts
+              cobertura-dir     a directory of per-test Cobertura XML, one
+                                file per test id
+              istanbul-dir      a directory of per-test Istanbul JSON, one
+                                file per test id
+    mutation  stryker           Stryker mutation-report.json whose mutants
+                                carry killedBy/coveredBy
+              mutmut            mutmut 3 stats JSON, recognised by its
+                                `exit_code_by_key` map
+
+Reasons when `format` is null (verbatim in the report):
+
+    missing                 the path does not exist
+    unrecognised format     readable, but none of the formats above
+    malformed: <error>      a parser error (truncated JSON, invalid XML)
+    no contexts             a recognised format with no per-test data (for
+                            example coverage.py JSON written without
+                            --show-contexts)
+
+Output is one JSON object on stdout:
+    {"kind": ..., "path": ..., "format": <name or null>, "reason": <str or null>}
+Exit 0 whenever the path was classified (an unusable path is data, not an
+error); exit 2 for a usage error. Stdlib only (ADR 0014/0015).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+EXIT_OK = 0
+EXIT_USAGE = 2
+
+MISSING = "missing"
+UNRECOGNISED = "unrecognised format"
+NO_CONTEXTS = "no contexts"
+
+
+class _Malformed(Exception):
+    pass
+
+
+def _result(kind: str, path: str, fmt: str | None, reason: str | None) -> dict:
+    return {"kind": kind, "path": path, "format": fmt, "reason": reason}
+
+
+def _load_json(file: Path):
+    try:
+        return json.loads(file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise _Malformed(f"malformed: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise _Malformed(f"malformed: {exc}") from exc
+
+
+def _load_xml_root(file: Path):
+    try:
+        return ET.parse(file).getroot()
+    except ET.ParseError as exc:
+        raise _Malformed(f"malformed: {exc}") from exc
+
+
+def _is_coveragepy(data) -> bool:
+    return isinstance(data, dict) and isinstance(data.get("meta"), dict) and isinstance(
+        data.get("files"), dict
+    )
+
+
+def _has_contexts(data: dict) -> bool:
+    return any(
+        isinstance(entry, dict) and entry.get("contexts")
+        for entry in data["files"].values()
+    )
+
+
+def _is_stryker(data) -> bool:
+    return isinstance(data, dict) and "schemaVersion" in data and isinstance(data.get("files"), dict)
+
+
+def _stryker_has_per_test_data(data: dict) -> bool:
+    for entry in data["files"].values():
+        for mutant in entry.get("mutants", []) if isinstance(entry, dict) else []:
+            if isinstance(mutant, dict) and (mutant.get("killedBy") or mutant.get("coveredBy")):
+                return True
+    return False
+
+
+def _is_mutmut(data) -> bool:
+    return isinstance(data, dict) and isinstance(data.get("exit_code_by_key"), dict)
+
+
+def _is_istanbul(data) -> bool:
+    return (
+        isinstance(data, dict)
+        and bool(data)
+        and all(
+            isinstance(v, dict) and "statementMap" in v and "s" in v for v in data.values()
+        )
+    )
+
+
+def _classify_coverage_file(file: Path) -> tuple[str | None, str | None]:
+    data = _load_json(file)
+    if _is_coveragepy(data):
+        return ("coveragepy-json", None) if _has_contexts(data) else (None, NO_CONTEXTS)
+    return None, UNRECOGNISED
+
+
+def _classify_coverage_dir(directory: Path) -> tuple[str | None, str | None]:
+    files = sorted(p for p in directory.iterdir() if p.is_file())
+    if not files:
+        return None, UNRECOGNISED
+    formats: set[str] = set()
+    for file in files:
+        text = file.read_text(encoding="utf-8", errors="replace").lstrip()
+        if text.startswith("<"):
+            root = _load_xml_root(file)
+            if root.tag != "coverage":
+                return None, UNRECOGNISED
+            formats.add("cobertura-dir")
+        elif text.startswith("{"):
+            if not _is_istanbul(_load_json(file)):
+                return None, UNRECOGNISED
+            formats.add("istanbul-dir")
+        else:
+            return None, UNRECOGNISED
+    if len(formats) != 1:
+        return None, UNRECOGNISED
+    return formats.pop(), None
+
+
+def _classify_mutation_file(file: Path) -> tuple[str | None, str | None]:
+    data = _load_json(file)
+    if _is_stryker(data):
+        return ("stryker", None) if _stryker_has_per_test_data(data) else (None, NO_CONTEXTS)
+    if _is_mutmut(data):
+        return "mutmut", None
+    return None, UNRECOGNISED
+
+
+def classify(kind: str, path: str) -> dict:
+    """Classify `path` as evidence of `kind` ('coverage' or 'mutation')."""
+    target = Path(path)
+    if not target.exists():
+        return _result(kind, path, None, MISSING)
+    try:
+        if kind == "coverage":
+            if target.is_dir():
+                fmt, reason = _classify_coverage_dir(target)
+            else:
+                fmt, reason = _classify_coverage_file(target)
+        else:
+            if target.is_dir():
+                fmt, reason = None, UNRECOGNISED
+            else:
+                fmt, reason = _classify_mutation_file(target)
+    except _Malformed as exc:
+        return _result(kind, path, None, str(exc))
+    except OSError as exc:
+        return _result(kind, path, None, f"malformed: {exc}")
+    return _result(kind, path, fmt, reason)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--kind", required=True, choices=("coverage", "mutation"))
+    parser.add_argument("path")
+    args = parser.parse_args(argv)
+    print(json.dumps(classify(args.kind, args.path)))
+    return EXIT_OK
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())
