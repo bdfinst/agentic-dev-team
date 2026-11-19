@@ -15,7 +15,7 @@ Per repo, from `--coverage` and `--mutation`. Detect the format with `scripts/co
 
 - **Shared lines:** at least one covered production line inside the paired symbol's body. Imports, fixtures, and boilerplate outside the body never count.
 - **Coverage:** shared lines give `coverage-backed`. Disjoint lines give `coverage disagrees`: downgrade one confidence level and never report above `suggestion`.
-- **Mutation:** both tests kill at least one common mutant inside the symbol's body gives `mutation-backed` (strongest; overrides coverage). Neither kills any gives `mutation disagrees`, with the same downgrade.
+- **Mutation:** both tests kill at least one common mutant inside the symbol's body gives `mutation-backed` (strongest; overrides coverage). No mutant killed by both inside the body (neither kills any, or they kill different ones) gives `mutation disagrees`, with the same downgrade.
 - **No usable evidence** for a repo (nothing given, or `missing`, `unrecognised format`, `malformed: <parser error>`, `no contexts`): `static-judgment` with that reason.
 - **Evidence for one of two repos:** the other repo's findings are `static-judgment: missing`, and Scope names which repos had evidence.
 

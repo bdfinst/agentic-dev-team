@@ -16,7 +16,7 @@ Find E2E tests in each repo (automation frameworks, tests that hit deployed serv
 
 "Covering" means a test at a smaller layer that asserts the same expected outcome for the same service pair or component. Edge-case, validation, and error-path E2Es are never `KEEP`. A mixed E2E is `KEEP` for the journey and `PUSH DOWN` for its error assertions. Never `DELETE` without a named covering test.
 
-Each `KEEP` journey states: real component names spanned; taxonomy category; one sentence on why contract, component, and resilience tests cannot cover it; stage (post-deploy or scheduled, never pre-merge); source repos.
+Each `KEEP` journey states: real component names spanned; taxonomy category; one sentence on why contract, component, and resilience tests cannot cover it; stage (post-deploy, scheduled, acceptance in an ephemeral environment, or synthetic monitoring; never pre-merge); source repos.
 
 ## Multi-repo merge
 
@@ -28,7 +28,7 @@ Each `KEEP` journey states: real component names spanned; taxonomy category; one
 
 Use repowise first: `get_overview` per repo for structure and entry points; `search_codebase` for interaction signals (producer/consumer, client, topic, queue, endpoint names; `complete: true` means every match); `get_context include=["references"]` to follow a symbol across repos; `get_answer` for one how/where question per call.
 
-Inventory edges that cross a repo or deployable boundary: pub/sub producers and consumers, gRPC/HTTP clients calling another deployable, shared-database writers and readers, token or tenant propagation, startup/config/migration wiring, third-party integrations. For each, ask whether a `KEEP` journey covers it. If not, apply gate conditions 1-3. If a contract, component, or resilience test can cover it, report `Cover with <contract|component|resilience> test instead` and propose no E2E. Propose an E2E only when conditions 1-3 fail and condition 4 holds.
+Inventory edges that cross a repo or deployable boundary: pub/sub producers and consumers, gRPC/HTTP clients calling another deployable, shared-database writers and readers, token or tenant propagation, startup/config/migration wiring, third-party integrations. For each, ask whether a `KEEP` journey covers it. If not, apply gate conditions 1-3. If a contract, component, or resilience test can cover it, report `Cover with <contract|component|resilience> test instead` and propose no E2E. Propose an E2E only when all four gate conditions hold: a contract, a component, and a resilience test each cannot cover it, and it is a critical journey across real components.
 
 Each gap candidate states: components (real names, with file or symbol evidence); taxonomy category; why smaller tests cannot cover it; proposed stage; priority note (`critical business path` or `lower risk`) with the reason.
 

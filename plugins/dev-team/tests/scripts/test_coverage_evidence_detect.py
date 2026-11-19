@@ -26,7 +26,12 @@ STRYKER = {
     "files": {"a.js": {"mutants": [{"id": "1", "killedBy": ["t1"], "coveredBy": ["t1"]}]}},
 }
 STRYKER_NO_PER_TEST = {"schemaVersion": "1", "files": {"a.js": {"mutants": [{"id": "1"}]}}}
-MUTMUT = {"exit_code_by_key": {"app.x_f__mutmut_1": 1}}
+MUTMUT = {
+    "exit_code_by_key": {"app.x_f__mutmut_1": 1},
+    "tests_by_mangled_function_name": {"app.x_f": ["tests/test_app.py::test_f"]},
+}
+MUTMUT_NO_TESTS = {"exit_code_by_key": {"app.x_f__mutmut_1": 1}}
+COVERAGEPY_EMPTY_STATIC_CONTEXT = {"meta": {}, "files": {"app.py": {"contexts": {"10": [""]}}}}
 
 
 def _file(tmp_path, name, content):
@@ -121,3 +126,36 @@ def test_cli_prints_one_json_object_and_exits_zero_for_unusable_paths(tmp_path, 
     code = detect.main(["--kind", "coverage", str(tmp_path / "gone.json")])
     out = json.loads(capsys.readouterr().out)
     assert code == 0 and out["reason"] == "missing"
+
+
+def test_mutmut_without_a_test_map_reports_no_contexts(tmp_path):
+    r = detect.classify("mutation", _file(tmp_path, "m.json", MUTMUT_NO_TESTS))
+    assert (r["format"], r["reason"]) == (None, "no contexts")
+
+
+def test_coveragepy_with_only_the_empty_static_context_reports_no_contexts(tmp_path):
+    r = detect.classify("coverage", _file(tmp_path, "c.json", COVERAGEPY_EMPTY_STATIC_CONTEXT))
+    assert (r["format"], r["reason"]) == (None, "no contexts")
+
+
+@pytest.mark.parametrize("kind", ["coverage", "mutation"])
+@pytest.mark.parametrize(
+    "content",
+    ["<?xml version='1.0'?><report name='jacoco'/>", "mode: set\napp/a.go:1.1,2.2 1 1\n", "TN:\nSF:a.js\n"],
+)
+def test_readable_non_json_files_are_unrecognised_not_malformed(tmp_path, kind, content):
+    r = detect.classify(kind, _file(tmp_path, "report.dat", content))
+    assert (r["format"], r["reason"]) == (None, "unrecognised format")
+
+
+def test_binary_file_is_unrecognised(tmp_path):
+    path = tmp_path / "b.bin"
+    path.write_bytes(b"\xff\xfe\x00")
+    assert detect.classify("coverage", str(path))["reason"] == "unrecognised format"
+
+
+def test_stray_dotfiles_in_a_per_test_directory_are_ignored(tmp_path):
+    (tmp_path / "t1.xml").write_text(COBERTURA)
+    (tmp_path / ".DS_Store").write_bytes(b"\x00\x00")
+    r = detect.classify("coverage", str(tmp_path))
+    assert (r["format"], r["reason"]) == ("cobertura-dir", None)

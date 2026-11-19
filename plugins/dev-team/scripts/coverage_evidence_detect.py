@@ -17,7 +17,11 @@ Accepted formats (v1):
     mutation  stryker           Stryker mutation-report.json whose mutants
                                 carry killedBy/coveredBy
               mutmut            mutmut 3 stats JSON, recognised by its
-                                `exit_code_by_key` map
+                                `exit_code_by_key` map and usable only with a
+                                non-empty `tests_by_mangled_function_name`
+                                (the test-to-function map; the shape is the
+                                one mutmut 3 writes, not yet probed against
+                                real output in this repo)
 
 Reasons when `format` is null (verbatim in the report):
 
@@ -81,10 +85,16 @@ def _is_coveragepy(data) -> bool:
 
 
 def _has_contexts(data: dict) -> bool:
-    return any(
-        isinstance(entry, dict) and entry.get("contexts")
-        for entry in data["files"].values()
-    )
+    """True when some line carries a non-empty context label. Data recorded
+    without dynamic test contexts maps every line to the empty static context
+    `[""]`, which names no test."""
+    for entry in data["files"].values():
+        contexts = entry.get("contexts") if isinstance(entry, dict) else None
+        if isinstance(contexts, dict) and any(
+            label for labels in contexts.values() if isinstance(labels, list) for label in labels
+        ):
+            return True
+    return False
 
 
 def _is_stryker(data) -> bool:
@@ -103,6 +113,10 @@ def _is_mutmut(data) -> bool:
     return isinstance(data, dict) and isinstance(data.get("exit_code_by_key"), dict)
 
 
+def _mutmut_has_per_test_data(data: dict) -> bool:
+    return bool(data.get("tests_by_mangled_function_name"))
+
+
 def _is_istanbul(data) -> bool:
     return (
         isinstance(data, dict)
@@ -113,7 +127,18 @@ def _is_istanbul(data) -> bool:
     )
 
 
+def _starts_with(file: Path, char: str) -> bool:
+    """True when the file's first non-blank character is `char`. A file that
+    cannot be decoded as text is neither JSON nor XML, so it is False."""
+    try:
+        return file.read_text(encoding="utf-8").lstrip().startswith(char)
+    except UnicodeDecodeError:
+        return False
+
+
 def _classify_coverage_file(file: Path) -> tuple[str | None, str | None]:
+    if not _starts_with(file, "{"):
+        return None, UNRECOGNISED
     data = _load_json(file)
     if _is_coveragepy(data):
         return ("coveragepy-json", None) if _has_contexts(data) else (None, NO_CONTEXTS)
@@ -121,7 +146,7 @@ def _classify_coverage_file(file: Path) -> tuple[str | None, str | None]:
 
 
 def _classify_coverage_dir(directory: Path) -> tuple[str | None, str | None]:
-    files = sorted(p for p in directory.iterdir() if p.is_file())
+    files = sorted(p for p in directory.iterdir() if p.is_file() and not p.name.startswith("."))
     if not files:
         return None, UNRECOGNISED
     formats: set[str] = set()
@@ -144,11 +169,13 @@ def _classify_coverage_dir(directory: Path) -> tuple[str | None, str | None]:
 
 
 def _classify_mutation_file(file: Path) -> tuple[str | None, str | None]:
+    if not _starts_with(file, "{"):
+        return None, UNRECOGNISED
     data = _load_json(file)
     if _is_stryker(data):
         return ("stryker", None) if _stryker_has_per_test_data(data) else (None, NO_CONTEXTS)
     if _is_mutmut(data):
-        return "mutmut", None
+        return ("mutmut", None) if _mutmut_has_per_test_data(data) else (None, NO_CONTEXTS)
     return None, UNRECOGNISED
 
 
