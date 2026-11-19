@@ -246,6 +246,36 @@ Re-run it with `/agent-eval --skill test-design-advisor`. `expectedGates` uses t
 gate vocabulary `A`/`B`/`C`/`D`/`redundancy`/`ambiguity` (or `[]` for "no gate
 fires"). `expectedLayers` uses the `test-pyramid.md` vocabulary.
 
+### Skill-report fixtures
+
+Agent fixtures grade `status/issues[]` JSON, and the advisory-skill fixtures above grade a gate table. A skill that writes a long report (`system-test-design`, `test-health`, `cd-test-architecture`) needs a third format: a small input tree and assertions over the generated report text.
+
+A fixture is a directory, `evals/skill-reports/<skill>/<fixture>/`:
+
+| File | Content |
+|---|---|
+| `repos/` | The input: one or more small repository trees (omit for a skill that reads a single path). |
+| `report.md` | The checked-in golden report. CI grades this file. Live regeneration by the skill stays opt-in. |
+| `expected.json` | The assertions below. |
+
+```json
+{
+  "sections_present": ["Scope", "System map"],
+  "sections_absent": ["Overlap and misplacement"],
+  "regex_present": ["Scope.*named"],
+  "regex_absent": ["(?i)\\bshould have \\d+ unit"]
+}
+```
+
+- `sections_present`: headings (any level, case-insensitive) that must exist.
+- `sections_absent`: headings that must not exist. Use it for mode omissions, where the heading is absent and not "not run".
+- `regex_present`: each pattern must match somewhere in the report (multiline).
+- `regex_absent`: no pattern may match.
+
+`scripts/skill_report_grader.py grade --report <report.md> --expected <expected.json>` runs a fixture. Exit 0 passes, 1 means an assertion failed, and 2 means the check could not run (missing file or malformed JSON), which is never a pass.
+
+**No per-layer count targets.** `scripts/skill_report_grader.py count-targets <report.md>...` is the mechanical form of the rule in `cd-test-architecture.md`, *The Pyramid Is a Cost Heuristic, Not a Target Shape*. It fails a report that has a table whose header row has both a *current* column and a *recommended* or *target* column, or a sentence that pairs a number with a test-type word (`unit`, `component`, `contract`, `integration`, `E2E`, `end-to-end`) and `target`, `should have`, or `recommend`. Descriptive counts, such as "12 unit tests exist" in *Current test architecture*, pass. `test_skill_report_fixtures.py` runs both checks over every checked-in fixture report.
+
 ### `/agent-eval` command
 
 Run agents and skills against fixtures and grade results:
