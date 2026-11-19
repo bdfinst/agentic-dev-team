@@ -66,6 +66,19 @@ xUnit Test Patterns groups smells into three levels. Detect at all three:
 
 ---
 
+## Layer Smells (per file, layer relocation)
+
+Detected per file by `test-smell-review`; the fix is moving the test or assertion to the owning layer (`test-layer-ownership.md`), so there is no xUnit remedy family. Cross-Layer Overlap needs pairing across files and belongs to `system-test-design`.
+
+| Smell | Detection signal | Why it hurts | Fix |
+|-------|-----------------|--------------|-----|
+| **Component Permutation Re-test** | A component test feeds 3 or more inputs to one rule with the same assertion shape (2 inputs not flagged) | Business permutations re-test a unit rule at a slower layer | Move the permutations to a parameterized unit test; keep the seam assertion |
+| **Contract Business-Logic Leak** | A contract test asserts a computed business value or workflow outcome (shape or type matchers only: not flagged) | The contract breaks on business change, not interface change | Keep one interaction per response structure; move the logic to provider unit or component tests |
+| **Component E2E Scope Creep** | A component test targets a non-loopback host (loopback: `localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`) that is not stubbed in the test's own setup (WireMock, nock, MockHttpMessageHandler, VCR-style replay) or by a contract mock (Pact). Compose or env-resolved hosts: flag as `inferred` | The component test depends on a real network hop, so it is non-deterministic | Stub the dependency, or move the check to a contract or out-of-band integration test |
+| **Mislabeled Test Level** | A unit-named test (token `unit`, case-insensitive) opens a real SQL driver connection, reaches a non-loopback socket, or writes to disk outside the OS temp dir (→ `integration`); or boots the in-process app host (→ `component`). In-memory SQLite and fakes: not flagged | The label promises a fast unit test; the suite's layers and gates are misread | Rename and relocate to the named level |
+
+---
+
 ## Detection Workflow
 
 1. **Read each test method** for code smells — can you state the behavior under test in one sentence from the test alone? If not → Obscure Test.

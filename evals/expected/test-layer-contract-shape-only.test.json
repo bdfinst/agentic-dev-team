@@ -1,0 +1,21 @@
+{
+  "fixture": "test-layer-contract-shape-only.test",
+  "description": "Control: contract test asserts only field shape with type matchers",
+  "applicableAgents": [
+    "test-smell-review"
+  ],
+  "agents": {
+    "test-smell-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 1
+      },
+      "severities": {},
+      "mustMention": [],
+      "mustNotMention": [
+        "Contract Business-Logic Leak"
+      ]
+    }
+  }
+}

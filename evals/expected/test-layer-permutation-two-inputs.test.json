@@ -1,0 +1,21 @@
+{
+  "fixture": "test-layer-permutation-two-inputs.test",
+  "description": "Control: component test with only 2 inputs to one rule is not flagged",
+  "applicableAgents": [
+    "test-smell-review"
+  ],
+  "agents": {
+    "test-smell-review": {
+      "expectedStatus": "pass",
+      "issueCount": {
+        "min": 0,
+        "max": 1
+      },
+      "severities": {},
+      "mustMention": [],
+      "mustNotMention": [
+        "Component Permutation Re-test"
+      ]
+    }
+  }
+}

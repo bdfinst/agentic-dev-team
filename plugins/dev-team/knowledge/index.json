@@ -1938,6 +1938,10 @@
       "summary": "| Smell | Detection signal | Why it hurts | Fix |",
       "anchor": "project-smells-visible-across-the-suite-over-time"
     },
+    "Layer Smells (per file, layer relocation)": {
+      "summary": "Detected per file by `test-smell-review`; the fix is moving the test or assertion to the owning layer (`test-layer-ownership.md`), so there is no xUnit remedy family.",
+      "anchor": "layer-smells-per-file-layer-relocation"
+    },
     "Detection Workflow": {
       "summary": "1.",
       "anchor": "detection-workflow"
