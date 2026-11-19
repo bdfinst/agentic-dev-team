@@ -17,7 +17,7 @@
   "sections_absent": [],
   "regex_present": [
     "shared table or schema",
-    "orders/db/models\\.py:8",
+    "orders/db/models\\.py:1",
     "temporary",
     "billing owns `invoice_lines`"
   ],

@@ -21,5 +21,7 @@
     "(?m)^## Test-double validation",
     "(?m)^## Contract-test findings"
   ],
-  "regex_absent": []
+  "regex_absent": [
+    "(?i)not run"
+  ]
 }

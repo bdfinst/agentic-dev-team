@@ -21,9 +21,9 @@ No findings.
 
 | Test | Behavior | Also asserted by | Owning type | Action |
 |---|---|---|---|---|
-| tests/unit/test_pricing.py::test_discount | apply_discount gold tier | tests/component/test_pricing_api.py::test_discount | unit | remove the assertion from the component test |
+| tests/unit/pricing.test.js::discount | applyDiscount gold tier | tests/component/pricing.api.test.js::discount | unit | remove the assertion from the component test |
 
-- [evidence: coverage-backed; evidence-confidence: high] Cross-Layer Overlap (suggestion) Keep the unit test; trim the component test to seam assertions.
+- [evidence: coverage-backed; evidence-confidence: high; basis: shared covered line 2 inside applyDiscount] Cross-Layer Overlap | tests/unit/pricing.test.js::discount + tests/component/pricing.api.test.js::discount | keep the unit test; trim the component test to seam assertions
 
 ## Contract-test findings
 

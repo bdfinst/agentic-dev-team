@@ -17,8 +17,11 @@
     "Rejected candidates"
   ],
   "regex_present": [
-    "\\[evidence: coverage-backed; evidence-confidence: high\\] Cross-Layer Overlap",
-    "Keep the unit test; trim the component test to seam assertions"
+    "\\[evidence:\\ coverage\\-backed;\\ evidence\\-confidence:\\ high;\\ basis:\\ .+\\]\\ Cross\\-Layer\\ Overlap\\ \\|\\ tests/unit/test_pricing\\.py::test_discount \\+ tests/component/test_pricing_api\\.py::test_discount",
+    "\\(coveragepy\\-json\\)",
+    "keep\\ the\\ unit\\ test;\\ trim\\ the\\ component\\ test\\ to\\ seam\\ assertions"
   ],
-  "regex_absent": []
+  "regex_absent": [
+    "(?i)not run"
+  ]
 }

@@ -33,7 +33,7 @@ No findings.
 
 ## Minimum E2E set
 
-No findings.
+Order reaches billing (async handoff). Provenance: orders/e2e/test_handoff.py.
 
 ## Recommended E2E candidates
 

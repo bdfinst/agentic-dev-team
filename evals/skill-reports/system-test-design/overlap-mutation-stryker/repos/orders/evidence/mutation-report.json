@@ -28,5 +28,23 @@
     }
    ]
   }
+ },
+ "testFiles": {
+  "tests/unit/test_pricing.py": {
+   "tests": [
+    {
+     "id": "t-unit",
+     "name": "test_discount"
+    }
+   ]
+  },
+  "tests/component/test_pricing_api.py": {
+   "tests": [
+    {
+     "id": "t-comp",
+     "name": "test_discount"
+    }
+   ]
+  }
  }
 }

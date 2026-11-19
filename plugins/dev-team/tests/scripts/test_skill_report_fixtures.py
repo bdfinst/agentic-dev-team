@@ -34,6 +34,10 @@ def test_at_least_one_fixture_is_checked_in() -> None:
 def test_fixture_report_meets_its_expected_assertions(fixture) -> None:
     expected = json.loads((fixture / "expected.json").read_text(encoding="utf-8"))
     report = (fixture / "report.md").read_text(encoding="utf-8")
+    assert grader.validate_expected(expected) is None
+    unknown = set(expected) - set(grader._ASSERTION_KEYS)
+    assert not unknown, f"unknown assertion keys (typo?): {sorted(unknown)}"
+    assert expected.get("regex_present") or expected.get("sections_present")
     assert grader.grade_report(report, expected) == []
 
 
@@ -70,6 +74,14 @@ def test_test_health_multi_repo_fixture_exists() -> None:
 
 
 EVIDENCE_FIXTURES = sorted(p.parent for p in FIXTURE_ROOT.glob("*/*/evidence.json"))
+
+
+def test_every_overlap_evidence_fixture_declares_its_evidence() -> None:
+    names = {f.name for f in EVIDENCE_FIXTURES}
+    expected = {n for n in REQUIRED_SYSTEM_TEST_DESIGN_FIXTURES
+                if n.startswith(("overlap-coverage-", "overlap-mutation-", "overlap-static-"))
+                or n == "overlap-partial-evidence"}
+    assert expected - {"overlap-static-missing"} <= names
 
 
 @pytest.mark.parametrize("fixture", EVIDENCE_FIXTURES, ids=_id)

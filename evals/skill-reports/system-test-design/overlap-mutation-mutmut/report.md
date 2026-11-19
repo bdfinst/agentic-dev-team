@@ -23,7 +23,7 @@ No findings.
 |---|---|---|---|---|
 | tests/unit/test_pricing.py::test_discount | apply_discount gold tier | tests/component/test_pricing_api.py::test_discount | unit | remove the assertion from the component test |
 
-- [evidence: mutation-backed; evidence-confidence: high] Cross-Layer Overlap (suggestion) Both tests kill a common mutant in the symbol body. Keep the unit test; trim the component test to seam assertions.
+- [evidence: mutation-backed; evidence-confidence: high; basis: both tests kill a common mutant inside apply_discount] Cross-Layer Overlap | tests/unit/test_pricing.py::test_discount + tests/component/test_pricing_api.py::test_discount | keep the unit test; trim the component test to seam assertions
 
 ## Contract-test findings
 

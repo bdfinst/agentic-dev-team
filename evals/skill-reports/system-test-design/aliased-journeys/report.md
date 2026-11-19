@@ -5,7 +5,6 @@
 - Mode: full
 - orders: named
 - checkout-svc: named
-- Alias map: none
 - External boundaries: none
 - Commit: abc1234
 - Alias map: orders = checkout-svc (same deployable under two names)

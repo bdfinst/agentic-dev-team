@@ -18,7 +18,8 @@
   "regex_present": [
     "\\| KEEP \\|",
     "async handoff",
-    "post-deploy or scheduled"
+    "post-deploy or scheduled",
+    "(?s)## Minimum E2E set\\s+Order reaches billing"
   ],
   "regex_absent": [
     "\\| (DELETE|PUSH DOWN)"

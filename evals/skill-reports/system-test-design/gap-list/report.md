@@ -63,9 +63,8 @@ Gap list (capped at 10; 2 more uncovered interactions not shown):
 8. orders -> billing interaction 8: no covering test (observed)
 9. orders -> billing interaction 9: no covering test (observed)
 10. orders -> billing interaction 10: no covering test (observed)
-11. orders -> billing interaction 11 is not in the gap list (cap)
 
-Interaction 3 has no covering test that a contract test could pin. Cover with contract test instead; no E2E proposed.
+Interaction 3: no covering test, and a contract test could pin it. Cover with contract test instead; no E2E proposed.
 
 ## Open questions
 

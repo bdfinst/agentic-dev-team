@@ -17,10 +17,11 @@
     "Rejected candidates"
   ],
   "regex_present": [
-    "mutation-backed",
-    "overrides coverage"
+    "\\[evidence:\\ mutation\\-backed;\\ evidence\\-confidence:\\ high;\\ basis:\\ .+\\]\\ Cross\\-Layer\\ Overlap\\ \\|\\ tests/unit/test_pricing\\.py::test_discount \\+ tests/component/test_pricing_api\\.py::test_discount",
+    "keep\\ the\\ unit\\ test;\\ trim\\ the\\ component\\ test\\ to\\ seam\\ assertions"
   ],
   "regex_absent": [
-    "\\[evidence: coverage-backed"
+    "evidence: coverage-backed",
+    "(?i)not run"
   ]
 }

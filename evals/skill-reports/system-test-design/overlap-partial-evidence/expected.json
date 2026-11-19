@@ -19,7 +19,10 @@
   "regex_present": [
     "billing: \\[evidence: static-judgment: missing\\]",
     "coverage for orders only",
-    "billing had none"
+    "billing had none",
+    "orders: \\[evidence: coverage-backed; evidence-confidence: high"
   ],
-  "regex_absent": []
+  "regex_absent": [
+    "(?i)not run"
+  ]
 }

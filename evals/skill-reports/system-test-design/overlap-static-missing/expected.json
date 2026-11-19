@@ -17,12 +17,13 @@
     "Rejected candidates"
   ],
   "regex_present": [
-    "static-judgment: missing",
-    "candidate; confirm with coverage before trimming",
-    "\\(suggestion\\)"
+    "\\[evidence:\\ static\\-judgment;\\ evidence\\-confidence:\\ low;\\ basis:\\ .+\\]\\ Cross\\-Layer\\ Overlap\\ \\|\\ tests/unit/test_pricing\\.py::test_discount \\+ tests/component/test_pricing_api\\.py::test_discount",
+    "basis:\\ missing",
+    "severity\\ suggestion;\\ candidate;\\ confirm\\ with\\ coverage\\ before\\ trimming"
   ],
   "regex_absent": [
     "coverage-backed",
-    "mutation-backed"
+    "mutation-backed",
+    "(?i)not run"
   ]
 }

@@ -18,8 +18,10 @@
   ],
   "regex_present": [
     "capped at 20",
-    "test_f19",
-    "(?s)^(?!.*test_f20)"
+    "test_f19"
   ],
-  "regex_absent": []
+  "regex_absent": [
+    "test_f20",
+    "(?i)not run"
+  ]
 }

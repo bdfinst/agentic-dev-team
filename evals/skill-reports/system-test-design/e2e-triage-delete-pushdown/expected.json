@@ -16,10 +16,8 @@
   ],
   "sections_absent": [],
   "regex_present": [
-    "\\| DELETE \\|",
-    "test_cart\\.py::test_rejects_empty_cart",
-    "PUSH DOWN -> unit",
-    "none found, create one first"
+    "\\| DELETE \\|.*test_cart\\.py::test_rejects_empty_cart",
+    "PUSH DOWN -> unit \\|.*none found, create one first"
   ],
   "regex_absent": [
     "\\| KEEP \\|"

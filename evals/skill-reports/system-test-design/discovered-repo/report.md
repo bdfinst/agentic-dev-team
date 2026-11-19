@@ -12,7 +12,7 @@
 
 ## System map
 
-orders references billing and shipping. observed: orders/config.yaml:4, :9.
+orders references billing and shipping. observed: orders/config.yaml:1-2.
 
 ## Entangled workflows
 

@@ -17,9 +17,11 @@
   "sections_absent": [],
   "regex_present": [
     "capped at 10",
-    "Cover with contract test instead"
+    "(?m)^10\\. ",
+    "Interaction 3: .*Cover with contract test instead"
   ],
   "regex_absent": [
-    "(?i)Candidate \\d"
+    "(?i)Candidate \\d",
+    "(?m)^11\\."
   ]
 }

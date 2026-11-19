@@ -17,7 +17,7 @@ No findings.
 
 | Workflow | Kind | Deployables | Evidence | Guarding E2E | Decoupling step |
 |---|---|---|---|---|---|
-| Invoice totals | shared table or schema | orders, billing | orders/db/models.py:8 and billing/db/models.py:5 both map table `invoice_lines` (observed) | Candidate 1 (temporary) | billing owns `invoice_lines` and exposes it through an API; add a contract test at the boundary |
+| Invoice totals | shared table or schema | orders, billing | orders/db/models.py:1 and billing/db/models.py:1 both map table `invoice_lines` (observed) | Candidate 1 (temporary) | billing owns `invoice_lines` and exposes it through an API; add a contract test at the boundary |
 
 ## Current test architecture
 

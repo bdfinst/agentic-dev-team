@@ -18,7 +18,11 @@
   "regex_present": [
     "Alias map: orders = checkout-svc",
     "listed once",
-    "possibly same"
+    "possibly same",
+    "(?m)^- Alias map: orders = checkout-svc"
   ],
-  "regex_absent": []
+  "regex_absent": [
+    "Alias map: none",
+    "(?s)Place an order.*Place an order.*## Rejected"
+  ]
 }

@@ -23,7 +23,7 @@ No findings.
 |---|---|---|---|---|
 | tests/unit/test_pricing.py::test_discount | apply_discount gold tier | tests/component/test_pricing_api.py::test_discount | unit | remove the assertion from the component test |
 
-- [evidence: coverage-backed; evidence-confidence: high] Cross-Layer Overlap (suggestion) Keep the unit test; trim the component test to seam assertions.
+- [evidence: coverage-backed; evidence-confidence: high; basis: shared covered line 3 inside apply_discount] Cross-Layer Overlap | tests/unit/test_pricing.py::test_discount + tests/component/test_pricing_api.py::test_discount | keep the unit test; trim the component test to seam assertions
 
 ## Contract-test findings
 

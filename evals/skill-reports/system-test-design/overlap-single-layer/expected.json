@@ -21,6 +21,7 @@
   ],
   "regex_absent": [
     "Cross-Layer Overlap",
-    "\\| Test \\|"
+    "\\| Test \\|",
+    "(?i)not run"
   ]
 }

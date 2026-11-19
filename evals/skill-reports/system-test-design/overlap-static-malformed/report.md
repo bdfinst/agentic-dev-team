@@ -7,7 +7,7 @@
 - Alias map: none
 - External boundaries: none
 - Commit: abc1234
-- Evidence: orders coverage path evidence/coverage.json unusable (malformed)
+- Evidence: orders coverage path evidence/coverage.json unusable (malformed: Expecting ',' delimiter: line 1 column 84 (char 83))
 
 ## Current test architecture
 
@@ -23,7 +23,7 @@ No findings.
 |---|---|---|---|---|
 | tests/unit/test_pricing.py::test_discount | apply_discount gold tier | tests/component/test_pricing_api.py::test_discount | unit | remove the assertion from the component test |
 
-- [evidence: static-judgment: malformed] Cross-Layer Overlap (suggestion) candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: malformed: Expecting ',' delimiter: line 1 column 84 (char 83)] Cross-Layer Overlap | tests/unit/test_pricing.py::test_discount + tests/component/test_pricing_api.py::test_discount | severity suggestion; candidate; confirm with coverage before trimming
 
 ## Contract-test findings
 

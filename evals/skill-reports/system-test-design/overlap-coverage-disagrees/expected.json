@@ -17,11 +17,12 @@
     "Rejected candidates"
   ],
   "regex_present": [
-    "coverage disagrees",
-    "\\(suggestion\\)"
+    "\\[evidence:\\ coverage\\ disagrees;\\ evidence\\-confidence:\\ medium;\\ basis:\\ .+\\]\\ Cross\\-Layer\\ Overlap\\ \\|\\ tests/unit/test_pricing\\.py::test_discount \\+ tests/component/test_pricing_api\\.py::test_discount",
+    "severity\\ suggestion;\\ keep\\ the\\ unit\\ test;\\ trim\\ the\\ component\\ test\\ to\\ seam\\ assertions"
   ],
   "regex_absent": [
     "coverage-backed",
-    "\\((warning|error)\\)"
+    "mutation-backed",
+    "(?i)not run"
   ]
 }
