@@ -4,7 +4,7 @@ Reference file for the `cd-test-architecture` skill and the `test-design-advisor
 
 Source vocabulary: MinimumCD Practice Guide — Test Types (beyond.minimumcd.org/docs/testing/test-types/) and Applied Testing Strategies (beyond.minimumcd.org/docs/testing/applied-testing-strategies/). Component-specific patterns are in `component-test-patterns.md`.
 
-Core principle: **a pre-merge gate may contain only deterministic tests.** A test that depends on a system the team doesn't control — or that must be configured to run against shared state — is non-deterministic and belongs out of the merge path. The way to keep behavior coverage in the gate anyway is to replace uncontrolled systems with test doubles, and to keep those doubles honest with a separate validation loop.
+Core principle: **a pre-merge gate may contain only deterministic tests.** A test that depends on a system the team doesn't control — or that must be configured to run against shared state — is non-deterministic and belongs out of the merge path. A way to keep behavior coverage in the gate anyway is to replace uncontrolled systems with test doubles (or, for an engine the team controls, to use a per-test isolated instance; see The Pre-Merge Gate Rule), and to keep those doubles honest with a separate validation loop.
 
 ---
 
@@ -62,7 +62,7 @@ A user should be able to point the assessment at where the external tests live (
 The component test is the workhorse of a CD gate. The pattern, consistent across every component type:
 
 1. **Assemble the real component** — the actual handlers, domain logic, and orchestration — in-process.
-2. **Replace what the team doesn't control** with in-memory doubles: the database (in-memory repository), the message broker (in-memory bus), downstream services (stubbed adapter), the clock (injected fixed clock), the scheduler. The exception: for an engine the team controls (a database, for example), a per-test isolated instance may be used instead of its double (see the component-test dependency exception).
+2. **Replace what the team doesn't control** with in-memory doubles: a shared or externally owned database (in-memory repository), the message broker (in-memory bus), downstream services (stubbed adapter), the clock (injected fixed clock), the scheduler. The exception: for an engine the team controls (a database, for example), a per-test isolated instance may be used instead of its double (see the component-test dependency exception).
 3. **Drive it through its public interface** — HTTP handlers, the message handler, the job entrypoint, the UI via a real browser with the network stubbed.
 4. **Assert on observable outcomes** — status, persisted state, emitted event, rendered output — never on internal call sequences or private methods.
 
