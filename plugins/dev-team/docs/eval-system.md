@@ -272,6 +272,8 @@ A fixture is a directory, `evals/skill-reports/<skill>/<fixture>/`:
 - `regex_present`: each pattern must match somewhere in the report (multiline).
 - `regex_absent`: no pattern may match.
 
+A fixture that feeds coverage or mutation evidence also holds `evidence.json`: a list of `{repo, kind, path, format, reason}` entries. A test runs `coverage_evidence_detect.py` over each `repos/<repo>/<path>` and checks the detected `format` and the start of the `reason` (null when the evidence is usable).
+
 `scripts/skill_report_grader.py grade --report <report.md> --expected <expected.json>` runs a fixture. Exit 0 passes, 1 means an assertion failed, and 2 means the check could not run (missing file or malformed JSON), which is never a pass.
 
 **No per-layer count targets.** `scripts/skill_report_grader.py count-targets <report.md>...` is the mechanical form of the rule in `cd-test-architecture.md`, *The Pyramid Is a Cost Heuristic, Not a Target Shape*. It fails a report that has a table whose header row has both a *current* column and a *recommended* or *target* column, or a sentence that pairs a number with a test-type word (`unit`, `component`, `contract`, `integration`, `E2E`, `end-to-end`) and `target`, `should have`, or `recommend`. Descriptive counts, such as "12 unit tests exist" in *Current test architecture*, pass. `test_skill_report_fixtures.py` runs `grade` over every checked-in fixture and `count-targets` over the fixtures of the three test-architecture skills.

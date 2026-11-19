@@ -1,0 +1,27 @@
+{
+  "sections_present": [
+    "Scope",
+    "Current test architecture",
+    "Test-double validation",
+    "Overlap and misplacement",
+    "Contract-test findings",
+    "Test improvements",
+    "Open questions"
+  ],
+  "sections_absent": [
+    "System map",
+    "Entangled workflows",
+    "Existing E2E triage",
+    "Minimum E2E set",
+    "Recommended E2E candidates",
+    "Rejected candidates"
+  ],
+  "regex_present": [
+    "coverage disagrees",
+    "\\(suggestion\\)"
+  ],
+  "regex_absent": [
+    "coverage-backed",
+    "\\((warning|error)\\)"
+  ]
+}

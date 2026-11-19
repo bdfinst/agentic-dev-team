@@ -1,0 +1,9 @@
+[
+  {
+    "kind": "coverage",
+    "path": "evidence/coverage",
+    "format": "istanbul-dir",
+    "reason": null,
+    "repo": "orders"
+  }
+]

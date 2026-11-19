@@ -1,0 +1,25 @@
+{
+  "sections_present": [
+    "Scope",
+    "System map",
+    "Entangled workflows",
+    "Current test architecture",
+    "Test-double validation",
+    "Existing E2E triage",
+    "Minimum E2E set",
+    "Recommended E2E candidates",
+    "Rejected candidates",
+    "Overlap and misplacement",
+    "Contract-test findings",
+    "Test improvements",
+    "Open questions"
+  ],
+  "sections_absent": [],
+  "regex_present": [
+    "shared table or schema",
+    "orders/db/models\\.py:8",
+    "temporary",
+    "billing owns `invoice_lines`"
+  ],
+  "regex_absent": []
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "kind": "mutation",
+    "path": "evidence/mutation-report.json",
+    "format": "stryker",
+    "reason": null,
+    "repo": "orders"
+  }
+]

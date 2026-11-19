@@ -14,6 +14,7 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts"))
 
+import coverage_evidence_detect as detector
 import skill_report_grader as grader
 
 FIXTURE_ROOT = _REPO_ROOT / "evals" / "skill-reports"
@@ -44,3 +45,40 @@ def test_fixture_report_meets_its_expected_assertions(fixture) -> None:
 def test_fixture_report_has_no_per_layer_count_targets(fixture) -> None:
     report = (fixture / "report.md").read_text(encoding="utf-8")
     assert grader.check_count_targets(report) == []
+
+
+# One fixture per behavior the system-test-design skill promises; a missing
+# directory means a promised behavior has no golden report.
+REQUIRED_SYSTEM_TEST_DESIGN_FIXTURES = {
+    "three-repos", "discovered-repo", "unindexed-repo", "no-repowise", "e2e-only",
+    "overlap-only", "shared-table", "e2e-triage-delete-pushdown", "async-handoff-keep",
+    "aliased-journeys", "gap-list", "overlap-coverage-coveragepy", "overlap-coverage-cobertura",
+    "overlap-coverage-istanbul", "overlap-mutation-stryker", "overlap-mutation-mutmut",
+    "overlap-mutation-wins", "overlap-coverage-disagrees", "overlap-static-missing",
+    "overlap-static-unrecognised", "overlap-static-malformed", "overlap-static-no-contexts",
+    "overlap-partial-evidence", "overlap-cap", "overlap-single-layer",
+}
+
+
+def test_every_required_system_test_design_fixture_exists() -> None:
+    present = {f.name for f in FIXTURES if f.parent.name == "system-test-design"}
+    assert REQUIRED_SYSTEM_TEST_DESIGN_FIXTURES <= present
+
+
+def test_test_health_multi_repo_fixture_exists() -> None:
+    assert any(f.parent.name == "test-health" and f.name == "multi-repo" for f in FIXTURES)
+
+
+EVIDENCE_FIXTURES = sorted(p.parent for p in FIXTURE_ROOT.glob("*/*/evidence.json"))
+
+
+@pytest.mark.parametrize("fixture", EVIDENCE_FIXTURES, ids=_id)
+def test_fixture_evidence_is_classified_as_declared(fixture) -> None:
+    for entry in json.loads((fixture / "evidence.json").read_text(encoding="utf-8")):
+        path = fixture / "repos" / entry["repo"] / entry["path"]
+        got = detector.classify(entry["kind"], str(path))
+        assert got["format"] == entry["format"]
+        if entry["reason"] is None:
+            assert got["reason"] is None
+        else:
+            assert got["reason"].startswith(entry["reason"])
