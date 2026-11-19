@@ -7,7 +7,7 @@
 - billing: discovered (repowise index)
 - shipping: not scanned (no index, no path)
 - Alias map: none
-- External boundaries: none
+- External boundaries: shipping (not scanned; see Open questions)
 - Commit: abc1234
 
 ## System map
@@ -56,6 +56,6 @@ No findings.
 
 ## Open questions
 
-No findings.
+shipping is referenced at orders/config.yaml:2 but has no index and no path; it is an external boundary and was not scanned.
 
 Recommendations only; no tests were changed.

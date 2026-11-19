@@ -5,13 +5,14 @@
  "files": {
   "src/pricing.py": {
    "executed_lines": [
-    2,
     3,
-    4
+    7
    ],
    "contexts": {
     "3": [
-     "tests/unit/test_pricing.py::test_discount",
+     "tests/unit/test_pricing.py::test_discount"
+    ],
+    "7": [
      "tests/component/test_pricing_api.py::test_discount"
     ]
    }

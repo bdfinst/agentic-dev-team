@@ -63,7 +63,7 @@ REQUIRED_SYSTEM_TEST_DESIGN_FIXTURES = {
     "overlap-only", "shared-table", "e2e-triage-delete-pushdown", "async-handoff-keep",
     "aliased-journeys", "gap-list", "overlap-coverage-coveragepy", "overlap-coverage-cobertura",
     "overlap-coverage-istanbul", "overlap-mutation-stryker", "overlap-mutation-mutmut",
-    "overlap-mutation-wins", "overlap-coverage-disagrees", "overlap-static-missing",
+    "overlap-mutation-wins", "overlap-mutation-disagrees", "overlap-coverage-disagrees", "overlap-static-missing",
     "overlap-static-unrecognised", "overlap-static-malformed", "overlap-static-no-contexts",
     "overlap-partial-evidence", "overlap-cap", "overlap-single-layer",
 }
@@ -86,7 +86,7 @@ def test_every_overlap_evidence_fixture_declares_its_evidence() -> None:
     expected = {n for n in REQUIRED_SYSTEM_TEST_DESIGN_FIXTURES
                 if n.startswith(("overlap-coverage-", "overlap-mutation-", "overlap-static-"))
                 or n == "overlap-partial-evidence"}
-    assert expected - {"overlap-static-missing"} <= names
+    assert expected <= names
 
 
 @pytest.mark.parametrize("fixture", EVIDENCE_FIXTURES, ids=_id)

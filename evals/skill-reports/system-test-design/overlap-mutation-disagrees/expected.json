@@ -1,0 +1,30 @@
+{
+  "sections_present": [
+    "Scope",
+    "Current test architecture",
+    "Test-double validation",
+    "Overlap and misplacement",
+    "Contract-test findings",
+    "Test improvements",
+    "Open questions",
+    "Layer overlap (trim, not remove)"
+  ],
+  "sections_absent": [
+    "System map",
+    "Entangled workflows",
+    "Existing E2E triage",
+    "Minimum E2E set",
+    "Recommended E2E candidates",
+    "Rejected candidates"
+  ],
+  "regex_present": [
+    "\\[evidence: mutation disagrees; evidence-confidence: medium; basis: neither test kills",
+    "\\(stryker\\)",
+    "severity suggestion"
+  ],
+  "regex_absent": [
+    "mutation-backed",
+    "coverage-backed",
+    "(?i)not run"
+  ]
+}

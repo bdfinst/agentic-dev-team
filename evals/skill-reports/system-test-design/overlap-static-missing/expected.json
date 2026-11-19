@@ -6,7 +6,8 @@
     "Overlap and misplacement",
     "Contract-test findings",
     "Test improvements",
-    "Open questions"
+    "Open questions",
+    "Layer overlap (trim, not remove)"
   ],
   "sections_absent": [
     "System map",

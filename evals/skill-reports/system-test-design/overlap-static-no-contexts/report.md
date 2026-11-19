@@ -23,6 +23,8 @@ No findings.
 |---|---|---|---|---|
 | tests/unit/test_pricing.py::test_discount | apply_discount gold tier | tests/component/test_pricing_api.py::test_discount | unit | remove the assertion from the component test |
 
+### Layer overlap (trim, not remove)
+
 - [evidence: static-judgment; evidence-confidence: low; basis: no contexts] Cross-Layer Overlap | tests/unit/test_pricing.py::test_discount + tests/component/test_pricing_api.py::test_discount | severity suggestion; candidate; confirm with coverage before trimming
 
 ## Contract-test findings

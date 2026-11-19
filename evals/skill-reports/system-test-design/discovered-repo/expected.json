@@ -17,7 +17,9 @@
   "sections_absent": [],
   "regex_present": [
     "billing: discovered",
-    "shipping: not scanned"
+    "shipping: not scanned",
+    "External boundaries: shipping",
+    "(?s)## Open questions\\s+shipping is referenced"
   ],
   "regex_absent": []
 }

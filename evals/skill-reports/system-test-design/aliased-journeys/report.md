@@ -27,13 +27,18 @@ No findings.
 
 ## Existing E2E triage
 
-No findings.
+| Test | Class | Reason | Target layer and covering test |
+|---|---|---|---|
+| orders/e2e/test_place.py::test_place | KEEP | category: critical business flow across two real services | stage: post-deploy |
+| checkout-svc/e2e/test_place.py::test_place | KEEP | same journey under an alias | stage: post-deploy |
+| orders/e2e/test_cancel.py::test_cancel | KEEP | category: async handoff | stage: scheduled |
+| checkout-svc/e2e/test_refund.py::test_refund | KEEP | category: async handoff | stage: scheduled |
 
 ## Minimum E2E set
 
-1. Place an order and see it billed. Provenance: orders/e2e/test_place.py, checkout-svc/e2e/test_place.py (listed once).
-2. Cancel an order. Provenance: orders. possibly same as: Refund an order (checkout-svc); component sets only partly overlap.
-3. Refund an order. Provenance: checkout-svc. possibly same as: Cancel an order.
+1. Place an order and see it billed. Provenance: orders/e2e/test_place.py, checkout-svc/e2e/test_place.py (listed once). Stage: post-deploy.
+2. Cancel an order. Provenance: orders/e2e/test_cancel.py. Stage: scheduled. possibly same as: Refund an order (checkout-svc); component sets only partly overlap.
+3. Refund an order. Provenance: checkout-svc/e2e/test_refund.py. Stage: scheduled. possibly same as: Cancel an order.
 
 ## Recommended E2E candidates
 

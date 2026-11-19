@@ -44,6 +44,8 @@ Pairs reported: 20 of the pairs found in module src/m.py (capped at 20; the rest
 | tests/unit/test_m.py::test_f18 | f18 | tests/component/test_m_api.py::test_f18 | unit | trim the component test |
 | tests/unit/test_m.py::test_f19 | f19 | tests/component/test_m_api.py::test_f19 | unit | trim the component test |
 
+### Layer overlap (trim, not remove)
+
 - [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f0 + tests/component/test_m_api.py::test_f0 | severity suggestion; candidate; confirm with coverage before trimming
 - [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f1 + tests/component/test_m_api.py::test_f1 | severity suggestion; candidate; confirm with coverage before trimming
 - [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f2 + tests/component/test_m_api.py::test_f2 | severity suggestion; candidate; confirm with coverage before trimming

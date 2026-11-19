@@ -19,7 +19,9 @@
     "Alias map: orders = checkout-svc",
     "listed once",
     "possibly same",
-    "(?m)^- Alias map: orders = checkout-svc"
+    "(?m)^- Alias map: orders = checkout-svc",
+    "Stage: post-deploy",
+    "Stage: scheduled"
   ],
   "regex_absent": [
     "Alias map: none",

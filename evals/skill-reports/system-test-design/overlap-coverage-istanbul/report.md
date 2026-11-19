@@ -23,6 +23,8 @@ No findings.
 |---|---|---|---|---|
 | tests/unit/pricing.test.js::discount | applyDiscount gold tier | tests/component/pricing.api.test.js::discount | unit | remove the assertion from the component test |
 
+### Layer overlap (trim, not remove)
+
 - [evidence: coverage-backed; evidence-confidence: high; basis: shared covered line 2 inside applyDiscount] Cross-Layer Overlap | tests/unit/pricing.test.js::discount + tests/component/pricing.api.test.js::discount | keep the unit test; trim the component test to seam assertions
 
 ## Contract-test findings
