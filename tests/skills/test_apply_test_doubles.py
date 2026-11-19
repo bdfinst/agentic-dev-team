@@ -11,7 +11,7 @@ structural validity check, and companion setup-guide-file location via the
 report's own `**Target**` header field — recovered from content, never the
 report's on-disk filename, and slugified/containment-checked before use),
 Step 1.2 (the re-entrant `### 2. Apply Step 4b's decision logic` step:
-citing, not restating, Step 4b's branching rules; the off-gate-eligibility
+citing, not restating, Step 4b's branching rules; the adapter-double-eligibility
 parsing rule, itself cited from cd-test-architecture's own Output section;
 the re-offer rule for already-resolved components; `--component` scoping —
 applied as a post-hoc filter on *both* paths, never forwarded into the
@@ -280,8 +280,8 @@ def test_all_three_structural_markers_verified_against_cd_test_architecture_skil
     )
 
 
-def test_blank_cell_off_gate_eligibility_convention_documented_upstream():
-    # This new skill's off-gate-eligibility rule cites this exact upstream
+def test_blank_cell_adapter_double_eligibility_convention_documented_upstream():
+    # This new skill's adapter-double-eligibility rule cites this exact upstream
     # sentence rather than asserting the blank-vs-set convention
     # independently — pin it here so a future edit to that sentence is
     # caught alongside the citing skill's own test.
@@ -399,7 +399,7 @@ def test_companion_app_value_slugified_and_containment_checked():
 def test_zero_eligible_components_no_setup_guide_file_is_valid_not_error():
     sec = _collapsed_resolve_section()
     assert grep(
-        r"zero off-gate-eligible rows \(no row with a non-blank "
+        r"zero adapter-double-eligible rows \(no row with a non-blank "
         r"`?Build/Document status`? cell\)\s*—\s*nothing was ever expected "
         r"to be written for this report; take no further action",
         sec,
@@ -456,7 +456,7 @@ def test_decision_logic_cites_cd_test_architecture_step_4b_not_restated():
     assert grep(
         r"Apply exactly the decision procedure in "
         r"`?\.\./cd-test-architecture/SKILL\.md`?'s `?### 4b\. "
-        r"Build-vs-document decision \(off-gate adapter test doubles\)`? "
+        r"Build-vs-document decision \(adapter test doubles\)`? "
         r"heading",
         sec,
     )
@@ -496,7 +496,7 @@ def test_cd_test_architecture_4b_heading_pinned_for_citation_break_detection():
     # drifting out of sync with what apply-test-doubles cites.
     upstream = _upstream_text()
     assert grep(
-        r"^### 4b\. Build-vs-document decision \(off-gate adapter test "
+        r"^### 4b\. Build-vs-document decision \(adapter test "
         r"doubles\)\s*$",
         upstream,
     )
@@ -523,10 +523,10 @@ def test_cite_dont_restate_rationale_stated_inline():
     )
 
 
-# --- Step 1.2: off-gate-eligibility parsing rule ----------------------------
+# --- Step 1.2: adapter-double-eligibility parsing rule ----------------------------
 
 
-def test_off_gate_eligibility_parsing_rule_cited_not_independently_derived():
+def test_adapter_double_eligibility_parsing_rule_cited_not_independently_derived():
     sec = _collapsed_decision_section()
     assert grep(
         r"cited from `?cd-test-architecture`?'s own Output section, not "
@@ -535,7 +535,7 @@ def test_off_gate_eligibility_parsing_rule_cited_not_independently_derived():
         ignore_case=True,
     )
     assert grep(
-        r"off-gate-eligible \*\*iff\*\* it has at least one Target "
+        r"adapter-double-eligible \*\*iff\*\* it has at least one Target "
         r"architecture row with a non-blank `?Build/Document status`? cell",
         sec,
     )
@@ -571,7 +571,7 @@ def test_component_flag_scopes_to_one_component_others_untouched():
 def test_no_component_flag_processes_every_eligible_component_in_one_batch():
     sec = _collapsed_decision_section()
     assert grep(
-        r"every off-gate-eligible component in the resolved report is "
+        r"every adapter-double-eligible component in the resolved report is "
         r"processed in one batched pass, mirroring Step 4b's own batching "
         r"rule",
         sec,
@@ -609,7 +609,7 @@ def test_component_flag_never_fuzzy_matched_to_similarly_named_component():
 def test_zero_eligible_components_reports_nothing_to_apply_no_dispatch():
     sec = _collapsed_decision_section()
     assert grep(
-        r"finds no off-gate-eligible component, state that there is "
+        r"finds no adapter-double-eligible component, state that there is "
         r"nothing to apply and take no further action",
         sec,
     )
@@ -638,7 +638,7 @@ def test_non_interactive_behavior_documented_for_own_prompt():
     # every eligible component resolves to Document-only under --yes,
     # contradicting an already-decided report's own recorded status.
     assert not grep(
-        r"every off-gate-eligible component resolves to `?Document-only`?, "
+        r"every adapter-double-eligible component resolves to `?Document-only`?, "
         r"no Story is proposed",
         sec,
         ignore_case=True,

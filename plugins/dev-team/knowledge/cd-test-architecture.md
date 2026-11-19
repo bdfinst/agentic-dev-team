@@ -4,7 +4,7 @@ Reference file for the `cd-test-architecture` skill and the `test-design-advisor
 
 Source vocabulary: MinimumCD Practice Guide — Test Types (beyond.minimumcd.org/docs/testing/test-types/) and Applied Testing Strategies (beyond.minimumcd.org/docs/testing/applied-testing-strategies/). Component-specific patterns are in `component-test-patterns.md`.
 
-Core principle: **a pre-merge gate may contain only deterministic tests.** A test that depends on a system the team doesn't control — or that must be configured to run — is non-deterministic and belongs out of the merge path. The way to keep behavior coverage in the gate anyway is to replace uncontrolled systems with test doubles, and to keep those doubles honest with a separate validation loop.
+Core principle: **a pre-merge gate may contain only deterministic tests.** A test that depends on a system the team doesn't control — or that must be configured to run against shared state — is non-deterministic and belongs out of the merge path. A way to keep behavior coverage in the gate anyway is to replace uncontrolled systems with test doubles (or, for an engine the team controls, to use a per-test isolated instance; see The Pre-Merge Gate Rule), and to keep those doubles honest with a separate validation loop.
 
 ---
 
@@ -14,9 +14,9 @@ Core principle: **a pre-merge gate may contain only deterministic tests.** A tes
 |------|----------|--------------|----------------|-----------------|----------------|
 | **Static analysis** | Non-running code: security, complexity, best-practice | none | yes | **yes** | Stage 1 |
 | **Unit** | A unit of behavior through its public interface (what it does, not how) | isolated (doubles) | yes | **yes** | Stage 1 |
-| **Component** | A single component through its public interface, with systems the team doesn't control replaced by doubles | doubles for uncontrolled systems | yes | **yes** | Stage 1 |
+| **Component** | A single component through its public interface, with systems the team doesn't control replaced by doubles | doubles for uncontrolled systems (or a per-test isolated instance of a team-controlled engine) | yes | **yes** | Stage 1 |
 | **Contract** | Interface boundaries with external systems, using doubles (a.k.a. narrow integration). Pins the request sent + response shape depended on | doubles; *validated by integration* | yes | **yes** | Stage 1 |
-| **Integration** | That the contract's doubles still match the real system. Exercises real external dependencies | real systems | **no** | **never** | Out-of-band / scheduled, regardless of ownership |
+| **Integration** | That the contract's doubles still match the real system. Exercises real external dependencies | real systems | typically no | **never** | Out-of-band / scheduled, regardless of ownership |
 | **End-to-end** | Two or more real components up to the full system | real components | **no** | **never** | Post-deploy smoke; never gates the build |
 
 **Unit** has two shapes: *solitary* (all collaborators doubled) and *sociable* (real in-process collaborators, only true boundaries doubled). Both are deterministic and pre-merge, but **sociable is the default**: a solitary unit test is one whose every double names a blocker (B1/B2/B3), not a free choice — see `internal-collaborator-doubling.md` for the full rule.
@@ -25,14 +25,16 @@ Core principle: **a pre-merge gate may contain only deterministic tests.** A tes
 
 ## The Pre-Merge Gate Rule
 
-Pre-merge (the gate that blocks a merge) contains **only**: static analysis, unit, component, and contract tests. These are deterministic and need nothing configured.
+Pre-merge (the gate that blocks a merge) contains **only**: static analysis, unit, component, and contract tests. These are deterministic and need no shared or externally owned system.
 
-Integration and end-to-end tests are non-deterministic by nature (real systems, real network, shared state) and **never gate a merge**. They run:
+Integration and end-to-end tests are typically non-deterministic (real systems, real network, shared state), and their purpose is to check doubles or journeys against real dependencies. They **never gate a merge**. They run:
 
-- **Out-of-band / scheduled, always** — regardless of whether the dependency is a team-controlled container (a testcontainers-hosted real engine or broker) the build could spin up itself, or a third-party API, managed broker, or another team's service. A locally-run container running the real dependency is still a real system: real network, real state, non-deterministic — ownership of the dependency changes nothing about that, so it never earns an in-band exception. This is distinct from a record-and-replay virtual-service double *of* that dependency (WireMock, WireMock.Net, Nock, VCR.py, go-vcr — per `virtual-service-libraries.md`): a virtual-service double replays canned interactions with no real network call to the dependency, so it is deterministic and pre-merge-gate-eligible — only a container or instance running the real dependency itself is out-of-band/scheduled.
+- **Out-of-band / scheduled, always** — regardless of whether the dependency is a shared or long-lived instance, even one the team owns, a third-party API, a managed broker, or another team's service. Any adapter integration test, which checks that a double still matches the real dependency, is out-of-band whatever instance it runs against. This is distinct from a record-and-replay virtual-service double *of* that dependency (WireMock, WireMock.Net, Nock, VCR.py, go-vcr — per `virtual-service-libraries.md`): a virtual-service double replays canned interactions with no real network call to the dependency, so it is deterministic and pre-merge-gate-eligible.
 - **Post-deploy** for end-to-end smoke of critical journeys against real backends — blocking rollout, not the build.
 
-If a "unit test" needs a database URL, a broker, a downstream service, or environment secrets to run, it is mis-typed — it's an integration test wearing a unit test's name. Re-type it or convert it to a component test with doubles.
+**Component-test dependency exception.** The test's purpose decides its placement, not the instance. A component test may use a per-test isolated instance of a team-controlled engine (for example a database container with no shared state) in place of a double. The exception covers engines only, such as a database or broker; downstream services are always doubled. "Per-test isolated" means each test sees fresh or reset state (for example one instance per suite with transaction rollback between tests, which is faster than one container per test) and nothing is shared across runs, pipelines, or teams. Keep container-backed component tests inside the pre-merge runtime budget. It stays a component test: it is deterministic, team-controlled, and its purpose is component behavior, so it runs pre-merge. Determinism is necessary for the gate but not sufficient: an adapter integration test against the same instance still validates a double, so it stays out-of-band. This exception governs where a component test gets its dependency. It does not move any integration test in-band, and an instance shared across runs, pipelines, or teams, or one that is long-lived or externally owned, never qualifies.
+
+If a "unit test" needs a database URL, a broker, a downstream service, or environment secrets to run, it is mis-typed. A test that checks a double against the real dependency is an integration test wearing a unit test's name. Otherwise re-type it: keep it a unit or component test using doubles, or make it a component test using a per-test isolated instance of an engine the team controls.
 
 ---
 
@@ -60,11 +62,11 @@ A user should be able to point the assessment at where the external tests live (
 The component test is the workhorse of a CD gate. The pattern, consistent across every component type:
 
 1. **Assemble the real component** — the actual handlers, domain logic, and orchestration — in-process.
-2. **Replace only what the team doesn't control** with in-memory doubles: the database (in-memory repository), the message broker (in-memory bus), downstream services (stubbed adapter), the clock (injected fixed clock), the scheduler.
+2. **Replace external systems with in-memory doubles by default:** the database (in-memory repository), the message broker (in-memory bus), downstream services (stubbed adapter), the clock (injected fixed clock), the scheduler. The exception: for an engine the team controls (a database, for example), a per-test isolated instance may be used instead of its double (see the component-test dependency exception).
 3. **Drive it through its public interface** — HTTP handlers, the message handler, the job entrypoint, the UI via a real browser with the network stubbed.
 4. **Assert on observable outcomes** — status, persisted state, emitted event, rendered output — never on internal call sequences or private methods.
 
-This yields tests that are fast (no I/O, no network), deterministic (no real systems, controlled clock), and need zero configuration of the surrounding system — while still validating real behavior end to end *within the component boundary*, including how it would interact with its collaborators (verified by contract, made real by integration).
+This yields tests that are fast (no shared I/O or network), deterministic (no shared or external systems, controlled clock), and need zero configuration of the surrounding system — while still validating real behavior end to end *within the component boundary*, including how it would interact with its collaborators (verified by contract, made real by integration).
 
 ---
 
@@ -72,7 +74,7 @@ This yields tests that are fast (no I/O, no network), deterministic (no real sys
 
 Wrap every third-party client (SDK, HTTP client, broker client, DB driver) in **a thin adapter the team owns**, then double the *adapter* in component tests — never mock the third-party SDK directly. The adapter is the seam:
 
-- **Component tests** double the adapter → fast, deterministic, no real dependency.
+- **Component tests** double the adapter (or a per-test isolated instance; see the component-test dependency exception) → fast, deterministic, no shared dependency.
 - **Adapter integration tests** exercise the real adapter against a real container → assert the *adapter's* correctness (it speaks the protocol, builds the right request), not the dependency's behavior.
 
 This keeps the mock surface small, stable, and owned, and localizes every "the real thing changed" failure to one place.
@@ -123,7 +125,7 @@ Doubles without steps 2 and 4 are a smell (see `microservice-testing.md` → "St
 - **Inject randomness.** Same discipline for RNG and ID generation.
 - **No sleeps.** Never `sleep` to await; drive time and async deterministically.
 - **Real browser, stubbed network (UI).** Run UI component tests in a real engine (Chromium/Firefox/WebKit) with the backend stubbed at the network layer — not an in-memory DOM shim, which trades accuracy for speed and produces false positives on layout/timing.
-- **In-memory doubles over heavyweight test infra** for the gate. Reserve containers for adapter integration, off the merge path.
+- **In-memory doubles over heavyweight test infra** for the gate. Containers that check doubles (adapter integration) run off the merge path; pre-merge containers are limited to those The Pre-Merge Gate Rule permits.
 
 ---
 
@@ -135,14 +137,14 @@ This file uses **MinimumCD vocabulary**, which differs from the Fowler-based `te
 |------|----------------------|----------------------------|
 | **Component test** | Whole component through its public interface, uncontrolled systems doubled, **deterministic, pre-merge** | "Component / Service" — similar intent |
 | **Contract test** | Doubles that pin the boundary, **pre-merge**, validated by integration | Consumer-driven contract — same idea |
-| **Integration test** | Exercises real deps **specifically to validate the doubles**, non-deterministic, **post-merge only** | Broader: any test of a unit + one real external |
-| **Pre-merge gate** | Determinism is the gating criterion | Implicit in "fast tests at the base" |
+| **Integration test** | Exercises real deps **specifically to validate the doubles**, typically non-deterministic, **never pre-merge** (out-of-band / scheduled) | Broader: any test of a unit + one real external |
+| **Pre-merge gate** | Determinism is necessary; test purpose decides placement | Implicit in "fast tests at the base" |
 
-When advising for a CD pipeline, **prefer this file's framing** — the determinism→pre-merge axis is the organizing principle. Use the Fowler files for the general layering heuristic and the doubles taxonomy (`test-doubles.md`).
+When advising for a CD pipeline, **prefer this file's framing** — determinism is necessary and test purpose decides placement (see The Pre-Merge Gate Rule). Use the Fowler files for the general layering heuristic and the doubles taxonomy (`test-doubles.md`).
 
 ## Boundaries
 
-- "Minimal tooling" means prefer in-memory doubles + a real browser + testcontainers for adapter checks — not a sprawl of test frameworks. Don't recommend heavyweight orchestration (full docker-compose of the system) for the gate; that's exactly the configured-dependency dependency this architecture removes.
+- "Minimal tooling" means prefer in-memory doubles + a real browser + testcontainers for adapter checks (and, where the gate rule allows, per-test isolated instances) — not a sprawl of test frameworks. Don't recommend heavyweight orchestration (full docker-compose of the system) for the gate; that's exactly the configured-dependency problem this architecture removes.
 - These are starting points, not mandates. Real components have details these layers don't capture; drop items that don't apply and add what a component clearly needs.
 - This file defines the *architecture*. Per-component specifics (what to double, which failure modes) are in `component-test-patterns.md`.
 

@@ -119,7 +119,7 @@ found at the derived path, state plainly which of two non-error cases
 applies:
 
 - The resolved report's Target architecture table has zero
-  off-gate-eligible rows (no row with a non-blank `Build/Document status`
+  adapter-double-eligible rows (no row with a non-blank `Build/Document status`
   cell) — nothing was ever expected to be written for this report; take no
   further action.
 - The report has eligible rows but predates #1436 (no companion file was
@@ -147,7 +147,7 @@ regardless of which path produced the resolved report:
 this skill, made explicit so it survives independent of any one plan
 document.** Apply exactly the decision procedure in
 `../cd-test-architecture/SKILL.md`'s `### 4b. Build-vs-document decision
-(off-gate adapter test doubles)` heading — its Database-specific branch, its
+(adapter test doubles)` heading — its Database-specific branch, its
 Downstream-service branch, and that branch's library-vs-hand-rolled
 sub-question — as the single source of the build-vs-document branching
 rules. That procedure is not restated here. This citation was chosen over
@@ -159,27 +159,27 @@ extracting into a new home touching every existing
 skill's actual scope doesn't require; citing it in place fully satisfies
 "don't duplicate the branching rules" without that blast radius.
 
-**Off-gate-eligibility parsing rule — cited from `cd-test-architecture`'s
+**Adapter-double-eligibility parsing rule — cited from `cd-test-architecture`'s
 own Output section, not independently derived.** `../cd-test-architecture/SKILL.md`'s
 Target architecture table documentation states that a row's
 `Build/Document status` cell is set to one of the three enum values only
-for a row Step 4 flagged as needing an off-gate adapter test double; an
+for a row Step 4 flagged as needing an adapter test double; an
 unflagged row carries no value in that cell at all. A component is
-therefore off-gate-eligible **iff** it has at least one Target
+therefore adapter-double-eligible **iff** it has at least one Target
 architecture row with a non-blank `Build/Document status` cell — this
 skill cites that blank-vs-set convention rather than asserting it as an
 independent rule.
 
 **Every eligible component is re-offered, regardless of prior status.**
-Every off-gate-eligible component is re-offered this decision on every run,
+Every adapter-double-eligible component is re-offered this decision on every run,
 regardless of its currently-recorded `Build/Document status` — including a
 component already resolved to `Build (testcontainers)` or `Build (Fake)` —
 so the operator may change a prior decision.
 
 **`--component <name>` scoping.** When `--component <name>` was given and it
-matches an off-gate-eligible component (per the parsing rule above), only
+matches an adapter-double-eligible component (per the parsing rule above), only
 that component's row resolves through this decision — no other component's
-row is touched. When no `--component` was given, every off-gate-eligible
+row is touched. When no `--component` was given, every adapter-double-eligible
 component in the resolved report is processed in one batched pass, mirroring
 Step 4b's own batching rule (cited, not restated).
 
@@ -197,7 +197,7 @@ nearest-match substitution:
 **Zero eligible components.** Same family of outcome as the two cases above,
 just with no `--component` name to name: when the batched pass (no
 `--component`) or the named lookup (`--component <name>`, once past the
-unmatched/non-eligible check above) finds no off-gate-eligible component,
+unmatched/non-eligible check above) finds no adapter-double-eligible component,
 state that there is nothing to apply and take no further action.
 
 **Non-interactive behavior for this step's own prompt.** Per
