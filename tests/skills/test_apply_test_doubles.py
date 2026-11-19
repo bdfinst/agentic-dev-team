@@ -49,6 +49,7 @@ import pytest
 from skill_doc_helpers import (
     PLUGIN_ROOT,
     cd_test_architecture_downstream_service_branch_section,
+    cd_test_architecture_full_text,
     cd_test_architecture_output_section,
     collapsed,
     frontmatter,
@@ -67,7 +68,7 @@ def _text() -> str:
 
 
 def _upstream_text() -> str:
-    return CD_TEST_ARCHITECTURE_SKILL.read_text(encoding="utf-8")
+    return cd_test_architecture_full_text()
 
 
 def _database_specific_branch_section(text: str) -> str:
@@ -978,7 +979,7 @@ def test_maintainer_note_area_cites_apply_test_doubles_parse_arguments():
     # drifted) issue-text excerpt.
     upstream = collapsed(_upstream_text())
     assert grep(
-        r"per `?\.\./apply-test-doubles/SKILL\.md`?'s own Parse Arguments "
+        r"per `?(?:\.\./)+apply-test-doubles/SKILL\.md`?'s own Parse Arguments "
         r"section, not restated here",
         upstream,
         ignore_case=True,

@@ -1,7 +1,7 @@
 # Virtual-Service Libraries — Record-and-Replay Catalog
 
 Reference file for the `cd-test-architecture` skill's Downstream-service
-branch (`Build (Fake)` bullet — see `skills/cd-test-architecture/SKILL.md`).
+branch (`Build (Fake)` bullet — see `skills/cd-test-architecture/references/build-vs-document.md`).
 Catalogs the record-and-replay virtual-service library preferred for each
 profiled backend stack, with a hand-rolled Fake as backup. These are
 recommended starting points, not mandates: drop items that don't apply,
@@ -12,7 +12,7 @@ add what a component clearly needs.
 A record-and-replay virtual-service library is the **preferred** pre-merge
 double for outbound HTTP; a hand-rolled Fake is the **backup** — used when
 the operator declines the library, or when no protocol-appropriate library
-exists for the component's adapter kind. See `skills/cd-test-architecture/SKILL.md`'s
+exists for the component's adapter kind. See `skills/cd-test-architecture/references/build-vs-document.md`'s
 Downstream-service branch (`Build (Fake)` bullet) for the full
 accept/name-a-different-library/decline interaction — not restated here.
 

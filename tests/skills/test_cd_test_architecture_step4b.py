@@ -29,6 +29,7 @@ from __future__ import annotations
 from skill_doc_helpers import (
     PLUGIN_ROOT,
     cd_test_architecture_fake_row_clause,
+    cd_test_architecture_full_text,
     cd_test_architecture_output_section,
     collapsed,
     grep,
@@ -39,7 +40,7 @@ SKILL = PLUGIN_ROOT / "skills" / "cd-test-architecture" / "SKILL.md"
 
 
 def _text() -> str:
-    return SKILL.read_text(encoding="utf-8")
+    return cd_test_architecture_full_text()
 
 
 def _step_4b_section() -> str:
