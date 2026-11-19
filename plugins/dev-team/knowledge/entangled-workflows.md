@@ -61,7 +61,7 @@ Two or more deployables must deploy together, or in a fixed order, to work.
 
 **What the guarding E2E asserts:** the workflow that crosses them, run at the versions to be deployed together. If partial deploys must work, it also asserts the new version of one deployable with the deployed version of the other.
 
-**Decoupling step:** make each change backward compatible (expand, migrate, contract). Add contract tests with provider verification. Add a pipeline gate that blocks a deploy that breaks a contract.
+**Decoupling step:** make each change backward compatible (expand, migrate, contract). Add consumer contract tests, plus provider verification where the provider is a team-controlled deployable; otherwise run the scheduled provider-contract verification in `cd-test-architecture.md`, Double Validation. Add a pipeline gate that blocks a deploy that breaks a contract.
 
 ## Related
 
