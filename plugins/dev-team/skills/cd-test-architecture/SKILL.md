@@ -18,9 +18,9 @@ Grounded in these knowledge references — read the first two before assessing:
 
 - `knowledge/cd-test-architecture.md` — six test types, the pre-merge gate rule, the adapter rule, double validation, pipeline stages, MinimumCD-vs-Fowler terminology.
 - `knowledge/component-test-patterns.md` — per-component patterns (UI / Services / Batch): isolation strategy and pipeline placement.
-- `knowledge/database-test-patterns.md` — for database-backed components: Database Sandbox, Transaction Rollback / Table Truncation Teardown, in-memory Fakes.
+- `knowledge/database-test-patterns.md` — for database-backed components: Database Sandbox, Transaction Rollback / Table Truncation Teardown, in-memory Fakes, and the rule that pushes most data-logic tests onto in-memory Fakes so they stay pre-merge-gate eligible.
 - `knowledge/test-doubles.md` — Stub/Fake/Mock/Spy taxonomy; load when Step 4b's database or downstream-service branch proposes a hand-rolled Fake double, so it's named correctly (a Fake, never a "mock").
-- `knowledge/virtual-service-libraries.md` — per-stack record-and-replay library catalog and its Resolution order (existing-tool detected → catalog default → operator override/decline); load when Step 4b's Downstream-service branch resolves a `Build (Fake)` row's library.
+- `knowledge/virtual-service-libraries.md` — per-stack record-and-replay library catalog, its preferred-vs-backup framing, and its Resolution order (existing-tool detected → catalog default → operator override/decline); load when Step 4b's Downstream-service branch resolves a `Build (Fake)` row's library.
 
 ## Constraints
 
@@ -97,14 +97,17 @@ When Step 4 flags components needing an adapter test double (a testcontainers-ba
 
 ### 5. Produce a migration path
 
-Order the moves from current → target, lowest-risk first. The spine is **baseline before refactor**: get behavior under test at existing seams *without changing code*, then refactor under that green baseline (never behavior + structure in one step). When tests are out-of-repo (Step 2b — locate and harvest out-of-repo tests), the harvested behaviors feed that baseline. Typical full sequence: Each step is behavior-preserving and independently shippable.
+Order the moves from current → target, lowest-risk first. The spine is **baseline before refactor**: get behavior under test at existing seams *without changing code*, then refactor under that green baseline (never behavior + structure in one step). When tests are out-of-repo (Step 2b — locate and harvest out-of-repo tests), the harvested behaviors feed that baseline. Typical full sequence:
 
 1. **Characterization baseline (no refactoring)** — at the outermost reachable seam, write outside-in tests that lock in current behavior; harvest any out-of-repo/manual behaviors into this inventory and reproduce them here. Get green.
 2. **Introduce owned adapters and seams — under the baseline** (Adapter Rule; `testability-patterns.md`; DDD skills suggest where boundaries/seams belong). Refactor only with the baseline green.
 3. Add in-memory doubles + deterministic **component tests** reproducing the baselined behaviors.
-4. Add **contract tests** pinning request/response boundaries, **consumer resilience tests** (survive a provider break), and **scheduled provider-contract verification** against a test environment.
-5. Move tests that validate doubles, or depend on shared or external instances, **off the gate** to adapter-integration / out-of-band.
-6. Add **post-deploy checks**, then **decommission** the out-of-repo/manual suites and the coarse characterization tests as their behaviors land in the deterministic gate.
+4. Add **contract tests** pinning request/response boundaries.
+5. Add **consumer resilience tests** (survive a provider break).
+6. Add **scheduled provider-contract verification** against a test environment.
+7. Move tests that validate doubles, or depend on shared or external instances, **off the gate** to adapter-integration / out-of-band.
+8. Add **post-deploy checks**.
+9. **Decommission** the out-of-repo/manual suites and the coarse characterization tests as their behaviors land in the deterministic gate. Each step is behavior-preserving and independently shippable.
 
 ### 6. Report
 
@@ -119,9 +122,7 @@ Print the result as its own report section: `OK: all 8 component-pattern categor
 
 ## Output
 
-Write to `.dev-team-reports/cd-test-architecture-<app>.md` (or chat for a single component).
-
-When `--pdf` was passed and a report **file** was written, render it to a sibling PDF per `knowledge/report-pdf-integration.md`:
+Write to `.dev-team-reports/cd-test-architecture-<app>.md` (or chat for a single component). When `--pdf` was passed and a report **file** was written, render it to a sibling PDF per `knowledge/report-pdf-integration.md`:
 
 ```bash
 sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" .dev-team-reports/cd-test-architecture-<app>.md
@@ -140,7 +141,6 @@ For the header block and closing Provenance section, follow `knowledge/report-te
 ## CD Test Architecture — <app>
 ### Components & patterns
 | Component | Pattern | Surfaces |
-Include a row for every pattern type searched in Step 1; state `None found` when none.
 ### Current tests (in-repo)
 | Suite | MinimumCD type | Deterministic? | Requires to run | Pre-merge-safe? |
 ### Out-of-repo / external test sources (if any)
@@ -151,7 +151,7 @@ Include a row for every pattern type searched in Step 1; state `None found` when
 | Component | Outermost seam | Best outside-in test writable today (no refactor) |
 ### Target architecture (per component)
 | Component | Layer | Test type | Double (to run config-free) | Pipeline stage | Build/Document status |
-`Build/Document status` is one of `Build (testcontainers)`, `Build (Fake)`, or `Document-only` (set per Step 4b) for a row Step 4 flagged as needing an adapter test double. A row Step 4 did not flag for that decision (e.g. a component/layer already pre-merge-gate-eligible with no real dependency to double) carries **no value in this column at all** — left blank, never one of the three enum values and never guessed. This blank-vs-set distinction is the literal, table-level signal for which rows are adapter-double-eligible; `/apply-test-doubles` cites this sentence rather than re-deriving its own eligibility rule. A row whose status is `Build (Fake)` also carries that row's branch-specific caveat, verbatim, in the same cell — see the Database-specific branch or Downstream-service branch above for the exact wording. The value records the adapter-double decision only; the Pipeline stage column sets gate placement. A row whose double is a per-test isolated instance is not adapter-double-eligible, so its status is blank.
+`Build/Document status` is one of `Build (testcontainers)`, `Build (Fake)`, or `Document-only` (set per Step 4b) for a row Step 4 flagged as needing an adapter test double. A row Step 4 did not flag for that decision (e.g. a component/layer already pre-merge-gate-eligible with no real dependency to double) carries **no value in this column at all** — left blank, never one of the three enum values and never guessed. This blank-vs-set distinction is the literal, table-level signal for which rows are adapter-double-eligible; `/apply-test-doubles` cites this sentence rather than re-deriving its own eligibility rule. A row whose status is `Build (Fake)` also carries that row's branch-specific caveat, verbatim, in the same cell — see the Database-specific branch or Downstream-service branch in [`references/build-vs-document.md`](references/build-vs-document.md) for the exact wording. The value records the adapter-double decision only; the Pipeline stage column sets gate placement. A row whose double is a per-test isolated instance is not adapter-double-eligible, so its status is blank.
 When Step 0 loaded a `knowledge/test-stack-profiles/<stack>.md` profile, **cite that profile** (and any reference it points at) in the *Test type* or *Double* column so the concrete tool choice is traceable to the stack-specific reference.
 When a Downstream-service `Build (Fake)` row resolves to a virtual-service library (default, named override, or explicit accept), cite the chosen tool (e.g. Nock, WireMock.Net) in this same `Double (to run config-free)` column — no new column or enum value is added for it.
 ### Pre-merge gate (deterministic, config-free)
