@@ -177,7 +177,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Shared Review Methodology | `knowledge/agent-review-methodology.md` | ~1,052 | correctness-review, naming-review |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 1,187 | arch-review |
 | CD Maturity Model | `knowledge/cd-maturity-model.md` | ~1,104 | Platform Engineer, QA Engineer |
-| CD Test Architecture | `knowledge/cd-test-architecture.md` | ~4,338 | cd-test-architecture, test-design-advisor |
+| CD Test Architecture | `knowledge/cd-test-architecture.md` | ~4,858 | cd-test-architecture, test-design-advisor |
 | Component Test Patterns | `knowledge/component-test-patterns.md` | ~4,444 | cd-test-architecture |
 | Database Change Management | `knowledge/database-change-management.md` | ~1,246 | Software Engineer, Architect, arch-review, `/plan` |
 | Decision Defaults | `knowledge/decision-defaults.md` | ~1,287 | Orchestrator, Product Manager, `/plan` (approach contract) |
