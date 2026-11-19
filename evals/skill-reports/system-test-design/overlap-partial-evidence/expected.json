@@ -17,10 +17,10 @@
     "Rejected candidates"
   ],
   "regex_present": [
-    "billing: \\[evidence: static-judgment: missing\\]",
     "coverage for orders only",
     "billing had none",
-    "orders: \\[evidence: coverage-backed; evidence-confidence: high"
+    "orders: \\[evidence: coverage-backed; evidence-confidence: high; basis: .+\\] Cross-Layer Overlap \\| ",
+    "billing: \\[evidence: static-judgment; evidence-confidence: low; basis: missing\\] Cross-Layer Overlap \\| "
   ],
   "regex_absent": [
     "(?i)not run"

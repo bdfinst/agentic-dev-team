@@ -28,7 +28,7 @@ Same inputs, expected value, and assertion text: high. Same behavior name and ex
 ## Output line
 
 ```
-[evidence: <coverage-backed|mutation-backed|static-judgment>; evidence-confidence: <high|medium|low>; basis: <text>] <Smell> | <test A> + <test B> | <action>
+[evidence: <coverage-backed|mutation-backed|coverage disagrees|mutation disagrees|static-judgment>; evidence-confidence: <high|medium|low>; basis: <text>] <Smell> | <test A> + <test B> | <action>
 ```
 
 Group *Cross-Layer Overlap* under `Layer overlap (trim, not remove)` and the rest under `Layer misplacement`. Cite every finding with a path and line or a test name. Never report counts, coverage figures, or durations that were not measured. For an E2E, name the replacement tests and the double validation required before removal.

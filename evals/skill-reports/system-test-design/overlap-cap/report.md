@@ -4,6 +4,7 @@
 
 - Mode: --overlap-only
 - orders: named
+- Evidence: orders had no coverage or mutation evidence (static-judgment: missing)
 - Alias map: none
 - External boundaries: none
 - Commit: abc1234
@@ -42,6 +43,27 @@ Pairs reported: 20 of the pairs found in module src/m.py (capped at 20; the rest
 | tests/unit/test_m.py::test_f17 | f17 | tests/component/test_m_api.py::test_f17 | unit | trim the component test |
 | tests/unit/test_m.py::test_f18 | f18 | tests/component/test_m_api.py::test_f18 | unit | trim the component test |
 | tests/unit/test_m.py::test_f19 | f19 | tests/component/test_m_api.py::test_f19 | unit | trim the component test |
+
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f0 + tests/component/test_m_api.py::test_f0 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f1 + tests/component/test_m_api.py::test_f1 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f2 + tests/component/test_m_api.py::test_f2 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f3 + tests/component/test_m_api.py::test_f3 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f4 + tests/component/test_m_api.py::test_f4 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f5 + tests/component/test_m_api.py::test_f5 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f6 + tests/component/test_m_api.py::test_f6 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f7 + tests/component/test_m_api.py::test_f7 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f8 + tests/component/test_m_api.py::test_f8 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f9 + tests/component/test_m_api.py::test_f9 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f10 + tests/component/test_m_api.py::test_f10 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f11 + tests/component/test_m_api.py::test_f11 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f12 + tests/component/test_m_api.py::test_f12 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f13 + tests/component/test_m_api.py::test_f13 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f14 + tests/component/test_m_api.py::test_f14 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f15 + tests/component/test_m_api.py::test_f15 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f16 + tests/component/test_m_api.py::test_f16 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f17 + tests/component/test_m_api.py::test_f17 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f18 + tests/component/test_m_api.py::test_f18 | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: low; basis: missing] Cross-Layer Overlap | tests/unit/test_m.py::test_f19 + tests/component/test_m_api.py::test_f19 | severity suggestion; candidate; confirm with coverage before trimming
 
 ## Contract-test findings
 

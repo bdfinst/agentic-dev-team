@@ -12,7 +12,7 @@
 
 ## System map
 
-orders calls billing over HTTP and reads stock from inventory. observed: orders/README.md:1.
+orders calls billing over HTTP and reads stock from inventory. observed: orders/src/client.py:3-4.
 
 ## Entangled workflows
 

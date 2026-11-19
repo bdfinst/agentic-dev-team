@@ -26,6 +26,11 @@ def _id(path) -> str:
     return f"{path.parent.name}/{path.name}"
 
 
+def test_every_fixture_with_expectations_has_a_report() -> None:
+    missing = [str(p.parent) for p in FIXTURE_ROOT.glob("*/*/expected.json") if not (p.parent / "report.md").exists()]
+    assert not missing
+
+
 def test_at_least_one_fixture_is_checked_in() -> None:
     assert FIXTURES, "no skill-report fixtures found; the gates below would pass vacuously"
 
@@ -94,3 +99,5 @@ def test_fixture_evidence_is_classified_as_declared(fixture) -> None:
             assert got["reason"] is None
         else:
             assert got["reason"].startswith(entry["reason"])
+            report = (fixture / "report.md").read_text(encoding="utf-8")
+            assert got["reason"] in report, "report must quote the detector reason verbatim"
