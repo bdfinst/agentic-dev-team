@@ -17,7 +17,8 @@
   "sections_absent": [],
   "regex_present": [
     "\\| DELETE \\|.*test_cart\\.py::test_rejects_empty_cart",
-    "PUSH DOWN -> unit \\|.*none found, create one first"
+    "PUSH DOWN -> unit \\|.*none found, create one first",
+    "No E2E journeys justified in scanned repos: orders"
   ],
   "regex_absent": [
     "\\| KEEP \\|"

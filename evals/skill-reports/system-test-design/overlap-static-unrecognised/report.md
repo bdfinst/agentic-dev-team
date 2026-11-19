@@ -25,7 +25,7 @@ No findings.
 
 ### Layer overlap (trim, not remove)
 
-- [evidence: static-judgment; evidence-confidence: low; basis: unrecognised format] Cross-Layer Overlap | tests/unit/test_pricing.py::test_discount + tests/component/test_pricing_api.py::test_discount | severity suggestion; candidate; confirm with coverage before trimming
+- [evidence: static-judgment; evidence-confidence: high; basis: unrecognised format] Cross-Layer Overlap | tests/unit/test_pricing.py::test_discount + tests/component/test_pricing_api.py::test_discount | severity suggestion; candidate; confirm with coverage before trimming
 
 ## Contract-test findings
 

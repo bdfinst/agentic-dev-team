@@ -33,7 +33,7 @@ No findings.
 
 ## Minimum E2E set
 
-No findings.
+No E2E journeys justified in scanned repos: orders.
 
 ## Recommended E2E candidates
 

@@ -18,7 +18,7 @@
     "Rejected candidates"
   ],
   "regex_present": [
-    "\\[evidence:\\ static\\-judgment;\\ evidence\\-confidence:\\ low;\\ basis:\\ .+\\]\\ Cross\\-Layer\\ Overlap\\ \\|\\ tests/unit/test_pricing\\.py::test_discount \\+ tests/component/test_pricing_api\\.py::test_discount",
+    "\\[evidence:\\ static\\-judgment;\\ evidence\\-confidence:\\ high;\\ basis:\\ .+\\]\\ Cross\\-Layer\\ Overlap\\ \\|\\ tests/unit/test_pricing\\.py::test_discount \\+ tests/component/test_pricing_api\\.py::test_discount",
     "basis:\\ malformed:\\ Expecting\\ ','\\ delimiter:\\ line\\ 1\\ column\\ 84\\ \\(char\\ 83\\)",
     "severity\\ suggestion;\\ candidate;\\ confirm\\ with\\ coverage\\ before\\ trimming"
   ],

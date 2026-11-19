@@ -34,7 +34,7 @@ No findings.
 
 ## Minimum E2E set
 
-No findings.
+No E2E journeys justified in scanned repos: orders, billing, inventory.
 
 ## Recommended E2E candidates
 

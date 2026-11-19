@@ -21,7 +21,8 @@
     "capped at 20",
     "test_f19",
     "basis: missing\\] Cross-Layer Overlap \\| tests/unit/test_m\\.py::test_f19",
-    "candidate; confirm with coverage before trimming"
+    "candidate; confirm with coverage before trimming",
+    "evidence-confidence: medium; basis: missing"
   ],
   "regex_absent": [
     "test_f20",
