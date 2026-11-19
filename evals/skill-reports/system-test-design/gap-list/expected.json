@@ -18,7 +18,8 @@
   "regex_present": [
     "capped at 10",
     "(?m)^10\\. ",
-    "Interaction 3: .*Cover with contract test instead"
+    "Interaction 3: .*Cover with contract test instead",
+    "No E2E journeys justified in scanned repos: orders, billing"
   ],
   "regex_absent": [
     "(?i)Candidate \\d",

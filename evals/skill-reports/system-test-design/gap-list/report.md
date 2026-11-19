@@ -31,7 +31,7 @@ No findings.
 
 ## Minimum E2E set
 
-Gap-list items are not in this set.
+No E2E journeys justified in scanned repos: orders, billing. Gap-list items are not in this set.
 
 ## Recommended E2E candidates
 
