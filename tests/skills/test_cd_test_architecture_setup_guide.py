@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from skill_doc_helpers import (
     PLUGIN_ROOT,
+    cd_test_architecture_full_text,
     cd_test_architecture_setup_guide_section,
     collapsed,
     grep,
@@ -38,7 +39,7 @@ SKILL = PLUGIN_ROOT / "skills" / "cd-test-architecture" / "SKILL.md"
 
 
 def _text() -> str:
-    return SKILL.read_text(encoding="utf-8")
+    return cd_test_architecture_full_text()
 
 
 def _section() -> str:
@@ -303,7 +304,7 @@ def test_every_section_ends_with_apply_test_doubles_command_using_report_path():
     assert grep(r"\.dev-team-reports/cd-test-architecture-<app>\.md", sec)
     assert grep(r"never the setup guide's own path", sec, ignore_case=True)
     assert grep(
-        r"per `\.\./apply-test-doubles/SKILL\.md`'s own Parse Arguments "
+        r"per `\.\./\.\./apply-test-doubles/SKILL\.md`'s own Parse Arguments "
         r"section, not restated here",
         sec,
         ignore_case=True,

@@ -28,6 +28,7 @@ from skill_doc_helpers import (
     cd_test_architecture_build_testcontainers_bullet,
     cd_test_architecture_document_only_bullet,
     cd_test_architecture_downstream_service_branch_section,
+    cd_test_architecture_full_text,
     cd_test_architecture_output_section,
     collapsed,
     grep,
@@ -52,7 +53,7 @@ def _text() -> str:
 
 
 def _skill_text() -> str:
-    return SKILL.read_text(encoding="utf-8")
+    return cd_test_architecture_full_text()
 
 
 def _downstream_service_branch_section() -> str:
