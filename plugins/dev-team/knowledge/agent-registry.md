@@ -114,7 +114,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Apply Test Doubles | `skills/apply-test-doubles/SKILL.md` | ~4,706 | `/apply-test-doubles` command |
 | Branch Workflow | `skills/branch-workflow/SKILL.md` | 1,631 | Orchestrator, Software Engineer |
 | Browser Testing | `skills/browser-testing/SKILL.md` | 901 | QA Engineer |
-| CD Test Architecture | `skills/cd-test-architecture/SKILL.md` | ~9,622 | QA Engineer, Architect, Platform Engineer, Software Engineer |
+| CD Test Architecture | `skills/cd-test-architecture/SKILL.md` | ~6,100 | QA Engineer, Architect, Platform Engineer, Software Engineer |
 | CI Debugging | `skills/ci-debugging/SKILL.md` | 1,368 | Platform Engineer, Software Engineer, QA Engineer |
 | Claude Setup Review | `skills/claude-setup-review/SKILL.md` | ~1,296 | `/claude-setup-review` command, claude-setup-review |
 | Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 2,034 | Orchestrator, Product Manager |

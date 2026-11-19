@@ -2907,7 +2907,7 @@
       "anchor": "4-recommend-the-target-architecture"
     },
     "4b. Build-vs-document decision (adapter test doubles)": {
-      "summary": "When Step 4 identifies one or more components needing an adapter test double (today: a testcontainers-based real-DB test, or a downstream-service adapter test; a component test using a per-test isolated instance is not a 4b option), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt every adapter-kind slice appends to, not a new prompt each run; the Downstream-service branch below, including its record-and-replay-library sub-question, is one such append, already shipped, not future work.",
+      "summary": "When Step 4 flags components needing an adapter test double (a testcontainers-based real-DB test or a downstream-service adapter test; a component test using a per-test isolated instance is not a 4b option), ask the operator once per run, batched across every such component, to choose `Build (testcontainers)`, `Build (Fake)`, or `Document-only` (default) for each.",
       "anchor": "4b-build-vs-document-decision-adapter-test-doubles"
     },
     "5. Produce a migration path": {
@@ -2923,7 +2923,7 @@
       "anchor": "output"
     },
     "Companion: test-double setup guide": {
-      "summary": "Whenever Step 4's Target architecture table recommends a testcontainers-based",
+      "summary": "Whenever Step 4's Target architecture table recommends a testcontainers-based adapter integration test (`Build (testcontainers)`), a virtual-service-library-backed double, or a hand-rolled fallback for any component (a per-test isolated instance does not trigger it), write a companion setup guide, independent of the component's Step 4b outcome.",
       "anchor": "companion-test-double-setup-guide"
     },
     "Integration": {

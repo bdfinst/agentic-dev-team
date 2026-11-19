@@ -147,7 +147,7 @@ regardless of which path produced the resolved report:
 this skill, made explicit so it survives independent of any one plan
 document.** Apply exactly the decision procedure in
 `../cd-test-architecture/SKILL.md`'s `### 4b. Build-vs-document decision
-(adapter test doubles)` heading — its Database-specific branch, its
+(adapter test doubles)` heading, whose detail lives in `../cd-test-architecture/references/build-vs-document.md` — its Database-specific branch, its
 Downstream-service branch, and that branch's library-vs-hand-rolled
 sub-question — as the single source of the build-vs-document branching
 rules. That procedure is not restated here. This citation was chosen over
@@ -280,14 +280,14 @@ invocation has no reason to need:
    decision logic.
 2. **For a component resolving to a Build outcome, propose a Story** —
    rendered as output text, using exactly the title and description
-   conventions `../cd-test-architecture/SKILL.md`'s Database-specific
+   conventions `../cd-test-architecture/references/build-vs-document.md`'s Database-specific
    branch and Downstream-service branch already define (cited from Step
    2's own citation above, not restated here). This is advisory only,
    identical in kind to Step 4b's own live invocation — it never invokes
    `/build` or writes a Story file itself.
 3. **The setup-guide artifact (#1436)'s per-component *inclusion* is
    independent of this decision; its *Classification* is not.**
-   `../cd-test-architecture/SKILL.md`'s Companion section states a
+   `../cd-test-architecture/references/build-vs-document.md`'s Companion section states a
    component's section is included regardless of whether the operator
    chose Document-only for it (cited, not restated) — this step never
    adds or removes a section on that basis. But that same section's

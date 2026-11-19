@@ -268,6 +268,34 @@ def cd_test_architecture_setup_guide_section(text: str) -> str:
     )
 
 
+CD_TEST_ARCHITECTURE_DIR = PLUGIN_ROOT / "skills" / "cd-test-architecture"
+
+
+def cd_test_architecture_full_text() -> str:
+    """`cd-test-architecture/SKILL.md` with the two sections it moved into
+    `references/build-vs-document.md` (Step 4b and the setup-guide
+    Companion) spliced back at their original positions, so content guards
+    keep asserting on the whole procedure regardless of which file holds a
+    given sentence. Each splice replaces the pointer block under the same
+    heading in SKILL.md."""
+    skill = (CD_TEST_ARCHITECTURE_DIR / "SKILL.md").read_text(encoding="utf-8")
+    ref = (CD_TEST_ARCHITECTURE_DIR / "references" / "build-vs-document.md").read_text(
+        encoding="utf-8"
+    )
+    step_4b_start = ref.index("### 4b.")
+    companion_start = ref.index("### Companion: test-double setup guide")
+    step_4b = ref[step_4b_start:companion_start].rstrip("\n") + "\n\n"
+    companion = ref[companion_start:].rstrip("\n") + "\n\n"
+    skill = re.sub(r"(?ms)^### 4b\..*?(?=^### 5\.)", lambda _m: step_4b, skill, count=1)
+    skill = re.sub(
+        r"(?ms)^### Companion: test-double setup guide.*?(?=^## Integration)",
+        lambda _m: companion,
+        skill,
+        count=1,
+    )
+    return skill
+
+
 def collapsed(text: str) -> str:
     """Collapse all whitespace runs (including newlines) to single spaces so
     a phrase hard-wrapped across markdown lines — even mid-word — still
