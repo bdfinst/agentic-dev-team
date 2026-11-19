@@ -74,8 +74,8 @@ This yields tests that are fast (no shared I/O or network), deterministic (no sh
 
 Wrap every third-party client (SDK, HTTP client, broker client, DB driver) in **a thin adapter the team owns**, then double the *adapter* in component tests — never mock the third-party SDK directly. The adapter is the seam:
 
-- **Component tests** double the adapter (or use a per-test isolated team-controlled instance; see the exception) → fast, deterministic, no shared dependency.
-- **Adapter integration tests** exist to verify the adapter and its double against the real dependency, out-of-band whatever instance they run against. They exercise the real adapter against a real container → assert the *adapter's* correctness (it speaks the protocol, builds the right request), not the dependency's behavior.
+- **Component tests** double the adapter (or a per-test isolated instance; see the component-test dependency exception) → fast, deterministic, no shared dependency.
+- **Adapter integration tests** exercise the real adapter against a real container → assert the *adapter's* correctness (it speaks the protocol, builds the right request), not the dependency's behavior.
 
 This keeps the mock surface small, stable, and owned, and localizes every "the real thing changed" failure to one place.
 
@@ -112,7 +112,7 @@ So provider-side verification is a *nice-to-have if the provider offers it* — 
 
 1. **Contract test** (pre-merge) pins the request the consumer sends and the response shape it depends on, against the adapter double. Blocks the build. This keeps *your* side stable and documents exactly what you assume of the provider.
 2. **Scheduled provider-contract verification in a test environment** — *you* run your pinned contract against the provider's real (non-prod) endpoint **on a schedule, out-of-band**, decoupled from your deploy cadence. This is the primary defense: it detects a provider break **when it happens**, not when you next ship, so the break is attributed to the provider and not to your undelivered changes. Owned and run by your team; requires no provider cooperation.
-3. **Adapter integration test** (out-of-band, on a schedule — never in-band, regardless of ownership) runs the adapter against a real container of the production engine/broker (matching version + extensions) to confirm the double's protocol assumptions hold — see The Pre-Merge Gate Rule above. This out-of-band rule covers tests that check a double; a component test using a per-test isolated instance as its dependency is not an integration test.
+3. **Adapter integration test** (out-of-band, on a schedule — never in-band, regardless of ownership) runs the adapter against a real container of the production engine/broker (matching version + extensions) to confirm the double's protocol assumptions hold — see The Pre-Merge Gate Rule above.
 4. **Resilience verified by component tests** (pre-merge) — because you assume the provider *will* break, the consumer must be tested to **survive** it: timeouts enforce, retries/backoff/circuit-breaker behave, malformed or drifted responses are handled per Postel's Law, and the caller gets a documented response with no partial state. Detection (step 2) tells you it broke; resilience keeps you up until it's fixed.
 
 Doubles without steps 2 and 4 are a smell (see `microservice-testing.md` → "Stubs that lie", `test-smells.md` → behavior smells). The classic failure is a hand-written double that the team *assumes* still matches a provider nobody is checking.
@@ -125,7 +125,7 @@ Doubles without steps 2 and 4 are a smell (see `microservice-testing.md` → "St
 - **Inject randomness.** Same discipline for RNG and ID generation.
 - **No sleeps.** Never `sleep` to await; drive time and async deterministically.
 - **Real browser, stubbed network (UI).** Run UI component tests in a real engine (Chromium/Firefox/WebKit) with the backend stubbed at the network layer — not an in-memory DOM shim, which trades accuracy for speed and produces false positives on layout/timing.
-- **In-memory doubles over heavyweight test infra** for the gate. Containers that check doubles (adapter integration) run off the merge path; the only pre-merge containers are the per-test, team-controlled instance in The Pre-Merge Gate Rule and containerized virtual-service doubles.
+- **In-memory doubles over heavyweight test infra** for the gate. Containers that check doubles (adapter integration) run off the merge path; the only pre-merge containers are per-test isolated instances (see the component-test dependency exception) and containerized virtual-service doubles.
 
 ---
 
@@ -140,7 +140,7 @@ This file uses **MinimumCD vocabulary**, which differs from the Fowler-based `te
 | **Integration test** | Exercises real deps **specifically to validate the doubles**, non-deterministic, **never pre-merge** (out-of-band / scheduled) | Broader: any test of a unit + one real external |
 | **Pre-merge gate** | Determinism is necessary; test purpose decides placement | Implicit in "fast tests at the base" |
 
-When advising for a CD pipeline, **prefer this file's framing** — determinism is necessary for the pre-merge gate and test purpose decides placement; that is the organizing principle. Use the Fowler files for the general layering heuristic and the doubles taxonomy (`test-doubles.md`).
+When advising for a CD pipeline, **prefer this file's framing** — determinism is necessary and test purpose decides placement (see The Pre-Merge Gate Rule). Use the Fowler files for the general layering heuristic and the doubles taxonomy (`test-doubles.md`).
 
 ## Boundaries
 

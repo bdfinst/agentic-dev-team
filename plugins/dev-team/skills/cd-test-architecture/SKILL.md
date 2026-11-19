@@ -80,7 +80,7 @@ Flag, with evidence:
 
 - **Out-of-repo / third-party-runner testing** — the component's tests live in another repo, a separate QA runner, Postman collections, or manual scripts rather than alongside the code. **This is an anti-pattern**, even when that external coverage is extensive: the tests cannot gate the component's own merges, are not versioned with the code they verify, are usually non-deterministic and environment-coupled, and silently drift from the code. The goal state is deterministic tests co-located with the code and run in its pipeline. Flag this explicitly and treat the external suite as the *source material* (Step 2b — locate and harvest out-of-repo tests), not the destination.
 - **Manual / non-repeatable testing** — behavior verified only by humans following scripts. Non-repeatable, unsuitable for any gate; each such script is a behavior to automate.
-- **Mis-typed gate tests** — "unit/component" tests that require a shared, long-lived, or externally owned real dependency, or are non-deterministic (real clock/RNG/network/sleep). These cannot be a pre-merge gate. A component test whose purpose is component behavior and that uses a per-test isolated instance of a team-controlled engine is not mis-typed. A test whose purpose is to check a double against the real engine is an integration test whatever the instance, and is mis-typed if it is in the gate. A "unit" test that needs a real engine is mis-typed: re-type it per `cd-test-architecture.md` (Component-test dependency exception).
+- **Mis-typed gate tests** — "unit/component" tests that require a shared, long-lived, or externally owned real dependency, or are non-deterministic (real clock/RNG/network/sleep). These cannot be a pre-merge gate. Placement follows `cd-test-architecture.md`, Component-test dependency exception: a component test using a per-test isolated instance is not mis-typed, a test that checks a double against the real engine is, and a "unit" test that needs a real engine is re-typed there.
 - **Configured-dependency tests** — tests that need the rest of the system stood up to run.
 - **Coverage gaps** — behavior (success + failure modes per the component pattern) not covered at any deterministic layer.
 - **Drift risk** — doubles with no validation loop. In particular, assume **no provider cooperation**: a contract that nobody runs against the real provider on a schedule is undefended. Flag the absence of *consumer-owned, scheduled provider-contract verification in a test environment* — relying on provider-side CDC verification is not sufficient for providers you don't control.
@@ -99,9 +99,11 @@ Per component, using its pattern: which test types cover which layers, **what to
 
 **The pyramid is a cost heuristic, not a target shape** — canonical in `knowledge/cd-test-architecture.md#the-pyramid-is-a-cost-heuristic-not-a-target-shape`. Per-component / per-behavior placement is the valid output; if the suite shape is pathological, name the pathology and the behaviors that suffer from it — never propose a numeric redistribution.
 
-### 4b. Build-vs-document decision (off-gate adapter test doubles)
+**Per-test isolated instance.** Where the team controls an engine, a component test may use a per-test isolated instance instead of its double — recommend it in the Target architecture row per `cd-test-architecture.md`, Component-test dependency exception, not through Step 4b.
 
-When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test, or a downstream-service adapter test; "off-gate" names the test that validates a double, not where a component test using a per-test isolated instance runs), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt every adapter-kind slice appends to, not a new prompt each run; the Downstream-service branch below, including its record-and-replay-library sub-question, is one such append, already shipped, not future work. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of three options — there is no separate follow-up sub-question (a `Build (Fake)` row's construction-method sub-question is carried in this same prompt and reply — see the Downstream-service branch below):
+### 4b. Build-vs-document decision (adapter test doubles)
+
+When Step 4 identifies one or more components needing an adapter test double (today: a testcontainers-based real-DB test, or a downstream-service adapter test; a component test using a per-test isolated instance is not a 4b option), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt every adapter-kind slice appends to, not a new prompt each run; the Downstream-service branch below, including its record-and-replay-library sub-question, is one such append, already shipped, not future work. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of three options — there is no separate follow-up sub-question (a `Build (Fake)` row's construction-method sub-question is carried in this same prompt and reply — see the Downstream-service branch below):
 
 1. **Build (testcontainers)** — propose a downstream Story for a real-dependency test using testcontainers (exact Story shape per the branch subsection below).
 2. **Build (Fake)** — propose a downstream Story for a hand-rolled Fake double (exact Story shape per the branch subsection below).
@@ -119,17 +121,17 @@ Repos with no such gap see no behavior change: no prompt is asked, and the repor
 
 For the database-IS-the-SUT band, the three-way answer directly determines the outcome per component:
 
-- **Build (testcontainers)** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`. The Story states its placement by purpose: an adapter integration test that validates the double runs out-of-band on a schedule; a component test using a per-test isolated instance runs pre-merge, and placement follows the Pipeline stage column (see `cd-test-architecture.md`, Component-test dependency exception).
+- **Build (testcontainers)** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`. This Story is always the out-of-band adapter integration test that validates the double.
 - **Build (Fake)** — propose a Story titled `[<component>] Add hand-rolled Fake database double`. Its description names the Fake as an in-memory repository implementing the same interface, per `test-doubles.md`'s Fake taxonomy, cites both `database-test-patterns.md` and `test-doubles.md`, and always carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
 - **Document-only** — the recommendation lands in the report only, as today; no further action.
 
 #### Downstream-service branch
 
-Applies to API Consumer, Event Consumer, and Event Producer components (`component-test-patterns.md`) that Step 4 flagged for the same off-gate adapter-test-double decision as the database branch above — added to the *same* batched per-run prompt, not a second prompt: the shared prompt above already states later adapter-kind slices append here, and this is that append.
+Applies to API Consumer, Event Consumer, and Event Producer components (`component-test-patterns.md`) that Step 4 flagged for the same adapter-test-double decision as the database branch above — added to the *same* batched per-run prompt, not a second prompt: the shared prompt above already states later adapter-kind slices append here, and this is that append.
 
 Every row offers all three options identically, with no ownership-based distinction: `Build (testcontainers)`, `Build (Fake)`, `Document-only`.
 
-**All off-gate validation of a downstream-service test double runs out-of-band, on a schedule — never pre-merge/in-band — regardless of whether the dependency is team-controlled or third-party.** This applies uniformly to the testcontainers-based adapter-integration test, the hand-rolled Fake's companion provider-contract verification, and the library-backed double's re-record/diff companion action alike, per `component-test-patterns.md`'s and `cd-test-architecture.md`'s Integration-test placement rule: these tests check a double against the real dependency, so they are out-of-band whoever owns it (the component-test dependency exception covers component-test dependencies only).
+**All off-gate validation of a downstream-service test double runs out-of-band, on a schedule — never pre-merge/in-band — regardless of whether the dependency is team-controlled or third-party.** This applies uniformly to the testcontainers-based adapter-integration test, the hand-rolled Fake's companion provider-contract verification, and the library-backed double's re-record/diff companion action alike, per `component-test-patterns.md`'s and `cd-test-architecture.md`'s Integration-test placement rule: these tests check a double against the real dependency, so they are out-of-band whoever owns it.
 
 An ambiguous or absent answer for a downstream-service row defaults to `Document-only`, the same ambiguous-answer rule as any other ambiguous answer above — not a new rule.
 
@@ -242,7 +244,7 @@ surfaces.
 ### Target architecture (per component)
 | Component | Layer | Test type | Double (to run config-free) | Pipeline stage | Build/Document status |
 
-`Build/Document status` is one of `Build (testcontainers)`, `Build (Fake)`, or `Document-only` (set per Step 4b) for a row Step 4 flagged as needing an off-gate adapter test double. A row Step 4 did not flag for that decision (e.g. a component/layer already pre-merge-gate-eligible with no real dependency to double) carries **no value in this column at all** — left blank, never one of the three enum values and never guessed. This blank-vs-set distinction is the literal, table-level signal for which rows are off-gate-eligible; `/apply-test-doubles` cites this sentence rather than re-deriving its own eligibility rule. A row whose status is `Build (Fake)` also carries that row's branch-specific caveat, verbatim, in the same cell — see the Database-specific branch or Downstream-service branch above for the exact wording. "Off-gate-eligible" here means only that Step 4 flagged the row for the adapter-double decision; the Pipeline stage column, not this value, sets gate placement.
+`Build/Document status` is one of `Build (testcontainers)`, `Build (Fake)`, or `Document-only` (set per Step 4b) for a row Step 4 flagged as needing an adapter test double. A row Step 4 did not flag for that decision (e.g. a component/layer already pre-merge-gate-eligible with no real dependency to double) carries **no value in this column at all** — left blank, never one of the three enum values and never guessed. This blank-vs-set distinction is the literal, table-level signal for which rows are adapter-double-eligible; `/apply-test-doubles` cites this sentence rather than re-deriving its own eligibility rule. A row whose status is `Build (Fake)` also carries that row's branch-specific caveat, verbatim, in the same cell — see the Database-specific branch or Downstream-service branch above for the exact wording. The value records the adapter-double decision only; the Pipeline stage column sets gate placement.
 
 When Step 0 loaded a `knowledge/test-stack-profiles/<stack>.md` profile, **cite that profile** (and any reference it points at) in the *Test type* or *Double* column so the concrete tool choice is traceable to the stack-specific reference.
 
@@ -284,7 +286,7 @@ convention as the main report, never a legacy path outside
 `.dev-team-reports/`. In the single-component chat-only case (the
 main report goes to chat, not a file), the setup guide's content is appended
 to that same chat output instead of written as a second file. When no
-component in the run falls into this off-gate adapter-double decision space,
+component in the run falls into this adapter-double decision space,
 write no setup-guide file or chat section at all — never an empty one.
 
 **Header and Provenance.** For the header block and closing Provenance
@@ -295,7 +297,7 @@ full application inventory from Step 1.
 
 **Per-component sections.** One section per component — even when two
 components resolve to the same tool, each still gets its own section with
-its own component-specific example prompt. A non-off-gate component (no
+its own component-specific example prompt. A non-adapter-double component (no
 adapter-double recommendation at all) gets no section. Each section has:
 
 1. **Tool name + one-line purpose.**

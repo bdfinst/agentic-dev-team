@@ -13,7 +13,7 @@ purpose, doc link, configuration steps, example prompt, closing
 `/apply-test-doubles <path>` command), the three per-component
 classification cases (testcontainers / virtual-service-library /
 hand-rolled fallback), the Downstream-service no-posed-sub-question fallback
-default, and the "no off-gate components → no file" rule.
+default, and the "no adapter-double components → no file" rule.
 
 Every assertion below is scoped to the new `### Companion: test-double
 setup guide` subsection (via the shared
@@ -269,7 +269,7 @@ def test_two_components_sharing_a_tool_each_get_their_own_section():
 def test_non_off_gate_component_gets_no_section():
     sec = _section()
     assert grep(
-        r"A non-off-gate component \(no adapter-double recommendation at "
+        r"A non-adapter-double component \(no adapter-double recommendation at "
         r"all\) gets no section",
         sec,
         ignore_case=True,
@@ -345,7 +345,7 @@ def test_no_off_gate_components_means_no_setup_guide_written():
     # just an absence check on the section text.
     sec = _section()
     assert grep(
-        r"When no component in the run falls into this off-gate "
+        r"When no component in the run falls into this "
         r"adapter-double decision space, write no setup-guide file or chat "
         r"section at all",
         sec,
