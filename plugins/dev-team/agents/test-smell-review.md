@@ -67,9 +67,9 @@ without dispatching the advisor.
 
 **Prose-emission contract.** For every finding whose `remedyFamily` is
 non-null, the family slug MUST also appear verbatim in the finding's `message`
-prose (not `suggestedFix`). The eval grader `scripts/eval_graders/verdict.py:40`
-concatenates `issue.message` + `summary` and scans for `mustMention` keywords
-in prose; it does **not** read `suggestedFix` or `remedyFamily` structurally.
+prose (not `suggestedFix`). The eval grader `scripts/eval_graders/verdict.py`
+concatenates each issue's `smell`, `category` and `message` plus the `summary`
+and scans for `mustMention` keywords in prose; it does **not** read `suggestedFix` or `remedyFamily` structurally.
 Emitting the family slug in `message` is what makes `mustMention` on the
 family slug enforceable by the existing fixture grader without extending it.
 
