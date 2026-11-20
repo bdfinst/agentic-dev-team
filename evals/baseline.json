@@ -1,7 +1,7 @@
 {
   "_comment": "Regression baseline for the agent-eval CI gate (#99). Trust-gated (#230): a pair is removed only when it failed every trial (pass@k <= demote_below) over >= min_trials and is not flaky; a flaky pair is quarantined, not removed; a pair is added only when it passed all trials. Written by eval_variance.py --write-baseline.",
   "provenance": "measured",
-  "recorded_at": "2026-11-20T02:49:22Z",
+  "recorded_at": "2026-11-20T03:15:22Z",
   "trials": 3,
   "passing": [
     "ar-clean-arch::arch-review",
@@ -38,6 +38,7 @@
     "te-long-functions::token-efficiency-review",
     "test-assertion-roulette.test::test-smell-review",
     "test-clean-doubles.test::test-smell-review",
+    "test-internal-collaborator-mock.test::test-smell-review",
     "test-layer-contract-leak.test::test-smell-review",
     "test-layer-contract-shape-only.test::test-smell-review",
     "test-layer-mislabeled-apphost.test::test-smell-review",
@@ -49,6 +50,7 @@
     "test-layer-scope-creep-stubbed.test::test-smell-review",
     "test-layer-scope-creep.test::test-smell-review",
     "test-mystery-guest.test::test-smell-review",
+    "test-overspecified-mocks.test::test-smell-review",
     "test-password-reset-notifier.test::test-smell-review",
     "test-subscription-renewal.test::test-smell-review",
     "tlg-01-pure-function::test-design-advisor",

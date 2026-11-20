@@ -64,12 +64,9 @@ def test_clean_doubles_fixture_must_not_add_remedy_family_must_mention() -> None
         assert family not in must_mention, f"unexpected mustMention: {family}"
 
 
-def test_internal_collaborator_mock_fixture_requires_component_test_patterns_citation() -> (
-    None
-):
-    # Mocking an internal/same-component collaborator is a boundary-selection
-    # misuse, not one of the four remedyFamily slugs — its citation contract
-    # points at component-test-patterns.md instead.
-    _require_must_mention(
-        "test-internal-collaborator-mock.test.json", "component-test-patterns"
-    )
+def test_internal_collaborator_mock_fixture_requires_deferral_to_test_review() -> None:
+    # An unwaived internal-collaborator double is test-review's finding, never
+    # this agent's (test-smell-review.md, the already-waived-double rule), so the
+    # fixture expects the agent to name that hand-off rather than cite
+    # component-test-patterns for the double itself.
+    _require_must_mention("test-internal-collaborator-mock.test.json", "test-review")

@@ -230,7 +230,7 @@ Worked example:
       "expectedStatus": "warn",
       "issueCount": { "min": 1, "max": 3 },
       "severities": { "warning": { "min": 1, "max": 2 } },
-      "mustMention": ["same component", "component-test-patterns"],
+      "mustMention": ["test-review"],
       "mustNotMention": [],
       "_calibration": {
         "source": "measured",
