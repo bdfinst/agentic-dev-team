@@ -79,16 +79,16 @@ def _result(kind: str, path: str, fmt: str | None, reason: str | None) -> dict:
     return {"kind": kind, "path": path, "format": fmt, "reason": reason}
 
 
-def _load_json(file: Path):
+def _load_json(raw: bytes):
     try:
-        return json.loads(file.read_text(encoding="utf-8"))
+        return json.loads(raw.decode("utf-8"))
     except (ValueError, RecursionError) as exc:  # bad JSON or bytes, oversized integer, deep nesting
         raise _Malformed(f"malformed: {exc}") from exc
 
 
-def _load_xml_root(file: Path):
+def _load_xml_root(raw: bytes):
     try:
-        return ET.parse(file).getroot()
+        return ET.fromstring(raw)
     except (ET.ParseError, ValueError, LookupError) as exc:  # bad or unsupported encoding
         raise _Malformed(f"malformed: {exc}") from exc
 
@@ -149,11 +149,11 @@ def _is_istanbul(data) -> bool:
     )
 
 
-def _starts_with(file: Path, char: str) -> bool:
-    """True when the file's first non-blank character is `char`. A file that
-    cannot be decoded as text is neither JSON nor XML, so it is False."""
+def _starts_with(raw: bytes, char: str) -> bool:
+    """True when the report's first non-blank character is `char`. Bytes that
+    cannot be decoded as text are neither JSON nor XML, so it is False."""
     try:
-        return file.read_text(encoding="utf-8").lstrip().startswith(char)
+        return raw.decode("utf-8").lstrip().startswith(char)
     except UnicodeDecodeError:
         return False
 
@@ -243,18 +243,19 @@ def _read_dir_report(file: Path) -> tuple[str | None, bool]:
     """(evidence format, has_hits) for one per-test report; (None, False) if
     unrecognised. A test that loaded no instrumented code leaves an empty file or
     an empty JSON object: format `EMPTY_REPORT`, which fits any directory."""
-    text = file.read_text(encoding="utf-8", errors="replace").lstrip()
+    raw = file.read_bytes()
+    text = raw.decode("utf-8", errors="replace").lstrip()
     if not text:
         return EMPTY_REPORT, False
     if text.startswith("<"):
-        root = _load_xml_root(file)
+        root = _load_xml_root(raw)
         if root.tag == "coverage":
             return "cobertura-dir", _xml_line_has_hits(root, "hits")
         if root.tag == "report":
             return "jacoco-dir", _xml_line_has_hits(root, "ci")
         return None, False
     if text.startswith("{"):
-        data = _load_json(file)
+        data = _load_json(raw)
         if data == {}:
             return EMPTY_REPORT, False
         report, has_hits = _js_json_report(data)
@@ -265,10 +266,11 @@ def _read_dir_report(file: Path) -> tuple[str | None, bool]:
 
 
 def _classify_coverage_file(file: Path) -> tuple[str | None, str | None]:
-    if not _starts_with(file, "{"):
-        is_lcov = _is_lcov(file.read_text(encoding="utf-8", errors="replace"))
+    raw = file.read_bytes()
+    if not _starts_with(raw, "{"):
+        is_lcov = _is_lcov(raw.decode("utf-8", errors="replace"))
         return (None, NO_CONTEXTS) if is_lcov else (None, UNRECOGNISED)
-    data = _load_json(file)
+    data = _load_json(raw)
     if _is_coveragepy(data):
         return ("coveragepy-json", None) if _has_contexts(data) else (None, NO_CONTEXTS)
     if _js_json_report(data)[0]:
@@ -295,9 +297,10 @@ def _classify_coverage_dir(directory: Path) -> tuple[str | None, str | None]:
 
 
 def _classify_mutation_file(file: Path) -> tuple[str | None, str | None]:
-    if not _starts_with(file, "{"):
+    raw = file.read_bytes()
+    if not _starts_with(raw, "{"):
         return None, UNRECOGNISED
-    data = _load_json(file)
+    data = _load_json(raw)
     if _is_stryker(data):
         return ("stryker", None) if _stryker_has_per_test_data(data) else (None, NO_CONTEXTS)
     if _is_mutmut(data):
