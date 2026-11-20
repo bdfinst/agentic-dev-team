@@ -326,3 +326,11 @@ def test_wrong_typed_js_report_values_are_unusable_not_a_crash(tmp_path, name, c
 def test_lcov_like_text_without_end_of_record_is_unrecognised(tmp_path):
     r = detect.classify("coverage", _dir(tmp_path, {"t.info": "SF:a.js\nDA:1,1\n"}))
     assert (r["format"], r["reason"]) == (None, "unrecognised format")
+
+
+@pytest.mark.parametrize("value", ["²", "x", "", "-1"])
+@pytest.mark.parametrize("template,attribute", [(JACOCO, "ci"), (COBERTURA, "hits")])
+def test_wrong_typed_xml_hit_attribute_is_no_hits_not_a_crash(tmp_path, template, attribute, value):
+    xml = template.replace(f'{attribute}="1"', f'{attribute}="{value}"')
+    r = detect.classify("coverage", _dir(tmp_path, {"t.xml": xml}))
+    assert (r["format"], r["reason"]) == (None, "no contexts")
