@@ -88,13 +88,25 @@ def grade_verdict(spec: dict, actual: dict) -> list[str]:
                 f"got {sorted(got, key=repr)!r}"
             )
 
-    text = " ".join(str(i.get("message", "")) for i in issues)
+    # An issue's `smell` (test-smell-review) or `category` names the finding as
+    # much as its message does, so each counts toward what the agent mentioned.
+    text = " ".join(
+        f"{i.get('smell', '')} {i.get('category', '')} {i.get('message', '')}"
+        for i in issues
+    )
     text += " " + str(actual.get("summary", ""))
     for kw in spec.get("mustMention", []):
         if not mentions(text, kw):
             fails.append(f"mustMention: missing {kw!r}")
+    # `mustNotMention` asks "did the agent report this?", so it reads the issues
+    # only. The summary may name a smell to say it does not apply ("not a
+    # Contract Business-Logic Leak"), which is a correct pass, not a report.
+    reported = " ".join(
+        f"{i.get('smell', '')} {i.get('category', '')} {i.get('message', '')}"
+        for i in issues
+    )
     for kw in spec.get("mustNotMention", []):
-        if mentions(text, kw):
+        if mentions(reported, kw):
             fails.append(f"mustNotMention: found forbidden {kw!r}")
 
     return fails

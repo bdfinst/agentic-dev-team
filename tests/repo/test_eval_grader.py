@@ -980,3 +980,45 @@ def test_check_corpus_rejects_a_malformed_hard_marker(
     out = res.stdout + res.stderr
     assert res.returncode == 2, out
     assert message in out
+
+
+def test_mustnotmention_ignores_a_summary_that_names_the_term_to_rule_it_out(case: Path) -> None:
+    _write(
+        case,
+        "actuals.json",
+        """{ "ar-demo": { "agents": { "arch-review": {
+  "status": "fail",
+  "issues": [{ "severity": "error", "message": "layer violation" },
+             { "severity": "error", "message": "layer again" }],
+  "summary": "The layer is not clean in the sense of a boundary." } } } }
+""",
+    )
+    res = _grade(
+        case,
+        "--expected-dir",
+        str(case / "expected"),
+        "--actuals",
+        str(case / "actuals.json"),
+    )
+    assert "mustNotMention" not in res.stdout + res.stderr
+
+
+def test_mustmention_counts_the_smell_field_of_an_issue(case: Path) -> None:
+    _write(
+        case,
+        "actuals.json",
+        """{ "ar-demo": { "agents": { "arch-review": {
+  "status": "fail",
+  "issues": [{ "severity": "error", "smell": "layer", "message": "x" },
+             { "severity": "error", "message": "y" }],
+  "summary": "" } } } }
+""",
+    )
+    res = _grade(
+        case,
+        "--expected-dir",
+        str(case / "expected"),
+        "--actuals",
+        str(case / "actuals.json"),
+    )
+    assert "mustMention" not in res.stdout + res.stderr
