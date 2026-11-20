@@ -20,7 +20,27 @@ Per repo, from `--coverage` and `--mutation`. Detect the format with `scripts/co
 - **No usable evidence** for a repo (nothing given, or `missing`, `unrecognised format`, `malformed: <parser error>`, `no contexts`): `static-judgment` with that reason.
 - **Evidence for one of two repos:** the other repo's findings are `static-judgment: missing`, and Scope names which repos had evidence.
 
-Accepted inputs (v1): coverage.py JSON written with `--show-contexts`; per-test Cobertura XML directory; per-test Istanbul JSON directory; Stryker `mutation-report.json`; mutmut `mutants/mutmut-stats.json`. Java (JaCoCo) and Go (coverprofile) coverage are `static-judgment` in v1 (#2342, #2343).
+Accepted inputs (v1): coverage.py JSON written with `--show-contexts`; per-test Cobertura XML directory; per-test JaCoCo XML directory; per-test Istanbul JSON directory; per-test lcov directory; per-test raw V8 JSON directory; Stryker `mutation-report.json`; mutmut `mutants/mutmut-stats.json`. Go (coverprofile) coverage is `static-judgment` in v1 (#2343).
+
+### Per-test JS capture
+
+Run each test (or test file) alone and keep one report per test id in one directory, passed as `--coverage <repo>=<dir>`. A single aggregate file (`coverage-final.json`, `lcov.info`) has no per-test data and is `no contexts`.
+
+- **Istanbul JSON:** `nyc --reporter=json --report-dir=cov-per-test/<id> <runner>`, then copy each `coverage-final.json` to `cov-per-test/<id>.json`. Jest: `jest <file> --coverage --coverageReporters=json --coverageDirectory=cov/<id>`.
+- **lcov:** same runs with `--reporter=lcovonly` / `--coverageReporters=lcovonly`; keep each `lcov.info` as `<id>.info`.
+- **Raw V8:** `NODE_V8_COVERAGE=v8-per-test/<id> node --test <file>`, then keep one JSON per id.
+
+Every report in the directory must be the same format. A directory where no statement or line has a hit is `no contexts`.
+
+### Per-test JaCoCo capture (Java)
+
+JaCoCo writes one report per JVM run, so capture one run per test id and keep each report as its own file in one directory (for example `jacoco-per-test/<test-id>.xml`).
+
+1. Run each test (or test class) alone with the agent: `-javaagent:jacocoagent.jar=destfile=target/jacoco/<test-id>.exec`. With Maven Surefire, run `mvn test -Dtest='<Class>#<method>' -Djacoco.destFile=target/jacoco/<test-id>.exec`.
+2. Convert each `.exec` to XML: `java -jar jacococli.jar report target/jacoco/<test-id>.exec --classfiles target/classes --sourcefiles src/main/java --xml jacoco-per-test/<test-id>.xml`.
+3. Pass the directory: `--coverage <repo>=jacoco-per-test`.
+
+The file name is the test id. A line is covered when its `<line>` element has `ci` greater than 0. One malformed report makes the whole directory `malformed: <error>` and the repo falls back to `static-judgment`.
 
 ## Confidence
 

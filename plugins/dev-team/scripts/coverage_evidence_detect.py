@@ -14,6 +14,12 @@ Accepted formats (v1):
                                 file per test id
               istanbul-dir      a directory of per-test Istanbul JSON, one
                                 file per test id
+              lcov-dir          a directory of per-test lcov files, one file
+                                per test id
+              v8-dir            a directory of per-test raw V8 coverage JSON
+                                (`NODE_V8_COVERAGE` output), one file per test id
+              jacoco-dir        a directory of per-test JaCoCo XML (root
+                                `<report>`), one file per test id
     mutation  stryker           Stryker mutation-report.json whose mutants
                                 carry killedBy/coveredBy
               mutmut            mutmut 3 `mutants/mutmut-stats.json`,
@@ -26,6 +32,9 @@ Accepted formats (v1):
                                 `exit_code_by_key`, the kill results, and no
                                 test map) is recognised but has no per-test
                                 data. Probed against mutmut 3.8.1 output.
+
+A directory whose reports record no covered line or statement is `no contexts`,
+as is a single Istanbul, lcov, or V8 file (an aggregate has no per-test data).
 
 Reasons when `format` is null (verbatim in the report):
 
@@ -147,12 +156,73 @@ def _starts_with(file: Path, char: str) -> bool:
 
 
 def _classify_coverage_file(file: Path) -> tuple[str | None, str | None]:
-    if not _starts_with(file, "{"):
+    if _starts_with(file, "{"):
+        pass
+    elif _is_lcov(file.read_text(encoding="utf-8", errors="replace")):
+        return None, NO_CONTEXTS
+    else:
         return None, UNRECOGNISED
     data = _load_json(file)
     if _is_coveragepy(data):
         return ("coveragepy-json", None) if _has_contexts(data) else (None, NO_CONTEXTS)
+    if _json_js_format(data)[0]:
+        return None, NO_CONTEXTS
     return None, UNRECOGNISED
+
+
+def _is_v8(data) -> bool:
+    return isinstance(data, dict) and isinstance(data.get("result"), list) and all(
+        isinstance(r, dict) and "functions" in r for r in data["result"]
+    )
+
+
+def _is_lcov(text: str) -> bool:
+    return "SF:" in text and "end_of_record" in text
+
+
+def _json_js_format(data) -> tuple[str | None, bool]:
+    """(format, has_hits) for parsed JS coverage JSON; (None, False) if neither."""
+    if _is_istanbul(data):
+        hits = any(
+            isinstance(n, int) and n > 0 for v in data.values() for n in v["s"].values()
+        )
+        return "istanbul-dir", hits
+    if _is_v8(data):
+        hits = any(
+            isinstance(r, dict) and r.get("count", 0) > 0
+            for entry in data["result"]
+            for fn in entry.get("functions", [])
+            if isinstance(fn, dict)
+            for r in fn.get("ranges", [])
+        )
+        return "v8-dir", hits
+    return None, False
+
+
+def _lcov_has_hits(text: str) -> bool:
+    for line in text.splitlines():
+        if line.startswith("DA:"):
+            parts = line[3:].split(",")
+            if len(parts) >= 2 and parts[1].strip().isdigit() and int(parts[1]) > 0:
+                return True
+    return False
+
+
+def _classify_one_dir_file(file: Path) -> tuple[str | None, bool]:
+    """(format, has_hits) for one per-test report; (None, False) if unrecognised."""
+    text = file.read_text(encoding="utf-8", errors="replace").lstrip()
+    if text.startswith("<"):
+        root = _load_xml_root(file)
+        if root.tag == "coverage":
+            return "cobertura-dir", True
+        if root.tag == "report":
+            return "jacoco-dir", True
+        return None, False
+    if text.startswith("{"):
+        return _json_js_format(_load_json(file))
+    if _is_lcov(text):
+        return "lcov-dir", _lcov_has_hits(text)
+    return None, False
 
 
 def _classify_coverage_dir(directory: Path) -> tuple[str | None, str | None]:
@@ -160,22 +230,16 @@ def _classify_coverage_dir(directory: Path) -> tuple[str | None, str | None]:
     if not files:
         return None, UNRECOGNISED
     formats: set[str] = set()
+    any_hits = False
     for file in files:
-        text = file.read_text(encoding="utf-8", errors="replace").lstrip()
-        if text.startswith("<"):
-            root = _load_xml_root(file)
-            if root.tag != "coverage":
-                return None, UNRECOGNISED
-            formats.add("cobertura-dir")
-        elif text.startswith("{"):
-            if not _is_istanbul(_load_json(file)):
-                return None, UNRECOGNISED
-            formats.add("istanbul-dir")
-        else:
+        fmt, hits = _classify_one_dir_file(file)
+        if fmt is None:
             return None, UNRECOGNISED
+        formats.add(fmt)
+        any_hits = any_hits or hits
     if len(formats) != 1:
         return None, UNRECOGNISED
-    return formats.pop(), None
+    return (formats.pop(), None) if any_hits else (None, NO_CONTEXTS)
 
 
 def _classify_mutation_file(file: Path) -> tuple[str | None, str | None]:
