@@ -9,7 +9,7 @@ description: >-
   this", "what's the right test for X", "test design review", or before
   writing a suite for an untested module. For a single unit, pass
   --advise --path <file>. Advisory — it recommends, it does not edit.
-argument-hint: "[--path <dir>] [--since <ref>] [--advise] [--architecture]"
+argument-hint: "[--path <dir>] [--since <ref>] [--advise] [--architecture] [--no-architecture]"
 role: orchestrator
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash(git diff *), Skill, Agent
@@ -34,7 +34,7 @@ fields natively before dispatch, per Model/Effort Resolution in
 2. **Dispatch in parallel.** `test-review` and `test-smell-review` are
    independent — spawn them in one batch for context isolation; each returns
    structured JSON, not file dumps.
-3. **No double-reporting.** Test-double and drift findings from `cd-test-architecture` that overlap `test-smell-review` follow the "test-smell-review ↔ cd-test-architecture" section of the knowledge doc. Apply `knowledge/test-review-division-of-labor.md`:
+3. **No double-reporting.** Apply `knowledge/test-review-division-of-labor.md`:
    when the same line appears in both `test-review` and `test-smell-review`,
    keep the design-level framing and drop the duplicate — record every such
    drop in the report's `### Suppressed duplicates` section (see step 6).
@@ -43,7 +43,10 @@ fields natively before dispatch, per Model/Effort Resolution in
    division" section of the knowledge doc, the smell agent cites the remedy
    family (via `remedyFamily`) and the advisor names the specific remedy
    pattern and refactor sequence — smell rows and advisor rows join
-   structurally on `remedyFamily`, not by prose match.
+   structurally on `remedyFamily`, not by prose match. Test-double and drift
+   overlap between `cd-test-architecture` and `test-smell-review` follows the
+   "test-smell-review ↔ cd-test-architecture" section of the same doc (keep
+   the `test-smell-review` row).
 4. **Be concise.** One aggregated report. Issue messages one sentence;
    recommendations map to a concrete next edit.
 5. **MinimumCD vocabulary.** Layer labels in the aggregated report use the
@@ -71,7 +74,8 @@ Optional:
 
 - `--path <dir>`: target directory (default: current working directory)
 - `--since <ref>`: target files changed since a git ref (`git diff --name-only <ref>...HEAD`)
-- `--architecture`: also run `Skill(cd-test-architecture --yes)`. Default on only for whole-application scope (no `--path` and no `--since`), because that skill assesses the whole application; this flag forces it on for a narrower scope.
+- `--architecture`: also run `Skill(cd-test-architecture --yes)`. Default on only when Step 1 resolved the target to the whole application (no `--path`, no `--since`, no uncommitted changes), because that skill assesses the whole application; this flag forces it on for a narrower scope.
+- `--no-architecture`: never run the architecture step. `/test-health` passes it because it already ran `cd-test-architecture`.
 - `--advise`: also run the test-design-advisor skill for forward-looking design (default on when the target has untested production code or few/no test files, **or when the target resolves to a single production file** — via `--path <file>` or a `--since` diff that touches exactly one production file; this is the path for forward-design on a single unit — the `test-design-advisor` skill has no user-facing slash command)
 
 ## Steps
@@ -126,7 +130,7 @@ any untestable units.
 
 ### 4b. Run the architecture assessment (when applicable)
 
-If `--architecture` is set, or the scope is the whole application (no `--path`, no `--since`), run `Skill(cd-test-architecture --yes)`. `--yes` skips its interactive build-vs-document ask. Put its findings under the report's `### Architecture` section; cite its report path, do not restate it.
+Skip when `--no-architecture` is set. Otherwise, if `--architecture` is set, or Step 1 resolved the target to the whole application, run `Skill(cd-test-architecture <target> --yes)`, passing the resolved target (and `--component <name>` when `--path` names one component). `--yes` skips its interactive build-vs-document ask. Put its findings under the report's `### Architecture` section; cite its report path, do not restate it.
 
 Split with `test-health`: both skills call `cd-test-architecture`. `test-design` is code-level (per-file and per-unit findings plus this application-level view); `test-health` is strategy-level (suite shape, quadrants, maturity). Keep both calls.
 
@@ -190,4 +194,4 @@ constraint #6.
 
 `test-health` also delegates to `cd-test-architecture`, at strategy level. This skill runs it for the code-level report; both calls stay.
 
-For tests that span several deployables (entangled workflows, E2E selection across repos, cross-layer overlap), flag the seam `→ system-test-design` and defer to that skill. This skill stays at per-file and per-unit altitude.
+For tests that span several deployables (entangled workflows, E2E selection across repos, cross-layer overlap), flag the seam `→ system-test-design` and defer to that skill. This skill works at per-file and per-unit altitude; Step 4b cites the application-level view from `cd-test-architecture`.

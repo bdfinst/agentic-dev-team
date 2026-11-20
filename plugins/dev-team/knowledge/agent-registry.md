@@ -180,7 +180,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | CD Maturity Model | `knowledge/cd-maturity-model.md` | ~1,104 | Platform Engineer, QA Engineer |
 | CD Test Architecture | `knowledge/cd-test-architecture.md` | ~5,571 | cd-test-architecture, test-design-advisor |
 | Entangled Workflows | `knowledge/entangled-workflows.md` | ~1,075 | system-test-design, cd-test-architecture, test-design-advisor |
-| Component Test Patterns | `knowledge/component-test-patterns.md` | ~4,444 | cd-test-architecture |
+| Component Test Patterns | `knowledge/component-test-patterns.md` | ~4,444 | cd-test-architecture, system-test-design |
 | Database Change Management | `knowledge/database-change-management.md` | ~1,246 | Software Engineer, Architect, arch-review, `/plan` |
 | Decision Defaults | `knowledge/decision-defaults.md` | ~1,287 | Orchestrator, Product Manager, `/plan` (approach contract) |
 | Deployment Pipeline | `knowledge/deployment-pipeline.md` | ~1,308 | Platform Engineer |
@@ -191,7 +191,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Failure Routing | `knowledge/failure-routing.md` | ~600 | `/build` (step 4 repair iterations), `/apply-fixes` (step 4 annotation) |
 | Fixture Construction | `knowledge/fixture-construction.md` | ~1,260 | test-design-advisor, test-smell-review, test-review |
 | Frontend Component Architecture | `knowledge/frontend-component-architecture.md` | ~1,883 | component-architecture-review, `/frontend-architecture` |
-| Microservice Testing | `knowledge/microservice-testing.md` | ~2,187 | test-smell-review, test-design-advisor |
+| Microservice Testing | `knowledge/microservice-testing.md` | ~2,187 | test-smell-review, test-design-advisor, cd-test-architecture, system-test-design |
 | Object Calisthenics | `knowledge/object-calisthenics.md` | ~1,006 | structure-review |
 | OWASP Detection | `knowledge/owasp-detection.md` | 2,176 | security-review |
 | Orchestrator Script Implementation | `knowledge/orchestrator-script-implementation.md` | 2,873 | Orchestrator (running or working on `scripts/orchestrator.py`) |
@@ -202,7 +202,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Review Template | `knowledge/review-template.md` | 757 | `/code-review` (report assembly) |
 | Test Automation Maturity | `knowledge/test-automation-maturity.md` | ~881 | test-review, test-health |
 | Test Cadence Tradeoffs | `knowledge/test-cadence-tradeoffs.md` | ~1000 | Orchestrator (Phase 2, `agents/orchestrator.md`) |
-| Test Doubles | `knowledge/test-doubles.md` | ~2,155 | test-smell-review, test-design-advisor |
+| Test Doubles | `knowledge/test-doubles.md` | ~2,155 | test-smell-review, test-design-advisor, cd-test-architecture, system-test-design |
 | Test File Indicators | `knowledge/test-file-indicators.md` | ~284 | test-review, test-smell-review, `/test-design`, `/build` |
 | Test Layer Gates | `knowledge/test-layer-gates.md` | ~622 | test-design-advisor |
 | Test Layer Ownership | `knowledge/test-layer-ownership.md` | ~1,396 | system-test-design, cd-test-architecture, test-design-advisor |

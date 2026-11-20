@@ -14,13 +14,13 @@ Role: worker. This command assesses and reports — it does not write tests or r
 
 An **advisory, application-level** skill: it assesses how an existing application is tested, classifies that against a CD-aligned test taxonomy, finds the tests that can't run in a clean CI gate, and recommends a target architecture plus a migration path. It does not write tests or refactor code. `test-design-advisor` works at the unit/module level and `test-smell-review` finds smells in test files; this skill works at the **whole-application** level: test types, pipeline stages, per-component patterns.
 
-Grounded in these knowledge references — read the first two before assessing. The shared core is loaded identically by `system-test-design`; `repo_invariants.py` fails when the two lists diverge.
+Grounded in these knowledge references — read `cd-test-architecture.md` and `component-test-patterns.md` before assessing. The shared core names the same files as `system-test-design`; `repo_invariants.py` fails when the two lists diverge.
 
 <!-- shared-core:start -->
 - `knowledge/cd-test-architecture.md` — six test types, the pre-merge gate rule, the adapter rule, double validation, pipeline stages, MinimumCD-vs-Fowler terminology.
 - `knowledge/microservice-testing.md` — Contract test checks: consumer and provider coverage, replay of consumer contracts, deploy gates (e.g. `can-i-deploy`). Step 3 runs them.
 - `knowledge/test-layer-ownership.md` — in/out of band, the ownership decision, duplication checks, removal rule, antipatterns.
-- `knowledge/test-doubles.md` — Stub/Fake/Mock/Spy taxonomy; load when Step 4b's database or downstream-service branch proposes a hand-rolled Fake double, so it's named correctly (a Fake, never a \"mock\").
+- `knowledge/test-doubles.md` — Stub/Fake/Mock/Spy taxonomy; load when Step 4b's database or downstream-service branch proposes a hand-rolled Fake double, so it's named correctly (a Fake, never a "mock").
 - `knowledge/component-test-patterns.md` — per-component patterns (UI / Services / Batch): isolation strategy and pipeline placement.
 <!-- shared-core:end -->
 
@@ -155,6 +155,8 @@ For the header block and closing Provenance section, follow `knowledge/report-te
 ### CD-fitness gaps
 | Gap | Type | Evidence (file) | Impact |
 `Type` includes `Provider-side contract` for provider verification, consumer-contract replay, and deploy-gate gaps.
+### Provider-side contract (services this app provides)
+| Provider | Consumers | Verified in pipeline? | Consumer contracts replayed? | Deploy gate (e.g. `can-i-deploy`) |
 ### Testable seams & achievable baseline (under-tested components)
 | Component | Outermost seam | Best outside-in test writable today (no refactor) |
 ### Target architecture (per component)

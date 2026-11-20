@@ -745,6 +745,12 @@ class TestTestSkillSharedCoreInSync:
         assert len(findings) == 1
         assert "knowledge/b.md" in findings[0]["message"]
 
+    def test_silent_outside_the_marketplace_checkout(self, tmp_path, monkeypatch):
+        self._skills(tmp_path, monkeypatch, ["a"], ["b"])
+        (tmp_path / ".claude-plugin" / "marketplace.json").unlink()
+
+        assert repo_invariants.check_test_skill_shared_core_in_sync() == []
+
     def test_passes_when_lists_match_in_any_order(self, tmp_path, monkeypatch):
         self._skills(tmp_path, monkeypatch, ["a", "b"], ["b", "a"])
 

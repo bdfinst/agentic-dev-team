@@ -1047,8 +1047,6 @@ def check_no_bare_stdin_read_in_shipped_scripts(changed_files=None) -> list[dict
     return findings
 
 
-# Registered checks. Each entry takes an optional `changed_files` list and
-# returns findings. See the module docstring for why that argument exists.
 _SHARED_CORE_RE = re.compile(
     r"<!-- shared-core:start -->(.*?)<!-- shared-core:end -->", re.DOTALL
 )
@@ -1057,11 +1055,7 @@ _SHARED_CORE_SKILLS = ("cd-test-architecture", "system-test-design")
 
 def _shared_core_set(skill: str) -> set[str] | None:
     path = _REPO_ROOT / "plugins" / "dev-team" / "skills" / skill / "SKILL.md"
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-    m = _SHARED_CORE_RE.search(text)
+    m = _SHARED_CORE_RE.search(_read_text(path))
     if not m:
         return None
     return set(re.findall(r"`(knowledge/[^`]+\.md)`", m.group(1)))
@@ -1078,7 +1072,7 @@ def check_test_skill_shared_core_in_sync(changed_files=None) -> list[dict]:
     if not _is_marketplace_checkout():
         return []
     sets = {s: _shared_core_set(s) for s in _SHARED_CORE_SKILLS}
-    missing = [
+    missing_block_findings = [
         {
             "invariant": "test-skill-shared-core-in-sync",
             "file": f"plugins/dev-team/skills/{skill}/SKILL.md",
@@ -1087,23 +1081,27 @@ def check_test_skill_shared_core_in_sync(changed_files=None) -> list[dict]:
         for skill, found in sets.items()
         if found is None
     ]
-    if missing:
-        return missing
-    a, b = (sets[s] for s in _SHARED_CORE_SKILLS)
-    if a != b:
+    if missing_block_findings:
+        return missing_block_findings
+    cd_core, system_core = (sets[s] for s in _SHARED_CORE_SKILLS)
+    if cd_core != system_core:
         return [
             {
                 "invariant": "test-skill-shared-core-in-sync",
                 "file": "plugins/dev-team/skills/system-test-design/SKILL.md",
                 "message": (
                     "shared-core lists of cd-test-architecture and "
-                    f"system-test-design diverge: {', '.join(sorted(a ^ b))}"
+                    f"system-test-design diverge. Only in cd-test-architecture: "
+                    f"{sorted(cd_core - system_core)}; only in system-test-design: "
+                    f"{sorted(system_core - cd_core)}"
                 ),
             }
         ]
     return []
 
 
+# Registered checks. Each entry takes an optional `changed_files` list and
+# returns findings. See the module docstring for why that argument exists.
 CHECKS = [
     check_skill_scripts_documented,
     check_eval_calibration_blocks,

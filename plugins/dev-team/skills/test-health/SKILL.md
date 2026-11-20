@@ -87,8 +87,8 @@ Invoke `/test-design` on the target, passing the same scope this run was
 invoked with — the dispatch must be explicit so a subtree audit never
 inherits a whole-repo Farley Score:
 
-- `/test-health --path <dir>` → dispatch `/test-design --path <dir>`.
-- `/test-health` (unscoped) → dispatch `/test-design` with no scope flag.
+- `/test-health --path <dir>` → dispatch `/test-design --path <dir>` (`--path` already keeps `/test-design`'s architecture step off).
+- `/test-health` (unscoped) → dispatch `/test-design --no-architecture` (Step 4 already ran `cd-test-architecture`).
 
 Consume its results: the scope-labelled **Farley Score** (`(all tests)` when
 unscoped, `(under <dir>)` when passing `--path`, or the empty-scope note

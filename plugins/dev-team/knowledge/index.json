@@ -6631,7 +6631,7 @@
       "anchor": "4-run-the-advisor-when-applicable"
     },
     "4b. Run the architecture assessment (when applicable)": {
-      "summary": "If `--architecture` is set, or the scope is the whole application (no `--path`, no `--since`), run `Skill(cd-test-architecture --yes)`.",
+      "summary": "Skip when `--no-architecture` is set.",
       "anchor": "4b-run-the-architecture-assessment-when-applicable"
     },
     "5. Aggregate and de-duplicate": {
