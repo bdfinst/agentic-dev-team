@@ -82,14 +82,14 @@ def _result(kind: str, path: str, fmt: str | None, reason: str | None) -> dict:
 def _load_json(file: Path):
     try:
         return json.loads(file.read_text(encoding="utf-8"))
-    except ValueError as exc:  # JSONDecodeError, UnicodeDecodeError, oversized integer literal
+    except (ValueError, RecursionError) as exc:  # bad JSON or bytes, oversized integer, deep nesting
         raise _Malformed(f"malformed: {exc}") from exc
 
 
 def _load_xml_root(file: Path):
     try:
         return ET.parse(file).getroot()
-    except ET.ParseError as exc:
+    except (ET.ParseError, ValueError, LookupError) as exc:  # bad or unsupported encoding
         raise _Malformed(f"malformed: {exc}") from exc
 
 

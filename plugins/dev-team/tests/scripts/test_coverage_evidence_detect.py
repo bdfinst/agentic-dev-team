@@ -365,3 +365,15 @@ def test_an_oversized_json_integer_is_malformed_not_a_crash(tmp_path):
     big = '{"/a.js": {"statementMap": {}, "s": {"0": ' + "9" * 5000 + "}}}"
     r = detect.classify("coverage", _dir(tmp_path, {"t.json": big}))
     assert r["format"] is None and r["reason"].startswith("malformed: ")
+
+
+@pytest.mark.parametrize("encoding", ["bogus", "shift_jis"])
+def test_an_unsupported_xml_encoding_is_malformed_not_a_crash(tmp_path, encoding):
+    xml = f'<?xml version="1.0" encoding="{encoding}"?><report/>'
+    r = detect.classify("coverage", _dir(tmp_path, {"t.xml": xml}))
+    assert r["format"] is None and r["reason"].startswith("malformed: ")
+
+
+def test_deeply_nested_json_is_malformed_not_a_crash(tmp_path):
+    r = detect.classify("coverage", _dir(tmp_path, {"t.json": '{"a":' * 100000}))
+    assert r["format"] is None and r["reason"].startswith("malformed: ")
