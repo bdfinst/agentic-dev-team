@@ -77,7 +77,7 @@ signal only, with no error and no placeholder text.
 
 ### 4. Delegate architecture + pipeline
 
-Invoke `cd-test-architecture` on the target. Summarize its findings (which tests can't run in a clean pre-merge gate, target architecture, migration path) in one section — **do not re-derive**.
+Invoke `cd-test-architecture` on the target. This is the strategy-level call; `/test-design` also runs it, at code level, for its own report. Both calls stay. Summarize its findings (which tests can't run in a clean pre-merge gate, target architecture, migration path) in one section — **do not re-derive**.
 
 When `--repos <path>...` is set, also invoke `system-test-design` with those paths (entry repo first). Summarize its minimum E2E set and its overlap findings in one section, and cite its report path (`.dev-team-reports/system-test-design-<entry>.md`). Do not re-list its E2E classifications or restate its findings; if it fails on an argument error, report that and continue without the section.
 

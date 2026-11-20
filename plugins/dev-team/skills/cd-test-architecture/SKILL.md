@@ -14,13 +14,19 @@ Role: worker. This command assesses and reports — it does not write tests or r
 
 An **advisory, application-level** skill: it assesses how an existing application is tested, classifies that against a CD-aligned test taxonomy, finds the tests that can't run in a clean CI gate, and recommends a target architecture plus a migration path. It does not write tests or refactor code. `test-design-advisor` works at the unit/module level and `test-smell-review` finds smells in test files; this skill works at the **whole-application** level: test types, pipeline stages, per-component patterns.
 
-Grounded in these knowledge references — read the first two before assessing:
+Grounded in these knowledge references — read the first two before assessing. The shared core is loaded identically by `system-test-design`; `repo_invariants.py` fails when the two lists diverge.
 
+<!-- shared-core:start -->
 - `knowledge/cd-test-architecture.md` — six test types, the pre-merge gate rule, the adapter rule, double validation, pipeline stages, MinimumCD-vs-Fowler terminology.
+- `knowledge/microservice-testing.md` — Contract test checks: consumer and provider coverage, replay of consumer contracts, deploy gates (e.g. `can-i-deploy`). Step 3 runs them.
+- `knowledge/test-layer-ownership.md` — in/out of band, the ownership decision, duplication checks, removal rule, antipatterns.
+- `knowledge/test-doubles.md` — Stub/Fake/Mock/Spy taxonomy; load when Step 4b's database or downstream-service branch proposes a hand-rolled Fake double, so it's named correctly (a Fake, never a \"mock\").
 - `knowledge/component-test-patterns.md` — per-component patterns (UI / Services / Batch): isolation strategy and pipeline placement.
-- `knowledge/database-test-patterns.md` — for database-backed components: Database Sandbox, Transaction Rollback / Table Truncation Teardown, in-memory Fakes, and the rule that pushes most data-logic tests onto in-memory Fakes so they stay pre-merge-gate eligible.
-- `knowledge/test-doubles.md` — Stub/Fake/Mock/Spy taxonomy; load when Step 4b's database or downstream-service branch proposes a hand-rolled Fake double, so it's named correctly (a Fake, never a "mock").
-- `knowledge/virtual-service-libraries.md` — per-stack record-and-replay library catalog, its preferred-vs-backup framing, and its Resolution order (existing-tool detected → catalog default → operator override/decline); load when Step 4b's Downstream-service branch resolves a `Build (Fake)` row's library.
+<!-- shared-core:end -->
+
+Loaded only here:
+- `knowledge/database-test-patterns.md` — Database Sandbox, rollback/truncation teardown, in-memory Fakes for database-backed components.
+- `knowledge/virtual-service-libraries.md` — record-and-replay library catalog and Resolution order; load for Step 4b's Downstream-service branch.
 
 ## Constraints
 
@@ -77,6 +83,7 @@ Flag, with evidence:
 - **Mis-typed gate tests** — "unit/component" tests that require a shared, long-lived, or externally owned real dependency, or are non-deterministic (real clock/RNG/network/sleep). These cannot be a pre-merge gate. Placement follows `cd-test-architecture.md`, Component-test dependency exception. Also flag **configured-dependency tests** that need the rest of the system stood up to run.
 - **Coverage gaps** — behavior (success + failure modes per the component pattern) not covered at any deterministic layer. **Inverted shape** — reliance on integration/E2E where component/contract tests would gate deterministically.
 - **Drift risk** — doubles with no validation loop. In particular, assume **no provider cooperation**: a contract that nobody runs against the real provider on a schedule is undefended. Flag the absence of *consumer-owned, scheduled provider-contract verification in a test environment* — relying on provider-side CDC verification is not sufficient for providers you don't control.
+- **Provider-side contract gaps** — run the Contract test checks in `knowledge/microservice-testing.md` for services this application provides: a provider with consumers but no provider verification in the pipeline, consumer contracts not replayed against the provider, and no deploy gate (e.g. `can-i-deploy`) that stops a contract-breaking deploy. Also flag business-logic leaks in contracts. Report these as `Provider-side contract` gaps.
 - **No resilience to a broken contract** — the consumer assumes the provider holds; no tests that it survives a provider break (timeout, retry/backoff, circuit breaker, drifted/malformed response). Assume the provider *will* break without versioning.
 
 ### 3b. Find testable seams and the achievable outside-in baseline
@@ -147,6 +154,7 @@ For the header block and closing Provenance section, follow `knowledge/report-te
 | Source (repo / Postman / manual / …) | Location | Behaviors it covers | Why it's an anti-pattern here |
 ### CD-fitness gaps
 | Gap | Type | Evidence (file) | Impact |
+`Type` includes `Provider-side contract` for provider verification, consumer-contract replay, and deploy-gate gaps.
 ### Testable seams & achievable baseline (under-tested components)
 | Component | Outermost seam | Best outside-in test writable today (no refactor) |
 ### Target architecture (per component)

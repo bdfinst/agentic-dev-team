@@ -24,12 +24,19 @@ Role: worker. Assesses and reports across several repositories. It does not edit
 
 The system-level altitude: `test-health` audits one suite's strategy, `cd-test-architecture` one application, `test-design-advisor` one unit. This skill covers an **entry-point deployable plus the deployables it calls or that call it**. It combines four capabilities: E2E triage and the minimum E2E set; cross-layer overlap; the system map with entangled workflows; ownership and test-double validation.
 
-Cite, never restate, these knowledge files:
+Cite, never restate, these knowledge files. The shared core is loaded identically by `cd-test-architecture`; `repo_invariants.py` fails when the two lists diverge.
 
+<!-- shared-core:start -->
 - `knowledge/cd-test-architecture.md` — six test types, the E2E Justification Gate, E2E candidate criteria, taxonomy, placement, the overlap resolution rule.
-- `knowledge/test-layer-ownership.md` — in/out of band, the ownership decision, duplication checks, removal rule, antipatterns.
-- `knowledge/entangled-workflows.md` — the three kinds, their signs, guarding E2E, decoupling step.
 - `knowledge/microservice-testing.md` — contract test checks.
+- `knowledge/test-layer-ownership.md` — in/out of band, the ownership decision, duplication checks, removal rule, antipatterns.
+- `knowledge/test-doubles.md` — Stub/Fake/Mock/Spy taxonomy; name doubles correctly in recommendations.
+- `knowledge/component-test-patterns.md` — per-component patterns (UI / Services / Batch): isolation strategy and pipeline placement.
+<!-- shared-core:end -->
+
+Loaded only here:
+
+- `knowledge/entangled-workflows.md` — the three kinds, their signs, guarding E2E, decoupling step.
 
 ## Constraints
 

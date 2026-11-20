@@ -1919,6 +1919,10 @@
     "test-smell-review ↔ test-design-advisor — remedy division": {
       "summary": "`test-smell-review` and `test-design-advisor` both draw remedy guidance from the",
       "anchor": "test-smell-review-test-design-advisor-remedy-division"
+    },
+    "test-smell-review ↔ cd-test-architecture — double and drift overlap": {
+      "summary": "`cd-test-architecture` (whole application) and `test-smell-review` (per file) can both flag test-double problems.",
+      "anchor": "test-smell-review-cd-test-architecture-double-and-drift-overlap"
     }
   },
   "plugins/dev-team/knowledge/test-smells.md": {
@@ -6626,6 +6630,10 @@
       "summary": "If `--advise` is set (or auto-triggered), use the Skill tool (`Skill(test-design-advisor ...)`) on the production code to produce testability assessment, pyramid",
       "anchor": "4-run-the-advisor-when-applicable"
     },
+    "4b. Run the architecture assessment (when applicable)": {
+      "summary": "If `--architecture` is set, or the scope is the whole application (no `--path`, no `--since`), run `Skill(cd-test-architecture --yes)`.",
+      "anchor": "4b-run-the-architecture-assessment-when-applicable"
+    },
     "5. Aggregate and de-duplicate": {
       "summary": "Merge findings.",
       "anchor": "5-aggregate-and-de-duplicate"
@@ -6635,7 +6643,7 @@
       "anchor": "6-report"
     },
     "Integration": {
-      "summary": "For tests that span several deployables (entangled workflows, E2E selection across repos, cross-layer overlap), flag the seam `→ system-test-design` and defer to that skill.",
+      "summary": "`test-health` also delegates to `cd-test-architecture`, at strategy level.",
       "anchor": "integration"
     }
   },

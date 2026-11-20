@@ -721,6 +721,47 @@ class TestLedgerFilenameSingleSourced:
         )
 
 
+class TestTestSkillSharedCoreInSync:
+    def _skills(self, tmp_path, monkeypatch, cd_files, sys_files):
+        (tmp_path / ".claude-plugin").mkdir()
+        (tmp_path / ".claude-plugin" / "marketplace.json").write_text("{}")
+        for skill, files in (("cd-test-architecture", cd_files), ("system-test-design", sys_files)):
+            d = tmp_path / "plugins" / "dev-team" / "skills" / skill
+            d.mkdir(parents=True)
+            body = "\n".join(f"- `knowledge/{f}.md` — x" for f in files)
+            (d / "SKILL.md").write_text(
+                f"<!-- shared-core:start -->\n{body}\n<!-- shared-core:end -->\n"
+            )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", tmp_path)
+
+    def test_clean_in_the_real_repo(self):
+        assert repo_invariants.check_test_skill_shared_core_in_sync() == []
+
+    def test_flags_when_the_lists_diverge(self, tmp_path, monkeypatch):
+        self._skills(tmp_path, monkeypatch, ["a", "b"], ["a"])
+
+        findings = repo_invariants.check_test_skill_shared_core_in_sync()
+
+        assert len(findings) == 1
+        assert "knowledge/b.md" in findings[0]["message"]
+
+    def test_passes_when_lists_match_in_any_order(self, tmp_path, monkeypatch):
+        self._skills(tmp_path, monkeypatch, ["a", "b"], ["b", "a"])
+
+        assert repo_invariants.check_test_skill_shared_core_in_sync() == []
+
+    def test_flags_a_missing_marker_block(self, tmp_path, monkeypatch):
+        self._skills(tmp_path, monkeypatch, ["a"], ["a"])
+        sk = tmp_path / "plugins/dev-team/skills/system-test-design/SKILL.md"
+        sk.write_text("no markers")
+
+        findings = repo_invariants.check_test_skill_shared_core_in_sync()
+
+        assert [f["file"] for f in findings] == [
+            "plugins/dev-team/skills/system-test-design/SKILL.md"
+        ]
+
+
 class TestNoBareStdinReadInShippedScripts:
     def _plugin(self, tmp_path, monkeypatch, files):
         for rel, text in files.items():

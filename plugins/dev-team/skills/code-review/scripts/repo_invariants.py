@@ -1049,6 +1049,61 @@ def check_no_bare_stdin_read_in_shipped_scripts(changed_files=None) -> list[dict
 
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
+_SHARED_CORE_RE = re.compile(
+    r"<!-- shared-core:start -->(.*?)<!-- shared-core:end -->", re.DOTALL
+)
+_SHARED_CORE_SKILLS = ("cd-test-architecture", "system-test-design")
+
+
+def _shared_core_set(skill: str) -> set[str] | None:
+    path = _REPO_ROOT / "plugins" / "dev-team" / "skills" / skill / "SKILL.md"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = _SHARED_CORE_RE.search(text)
+    if not m:
+        return None
+    return set(re.findall(r"`(knowledge/[^`]+\.md)`", m.group(1)))
+
+
+def check_test_skill_shared_core_in_sync(changed_files=None) -> list[dict]:
+    """`cd-test-architecture` and `system-test-design` load one shared core of
+    knowledge files, delimited by `shared-core` markers in each SKILL.md. The
+    two lists must name the same files, so a rule added to one skill's core
+    cannot silently miss the other.
+
+    Corpus-wide by design: a standing structural invariant.
+    """
+    if not _is_marketplace_checkout():
+        return []
+    sets = {s: _shared_core_set(s) for s in _SHARED_CORE_SKILLS}
+    missing = [
+        {
+            "invariant": "test-skill-shared-core-in-sync",
+            "file": f"plugins/dev-team/skills/{skill}/SKILL.md",
+            "message": "missing or unreadable <!-- shared-core:start/end --> block.",
+        }
+        for skill, found in sets.items()
+        if found is None
+    ]
+    if missing:
+        return missing
+    a, b = (sets[s] for s in _SHARED_CORE_SKILLS)
+    if a != b:
+        return [
+            {
+                "invariant": "test-skill-shared-core-in-sync",
+                "file": "plugins/dev-team/skills/system-test-design/SKILL.md",
+                "message": (
+                    "shared-core lists of cd-test-architecture and "
+                    f"system-test-design diverge: {', '.join(sorted(a ^ b))}"
+                ),
+            }
+        ]
+    return []
+
+
 CHECKS = [
     check_skill_scripts_documented,
     check_eval_calibration_blocks,
@@ -1061,6 +1116,7 @@ CHECKS = [
     check_ledger_filename_single_sourced,
     check_no_live_ceiling_refs,
     check_no_bare_stdin_read_in_shipped_scripts,
+    check_test_skill_shared_core_in_sync,
 ]
 
 

@@ -9,7 +9,7 @@ description: >-
   this", "what's the right test for X", "test design review", or before
   writing a suite for an untested module. For a single unit, pass
   --advise --path <file>. Advisory — it recommends, it does not edit.
-argument-hint: "[--path <dir>] [--since <ref>] [--advise]"
+argument-hint: "[--path <dir>] [--since <ref>] [--advise] [--architecture]"
 role: orchestrator
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash(git diff *), Skill, Agent
@@ -34,7 +34,7 @@ fields natively before dispatch, per Model/Effort Resolution in
 2. **Dispatch in parallel.** `test-review` and `test-smell-review` are
    independent — spawn them in one batch for context isolation; each returns
    structured JSON, not file dumps.
-3. **No double-reporting.** Apply `knowledge/test-review-division-of-labor.md`:
+3. **No double-reporting.** Test-double and drift findings from `cd-test-architecture` that overlap `test-smell-review` follow the "test-smell-review ↔ cd-test-architecture" section of the knowledge doc. Apply `knowledge/test-review-division-of-labor.md`:
    when the same line appears in both `test-review` and `test-smell-review`,
    keep the design-level framing and drop the duplicate — record every such
    drop in the report's `### Suppressed duplicates` section (see step 6).
@@ -71,6 +71,7 @@ Optional:
 
 - `--path <dir>`: target directory (default: current working directory)
 - `--since <ref>`: target files changed since a git ref (`git diff --name-only <ref>...HEAD`)
+- `--architecture`: also run `Skill(cd-test-architecture --yes)`. Default on only for whole-application scope (no `--path` and no `--since`), because that skill assesses the whole application; this flag forces it on for a narrower scope.
 - `--advise`: also run the test-design-advisor skill for forward-looking design (default on when the target has untested production code or few/no test files, **or when the target resolves to a single production file** — via `--path <file>` or a `--since` diff that touches exactly one production file; this is the path for forward-design on a single unit — the `test-design-advisor` skill has no user-facing slash command)
 
 ## Steps
@@ -123,6 +124,12 @@ If `--advise` is set (or auto-triggered), use the Skill tool (`Skill(test-design
 placement, double strategy, and a behavior-preserving refactor sequence for
 any untestable units.
 
+### 4b. Run the architecture assessment (when applicable)
+
+If `--architecture` is set, or the scope is the whole application (no `--path`, no `--since`), run `Skill(cd-test-architecture --yes)`. `--yes` skips its interactive build-vs-document ask. Put its findings under the report's `### Architecture` section; cite its report path, do not restate it.
+
+Split with `test-health`: both skills call `cd-test-architecture`. `test-design` is code-level (per-file and per-unit findings plus this application-level view); `test-health` is strategy-level (suite shape, quadrants, maturity). Keep both calls.
+
 ### 5. Aggregate and de-duplicate
 
 Merge findings. Resolve overlaps per constraint 3. Group by file. Rank:
@@ -159,6 +166,9 @@ the terms actually used in the report>
 justification, NO target counts) · double strategy · refactor sequence ·
 E2E justification (only when E2E is recommended)>
 
+### Architecture
+<Only when Step 4b ran. Summary of `cd-test-architecture` findings: CD-fitness gaps, provider-side contract gaps, target architecture, report path. Omit the section otherwise.>
+
 ### Suppressed duplicates
 <Every drop constraint 3 performed at aggregation time. Each entry cites the
 finding's `file:line`, what was dropped (which agent's finding, keyed by
@@ -177,5 +187,7 @@ Do NOT include a "current shape vs recommended shape" table — see Orchestrator
 constraint #6.
 
 ## Integration
+
+`test-health` also delegates to `cd-test-architecture`, at strategy level. This skill runs it for the code-level report; both calls stay.
 
 For tests that span several deployables (entangled workflows, E2E selection across repos, cross-layer overlap), flag the seam `→ system-test-design` and defer to that skill. This skill stays at per-file and per-unit altitude.
