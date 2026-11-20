@@ -183,9 +183,9 @@ def _is_count(value) -> bool:
 
 
 def _is_positive_int(value: str) -> bool:
-    """True for a string of ASCII digits above zero. `isascii` keeps `int()` from
-    raising on digit-like characters such as superscripts."""
-    return value.isascii() and value.isdigit() and int(value) > 0
+    """True for a string of ASCII digits above zero. It never calls `int()`, which
+    raises on superscript digits and on strings past the interpreter's digit limit."""
+    return value.isascii() and value.isdigit() and value.strip("0") != ""
 
 
 def _istanbul_has_hits(data: dict) -> bool:

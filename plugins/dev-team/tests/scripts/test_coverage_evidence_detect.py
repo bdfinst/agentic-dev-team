@@ -334,3 +334,9 @@ def test_wrong_typed_xml_hit_attribute_is_no_hits_not_a_crash(tmp_path, template
     xml = template.replace(f'{attribute}="1"', f'{attribute}="{value}"')
     r = detect.classify("coverage", _dir(tmp_path, {"t.xml": xml}))
     assert (r["format"], r["reason"]) == (None, "no contexts")
+
+
+def test_a_huge_digit_string_counts_as_a_hit_without_crashing(tmp_path):
+    xml = JACOCO.replace('ci="1"', f'ci="{"9" * 5000}"')
+    r = detect.classify("coverage", _dir(tmp_path, {"t.xml": xml}))
+    assert (r["format"], r["reason"]) == ("jacoco-dir", None)
