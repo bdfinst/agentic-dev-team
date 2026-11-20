@@ -16,12 +16,16 @@ Accepted formats (v1):
                                 file per test id
     mutation  stryker           Stryker mutation-report.json whose mutants
                                 carry killedBy/coveredBy
-              mutmut            mutmut 3 stats JSON, recognised by its
-                                `exit_code_by_key` map and usable only with a
-                                non-empty `tests_by_mangled_function_name`
-                                (the test-to-function map; the shape is the
-                                one mutmut 3 writes, not yet probed against
-                                real output in this repo)
+              mutmut            mutmut 3 `mutants/mutmut-stats.json`,
+                                recognised by its `tests_by_mangled_function_name`
+                                map (function to the tests that reach it) and
+                                usable only when some function names a test. It records
+                                reach, not kills: no file names the test that
+                                killed a mutant. A
+                                per-file `mutants/**/*.meta` file (it holds
+                                `exit_code_by_key`, the kill results, and no
+                                test map) is recognised but has no per-test
+                                data. Probed against mutmut 3.8.1 output.
 
 Reasons when `format` is null (verbatim in the report):
 
@@ -110,11 +114,17 @@ def _stryker_has_per_test_data(data: dict) -> bool:
 
 
 def _is_mutmut(data) -> bool:
-    return isinstance(data, dict) and isinstance(data.get("exit_code_by_key"), dict)
+    return isinstance(data, dict) and (
+        isinstance(data.get("tests_by_mangled_function_name"), dict)
+        or isinstance(data.get("exit_code_by_key"), dict)
+    )
 
 
 def _mutmut_has_per_test_data(data: dict) -> bool:
-    return bool(data.get("tests_by_mangled_function_name"))
+    tests = data.get("tests_by_mangled_function_name")
+    return isinstance(tests, dict) and any(
+        isinstance(names, list) and names for names in tests.values()
+    )
 
 
 def _is_istanbul(data) -> bool:

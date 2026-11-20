@@ -18,7 +18,7 @@
     "Rejected candidates"
   ],
   "regex_present": [
-    "\\[evidence:\\ mutation\\-backed;\\ evidence\\-confidence:\\ high;\\ basis:\\ .+\\]\\ Cross\\-Layer\\ Overlap\\ \\|\\ tests/unit/test_pricing\\.py::test_discount \\+ tests/component/test_pricing_api\\.py::test_discount",
+    "\\[evidence:\\ coverage\\-backed;\\ evidence\\-confidence:\\ medium;\\ basis:\\ .+\\]\\ Cross\\-Layer\\ Overlap\\ \\|\\ tests/unit/test_pricing\\.py::test_discount \\+ tests/component/test_pricing_api\\.py::test_discount",
     "\\(mutmut\\)",
     "keep\\ the\\ unit\\ test;\\ trim\\ the\\ component\\ test\\ to\\ seam\\ assertions"
   ],

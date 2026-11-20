@@ -26,11 +26,17 @@ STRYKER = {
     "files": {"a.js": {"mutants": [{"id": "1", "killedBy": ["t1"], "coveredBy": ["t1"]}]}},
 }
 STRYKER_NO_PER_TEST = {"schemaVersion": "1", "files": {"a.js": {"mutants": [{"id": "1"}]}}}
+# Shapes written by mutmut 3.8.1: mutants/mutmut-stats.json, and a per-file mutants/**/*.meta.
 MUTMUT = {
-    "exit_code_by_key": {"app.x_f__mutmut_1": 1},
     "tests_by_mangled_function_name": {"app.x_f": ["tests/test_app.py::test_f"]},
+    "duration_by_test": {"tests/test_app.py::test_f": 0.0001},
+    "function_hashes": {"app.x_f": "0bb596aeee44"},
 }
-MUTMUT_NO_TESTS = {"exit_code_by_key": {"app.x_f__mutmut_1": 1}}
+MUTMUT_META = {
+    "exit_code_by_key": {"app.x_f__mutmut_1": 1},
+    "hash_by_function_name": {"x_f": "0bb596aeee44"},
+}
+MUTMUT_EMPTY_TEST_MAP = {"tests_by_mangled_function_name": {}, "function_hashes": {}}
 COVERAGEPY_EMPTY_STATIC_CONTEXT = {"meta": {}, "files": {"app.py": {"contexts": {"10": [""]}}}}
 
 
@@ -128,8 +134,19 @@ def test_cli_prints_one_json_object_and_exits_zero_for_unusable_paths(tmp_path, 
     assert code == 0 and out["reason"] == "missing"
 
 
-def test_mutmut_without_a_test_map_reports_no_contexts(tmp_path):
-    r = detect.classify("mutation", _file(tmp_path, "m.json", MUTMUT_NO_TESTS))
+def test_mutmut_meta_file_has_no_per_test_data(tmp_path):
+    r = detect.classify("mutation", _file(tmp_path, "m.meta", MUTMUT_META))
+    assert (r["format"], r["reason"]) == (None, "no contexts")
+
+
+def test_mutmut_stats_whose_functions_name_no_test_report_no_contexts(tmp_path):
+    data = {"tests_by_mangled_function_name": {"app.x_f": []}}
+    r = detect.classify("mutation", _file(tmp_path, "m.json", data))
+    assert (r["format"], r["reason"]) == (None, "no contexts")
+
+
+def test_mutmut_stats_with_an_empty_test_map_reports_no_contexts(tmp_path):
+    r = detect.classify("mutation", _file(tmp_path, "m.json", MUTMUT_EMPTY_TEST_MAP))
     assert (r["format"], r["reason"]) == (None, "no contexts")
 
 
