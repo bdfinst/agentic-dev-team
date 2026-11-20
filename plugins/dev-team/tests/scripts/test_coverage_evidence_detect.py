@@ -377,3 +377,10 @@ def test_an_unsupported_xml_encoding_is_malformed_not_a_crash(tmp_path, encoding
 def test_deeply_nested_json_is_malformed_not_a_crash(tmp_path):
     r = detect.classify("coverage", _dir(tmp_path, {"t.json": '{"a":' * 100000}))
     assert r["format"] is None and r["reason"].startswith("malformed: ")
+
+
+def test_malformed_json_offsets_count_crlf_as_one_newline(tmp_path):
+    report = tmp_path / "c.json"
+    report.write_bytes(b'{\r\n"a": 1,\r\n')
+    result = detect.classify("coverage", str(report))
+    assert result["reason"].endswith("line 3 column 1 (char 10)")
