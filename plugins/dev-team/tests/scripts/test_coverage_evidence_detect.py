@@ -340,3 +340,22 @@ def test_a_huge_digit_string_counts_as_a_hit_without_crashing(tmp_path):
     xml = JACOCO.replace('ci="1"', f'ci="{"9" * 5000}"')
     r = detect.classify("coverage", _dir(tmp_path, {"t.xml": xml}))
     assert (r["format"], r["reason"]) == ("jacoco-dir", None)
+
+
+@pytest.mark.parametrize(
+    "files,fmt",
+    [
+        ({"t1.json": ISTANBUL, "t2.json": {}}, "istanbul-dir"),
+        ({"t1.info": LCOV_HIT, "t2.info": ""}, "lcov-dir"),
+        ({"t1.json": V8_HIT, "t2.json": {}}, "v8-dir"),
+    ],
+)
+def test_a_test_that_covers_nothing_does_not_spoil_the_directory(tmp_path, files, fmt):
+    r = detect.classify("coverage", _dir(tmp_path, files))
+    assert (r["format"], r["reason"]) == (fmt, None)
+
+
+@pytest.mark.parametrize("files", [{"t1.json": {}, "t2.json": {}}, {"t.info": ""}])
+def test_a_directory_of_only_empty_reports_is_no_contexts(tmp_path, files):
+    r = detect.classify("coverage", _dir(tmp_path, files))
+    assert (r["format"], r["reason"]) == (None, "no contexts")

@@ -238,9 +238,16 @@ def _xml_line_has_hits(root, attribute: str) -> bool:
     return False
 
 
+EMPTY_REPORT = "empty"
+
+
 def _read_dir_report(file: Path) -> tuple[str | None, bool]:
-    """(evidence format, has_hits) for one per-test report; (None, False) if unrecognised."""
+    """(evidence format, has_hits) for one per-test report; (None, False) if
+    unrecognised. A test that loaded no instrumented code leaves an empty file or
+    an empty JSON object: format `EMPTY_REPORT`, which fits any directory."""
     text = file.read_text(encoding="utf-8", errors="replace").lstrip()
+    if not text:
+        return EMPTY_REPORT, False
     if text.startswith("<"):
         root = _load_xml_root(file)
         if root.tag == "coverage":
@@ -249,7 +256,10 @@ def _read_dir_report(file: Path) -> tuple[str | None, bool]:
             return "jacoco-dir", _xml_line_has_hits(root, "ci")
         return None, False
     if text.startswith("{"):
-        report, has_hits = _js_json_report(_load_json(file))
+        data = _load_json(file)
+        if data == {}:
+            return EMPTY_REPORT, False
+        report, has_hits = _js_json_report(data)
         return (f"{report}-dir" if report else None), has_hits
     if _is_lcov(text):
         return "lcov-dir", _lcov_has_hits(text)
@@ -278,11 +288,12 @@ def _classify_coverage_dir(directory: Path) -> tuple[str | None, str | None]:
         fmt, has_hits = _read_dir_report(file)
         if fmt is None:
             return None, UNRECOGNISED
-        formats.add(fmt)
+        if fmt != EMPTY_REPORT:
+            formats.add(fmt)
         any_hits = any_hits or has_hits
-    if len(formats) != 1:
+    if len(formats) > 1:
         return None, UNRECOGNISED
-    return (formats.pop(), None) if any_hits else (None, NO_CONTEXTS)
+    return (formats.pop(), None) if formats and any_hits else (None, NO_CONTEXTS)
 
 
 def _classify_mutation_file(file: Path) -> tuple[str | None, str | None]:
