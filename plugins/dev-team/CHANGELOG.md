@@ -1,5 +1,12 @@
 # Changelog
 
+## [14.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.4.1...dev-team-v14.5.0) (2026-11-20)
+
+
+### Features
+
+* **test-design:** include cd-test-architecture; assess provider-side contracts ([#2373](https://github.com/bdfinst/agentic-dev-team/issues/2373)) ([248ce2c](https://github.com/bdfinst/agentic-dev-team/commit/248ce2c6c5081b57f580e37b5416b0c13384b468))
+
 ## [14.4.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.4.0...dev-team-v14.4.1) (2026-11-20)
 
 
