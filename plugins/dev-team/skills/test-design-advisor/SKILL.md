@@ -162,5 +162,6 @@ cannot cover the behavior.)
 ## Integration
 
 - Pairs with the `test-smell-review` agent (which *detects* smells) and the `farley-score` skill (which *scores* an existing suite). This skill *designs* tests forward.
+- When the behavior spans several deployables (entangled workflows, E2E selection across repos, cross-layer overlap), flag the seam `→ system-test-design` and defer to that skill; do not design it here.
 - For application-level test architecture (CD pipeline alignment, deterministic config-free CI gate, per-component UI/service/batch patterns), defer to the `cd-test-architecture` skill and its knowledge files (`cd-test-architecture.md`, `component-test-patterns.md`). This skill stays at unit/module altitude.
 - Hand the refactor sequence to `/plan` or `/build` for TDD implementation. This skill stops at the design.

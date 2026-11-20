@@ -3,7 +3,7 @@ name: test-health
 description: Project-wide test-strategy audit — derive the suite's shape and shape-vs-architecture fit, map coverage to the Agile Testing Quadrants, roll up coverage + mutation health, flag flaky tests and automation maturity, and produce an ordered improvement plan. Delegates CD-determinism + pipeline assessment to cd-test-architecture. Use when the user says "audit our tests", "how healthy is our test suite", "test strategy review", or runs /test-health. Advisory — writes a report, does not edit.
 role: worker
 user-invocable: true
-argument-hint: "[--path <dir>] [--pdf] [--no-mutation]"
+argument-hint: "[--path <dir>] [--repos <path>...] [--pdf] [--no-mutation]"
 ---
 
 # Test Health
@@ -33,6 +33,7 @@ Target repo/subtree path (default: cwd). Detect the test runner, coverage tool, 
 Optional:
 
 - `--path <dir>`: audit only this subtree (default: cwd).
+- `--repos <path>...`: two or more related repository paths (the first is the entry repo). Passes them to `system-test-design` in Step 4. Without it the run stays single-repo and Step 4 does not invoke `system-test-design`.
 - `--pdf`: also render the report to a sibling PDF (Step 9).
 - `--no-mutation`: **skip the `mutation-testing` invocation in Step 5** and
   render the report's mutation column as `not enabled for this run`. Everything
@@ -77,6 +78,8 @@ signal only, with no error and no placeholder text.
 ### 4. Delegate architecture + pipeline
 
 Invoke `cd-test-architecture` on the target. Summarize its findings (which tests can't run in a clean pre-merge gate, target architecture, migration path) in one section — **do not re-derive**.
+
+When `--repos <path>...` is set, also invoke `system-test-design` with those paths (entry repo first). Summarize its minimum E2E set and its overlap findings in one section, and cite its report path (`.dev-team-reports/system-test-design-<entry>.md`). Do not re-list its E2E classifications or restate its findings; if it fails on an argument error, report that and continue without the section.
 
 ### 5. Test-design + mutation health (ROI)
 
@@ -222,6 +225,9 @@ body.
 ### Architecture & pipeline (via cd-test-architecture)
 <one-paragraph summary + link to its report>
 
+### System-level test design (via system-test-design)
+<Only with `--repos`; omit the section otherwise. Minimum E2E set and overlap findings in brief, with the source report path. No E2E classifications.>
+
 ### Test-design & mutation health (via /test-design + mutation-testing)
 <When `--no-mutation` was passed, this section's mutation content reads
 `not enabled for this run` — never a number, never a waiver.>
@@ -259,4 +265,5 @@ omit this section entirely when there are none>
 ## Integration
 
 - **Front door** for periodic test-strategy review; the unified entry point that runs `cd-test-architecture` + `/test-design` + `mutation-testing` and rolls their results into one strategic view.
+- With `--repos`, `system-test-design` runs in Step 4 for the multi-deployable view; one application stays with `cd-test-architecture`.
 - `/test-design` runs inside this flow (Step 5) and also stands alone for a focused per-file review. For *forward* design of a specific module, use `test-design-advisor`. This skill is the strategic rollup that consumes their output.

@@ -110,7 +110,7 @@ The plugin has two multi-phase pipelines with inter-phase gates.
 
 | Command | File | What it does | Arguments |
 | --- | --- | --- | --- |
-| `/test-health` | `skills/test-health/SKILL.md` | Project-wide test-strategy audit; runs `/test-design` and `mutation-testing`, folds results in | `[--path <dir>] [--pdf]` |
+| `/test-health` | `skills/test-health/SKILL.md` | Project-wide test-strategy audit; runs `/test-design` and `mutation-testing`, folds results in | `[--path <dir>] [--repos <path>...] [--pdf]` |
 | `/system-test-design` | `skills/system-test-design/SKILL.md` | Test design across several deployables: E2E triage, minimum E2E set, entangled workflows, cross-layer overlap, double validation | `<entry-repo> [related-repo...] [--coverage <repo>=<path>]... [--mutation <repo>=<path>]... [--aliases <path>] [--e2e-only] [--overlap-only]` |
 | `/test-design` | `skills/test-design/SKILL.md` | Deep test-design review: dispatch `test-review` + `test-smell-review`, Farley Score, testability/refactor recommendations | `[--path <dir>] [--since <ref>] [--advise]` |
 | `/explore` | `skills/explore/SKILL.md` | Charter-driven exploratory testing (Chaos Specialist mode) with adversarial expansion; auto-triages critical defects | `--charter '<goal>' [target] [--probe-budget <n>] [--invariants '<expr,...>'] [--no-adversarial] [--force]` |

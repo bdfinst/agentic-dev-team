@@ -6633,6 +6633,10 @@
     "6. Report": {
       "summary": "Produce one report (chat for a small target; `.dev-team-reports/test-design-<date>.md`",
       "anchor": "6-report"
+    },
+    "Integration": {
+      "summary": "For tests that span several deployables (entangled workflows, E2E selection across repos, cross-layer overlap), flag the seam `→ system-test-design` and defer to that skill.",
+      "anchor": "integration"
     }
   },
   "plugins/dev-team/skills/test-driven-development/SKILL.md": {

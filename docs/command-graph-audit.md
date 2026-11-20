@@ -52,7 +52,7 @@ These commands dispatch sub-agents/workers and roll up a report or drive converg
 | --- | --- |
 | `test-improve` | Analyze → improve the suite; dispatches coverage/gherkin/mutation workers |
 | `test-design` | Fans out test-review + test-smell-review + the test-design advisor |
-| `test-health` | Project-wide test-strategy audit rollup (shape, quadrants, coverage + mutation) |
+| `test-health` | Project-wide test-strategy audit rollup (shape, quadrants, coverage + mutation; `--repos` adds system-level test design) |
 | `system-test-design` | Multi-deployable test design: minimum E2E set, entangled workflows, cross-layer overlap, double validation |
 | `cd-test-architecture` | Assess tests → recommend a CD-aligned architecture (feeds `issues-from-assessment`) |
 | `domain-analysis` | Strategic DDD health assessment → friction / value-stream report |
