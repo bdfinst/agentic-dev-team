@@ -19,7 +19,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Plan Review UX Critic | `agents/plan-review-ux.md` | ~1,470 | Adversarial plan review — usability, accessibility, error experience; self-skips for non-UI plans. Dispatched by `/plan` step 5b, never directly. |
 | Platform Engineer | `agents/platform-engineer.md` | 1,252 | Pipeline, deployment, reliability |
 | Product Manager | `agents/product-manager.md` | 1,221 | Requirements, prioritization |
-| QA/SQA Engineer | `agents/qa-engineer.md` | 4,188 | Testing, quality assurance |
+| QA/SQA Engineer | `agents/qa-engineer.md` | 4,324 | Testing, quality assurance |
 | Security Engineer | `agents/security-engineer.md` | 1,115 | Security analysis, threat modeling |
 | Software Engineer | `agents/software-engineer.md` | 2,458 | Code generation, implementation |
 | Technical Writer | `agents/tech-writer.md` | 939 | Documentation, style consistency |
@@ -161,7 +161,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | System Test Design | `skills/system-test-design/SKILL.md` | ~1,726 | QA Engineer, `/system-test-design` command, `/test-health` |
 | Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~1,619 | Standalone worker; QA Engineer |
 | Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~4,235 | QA Engineer, Software Engineer, `/test-design` command |
-| Test Health | `skills/test-health/SKILL.md` | ~3,709 | QA Engineer, `/test-health` command |
+| Test Health | `skills/test-health/SKILL.md` | ~4,334 | QA Engineer, `/test-health` command |
 | Test Improve | `skills/test-improve/SKILL.md` | ~3078 | Orchestrator, QA Engineer, `/test-improve` command |
 | Test-Driven Development | `skills/test-driven-development/SKILL.md` | 2,590 | Software Engineer, QA Engineer, Orchestrator |
 | Threat Modeling | `skills/threat-modeling/SKILL.md` | 1,420 | Security Engineer, Architect |

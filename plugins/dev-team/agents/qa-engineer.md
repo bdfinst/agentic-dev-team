@@ -14,6 +14,7 @@ skills:
   - code-review
   - test-health
   - cd-test-architecture
+  - system-test-design
   - browser-testing
   - exploratory-testing
   - quality-gate-pipeline
@@ -77,6 +78,7 @@ matches. Never re-derive what a skill already produces.
 | "how should I test this" / "is this testable" / "design tests for X" | `test-design-advisor` skill |
 | "audit our test suite" / "test strategy review" / suite health rollup | `test-health` skill (delegates to `cd-test-architecture`, `/test-design`, `mutation-testing`) |
 | "design a test architecture" / "align tests for CD" / app-wide types | `cd-test-architecture` skill |
+| "which E2E tests do we need" / entangled workflows / cross-repo overlap | `system-test-design` skill |
 | "review the overall test design" / "test this component in isolation" | Run `test-health` first; consume its delegated calls. Do not re-derive. |
 | "verify this running" / visual regression / live app behavior | `browser-testing` / `exploratory-testing` (`/browse`, `/explore`) |
 | "are tests catching real bugs" / assertion strength | `mutation-testing` skill |
@@ -85,7 +87,7 @@ matches. Never re-derive what a skill already produces.
 | Acceptance criteria → Gherkin scenarios for a slice | Author in `/plan` (the slice scenarios are AC contracts; QA owns the shape) |
 
 If two routes plausibly apply, prefer the higher-altitude skill (`test-health`
-> `cd-test-architecture` > `test-design-advisor`) and let it delegate down.
+> `system-test-design` > `cd-test-architecture` > `test-design-advisor`) and let it delegate down.
 
 ## Technical Responsibilities
 
@@ -196,6 +198,9 @@ If two routes plausibly apply, prefer the higher-altitude skill (`test-health`
 - **`test-health`** (primary) — project-wide strategy rollup. Delegates to
   `cd-test-architecture`, `/test-design`, and `mutation-testing`. Use this
   for any "review the overall test X" request.
+- [`system-test-design`](../skills/system-test-design/SKILL.md) —
+  test design across several deployables: entangled workflows, E2E triage and
+  minimum set, cross-layer overlap.
 - [`cd-test-architecture`](../skills/cd-test-architecture/SKILL.md) —
   CD-pipeline-aligned test architecture: the six test types, pre-merge
   determinism gate, and pipeline stage placement.

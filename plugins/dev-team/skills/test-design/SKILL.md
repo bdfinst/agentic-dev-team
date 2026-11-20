@@ -175,3 +175,7 @@ overlaps are never listed here — they are joined structurally on
 Surface only what's actionable. If everything is clean, say so in one line.
 Do NOT include a "current shape vs recommended shape" table — see Orchestrator
 constraint #6.
+
+## Integration
+
+For tests that span several deployables (entangled workflows, E2E selection across repos, cross-layer overlap), flag the seam `→ system-test-design` and defer to that skill. This skill stays at per-file and per-unit altitude.
