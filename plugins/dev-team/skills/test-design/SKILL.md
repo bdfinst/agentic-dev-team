@@ -132,7 +132,7 @@ any untestable units.
 
 Skip when `--no-architecture` is set. Otherwise, if `--architecture` is set, or Step 1 resolved the target to the whole application, run `Skill(cd-test-architecture <target> --yes)`, passing the resolved target (and `--component <name>` when `--path` names one component). `--yes` skips its interactive build-vs-document ask. Put its findings under the report's `### Architecture` section; cite its report path, do not restate it.
 
-Split with `test-health`: both skills call `cd-test-architecture`. `test-design` is code-level (per-file and per-unit findings plus this application-level view); `test-health` is strategy-level (suite shape, quadrants, maturity). Keep both calls.
+Split with `test-health`: both skills call `cd-test-architecture`. `test-design` is code-level (per-file and per-unit findings plus this application-level view); `test-health` is strategy-level (suite shape, quadrants, maturity). Run standalone, `test-design` runs it; `/test-health` suppresses that with `--no-architecture`.
 
 ### 5. Aggregate and de-duplicate
 
@@ -192,6 +192,6 @@ constraint #6.
 
 ## Integration
 
-`test-health` also delegates to `cd-test-architecture`, at strategy level. This skill runs it for the code-level report; both calls stay.
+`test-health` also delegates to `cd-test-architecture`, at strategy level. Run standalone, this skill runs it for the code-level report; `/test-health` passes `--no-architecture` to avoid a second run.
 
 For tests that span several deployables (entangled workflows, E2E selection across repos, cross-layer overlap), flag the seam `→ system-test-design` and defer to that skill. This skill works at per-file and per-unit altitude; Step 4b cites the application-level view from `cd-test-architecture`.
