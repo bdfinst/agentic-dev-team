@@ -308,19 +308,19 @@ def test_truncated_json_in_a_js_directory_is_malformed(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "content",
+    "name,content,reason",
     [
-        {"/a.js": {"statementMap": {}, "s": 5}},
-        {"/a.js": {"statementMap": {}, "s": [1]}},
-        {"result": []},
-        {"result": [{"functions": None}]},
-        {"result": [{"functions": [{"ranges": [{"count": "x"}]}]}]},
-        "TN:\nSF:a.js\nDA:1,\u00b2\nend_of_record\n",
+        ("t.json", {"/a.js": {"statementMap": {}, "s": 5}}, "unrecognised format"),
+        ("t.json", {"/a.js": {"statementMap": {}, "s": [1]}}, "unrecognised format"),
+        ("t.json", {"result": []}, "unrecognised format"),
+        ("t.json", {"result": [{"functions": None}]}, "no contexts"),
+        ("t.json", {"result": [{"functions": [{"ranges": [{"count": "x"}]}]}]}, "no contexts"),
+        ("t.info", "TN:\nSF:a.js\nDA:1,\u00b2\nend_of_record\n", "no contexts"),
     ],
 )
-def test_wrong_typed_js_report_values_never_crash(tmp_path, content):
-    r = detect.classify("coverage", _dir(tmp_path, {"t.json": content}))
-    assert r["format"] is None and r["reason"] in {"unrecognised format", "no contexts"}
+def test_wrong_typed_js_report_values_are_unusable_not_a_crash(tmp_path, name, content, reason):
+    r = detect.classify("coverage", _dir(tmp_path, {name: content}))
+    assert (r["format"], r["reason"]) == (None, reason)
 
 
 def test_lcov_like_text_without_end_of_record_is_unrecognised(tmp_path):
