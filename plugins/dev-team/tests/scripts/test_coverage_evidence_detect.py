@@ -377,3 +377,43 @@ def test_an_unsupported_xml_encoding_is_malformed_not_a_crash(tmp_path, encoding
 def test_deeply_nested_json_is_malformed_not_a_crash(tmp_path):
     r = detect.classify("coverage", _dir(tmp_path, {"t.json": '{"a":' * 100000}))
     assert r["format"] is None and r["reason"].startswith("malformed: ")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [b'{\r\n"a": 1,\r\n', b'{\r"a": 1,\r'],
+    ids=["crlf", "lone-cr"],
+)
+def test_malformed_json_offsets_count_each_line_break_as_one_newline(tmp_path, body):
+    report = tmp_path / "c.json"
+    report.write_bytes(body)
+    result = detect.classify("coverage", str(report))
+    # Normalised text is '{\n"a": 1,\n': the error sits at char 10, not the raw byte offset.
+    assert result["reason"].endswith("line 3 column 1 (char 10)")
+
+
+@pytest.mark.parametrize(
+    "name, body",
+    [
+        ("c.json", '{"a": 1}'),
+        ("c.xml", '<coverage><line hits="1"/></coverage>'),
+        ("c.info", "SF:a.py\nDA:1,1\nend_of_record\n"),
+    ],
+    ids=["json", "xml", "lcov"],
+)
+def test_each_report_is_read_from_disk_once(tmp_path, monkeypatch, name, body):
+    from pathlib import Path
+
+    (tmp_path / name).write_text(body)
+    reads = []
+    real_read_bytes = Path.read_bytes
+    monkeypatch.setattr(
+        Path, "read_bytes", lambda self: reads.append(self) or real_read_bytes(self)
+    )
+    real_read_text = Path.read_text
+    monkeypatch.setattr(
+        Path, "read_text", lambda self, *a, **k: reads.append(self) or real_read_text(self, *a, **k)
+    )
+    detect.classify("coverage", str(tmp_path / name))
+    detect.classify("coverage", str(tmp_path))
+    assert [p.name for p in reads].count(name) == 2  # once per classify call
