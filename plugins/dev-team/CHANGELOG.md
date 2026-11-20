@@ -1,5 +1,12 @@
 # Changelog
 
+## [14.4.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.4.0...dev-team-v14.4.1) (2026-11-20)
+
+
+### Performance Improvements
+
+* **system-test-design:** read each coverage report once in coverage_evidence_detect ([#2369](https://github.com/bdfinst/agentic-dev-team/issues/2369)) ([1c2a0d1](https://github.com/bdfinst/agentic-dev-team/commit/1c2a0d1fe115a7d02b7e1c59824bb2430168bb08))
+
 ## [14.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.3.0...dev-team-v14.4.0) (2026-11-20)
 
 
