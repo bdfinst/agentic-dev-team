@@ -36,7 +36,9 @@ Accepted formats (v1):
 A directory whose reports record no covered line or statement is `no contexts`
 (Cobertura `<line hits>`, JaCoCo `<line ci>`, Istanbul `s`, lcov `DA`, V8 range
 `count`), as is a single Istanbul, lcov, or V8 file (an aggregate has no per-test
-data). A report whose values have the wrong type is unusable, not a crash.
+data). A single Cobertura or JaCoCo XML file is `unrecognised format`: only a
+directory of per-test XML is accepted. A report whose values have the wrong
+type is unusable, not a crash.
 
 Reasons when `format` is null (verbatim in the report):
 
@@ -180,11 +182,17 @@ def _is_count(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _is_positive_int(value: str) -> bool:
+    """True for a string of ASCII digits above zero. `isascii` keeps `int()` from
+    raising on digit-like characters such as superscripts."""
+    return value.isascii() and value.isdigit() and int(value) > 0
+
+
 def _istanbul_has_hits(data: dict) -> bool:
     return any(
         _is_count(n) and n > 0
         for v in data.values()
-        for n in (v["s"].values() if isinstance(v["s"], dict) else ())
+        for n in v["s"].values()
     )
 
 
@@ -216,7 +224,7 @@ def _lcov_has_hits(text: str) -> bool:
         if line.startswith(LCOV_LINE_DATA):
             _, _, rest = line.removeprefix(LCOV_LINE_DATA).partition(",")
             count = rest.split(",")[0].strip()
-            if count.isascii() and count.isdigit() and int(count) > 0:
+            if _is_positive_int(count):
                 return True
     return False
 
@@ -225,8 +233,7 @@ def _xml_line_has_hits(root, attribute: str) -> bool:
     """True when some `<line>` element carries `attribute` (Cobertura `hits`,
     JaCoCo `ci`) as an integer above zero."""
     for line in root.iter("line"):
-        value = line.get(attribute, "")
-        if value.isascii() and value.isdigit() and int(value) > 0:
+        if _is_positive_int(line.get(attribute, "")):
             return True
     return False
 
