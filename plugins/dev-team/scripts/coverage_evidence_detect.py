@@ -81,7 +81,7 @@ def _result(kind: str, path: str, fmt: str | None, reason: str | None) -> dict:
 
 def _load_json(raw: bytes):
     try:
-        # read_text() translated newlines; keep that so error offsets match.
+        # Normalise newlines as universal-newline text reads do, so error offsets stay stable.
         text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
         return json.loads(text)
     except (ValueError, RecursionError) as exc:  # bad JSON or bytes, oversized integer, deep nesting
