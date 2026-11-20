@@ -1,5 +1,31 @@
 # Changelog
 
+## [14.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.3.0...dev-team-v14.4.0) (2026-11-20)
+
+
+### Features
+
+* **agents:** add four layer smells to test-smell-review ([#2348](https://github.com/bdfinst/agentic-dev-team/issues/2348)) ([29e7432](https://github.com/bdfinst/agentic-dev-team/commit/29e743285e6a6c789d5ae80f0a3766d47eef440f))
+* **evals:** add skill-report fixture format and count-target grader ([#2350](https://github.com/bdfinst/agentic-dev-team/issues/2350)) ([cdaa01d](https://github.com/bdfinst/agentic-dev-team/commit/cdaa01d26eff185d134ec402a9848e72c1efe492))
+* **evals:** add system-test-design and test-health skill-report fixtures ([#2352](https://github.com/bdfinst/agentic-dev-team/issues/2352)) ([e38f514](https://github.com/bdfinst/agentic-dev-team/commit/e38f514d1474f060ff1c47a78b1599864875dde4))
+* **evals:** recognise the mutmut 3 stats file and treat it as reach-only evidence ([#2366](https://github.com/bdfinst/agentic-dev-team/issues/2366)) ([fb385b4](https://github.com/bdfinst/agentic-dev-team/commit/fb385b4522c4b44966bba9fa51eef99c75b242fe))
+* **knowledge:** add entangled-workflows and test-layer-ownership knowledge ([#2347](https://github.com/bdfinst/agentic-dev-team/issues/2347)) ([96aef74](https://github.com/bdfinst/agentic-dev-team/commit/96aef7470e79e41a9252f66fce0257e34709f261))
+* **skills:** add system-test-design skill with argument validator and evidence detector ([#2351](https://github.com/bdfinst/agentic-dev-team/issues/2351)) ([bb0fe84](https://github.com/bdfinst/agentic-dev-team/commit/bb0fe8472b13ed862d306198b4344389a73f87ea))
+* **skills:** wire system-test-design into test-health, test-design, advisor, and qa-engineer ([#2353](https://github.com/bdfinst/agentic-dev-team/issues/2353)) ([337e4ce](https://github.com/bdfinst/agentic-dev-team/commit/337e4ce093152a1b45cdfb2350d4b3d7c8ebb711))
+* **system-test-design:** accept per-test JaCoCo and JS lcov/V8 coverage ([#2368](https://github.com/bdfinst/agentic-dev-team/issues/2368)) ([9fe19ab](https://github.com/bdfinst/agentic-dev-team/commit/9fe19ab7788109594f8edf8260c1eff91c282de4))
+
+
+### Bug Fixes
+
+* **agents:** stop test-smell-review flagging a stubbed non-loopback host ([#2365](https://github.com/bdfinst/agentic-dev-team/issues/2365)) ([0cc4b8d](https://github.com/bdfinst/agentic-dev-team/commit/0cc4b8d9eafce2f81f819ca0b99cb87622c82c32))
+* **evals:** grade the smell field and issues only, and report layer smells as warnings ([#2363](https://github.com/bdfinst/agentic-dev-team/issues/2363)) ([6903a3a](https://github.com/bdfinst/agentic-dev-team/commit/6903a3aabe0a56d750ed861cc4775ee61783bd1c))
+* **knowledge:** allow per-test isolated team-controlled container in-band ([#2345](https://github.com/bdfinst/agentic-dev-team/issues/2345)) ([b2bb568](https://github.com/bdfinst/agentic-dev-team/commit/b2bb5688ad976d08a9663d3b23cd33ade1d9064a))
+
+
+### Code Refactoring
+
+* **skills:** trim cd-test-architecture to 179 lines via a build-vs-document reference ([#2349](https://github.com/bdfinst/agentic-dev-team/issues/2349)) ([331a319](https://github.com/bdfinst/agentic-dev-team/commit/331a319160287006e618c6e43befbd3c2b9958eb))
+
 ## [14.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.2.1...dev-team-v14.3.0) (2026-11-18)
 
 
