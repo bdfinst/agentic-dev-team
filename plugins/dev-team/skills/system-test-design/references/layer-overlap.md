@@ -38,7 +38,7 @@ Every report in the directory must be the same format. A directory where no line
 
 JaCoCo writes one report per JVM run, so capture one run per test id and keep each report as its own file in one directory (for example `jacoco-per-test/<test-id>.xml`).
 
-1. Run each test (or test class) alone with the agent: `-javaagent:jacocoagent.jar=destfile=target/jacoco/<test-id>.exec`. With Maven Surefire, run `mvn test -Dtest='<Class>#<method>' -Djacoco.destFile=target/jacoco/<test-id>.exec`.
+1. Run each test (or test class) alone with the agent (Maven needs the `jacoco-maven-plugin` `prepare-agent` goal bound in the pom, or no `.exec` is written): `-javaagent:jacocoagent.jar=destfile=target/jacoco/<test-id>.exec`. With Maven Surefire, run `mvn test -Dtest='<Class>#<method>' -Djacoco.destFile=target/jacoco/<test-id>.exec`.
 2. Convert each `.exec` to XML: `java -jar jacococli.jar report target/jacoco/<test-id>.exec --classfiles target/classes --sourcefiles src/main/java --xml jacoco-per-test/<test-id>.xml`.
 3. Pass the directory: `--coverage <repo>=jacoco-per-test`.
 

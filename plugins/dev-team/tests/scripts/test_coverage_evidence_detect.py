@@ -359,3 +359,9 @@ def test_a_test_that_covers_nothing_does_not_spoil_the_directory(tmp_path, files
 def test_a_directory_of_only_empty_reports_is_no_contexts(tmp_path, files):
     r = detect.classify("coverage", _dir(tmp_path, files))
     assert (r["format"], r["reason"]) == (None, "no contexts")
+
+
+def test_an_oversized_json_integer_is_malformed_not_a_crash(tmp_path):
+    big = '{"/a.js": {"statementMap": {}, "s": {"0": ' + "9" * 5000 + "}}}"
+    r = detect.classify("coverage", _dir(tmp_path, {"t.json": big}))
+    assert r["format"] is None and r["reason"].startswith("malformed: ")

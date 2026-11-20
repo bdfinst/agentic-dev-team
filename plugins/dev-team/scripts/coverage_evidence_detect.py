@@ -82,9 +82,7 @@ def _result(kind: str, path: str, fmt: str | None, reason: str | None) -> dict:
 def _load_json(file: Path):
     try:
         return json.loads(file.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise _Malformed(f"malformed: {exc}") from exc
-    except UnicodeDecodeError as exc:
+    except ValueError as exc:  # JSONDecodeError, UnicodeDecodeError, oversized integer literal
         raise _Malformed(f"malformed: {exc}") from exc
 
 
