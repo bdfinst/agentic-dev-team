@@ -33,8 +33,10 @@ Accepted formats (v1):
                                 test map) is recognised but has no per-test
                                 data. Probed against mutmut 3.8.1 output.
 
-A directory whose reports record no covered line or statement is `no contexts`,
-as is a single Istanbul, lcov, or V8 file (an aggregate has no per-test data).
+A directory whose reports record no covered line or statement is `no contexts`
+(Cobertura `<line hits>`, JaCoCo `<line ci>`, Istanbul `s`, lcov `DA`, V8 range
+`count`), as is a single Istanbul, lcov, or V8 file (an aggregate has no per-test
+data). A report whose values have the wrong type is unusable, not a crash.
 
 Reasons when `format` is null (verbatim in the report):
 
@@ -141,7 +143,8 @@ def _is_istanbul(data) -> bool:
         isinstance(data, dict)
         and bool(data)
         and all(
-            isinstance(v, dict) and "statementMap" in v and "s" in v for v in data.values()
+            isinstance(v, dict) and "statementMap" in v and isinstance(v.get("s"), dict)
+            for v in data.values()
         )
     )
 
@@ -155,74 +158,107 @@ def _starts_with(file: Path, char: str) -> bool:
         return False
 
 
-def _classify_coverage_file(file: Path) -> tuple[str | None, str | None]:
-    if _starts_with(file, "{"):
-        pass
-    elif _is_lcov(file.read_text(encoding="utf-8", errors="replace")):
-        return None, NO_CONTEXTS
-    else:
-        return None, UNRECOGNISED
-    data = _load_json(file)
-    if _is_coveragepy(data):
-        return ("coveragepy-json", None) if _has_contexts(data) else (None, NO_CONTEXTS)
-    if _json_js_format(data)[0]:
-        return None, NO_CONTEXTS
-    return None, UNRECOGNISED
+LCOV_SOURCE_FILE = "SF:"
+LCOV_LINE_DATA = "DA:"
+LCOV_END_OF_RECORD = "end_of_record"
 
 
 def _is_v8(data) -> bool:
-    return isinstance(data, dict) and isinstance(data.get("result"), list) and all(
-        isinstance(r, dict) and "functions" in r for r in data["result"]
+    result = data.get("result") if isinstance(data, dict) else None
+    return (
+        isinstance(result, list)
+        and bool(result)
+        and all(isinstance(r, dict) and "functions" in r for r in result)
     )
 
 
 def _is_lcov(text: str) -> bool:
-    return "SF:" in text and "end_of_record" in text
+    return LCOV_SOURCE_FILE in text and LCOV_END_OF_RECORD in text
 
 
-def _json_js_format(data) -> tuple[str | None, bool]:
-    """(format, has_hits) for parsed JS coverage JSON; (None, False) if neither."""
+def _is_count(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _istanbul_has_hits(data: dict) -> bool:
+    return any(
+        _is_count(n) and n > 0
+        for v in data.values()
+        for n in (v["s"].values() if isinstance(v["s"], dict) else ())
+    )
+
+
+def _v8_has_hits(data: dict) -> bool:
+    functions = (
+        fn
+        for entry in data["result"]
+        for fn in (entry["functions"] if isinstance(entry["functions"], list) else ())
+        if isinstance(fn, dict)
+    )
+    return any(
+        isinstance(r, dict) and _is_count(r.get("count")) and r["count"] > 0
+        for fn in functions
+        for r in (fn.get("ranges") if isinstance(fn.get("ranges"), list) else ())
+    )
+
+
+def _js_json_report(data) -> tuple[str | None, bool]:
+    """(report format, has_hits) for parsed JS coverage JSON; (None, False) if neither."""
     if _is_istanbul(data):
-        hits = any(
-            isinstance(n, int) and n > 0 for v in data.values() for n in v["s"].values()
-        )
-        return "istanbul-dir", hits
+        return "istanbul", _istanbul_has_hits(data)
     if _is_v8(data):
-        hits = any(
-            isinstance(r, dict) and r.get("count", 0) > 0
-            for entry in data["result"]
-            for fn in entry.get("functions", [])
-            if isinstance(fn, dict)
-            for r in fn.get("ranges", [])
-        )
-        return "v8-dir", hits
+        return "v8", _v8_has_hits(data)
     return None, False
 
 
 def _lcov_has_hits(text: str) -> bool:
     for line in text.splitlines():
-        if line.startswith("DA:"):
-            parts = line[3:].split(",")
-            if len(parts) >= 2 and parts[1].strip().isdigit() and int(parts[1]) > 0:
+        if line.startswith(LCOV_LINE_DATA):
+            _, _, rest = line.removeprefix(LCOV_LINE_DATA).partition(",")
+            count = rest.split(",")[0].strip()
+            if count.isascii() and count.isdigit() and int(count) > 0:
                 return True
     return False
 
 
-def _classify_one_dir_file(file: Path) -> tuple[str | None, bool]:
-    """(format, has_hits) for one per-test report; (None, False) if unrecognised."""
+def _xml_line_has_hits(root, attribute: str) -> bool:
+    """True when some `<line>` element carries `attribute` (Cobertura `hits`,
+    JaCoCo `ci`) as an integer above zero."""
+    for line in root.iter("line"):
+        value = line.get(attribute, "")
+        if value.isascii() and value.isdigit() and int(value) > 0:
+            return True
+    return False
+
+
+def _read_dir_report(file: Path) -> tuple[str | None, bool]:
+    """(evidence format, has_hits) for one per-test report; (None, False) if unrecognised."""
     text = file.read_text(encoding="utf-8", errors="replace").lstrip()
     if text.startswith("<"):
         root = _load_xml_root(file)
         if root.tag == "coverage":
-            return "cobertura-dir", True
+            return "cobertura-dir", _xml_line_has_hits(root, "hits")
         if root.tag == "report":
-            return "jacoco-dir", True
+            return "jacoco-dir", _xml_line_has_hits(root, "ci")
         return None, False
     if text.startswith("{"):
-        return _json_js_format(_load_json(file))
+        report, has_hits = _js_json_report(_load_json(file))
+        return (f"{report}-dir" if report else None), has_hits
     if _is_lcov(text):
         return "lcov-dir", _lcov_has_hits(text)
     return None, False
+
+
+def _classify_coverage_file(file: Path) -> tuple[str | None, str | None]:
+    if not _starts_with(file, "{"):
+        is_lcov = _is_lcov(file.read_text(encoding="utf-8", errors="replace"))
+        return (None, NO_CONTEXTS) if is_lcov else (None, UNRECOGNISED)
+    data = _load_json(file)
+    if _is_coveragepy(data):
+        return ("coveragepy-json", None) if _has_contexts(data) else (None, NO_CONTEXTS)
+    if _js_json_report(data)[0]:
+        return None, NO_CONTEXTS
+    return None, UNRECOGNISED
 
 
 def _classify_coverage_dir(directory: Path) -> tuple[str | None, str | None]:
@@ -232,11 +268,11 @@ def _classify_coverage_dir(directory: Path) -> tuple[str | None, str | None]:
     formats: set[str] = set()
     any_hits = False
     for file in files:
-        fmt, hits = _classify_one_dir_file(file)
+        fmt, has_hits = _read_dir_report(file)
         if fmt is None:
             return None, UNRECOGNISED
         formats.add(fmt)
-        any_hits = any_hits or hits
+        any_hits = any_hits or has_hits
     if len(formats) != 1:
         return None, UNRECOGNISED
     return (formats.pop(), None) if any_hits else (None, NO_CONTEXTS)

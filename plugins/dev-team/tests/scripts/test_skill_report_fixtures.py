@@ -61,7 +61,7 @@ def test_fixture_report_has_no_per_layer_count_targets(fixture) -> None:
 REQUIRED_SYSTEM_TEST_DESIGN_FIXTURES = {
     "three-repos", "discovered-repo", "unindexed-repo", "no-repowise", "e2e-only",
     "overlap-only", "shared-table", "e2e-triage-delete-pushdown", "async-handoff-keep",
-    "aliased-journeys", "gap-list", "overlap-coverage-coveragepy", "overlap-coverage-cobertura",
+    "aliased-journeys", "gap-list", "overlap-coverage-coveragepy", "overlap-coverage-cobertura", "overlap-coverage-jacoco",
     "overlap-coverage-istanbul", "overlap-mutation-stryker", "overlap-mutation-mutmut",
     "overlap-mutation-wins", "overlap-mutation-disagrees", "overlap-coverage-disagrees", "overlap-static-missing",
     "overlap-static-unrecognised", "overlap-static-malformed", "overlap-static-no-contexts",

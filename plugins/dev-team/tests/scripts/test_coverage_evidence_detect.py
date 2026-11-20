@@ -23,9 +23,15 @@ ISTANBUL = {"/app/a.js": {"statementMap": {"0": {}}, "s": {"0": 1}}}
 JACOCO = (
     '<?xml version="1.0" encoding="UTF-8"?>'
     '<!DOCTYPE report PUBLIC "-//JACOCO//DTD Report 1.1//EN" "report.dtd">'
-    '<report name="t"><package name="app"><sourcefile name="A.java"/></package></report>'
+    '<report name="t"><package name="app"><sourcefile name="A.java"><line nr="1" mi="0" ci="1" mb="0" cb="0"/></sourcefile></package></report>'
 )
-COBERTURA = '<?xml version="1.0"?><coverage line-rate="1"><packages/></coverage>'
+JACOCO_ZERO = JACOCO.replace('ci="1"', 'ci="0"')
+COBERTURA = (
+    '<?xml version="1.0"?><coverage line-rate="1"><packages><package><classes>'
+    '<class filename="a.py"><lines><line number="1" hits="1"/></lines></class>'
+    "</classes></package></packages></coverage>"
+)
+COBERTURA_ZERO = COBERTURA.replace('hits="1"', 'hits="0"')
 STRYKER = {
     "schemaVersion": "1",
     "files": {
@@ -226,7 +232,6 @@ def test_stray_dotfiles_in_a_per_test_directory_are_ignored(tmp_path):
     assert (r["format"], r["reason"]) == ("cobertura-dir", None)
 
 
-ISTANBUL_HIT = {"/app/a.js": {"statementMap": {"0": {}}, "s": {"0": 3}}}
 ISTANBUL_ZERO = {"/app/a.js": {"statementMap": {"0": {}}, "s": {"0": 0}}}
 LCOV_HIT = "TN:\nSF:a.js\nDA:1,2\nend_of_record\n"
 LCOV_ZERO = "TN:\nSF:a.js\nDA:1,0\nend_of_record\n"
@@ -245,7 +250,7 @@ def _dir(tmp_path, files):
 @pytest.mark.parametrize(
     "files,fmt",
     [
-        ({"t1.json": ISTANBUL_HIT, "t2.json": ISTANBUL_ZERO}, "istanbul-dir"),
+        ({"t1.json": ISTANBUL, "t2.json": ISTANBUL_ZERO}, "istanbul-dir"),
         ({"t1.info": LCOV_HIT, "t2.info": LCOV_ZERO}, "lcov-dir"),
         ({"t1.json": V8_HIT, "t2.json": V8_ZERO}, "v8-dir"),
     ],
@@ -265,7 +270,7 @@ def test_js_directories_without_hits_report_no_contexts(tmp_path, files):
 
 
 @pytest.mark.parametrize(
-    "name,content", [("c.json", ISTANBUL_HIT), ("c.info", LCOV_HIT), ("c.json", V8_HIT)]
+    "name,content", [("c.json", ISTANBUL), ("c.info", LCOV_HIT), ("c.json", V8_HIT)]
 )
 def test_single_aggregate_js_file_reports_no_contexts(tmp_path, name, content):
     r = detect.classify("coverage", _file(tmp_path, name, content))
@@ -274,6 +279,50 @@ def test_single_aggregate_js_file_reports_no_contexts(tmp_path, name, content):
 
 def test_mixed_js_formats_in_one_directory_are_unrecognised(tmp_path):
     r = detect.classify(
-        "coverage", _dir(tmp_path, {"a.json": ISTANBUL_HIT, "b.info": LCOV_HIT})
+        "coverage", _dir(tmp_path, {"a.json": ISTANBUL, "b.info": LCOV_HIT})
     )
+    assert (r["format"], r["reason"]) == (None, "unrecognised format")
+
+
+@pytest.mark.parametrize("zero", [JACOCO_ZERO, COBERTURA_ZERO])
+def test_xml_directory_without_a_covered_line_reports_no_contexts(tmp_path, zero):
+    r = detect.classify("coverage", _dir(tmp_path, {"t.xml": zero}))
+    assert (r["format"], r["reason"]) == (None, "no contexts")
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"a.json": ISTANBUL, "b.json": V8_HIT},
+        {"a.json": V8_HIT, "b.info": LCOV_HIT},
+    ],
+)
+def test_mixed_json_and_other_js_formats_are_unrecognised(tmp_path, files):
+    r = detect.classify("coverage", _dir(tmp_path, files))
+    assert (r["format"], r["reason"]) == (None, "unrecognised format")
+
+
+def test_truncated_json_in_a_js_directory_is_malformed(tmp_path):
+    r = detect.classify("coverage", _dir(tmp_path, {"a.json": ISTANBUL, "b.json": '{"x": '}))
+    assert r["format"] is None and r["reason"].startswith("malformed: ")
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        {"/a.js": {"statementMap": {}, "s": 5}},
+        {"/a.js": {"statementMap": {}, "s": [1]}},
+        {"result": []},
+        {"result": [{"functions": None}]},
+        {"result": [{"functions": [{"ranges": [{"count": "x"}]}]}]},
+        "TN:\nSF:a.js\nDA:1,\u00b2\nend_of_record\n",
+    ],
+)
+def test_wrong_typed_js_report_values_never_crash(tmp_path, content):
+    r = detect.classify("coverage", _dir(tmp_path, {"t.json": content}))
+    assert r["format"] is None and r["reason"] in {"unrecognised format", "no contexts"}
+
+
+def test_lcov_like_text_without_end_of_record_is_unrecognised(tmp_path):
+    r = detect.classify("coverage", _dir(tmp_path, {"t.info": "SF:a.js\nDA:1,1\n"}))
     assert (r["format"], r["reason"]) == (None, "unrecognised format")

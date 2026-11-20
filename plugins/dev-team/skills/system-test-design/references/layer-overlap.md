@@ -26,11 +26,13 @@ Accepted inputs (v1): coverage.py JSON written with `--show-contexts`; per-test 
 
 Run each test (or test file) alone and keep one report per test id in one directory, passed as `--coverage <repo>=<dir>`. A single aggregate file (`coverage-final.json`, `lcov.info`) has no per-test data and is `no contexts`.
 
-- **Istanbul JSON:** `nyc --reporter=json --report-dir=cov-per-test/<id> <runner>`, then copy each `coverage-final.json` to `cov-per-test/<id>.json`. Jest: `jest <file> --coverage --coverageReporters=json --coverageDirectory=cov/<id>`.
-- **lcov:** same runs with `--reporter=lcovonly` / `--coverageReporters=lcovonly`; keep each `lcov.info` as `<id>.info`.
-- **Raw V8:** `NODE_V8_COVERAGE=v8-per-test/<id> node --test <file>`, then keep one JSON per id.
+- **Istanbul JSON:** `nyc --reporter=json --report-dir=cov/<id> <runner>`, or `jest <file> --coverage --coverageReporters=json --coverageDirectory=cov/<id>`. Each run writes `cov/<id>/coverage-final.json`; copy it to `cov-per-test/<id>.json`.
+- **lcov:** same runs with `--reporter=lcovonly` / `--coverageReporters=lcovonly`; copy each `cov/<id>/lcov.info` to `cov-per-test/<id>.info`.
+- **Raw V8:** `NODE_V8_COVERAGE=v8/<id> <runner on one test file>`. Node writes one `coverage-<pid>-<timestamp>-<n>.json` per process into `v8/<id>/`. Run one process per test id so that directory holds one file, then copy it to `v8-per-test/<id>.json`.
 
-Every report in the directory must be the same format. A directory where no statement or line has a hit is `no contexts`.
+The detector reads only files directly in the directory; a per-id subdirectory is ignored.
+
+Every report in the directory must be the same format. A directory where no line or statement has a hit (Cobertura `hits`, JaCoCo `ci`, Istanbul `s`, lcov `DA`, V8 range `count`) is `no contexts`.
 
 ### Per-test JaCoCo capture (Java)
 

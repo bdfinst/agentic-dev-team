@@ -1,0 +1,9 @@
+[
+  {
+    "kind": "coverage",
+    "path": "evidence/coverage",
+    "format": "jacoco-dir",
+    "reason": null,
+    "repo": "orders"
+  }
+]
