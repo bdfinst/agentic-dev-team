@@ -25,7 +25,7 @@ No findings.
 
 ### Layer overlap (trim, not remove)
 
-- [evidence: mutation-backed; evidence-confidence: high; basis: both tests kill a common mutant inside apply_discount] Cross-Layer Overlap | tests/unit/test_pricing.py::test_discount + tests/component/test_pricing_api.py::test_discount | keep the unit test; trim the component test to seam assertions
+- [evidence: coverage-backed; evidence-confidence: medium; basis: mutmut records both tests reaching apply_discount (function-level reach; mutmut does not record which test killed a mutant)] Cross-Layer Overlap | tests/unit/test_pricing.py::test_discount + tests/component/test_pricing_api.py::test_discount | keep the unit test; trim the component test to seam assertions
 
 ## Contract-test findings
 

@@ -16,10 +16,11 @@ Per repo, from `--coverage` and `--mutation`. Detect the format with `scripts/co
 - **Shared lines:** at least one covered production line inside the paired symbol's body. Imports, fixtures, and boilerplate outside the body never count.
 - **Coverage:** shared lines give `coverage-backed`. Disjoint lines give `coverage disagrees`: downgrade one confidence level and never report above `suggestion`.
 - **Mutation:** both tests kill at least one common mutant inside the symbol's body gives `mutation-backed` (strongest; overrides coverage). No mutant killed by both inside the body (neither kills any, or they kill different ones) gives `mutation disagrees`, with the same downgrade.
+- **mutmut gives reach only:** `mutants/mutmut-stats.json` names the tests that reach each function, never the test that killed a mutant. Both tests reaching the symbol's function gives `coverage-backed` at `medium` confidence at most, with the basis stating function-level reach. Never report `mutation-backed` from mutmut. Tests that reach different functions give `coverage disagrees`.
 - **No usable evidence** for a repo (nothing given, or `missing`, `unrecognised format`, `malformed: <parser error>`, `no contexts`): `static-judgment` with that reason.
 - **Evidence for one of two repos:** the other repo's findings are `static-judgment: missing`, and Scope names which repos had evidence.
 
-Accepted inputs (v1): coverage.py JSON written with `--show-contexts`; per-test Cobertura XML directory; per-test Istanbul JSON directory; Stryker `mutation-report.json`; mutmut stats JSON. Java (JaCoCo) and Go (coverprofile) coverage are `static-judgment` in v1 (#2342, #2343).
+Accepted inputs (v1): coverage.py JSON written with `--show-contexts`; per-test Cobertura XML directory; per-test Istanbul JSON directory; Stryker `mutation-report.json`; mutmut `mutants/mutmut-stats.json`. Java (JaCoCo) and Go (coverprofile) coverage are `static-judgment` in v1 (#2342, #2343).
 
 ## Confidence
 
