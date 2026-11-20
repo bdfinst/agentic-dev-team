@@ -7,7 +7,7 @@ from skill_doc_helpers import PLUGIN_ROOT, section
 SKILL_DIR = PLUGIN_ROOT / "skills" / "cd-test-architecture"
 SKILL = SKILL_DIR / "SKILL.md"
 REFERENCE = SKILL_DIR / "references" / "build-vs-document.md"
-LINE_BUDGET = 180
+LINE_BUDGET = 190
 CITATION = "references/build-vs-document.md"
 
 

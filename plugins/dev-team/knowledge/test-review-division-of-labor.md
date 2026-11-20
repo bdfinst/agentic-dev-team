@@ -83,3 +83,14 @@ scans `issue.message` + `summary` prose for `mustMention` keywords. It does
 not read `remedyFamily` structurally. So `test-smell-review` also emits the
 family slug verbatim in the finding's `message` — this makes the family cite
 enforceable by existing fixtures without extending the grader.
+
+## test-smell-review ↔ cd-test-architecture — double and drift overlap
+
+`cd-test-architecture` (whole application) and `test-smell-review` (per file) can both flag test-double problems. When `/test-design` runs both:
+
+| Signal | Reported by | Framing |
+|---|---|---|
+| Wrong double choice, mocking concrete classes, double in the wrong pyramid layer at a given line | **test-smell-review** | per-file smell with `file:line` |
+| Doubles with no validation loop (drift risk), no scheduled provider check, no resilience test, double needing a Build/Document decision | **cd-test-architecture** | application-level gap in `### Architecture` |
+
+When both name the same double, keep the `test-smell-review` row for the line and have the `### Architecture` entry cite it instead of repeating it. Record the drop in `### Suppressed duplicates`. When `cd-test-architecture` runs solo, it reports all of it.

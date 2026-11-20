@@ -77,7 +77,7 @@ signal only, with no error and no placeholder text.
 
 ### 4. Delegate architecture + pipeline
 
-Invoke `cd-test-architecture` on the target. Summarize its findings (which tests can't run in a clean pre-merge gate, target architecture, migration path) in one section — **do not re-derive**.
+Invoke `cd-test-architecture` on the target. This is the strategy-level call; Step 5 dispatches `/test-design` with its architecture step off, so this is the only `cd-test-architecture` call in a `/test-health` run. Summarize its findings (which tests can't run in a clean pre-merge gate, target architecture, migration path) in one section — **do not re-derive**.
 
 When `--repos <path>...` is set, also invoke `system-test-design` with those paths (entry repo first). Summarize its minimum E2E set and its overlap findings in one section, and cite its report path (`.dev-team-reports/system-test-design-<entry>.md`). Do not re-list its E2E classifications or restate its findings; if it fails on an argument error, report that and continue without the section.
 
@@ -87,8 +87,8 @@ Invoke `/test-design` on the target, passing the same scope this run was
 invoked with — the dispatch must be explicit so a subtree audit never
 inherits a whole-repo Farley Score:
 
-- `/test-health --path <dir>` → dispatch `/test-design --path <dir>`.
-- `/test-health` (unscoped) → dispatch `/test-design` with no scope flag.
+- `/test-health --path <dir>` → dispatch `/test-design --path <dir>` (`--path` already keeps `/test-design`'s architecture step off).
+- `/test-health` (unscoped) → dispatch `/test-design --no-architecture` (Step 4 already ran `cd-test-architecture`).
 
 Consume its results: the scope-labelled **Farley Score** (`(all tests)` when
 unscoped, `(under <dir>)` when passing `--path`, or the empty-scope note

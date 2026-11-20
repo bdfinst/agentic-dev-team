@@ -9,7 +9,7 @@ description: >-
   this", "what's the right test for X", "test design review", or before
   writing a suite for an untested module. For a single unit, pass
   --advise --path <file>. Advisory — it recommends, it does not edit.
-argument-hint: "[--path <dir>] [--since <ref>] [--advise]"
+argument-hint: "[--path <dir>] [--since <ref>] [--advise] [--architecture] [--no-architecture]"
 role: orchestrator
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash(git diff *), Skill, Agent
@@ -43,7 +43,10 @@ fields natively before dispatch, per Model/Effort Resolution in
    division" section of the knowledge doc, the smell agent cites the remedy
    family (via `remedyFamily`) and the advisor names the specific remedy
    pattern and refactor sequence — smell rows and advisor rows join
-   structurally on `remedyFamily`, not by prose match.
+   structurally on `remedyFamily`, not by prose match. Test-double and drift
+   overlap between `cd-test-architecture` and `test-smell-review` follows the
+   "test-smell-review ↔ cd-test-architecture" section of the same doc (keep
+   the `test-smell-review` row).
 4. **Be concise.** One aggregated report. Issue messages one sentence;
    recommendations map to a concrete next edit.
 5. **MinimumCD vocabulary.** Layer labels in the aggregated report use the
@@ -71,6 +74,8 @@ Optional:
 
 - `--path <dir>`: target directory (default: current working directory)
 - `--since <ref>`: target files changed since a git ref (`git diff --name-only <ref>...HEAD`)
+- `--architecture`: also run `Skill(cd-test-architecture --yes)`. Default on only when Step 1 resolved the target to the whole application (no `--path`, no `--since`, no uncommitted changes), because that skill assesses the whole application; this flag forces it on for a narrower scope.
+- `--no-architecture`: never run the architecture step. `/test-health` passes it because it already ran `cd-test-architecture`.
 - `--advise`: also run the test-design-advisor skill for forward-looking design (default on when the target has untested production code or few/no test files, **or when the target resolves to a single production file** — via `--path <file>` or a `--since` diff that touches exactly one production file; this is the path for forward-design on a single unit — the `test-design-advisor` skill has no user-facing slash command)
 
 ## Steps
@@ -123,6 +128,12 @@ If `--advise` is set (or auto-triggered), use the Skill tool (`Skill(test-design
 placement, double strategy, and a behavior-preserving refactor sequence for
 any untestable units.
 
+### 4b. Run the architecture assessment (when applicable)
+
+Skip when `--no-architecture` is set. Otherwise, if `--architecture` is set, or Step 1 resolved the target to the whole application, run `Skill(cd-test-architecture <target> --yes)`, passing the resolved target (and `--component <name>` when `--path` names one component). `--yes` skips its interactive build-vs-document ask. Put its findings under the report's `### Architecture` section; cite its report path, do not restate it.
+
+Split with `test-health`: both skills call `cd-test-architecture`. `test-design` is code-level (per-file and per-unit findings plus this application-level view); `test-health` is strategy-level (suite shape, quadrants, maturity). Run standalone, `test-design` runs it; `/test-health` suppresses that with `--no-architecture`.
+
 ### 5. Aggregate and de-duplicate
 
 Merge findings. Resolve overlaps per constraint 3. Group by file. Rank:
@@ -159,6 +170,9 @@ the terms actually used in the report>
 justification, NO target counts) · double strategy · refactor sequence ·
 E2E justification (only when E2E is recommended)>
 
+### Architecture
+<Only when Step 4b ran. Summary of `cd-test-architecture` findings: CD-fitness gaps, provider-side contract gaps, target architecture, report path. Omit the section otherwise.>
+
 ### Suppressed duplicates
 <Every drop constraint 3 performed at aggregation time. Each entry cites the
 finding's `file:line`, what was dropped (which agent's finding, keyed by
@@ -178,4 +192,6 @@ constraint #6.
 
 ## Integration
 
-For tests that span several deployables (entangled workflows, E2E selection across repos, cross-layer overlap), flag the seam `→ system-test-design` and defer to that skill. This skill stays at per-file and per-unit altitude.
+`test-health` also delegates to `cd-test-architecture`, at strategy level. Run standalone, this skill runs it for the code-level report; `/test-health` passes `--no-architecture` to avoid a second run.
+
+For tests that span several deployables (entangled workflows, E2E selection across repos, cross-layer overlap), flag the seam `→ system-test-design` and defer to that skill. This skill works at per-file and per-unit altitude; Step 4b cites the application-level view from `cd-test-architecture`.
