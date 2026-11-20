@@ -163,6 +163,8 @@ Layer smells (per file; remedy is layer relocation, `remedyFamily: null`; owners
 - **Component E2E Scope Creep** — a component test whose HTTP, gRPC, or socket target is a host outside the loopback set {`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`} and is not stubbed. *Stubbed* means interception configured in the test's own setup (an HTTP-interception or record-and-replay library; examples in `test-smells.md`) or a contract mock. A compose hostname or an environment-resolved host is flagged with the message marked `inferred`. *Fix:* stub the dependency, or move the check to a contract or out-of-band integration test.
 - **Mislabeled Test Level** — a *unit-named* test (token `unit`, case-insensitive, in a path segment, class or fixture name, or test name) with a mechanical signal: a real SQL driver connection (in-memory SQLite and fakes are not flagged), a socket to a non-loopback host, or a disk write outside the OS temp directory → name `integration`; boots the in-process app host → name `component`. Report at confidence `medium`. *Fix:* rename and relocate to the named level.
 
+Report each layer smell at severity `warning`: the suite is in the wrong place, not untrustworthy. Name the smell in `smell`.
+
 Other placement flags:
 
 - Unit test doing real I/O (mis-layered → Slow Tests); E2E asserting a single edge case (belongs at unit); suite-level ice-cream-cone / hourglass / cupcake shape (name the pathology and the behaviors it harms — never propose a numeric per-layer redistribution; the pyramid is a cost heuristic, not a target shape).
