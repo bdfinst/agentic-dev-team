@@ -242,7 +242,8 @@ jobs:
           Clone telemetry (read-only) and build the cross-machine cost baseline
         if:
           ${{ github.event_name != 'pull_request' ||
-          github.event.pull_request.head.repo.fork == false }}
+          (github.event.pull_request.head.repo.fork == false && github.actor !=
+          'dependabot[bot]') }}
         run: |
           git clone --depth 1 git@github.com:bdfinst/agent-telemetry.git /tmp/telemetry
           python3 plugins/dev-team/scripts/session_report.py --profile maintainer \
