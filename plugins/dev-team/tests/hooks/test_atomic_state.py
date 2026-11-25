@@ -391,3 +391,21 @@ def test_atomic_write_fdopen_failure_fail_open_false_still_closes_and_raises(
 
     assert closed_fds, "fdopen failure must close the raw fd via os.close"
     assert not path.exists()
+
+
+def test_purge_stale_removes_only_json_files_older_than_the_ttl(tmp_path: Path) -> None:
+    old = time.time() - 120
+    stale, fresh, other = (tmp_path / n for n in ("stale.json", "fresh.json", "keep.txt"))
+    for path in (stale, fresh, other):
+        path.write_text("{}")
+    for path in (stale, other):
+        os.utime(path, (old, old))
+
+    atomic_state.purge_stale(tmp_path, 60)
+
+    assert not stale.exists()
+    assert fresh.exists() and other.exists()
+
+
+def test_purge_stale_ignores_a_missing_directory(tmp_path: Path) -> None:
+    assert atomic_state.purge_stale(tmp_path / "absent", 60) is None

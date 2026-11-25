@@ -202,6 +202,22 @@ def atomic_write(path: Path, text: str, *, fail_open: bool = True) -> None:
         _reraise_unless_fail_open(exc, fail_open)
 
 
+def purge_stale(directory: Path, ttl_seconds: float) -> None:
+    """Delete `*.json` files in `directory` last modified more than
+    `ttl_seconds` ago, so a per-session state directory does not accumulate one
+    file per session forever. A missing directory or an unremovable file is
+    skipped."""
+    if not directory.is_dir():
+        return
+    now = time.time()
+    for path in directory.glob("*.json"):
+        try:
+            if now - path.stat().st_mtime > ttl_seconds:
+                path.unlink()
+        except OSError:
+            pass
+
+
 def _lock_acquire_budget_seconds() -> float:
     """Test-only override for the give-up budget, mirroring
     `race_window_delay`'s env-var injection pattern below. Unset in

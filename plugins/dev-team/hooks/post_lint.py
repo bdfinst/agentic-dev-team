@@ -46,15 +46,16 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths  # type: ignore[import-not-found]
 from atomic_state import (  # type: ignore[import-not-found]
+    LockAcquisitionError,
     append_line_locked,
     atomic_write,
     locked_state,
+    purge_stale,
 )
 from boundary_events import (  # type: ignore[import-not-found]
     emit_boundary_event as _emit_boundary_event,
 )
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]
-from verify_guard_state import purge_stale  # type: ignore[import-not-found]
 
 ENV_ENABLE = "DEVTEAM_POST_LINT"
 ENV_TIMEOUT = "DEVTEAM_POST_LINT_TIMEOUT"
@@ -66,6 +67,15 @@ DEFAULT_TIMEOUT_SECONDS = 10.0
 MAX_TIMEOUT_SECONDS = 600.0
 # One line per run: .claude/metrics/post-lint.jsonl
 METRICS_FILE = "post-lint.jsonl"
+NODE_MODULES = "node_modules"
+
+# Per-session state: a private directory, one JSON file per session, removed
+# once untouched for STATE_TTL_SECONDS.
+PRIVATE_DIR_MODE = 0o700
+GROUP_OTHER_BITS = 0o077
+STATE_TTL_SECONDS = 4 * 60 * 60
+STATE_NOTICES = "notices"
+STATE_BLOCKS = "blocks"
 
 EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit"})
 LINT_SUFFIXES = frozenset(
@@ -85,7 +95,7 @@ RULE_CAP = "block-cap"
 
 # What a block reason shows: the header, at most MAX_FINDINGS findings, then
 # `+N more`, all within MAX_REASON_CHARS.
-REASON_HEADER = "dev-team post-edit lint (set DEVTEAM_POST_LINT=0 to disable):"
+REASON_HEADER = f"dev-team post-edit lint (set {ENV_ENABLE}=0 to disable):"
 MAX_FINDINGS = 10
 MAX_REASON_CHARS = 4000
 MAX_BLOCKS = 3
@@ -96,18 +106,30 @@ TRUNCATION_MARKER = "... [truncated]"
 # rule's id. It says the comment is stale, not that the code breaks a rule.
 UNLOADED_RULE_MESSAGE = re.compile(r"Definition for rule '.*' was not found\.")
 
-# One line per fail-open reason; `{}` is filled by the one reason that varies.
+# Fail-open reason keys.
+NO_CONFIG = "no-config"
+NO_ESLINT = "no-eslint"
+NO_NODE = "no-node"
+TIMEOUT = "timeout"
+NO_JSON = "no-json"
+INVALID_JSON = "invalid-json"
+INVALID_STDIN = "invalid-stdin"
+PARSE_ERROR = "parse-error"
+NO_STATE = "no-state"
+CAP = "cap"
+
+# One line per reason; `{}` is filled by the one detail that varies.
 NOTICES = {
-    "no-config": f"{CONFIG_NAME} not found in project; lint skipped",
-    "no-eslint": "ESLint not found in project; lint skipped",
-    "no-node": "node not found on PATH; lint skipped",
-    "timeout": "ESLint timed out after {}s; lint skipped",
-    "no-json": "ESLint exited with code {} and no JSON; lint skipped",
-    "invalid-json": "ESLint output was not valid JSON; lint skipped",
-    "invalid-stdin": "hook input was not valid JSON; lint skipped",
-    "parse-error": "edited file has a parse error; lint skipped",
-    "no-state": "cannot save session state; lint skipped",
-    "cap": f"cap {MAX_BLOCKS} reached; set DEVTEAM_POST_LINT=0 to disable",
+    NO_CONFIG: f"{CONFIG_NAME} not found in project; lint skipped",
+    NO_ESLINT: "ESLint not found in project; lint skipped",
+    NO_NODE: "node not found on PATH; lint skipped",
+    TIMEOUT: "ESLint timed out after {}s; lint skipped",
+    NO_JSON: "ESLint exited with code {} and no JSON; lint skipped",
+    INVALID_JSON: "ESLint output was not valid JSON; lint skipped",
+    INVALID_STDIN: "hook input was not valid JSON; lint skipped",
+    PARSE_ERROR: "edited file has a parse error; lint skipped",
+    NO_STATE: "cannot save session state; lint skipped",
+    CAP: f"cap {MAX_BLOCKS} reached; set {ENV_ENABLE}=0 to disable",
 }
 
 
@@ -138,7 +160,14 @@ class Result:
 # --- pure helpers -----------------------------------------------------------
 
 
-def should_lint(payload: dict, root: Path) -> Path | None:
+def _declared_path(payload: dict) -> str | None:
+    """The ``tool_input.file_path`` the edit declared, or None when absent."""
+    tool_input = payload.get("tool_input")
+    raw = tool_input.get("file_path") if isinstance(tool_input, dict) else None
+    return raw if isinstance(raw, str) and raw else None
+
+
+def resolve_lint_target(payload: dict, root: Path) -> Path | None:
     """The resolved file to lint, or None for a normal (silent) skip.
 
     Skips non-edit tools, non-JS/TS suffixes, files that do not exist, files
@@ -147,11 +176,12 @@ def should_lint(payload: dict, root: Path) -> Path | None:
     """
     if payload.get("tool_name") not in EDIT_TOOLS:
         return None
-    tool_input = payload.get("tool_input")
-    raw = tool_input.get("file_path") if isinstance(tool_input, dict) else None
-    if not isinstance(raw, str) or not raw:
+    raw = _declared_path(payload)
+    if raw is None:
         return None
-    declared = Path(raw) if Path(raw).is_absolute() else root / raw
+    declared = Path(raw)
+    if not declared.is_absolute():
+        declared = root / declared
     if declared.suffix.lower() not in LINT_SUFFIXES:
         return None
     try:
@@ -159,7 +189,7 @@ def should_lint(payload: dict, root: Path) -> Path | None:
         relative = resolved.relative_to(root.resolve())
     except (OSError, ValueError, RuntimeError):
         return None
-    if "node_modules" in relative.parts or "node_modules" in declared.parts:
+    if NODE_MODULES in relative.parts or NODE_MODULES in declared.parts:
         return None
     return resolved if resolved.is_file() else None
 
@@ -188,23 +218,23 @@ def parse_findings(stdout: str, returncode: int, root: Path) -> list[Finding]:
     dev-team findings and are dropped.
     """
     if not stdout.strip():
-        raise LintFailure("no-json", returncode)
+        raise LintFailure(NO_JSON, returncode)
     try:
         results = json.loads(stdout)
     except json.JSONDecodeError:
-        raise LintFailure("invalid-json") from None
+        raise LintFailure(INVALID_JSON) from None
     if not isinstance(results, list):
-        raise LintFailure("invalid-json")
+        raise LintFailure(INVALID_JSON)
     findings: list[Finding] = []
     for result in results:
         if not isinstance(result, dict) or not isinstance(result.get("messages"), list):
-            raise LintFailure("invalid-json")
+            raise LintFailure(INVALID_JSON)
         path = _display_path(result.get("filePath"), root)
         for message in result["messages"]:
             if not isinstance(message, dict):
-                raise LintFailure("invalid-json")
+                raise LintFailure(INVALID_JSON)
             if message.get("fatal"):
-                raise LintFailure("parse-error")
+                raise LintFailure(PARSE_ERROR)
             rule_id = message.get("ruleId")
             if (
                 isinstance(rule_id, str)
@@ -278,15 +308,15 @@ def _secure_state_dir(state_dir: Path) -> None:
     real directory owned by this user (a symlink or another user's directory
     is never written through). A directory this user owns with looser
     permissions is tightened."""
-    state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    state_dir.mkdir(mode=PRIVATE_DIR_MODE, parents=True, exist_ok=True)
     uid = _uid()
     if uid is None:
         return
     info = state_dir.lstat()
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != uid:
         raise OSError(f"{state_dir} is not a directory owned by this user")
-    if stat.S_IMODE(info.st_mode) & 0o077:
-        state_dir.chmod(0o700)
+    if stat.S_IMODE(info.st_mode) & GROUP_OTHER_BITS:
+        state_dir.chmod(PRIVATE_DIR_MODE)
 
 
 def state_path(session: str, state_dir: Path) -> Path:
@@ -302,16 +332,26 @@ def _read_state(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _update_state(session: str, state_dir: Path, mutate) -> object:
+def _dump(state: dict) -> str:
+    return json.dumps(state, separators=(",", ":"))
+
+
+def _update_state(
+    session: str, state_dir: Path, mutate, *, strict: bool = False
+) -> object:
     """Run ``mutate(state)`` on the session's state under the lock and save it.
-    Raises OSError when the state cannot be read-modify-written."""
+    Raises OSError when the state cannot be read-modify-written, and, with
+    ``strict``, LockAcquisitionError when the lock cannot be taken (rather than
+    running ``mutate`` unlocked)."""
     path = state_path(session, state_dir)
     _secure_state_dir(state_dir)
-    purge_stale(state_dir)
-    with locked_state(path):
+    purge_stale(state_dir, STATE_TTL_SECONDS)
+    with locked_state(path, strict=strict):
         state = _read_state(path)
+        before = _dump(state)
         result = mutate(state)
-        atomic_write(path, json.dumps(state, separators=(",", ":")), fail_open=False)
+        if _dump(state) != before:
+            atomic_write(path, _dump(state), fail_open=False)
     return result
 
 
@@ -319,11 +359,11 @@ def notice_once(session: str, key: str, text: str, state_dir: Path) -> dict | No
     """``{"systemMessage": ...}`` the first time ``key`` fires in ``session``."""
 
     def mark(state: dict) -> bool:
-        seen = state.get("notices")
+        seen = state.get(STATE_NOTICES)
         seen = seen if isinstance(seen, list) else []
         if key in seen:
             return False
-        state["notices"] = [*seen, key]
+        state[STATE_NOTICES] = [*seen, key]
         return True
 
     try:
@@ -336,25 +376,27 @@ def notice_once(session: str, key: str, text: str, state_dir: Path) -> dict | No
 
 def try_block(session: str, state_dir: Path) -> bool:
     """Count one more consecutive block; False once MAX_BLOCKS were used.
-    Raises OSError when the count cannot be saved."""
+    Raises OSError or LockAcquisitionError when the count cannot be saved
+    under the lock: an unlocked count could lose a block and never reach the
+    cap."""
 
     def count(state: dict) -> bool:
-        blocks = state.get("blocks")
+        blocks = state.get(STATE_BLOCKS)
         blocks = blocks if isinstance(blocks, int) else 0
         if blocks >= MAX_BLOCKS:
             return False
-        state["blocks"] = blocks + 1
+        state[STATE_BLOCKS] = blocks + 1
         return True
 
-    return bool(_update_state(session, state_dir, count))
+    return bool(_update_state(session, state_dir, count, strict=True))
 
 
 def reset_blocks(session: str, state_dir: Path) -> None:
     """A clean lint ends the run of consecutive blocks."""
     try:
-        _secure_state_dir(state_dir)
-        if _read_state(state_path(session, state_dir)).get("blocks"):
-            _update_state(session, state_dir, lambda state: state.pop("blocks", None))
+        _update_state(
+            session, state_dir, lambda state: state.pop(STATE_BLOCKS, None)
+        )
     except OSError:
         pass
 
@@ -366,7 +408,7 @@ def run_eslint(
     cmd: list[str], cwd: Path, env: Mapping[str, str], timeout: float
 ) -> tuple[str, int]:
     """Run ``cmd`` and return (stdout, returncode). On timeout the whole
-    process group is killed and LintFailure("timeout") is raised."""
+    process group is killed and LintFailure(TIMEOUT) is raised."""
     child_env = {**env, ENV_TYPED: "0"}
     posix = os.name == "posix"
     try:
@@ -383,13 +425,13 @@ def run_eslint(
             start_new_session=posix,
         )
     except OSError:
-        raise LintFailure("no-node") from None
+        raise LintFailure(NO_NODE) from None
     try:
         stdout, _ = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         _kill_tree(proc)
         proc.communicate()
-        raise LintFailure("timeout", f"{timeout:g}") from None
+        raise LintFailure(TIMEOUT, f"{timeout:g}") from None
     return stdout, proc.returncode
 
 
@@ -459,7 +501,7 @@ def record_metrics(root: Path, session: str, result: Result, wall_ms: int) -> No
         "outcome": result.outcome,
     }
     try:
-        path = artifact_paths.metrics_dir(root) / METRICS_FILE
+        path = root / ".claude" / "metrics" / METRICS_FILE
         path.parent.mkdir(parents=True, exist_ok=True)
         append_line_locked(path, json.dumps(row, separators=(",", ":")) + "\n")
     except OSError:
@@ -474,20 +516,20 @@ def _decide(
     root: Path,
 ) -> Result:
     if payload is None:
-        return _fail_open(session, LintFailure("invalid-stdin"), "", state_dir)
+        return _fail_open(session, LintFailure(INVALID_STDIN), "", state_dir)
 
-    target = should_lint(payload, root)
-    ext = Path(target).suffix.lower() if target else _declared_ext(payload)
+    target = resolve_lint_target(payload, root)
+    ext = target.suffix.lower() if target else _declared_ext(payload)
     if target is None:
         return Result(SKIPPED, None, ext)
 
     config = root / CONFIG_NAME
-    eslint_js = root / "node_modules" / "eslint" / "bin" / "eslint.js"
+    eslint_js = root / NODE_MODULES / "eslint" / "bin" / "eslint.js"
     node = shutil.which("node", path=env.get("PATH"))
     for key, present in (
-        ("no-config", config.is_file()),
-        ("no-eslint", eslint_js.is_file()),
-        ("no-node", node is not None),
+        (NO_CONFIG, config.is_file()),
+        (NO_ESLINT, eslint_js.is_file()),
+        (NO_NODE, node is not None),
     ):
         if not present:
             return _fail_open(session, LintFailure(key), ext, state_dir)
@@ -507,18 +549,17 @@ def _decide(
         return Result(CLEAN, None, ext)
     try:
         allowed = try_block(session, state_dir)
-    except OSError:
-        return _fail_open(session, LintFailure("no-state"), ext, state_dir)
+    except (OSError, LockAcquisitionError):
+        return _fail_open(session, LintFailure(NO_STATE), ext, state_dir)
     if not allowed:
-        return Result(CAPPED, _notice(session, "cap", state_dir), ext)
+        return Result(CAPPED, _notice(session, CAP, state_dir), ext)
     block = {"decision": "block", "reason": format_reason(findings)}
     return Result(BLOCKED, block, ext)
 
 
 def _declared_ext(payload: dict) -> str:
-    tool_input = payload.get("tool_input")
-    raw = tool_input.get("file_path") if isinstance(tool_input, dict) else None
-    return Path(raw).suffix.lower() if isinstance(raw, str) else ""
+    raw = _declared_path(payload)
+    return Path(raw).suffix.lower() if raw else ""
 
 
 def main() -> int:

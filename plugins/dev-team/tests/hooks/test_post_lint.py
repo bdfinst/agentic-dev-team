@@ -9,6 +9,7 @@ absent locally; a failure when `CI=true`).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -722,6 +723,58 @@ def test_unwritable_state_fails_open_instead_of_blocking_forever(project):
     assert "cannot save session state" in _notice_text(result)
 
 
+@posix_only
+def test_a_clean_run_reads_session_state_only_under_the_lock(project, monkeypatch):
+    held = []
+    real_lock, real_read = post_lint.locked_state, post_lint._read_state
+
+    @contextlib.contextmanager
+    def spy_lock(path, **kwargs):
+        held.append(True)
+        try:
+            with real_lock(path, **kwargs):
+                yield
+        finally:
+            held.pop()
+
+    def spy_read(path):
+        assert held, "session state was read without holding the lock"
+        return real_read(path)
+
+    monkeypatch.setattr(post_lint, "locked_state", spy_lock)
+    monkeypatch.setattr(post_lint, "_read_state", spy_read)
+
+    assert project.run(env=_clean(project)).outcome == post_lint.CLEAN
+
+
+@posix_only
+def test_a_block_counter_that_cannot_be_locked_fails_open_instead_of_counting(project):
+    project.state_dir.mkdir(mode=0o700)
+    lock = post_lint.state_path("s1", project.state_dir).with_suffix(".json.lock")
+    lock.symlink_to(project.root.parent / "planted-lock")
+
+    result = project.run(env=_violating(project))
+
+    assert result.outcome == post_lint.FAILED_OPEN
+    assert "decision" not in (result.output or {})
+    assert "cannot save session state" in _notice_text(result)
+
+
+@posix_only
+def test_one_run_resolves_the_project_root_once(project, monkeypatch):
+    calls = []
+    real = post_lint.artifact_paths.git_toplevel
+    monkeypatch.setattr(
+        post_lint.artifact_paths,
+        "git_toplevel",
+        lambda *a, **k: calls.append(a) or real(*a, **k),
+    )
+
+    project.run(env=_clean(project))
+
+    assert len(calls) == 1
+
+
 # --- state directory: private per user, expiring ------------------------------
 
 
@@ -787,6 +840,10 @@ def test_stale_session_state_is_purged_on_write_and_fresh_state_is_kept(project)
 
     assert not stale.exists()
     assert fresh.exists() and other.exists()
+
+
+def test_the_hook_does_not_import_another_hooks_private_module():
+    assert "verify_guard_state" not in HOOK.read_text()
 
 
 # --- metrics -----------------------------------------------------------------
