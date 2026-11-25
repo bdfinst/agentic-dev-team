@@ -26,12 +26,17 @@ const esmReplacement = (what, instead) => `${what}. ${instead}`;
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
+// Resolves to `{ value }`, `{ missing: true }` when `id` itself is not
+// installed, or `{ failure }` when it is installed but cannot load.
 const importOptional = async (id) => {
   try {
     const loaded = await import(id);
-    return loaded.default ?? loaded;
-  } catch {
-    return undefined;
+    return { value: loaded.default ?? loaded };
+  } catch (error) {
+    if (error?.code === "ERR_MODULE_NOT_FOUND" && String(error.message).includes(`'${id}'`)) {
+      return { missing: true };
+    }
+    return { failure: String(error?.message ?? error).split("\n")[0] };
   }
 };
 
@@ -75,18 +80,21 @@ const arrayMutationOnly = {
 const typedConfig = async () => {
   if (process.env.DEVTEAM_LINT_TYPED === "0") return [];
   if (!fs.existsSync(path.join(rootDir, "tsconfig.json"))) return [];
-  const needed = {
-    "eslint-plugin-functional": await importOptional("eslint-plugin-functional"),
-    "@typescript-eslint/parser": await importOptional("@typescript-eslint/parser"),
-    typescript: await importOptional("typescript"),
-  };
-  const missing = Object.keys(needed).filter((id) => needed[id] === undefined);
-  if (missing.length > 0) {
-    process.stderr.write(
-      `devteam-lint: typed rules skipped, not installed: ${missing.join(", ")}\n`,
-    );
+  const ids = ["eslint-plugin-functional", "@typescript-eslint/parser", "typescript"];
+  const found = Object.fromEntries(
+    await Promise.all(ids.map(async (id) => [id, await importOptional(id)])),
+  );
+  const missing = ids.filter((id) => found[id].missing);
+  const failed = ids.filter((id) => found[id].failure !== undefined);
+  if (missing.length > 0 || failed.length > 0) {
+    const reasons = [
+      ...(missing.length > 0 ? [`not installed: ${missing.join(", ")}`] : []),
+      ...failed.map((id) => `failed to load ${id}: ${found[id].failure}`),
+    ];
+    process.stderr.write(`devteam-lint: typed rules skipped, ${reasons.join("; ")}\n`);
     return [];
   }
+  const needed = Object.fromEntries(ids.map((id) => [id, found[id].value]));
   const files = coveredFiles(needed.typescript);
   if (files.length === 0) return [];
   return [

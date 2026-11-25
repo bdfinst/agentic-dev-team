@@ -183,16 +183,20 @@ test("DEVTEAM_LINT_TYPED=0 skips the typed rules silently", () => {
   assert.deepEqual(run.report[0].messages, []);
 });
 
-// A throwaway project directory that resolves the dev tree's dependencies.
+// A throwaway project directory. It resolves the dev tree's dependencies
+// unless `files` supplies its own `node_modules/`.
 const withTempProject = (files, body) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "devteam-project-"));
   try {
-    fs.symlinkSync(
-      path.join(devDir, "node_modules"),
-      path.join(dir, "node_modules"),
-      "junction",
-    );
+    if (!Object.keys(files).some((name) => name.startsWith("node_modules/"))) {
+      fs.symlinkSync(
+        path.join(devDir, "node_modules"),
+        path.join(dir, "node_modules"),
+        "junction",
+      );
+    }
     for (const [name, content] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
       fs.writeFileSync(path.join(dir, name), content);
     }
     return body({ dir, config: stageConfig(dir) });
@@ -237,6 +241,41 @@ test("absent typed dependencies print one stderr notice and keep stdout parseabl
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// A dependency that is installed but fails to load must be reported as such,
+// not as "not installed".
+const brokenFunctionalPlugin = (source) => ({
+  "tsconfig.json": TS_INCLUDE(["*.ts"]),
+  "a.ts": "export const a = 1;\n",
+  "node_modules/eslint-plugin-functional/package.json": JSON.stringify({
+    name: "eslint-plugin-functional",
+    type: "module",
+    main: "index.js",
+  }),
+  "node_modules/eslint-plugin-functional/index.js": source,
+});
+
+test("a typed dependency that throws on load is reported as a load failure", () => {
+  withTempProject(
+    brokenFunctionalPlugin('throw new Error("boom in plugin");\n'),
+    ({ dir, config }) => {
+      const run = runCli({ dir, config, file: "a.ts" });
+      assert.match(run.stderr, /failed to load eslint-plugin-functional: boom in plugin/);
+      assert.doesNotMatch(run.stderr, /not installed: [^;\n]*eslint-plugin-functional/);
+    },
+  );
+});
+
+test("a typed dependency whose own import is missing is a load failure, not 'not installed'", () => {
+  withTempProject(
+    brokenFunctionalPlugin('import "devteam-no-such-dependency";\n'),
+    ({ dir, config }) => {
+      const run = runCli({ dir, config, file: "a.ts" });
+      assert.match(run.stderr, /failed to load eslint-plugin-functional: .*devteam-no-such-dependency/);
+      assert.doesNotMatch(run.stderr, /not installed: [^;\n]*eslint-plugin-functional/);
+    },
+  );
 });
 
 const UNTYPED = "untyped/mutators.js";
