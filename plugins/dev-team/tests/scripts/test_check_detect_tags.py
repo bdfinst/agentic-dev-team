@@ -4,6 +4,7 @@ Each case writes a small agent file under tmp_path and runs the checker's
 ``main`` on it, asserting the exit code and the printed message.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -166,24 +167,145 @@ def test_tag_and_mapping_may_follow_the_bullet_text_on_a_continuation_line(
     assert code == 0
 
 
-def test_every_pending_rule_id_is_accepted(tmp_path, capsys):
-    ids = [
-        "no-var",
-        "prefer-const",
-        "no-plusplus",
-        "no-param-reassign",
-        "no-restricted-globals",
-        "no-restricted-syntax",
-        "max-depth",
-        "no-magic-numbers",
-        "functional/immutable-data",
-    ]
+def _rule_ids(tmp_path: Path, enabled=(), planned=(), convertible=()) -> str:
+    path = tmp_path / "rule-ids.json"
+    path.write_text(
+        json.dumps(
+            {
+                "enabled": list(enabled),
+                "planned": list(planned),
+                "convertible": list(convertible),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return str(path)
+
+
+def test_ids_come_from_the_injected_rule_ids_file(tmp_path, capsys):
+    ids = _rule_ids(tmp_path, enabled=["only-enabled-rule"])
+    mapped = _agent(tmp_path, "Check [MECHANICAL] rule: only-enabled-rule")
+    unmapped = _agent(tmp_path, "Check [MECHANICAL] rule: no-var", name="other.md")
+
+    assert main([str(mapped), "--rule-ids", ids]) == 0
+    capsys.readouterr()
+    assert main([str(unmapped), "--rule-ids", ids]) != 0
+    assert "unknown rule id no-var" in capsys.readouterr().out
+
+
+def test_unknown_id_after_the_switch_exits_nonzero_naming_the_id(tmp_path, capsys):
+    path = _agent(tmp_path, "[MECHANICAL] rule: not-a-real-rule")
+
+    code, out = _run(path, capsys)
+
+    assert code != 0
+    assert "unknown rule id not-a-real-rule" in out
+
+
+def test_planned_ids_are_valid_mappings_until_their_rules_ship(tmp_path, capsys):
+    ids = _rule_ids(tmp_path, enabled=["no-var"], planned=["max-depth"])
+    path = _agent(tmp_path, "Deep [MECHANICAL] rule: max-depth")
+
+    assert main([str(path), "--rule-ids", ids]) == 0
+
+
+def test_every_shipped_rule_id_and_planned_id_is_accepted(tmp_path, capsys):
+    shipped = json.loads(
+        (
+            SCRIPTS_DIR.parent / "templates" / "eslint" / "dev" / "rule-ids.json"
+        ).read_text(encoding="utf-8")
+    )
+    ids = [*shipped["enabled"], *shipped["planned"]]
     path = _agent(tmp_path, *(f"Check {i} [MECHANICAL] rule: {i}" for i in ids))
 
     code, out = _run(path, capsys)
 
     assert code == 0
     assert f"{len(ids)} MECHANICAL" in out
+
+
+@pytest.mark.parametrize("content", ["{not json", "[]", '{"enabled": "no-var"}'])
+def test_malformed_rule_ids_file_exits_with_a_message(tmp_path, capsys, content):
+    bad = tmp_path / "bad.json"
+    bad.write_text(content, encoding="utf-8")
+    path = _agent(tmp_path, VALID_BULLET)
+
+    assert main([str(path), "--rule-ids", str(bad)]) == 2
+    assert "rule-ids" in capsys.readouterr().err
+
+
+def test_pointer_on_a_judgment_bullet_fails(tmp_path, capsys):
+    ids = _rule_ids(tmp_path, enabled=["no-var"], convertible=["no-var"])
+    path = _agent(tmp_path, _pointer().replace("[MECHANICAL] rule: no-var", "[JUDGMENT]"))
+
+    assert main([str(path), "--rule-ids", ids]) != 0
+    assert "a lint pointer needs a [MECHANICAL] tag" in capsys.readouterr().out
+
+
+def test_unreadable_rule_ids_file_exits_with_a_message(tmp_path, capsys):
+    path = _agent(tmp_path, VALID_BULLET)
+
+    code = main([str(path), "--rule-ids", str(tmp_path / "absent.json")])
+
+    assert code == 2
+    assert "rule-ids" in capsys.readouterr().err
+
+
+POINTER = (
+    "`var` → use `const`/`let`. If `eslint.devteam.config.js` enables `{id}` and it "
+    "is wired, judge only {residual}; otherwise judge fully. "
+    "[MECHANICAL] rule: {mapped}"
+)
+
+
+def _pointer(id="no-var", mapped=None, residual="a prefixed `var`"):
+    return POINTER.format(id=id, mapped=mapped or id, residual=residual)
+
+
+def test_pointer_to_a_convertible_rule_passes(tmp_path, capsys):
+    ids = _rule_ids(tmp_path, enabled=["no-var"], convertible=["no-var"])
+    path = _agent(tmp_path, _pointer())
+
+    assert main([str(path), "--rule-ids", ids]) == 0
+
+
+@pytest.mark.parametrize(
+    ("bullet", "reason"),
+    [
+        pytest.param(
+            _pointer(id="prefer-const"),
+            "pointer names prefer-const, which is not marked convertible",
+            id="not-convertible",
+        ),
+        pytest.param(
+            _pointer(id="no-var", mapped="no-plusplus"),
+            "pointer names no-var but the bullet maps to no-plusplus",
+            id="id-differs-from-mapping",
+        ),
+        pytest.param(
+            _pointer().replace("; otherwise judge fully", ""),
+            "pointer must say 'otherwise judge fully'",
+            id="missing-fallback",
+        ),
+        pytest.param(
+            _pointer().replace("enables `no-var` and", "enables and"),
+            "pointer must name the rule id it relies on",
+            id="no-id",
+        ),
+    ],
+)
+def test_malformed_pointer_fails_with_the_reason(tmp_path, capsys, bullet, reason):
+    ids = _rule_ids(
+        tmp_path,
+        enabled=["no-var", "prefer-const", "no-plusplus"],
+        convertible=["no-var", "no-plusplus"],
+    )
+    path = _agent(tmp_path, bullet)
+
+    code = main([str(path), "--rule-ids", ids])
+
+    assert code != 0
+    assert reason in capsys.readouterr().out
 
 
 def test_file_without_detect_section_fails_naming_the_file(tmp_path, capsys):

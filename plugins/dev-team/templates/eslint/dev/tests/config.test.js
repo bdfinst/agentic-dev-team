@@ -97,10 +97,10 @@ const enabledRuleIds = (config) =>
   );
 
 test("config and rule-ids.json agree", () => {
-  const listed = JSON.parse(
+  const { enabled } = JSON.parse(
     fs.readFileSync(path.join(devDir, "rule-ids.json"), "utf8"),
   );
-  assert.deepEqual(enabledRuleIds(devteamConfig), new Set(listed));
+  assert.deepEqual(enabledRuleIds(devteamConfig), new Set(enabled));
 });
 
 test("every enabled rule is severity warn", () => {

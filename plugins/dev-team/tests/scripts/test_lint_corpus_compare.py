@@ -14,7 +14,15 @@ import pytest
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from lint_corpus_compare import EXIT_BAD_INPUT, EXIT_NONE_CONVERTIBLE, compare, main
+from lint_corpus_compare import (
+    EXIT_BAD_INPUT,
+    EXIT_NONE_CONVERTIBLE,
+    compare,
+    load_findings,
+    main,
+)
+
+ESLINT_DEV = SCRIPTS_DIR.parent / "templates" / "eslint" / "dev"
 
 
 def _f(rule, line, file="a.ts"):
@@ -189,6 +197,17 @@ def test_rules_file_that_is_not_a_list_of_strings_exits_with_a_message(tmp_path,
 
     assert code == EXIT_BAD_INPUT
     assert "list of rule id strings" in out.err
+
+
+def test_rule_ids_convertible_list_is_the_comparison_of_the_committed_corpus():
+    agent = load_findings(str(ESLINT_DEV / "corpus" / "agent-found.json"), rule_required=False)
+    rule = load_findings(str(ESLINT_DEV / "corpus" / "rule-found.json"), rule_required=True)
+    ids = json.loads((ESLINT_DEV / "rule-ids.json").read_text(encoding="utf-8"))
+
+    report = compare(agent, rule, rules=ids["enabled"])
+
+    assert ids["convertible"] == report["convertible"]
+    assert set(ids["convertible"]) <= set(ids["enabled"])
 
 
 def test_script_is_executable_with_a_shebang():

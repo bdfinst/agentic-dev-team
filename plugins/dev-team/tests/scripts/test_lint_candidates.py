@@ -120,9 +120,9 @@ class TestCatalog:
             assert entry.rule
 
     def test_shipped_catalog_rules_are_known_rule_ids(self):
-        from check_detect_tags import PENDING_RULE_IDS
+        from check_detect_tags import load_rule_ids
 
-        unknown = {e.rule for e in load_catalog(SHIPPED_CATALOG)} - PENDING_RULE_IDS
+        unknown = {e.rule for e in load_catalog(SHIPPED_CATALOG)} - load_rule_ids().mappable
         assert not unknown
 
     def test_shipped_catalog_maps_the_pilot_bullets(self):

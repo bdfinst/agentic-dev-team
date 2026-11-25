@@ -1,8 +1,22 @@
-[
-  "no-var",
-  "prefer-const",
-  "no-plusplus",
-  "no-param-reassign",
-  "no-restricted-globals",
-  "no-restricted-syntax"
-]
+{
+  "enabled": [
+    "no-var",
+    "prefer-const",
+    "no-plusplus",
+    "no-param-reassign",
+    "no-restricted-globals",
+    "no-restricted-syntax"
+  ],
+  "planned": [
+    "max-depth",
+    "no-magic-numbers",
+    "functional/immutable-data"
+  ],
+  "convertible": [
+    "no-param-reassign",
+    "no-plusplus",
+    "no-restricted-globals",
+    "no-restricted-syntax",
+    "no-var"
+  ]
+}

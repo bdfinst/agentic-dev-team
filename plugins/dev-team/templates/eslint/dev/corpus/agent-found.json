@@ -1,0 +1,225 @@
+{
+  "provenance": "Not a live agent run. evals/fixtures/fp-*.ts: the cases the fixtures plant (their '// mutation:' and 'should be const' comments), cross-checked against the committed issueCount ranges in evals/expected/fp-*.json. corpus/esm-cjs.js and corpus/fp-detect-text.ts: written from the agents' Detect text, so agreement there holds by construction. rule null means no lint rule decides the case.",
+  "findings": [
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-array-mutations.ts",
+      "line": 13
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-array-mutations.ts",
+      "line": 18
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-array-mutations.ts",
+      "line": 23
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-array-mutations.ts",
+      "line": 28
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-array-mutations.ts",
+      "line": 33
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-array-mutations.ts",
+      "line": 37
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-array-mutations.ts",
+      "line": 46
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-array-mutations.ts",
+      "line": 53
+    },
+    {
+      "rule": "prefer-const",
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 5
+    },
+    {
+      "rule": "no-plusplus",
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 9
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 14
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 18
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 19
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 23
+    },
+    {
+      "rule": "no-plusplus",
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 27
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 34
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 35
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 39
+    },
+    {
+      "rule": "prefer-const",
+      "file": "evals/fixtures/fp-global-state.ts",
+      "line": 43
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-impure-computations.ts",
+      "line": 7
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-impure-computations.ts",
+      "line": 12
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-impure-computations.ts",
+      "line": 18
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-impure-computations.ts",
+      "line": 24
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-impure-computations.ts",
+      "line": 28
+    },
+    {
+      "rule": "no-param-reassign",
+      "file": "evals/fixtures/fp-object-mutations.ts",
+      "line": 13
+    },
+    {
+      "rule": "no-param-reassign",
+      "file": "evals/fixtures/fp-object-mutations.ts",
+      "line": 14
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-object-mutations.ts",
+      "line": 22
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-object-mutations.ts",
+      "line": 27
+    },
+    {
+      "rule": "no-param-reassign",
+      "file": "evals/fixtures/fp-object-mutations.ts",
+      "line": 35
+    },
+    {
+      "rule": "no-param-reassign",
+      "file": "evals/fixtures/fp-object-mutations.ts",
+      "line": 44
+    },
+    {
+      "rule": "no-param-reassign",
+      "file": "evals/fixtures/fp-object-mutations.ts",
+      "line": 48
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-shallow-copy-nested-write.ts",
+      "line": 55
+    },
+    {
+      "rule": null,
+      "file": "evals/fixtures/fp-shallow-copy-nested-write.ts",
+      "line": 56
+    },
+    {
+      "rule": "no-restricted-syntax",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+      "line": 3
+    },
+    {
+      "rule": "no-restricted-syntax",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+      "line": 4
+    },
+    {
+      "rule": "no-restricted-syntax",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+      "line": 5
+    },
+    {
+      "rule": "no-restricted-syntax",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+      "line": 6
+    },
+    {
+      "rule": "no-restricted-globals",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+      "line": 7
+    },
+    {
+      "rule": "no-restricted-globals",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+      "line": 8
+    },
+    {
+      "rule": "no-restricted-syntax",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+      "line": 9
+    },
+    {
+      "rule": "no-var",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/fp-detect-text.ts",
+      "line": 3
+    },
+    {
+      "rule": "prefer-const",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/fp-detect-text.ts",
+      "line": 4
+    },
+    {
+      "rule": "no-plusplus",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/fp-detect-text.ts",
+      "line": 10
+    },
+    {
+      "rule": "no-param-reassign",
+      "file": "plugins/dev-team/templates/eslint/dev/corpus/fp-detect-text.ts",
+      "line": 23
+    }
+  ]
+}

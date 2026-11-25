@@ -92,8 +92,10 @@ review agents. Check:
      `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/check_detect_tags.py`. Each
      `## Detect` bullet MUST carry exactly one `[MECHANICAL]` or `[JUDGMENT]`
      tag, and each `[MECHANICAL]` bullet MUST name a lint rule
-     (`rule: <id>`) or give a reason (`no rule: <reason>`). FAIL on any
-     offender. The same check runs as `detect-bullets-tagged` in
+     (`rule: <id>`) or give a reason (`no rule: <reason>`). The id MUST be in
+     `templates/eslint/dev/rule-ids.json` (`enabled` or `planned`). A bullet
+     converted to a lint pointer MUST say "otherwise judge fully" and name a
+     rule listed as `convertible` there. FAIL on any offender. The same check runs as `detect-bullets-tagged` in
      `repo_invariants.py`.
 
 4. **Scope boundaries**: Does the agent declare what it ignores?

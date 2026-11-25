@@ -1,0 +1,112 @@
+[
+  {
+    "rule": "prefer-const",
+    "file": "evals/fixtures/fp-global-state.ts",
+    "line": 5
+  },
+  {
+    "rule": "no-plusplus",
+    "file": "evals/fixtures/fp-global-state.ts",
+    "line": 9
+  },
+  {
+    "rule": "no-plusplus",
+    "file": "evals/fixtures/fp-global-state.ts",
+    "line": 27
+  },
+  {
+    "rule": "prefer-const",
+    "file": "evals/fixtures/fp-global-state.ts",
+    "line": 43
+  },
+  {
+    "rule": "no-param-reassign",
+    "file": "evals/fixtures/fp-object-mutations.ts",
+    "line": 13
+  },
+  {
+    "rule": "no-param-reassign",
+    "file": "evals/fixtures/fp-object-mutations.ts",
+    "line": 14
+  },
+  {
+    "rule": "no-param-reassign",
+    "file": "evals/fixtures/fp-object-mutations.ts",
+    "line": 35
+  },
+  {
+    "rule": "no-param-reassign",
+    "file": "evals/fixtures/fp-object-mutations.ts",
+    "line": 44
+  },
+  {
+    "rule": "no-param-reassign",
+    "file": "evals/fixtures/fp-object-mutations.ts",
+    "line": 48
+  },
+  {
+    "rule": "no-restricted-syntax",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+    "line": 3
+  },
+  {
+    "rule": "no-restricted-syntax",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+    "line": 4
+  },
+  {
+    "rule": "no-restricted-syntax",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+    "line": 5
+  },
+  {
+    "rule": "no-restricted-syntax",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+    "line": 6
+  },
+  {
+    "rule": "no-restricted-globals",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+    "line": 7
+  },
+  {
+    "rule": "no-restricted-globals",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+    "line": 8
+  },
+  {
+    "rule": "no-restricted-syntax",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
+    "line": 9
+  },
+  {
+    "rule": "no-var",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/fp-detect-text.ts",
+    "line": 3
+  },
+  {
+    "rule": "prefer-const",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/fp-detect-text.ts",
+    "line": 4
+  },
+  {
+    "rule": "prefer-const",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/fp-detect-text.ts",
+    "line": 5
+  },
+  {
+    "rule": "prefer-const",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/fp-detect-text.ts",
+    "line": 6
+  },
+  {
+    "rule": "no-plusplus",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/fp-detect-text.ts",
+    "line": 10
+  },
+  {
+    "rule": "no-param-reassign",
+    "file": "plugins/dev-team/templates/eslint/dev/corpus/fp-detect-text.ts",
+    "line": 23
+  }
+]

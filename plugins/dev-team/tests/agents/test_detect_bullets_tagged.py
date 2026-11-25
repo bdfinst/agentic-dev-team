@@ -68,11 +68,34 @@ def test_checker_passes_on_the_four_real_files():
     assert check_detect_tags.main([str(p) for p in AGENT_FILES.values()]) == 0
 
 
-@pytest.mark.parametrize("agent", sorted(AGENT_FILES))
-def test_tagging_leaves_detect_wording_unchanged(agent):
-    # The pinned fixtures were captured from each agent's Detect text before it
-    # was tagged. Update them deliberately when a bullet's wording is
-    # intentionally changed.
+# AC3 exclusion, by name: a bullet converted to a lint pointer is not held to
+# the pinned-wording equality below. It is held to a weaker rule instead: the
+# pinned wording must still be its prefix, because "otherwise judge fully"
+# means the original judgment stays in force when the config is not wired.
+def _converted_to_pointer(bullet_text: str) -> bool:
+    return check_detect_tags.is_pointer(bullet_text)
+
+
+# The convertible bullets (pinned wording) per agent. Only bullets mapped to a
+# rule that rule-ids.json marks convertible are converted; the exception
+# bullets and the `let` bullet (prefer-const is not convertible) stay as they were.
+CONVERTED_BULLETS = {
+    "esm-enforcer": [
+        "- `require()` calls (except in `.cjs` config files like `jest.config.cjs`)",
+        "- `module.exports` or `exports.` assignments",
+        "- `__dirname` or `__filename` (use `import.meta.dirname` / `import.meta.filename` or `fileURLToPath(import.meta.url)`)",
+    ],
+    "js-fp-review": [
+        "- `var` → use `const`/`let`",
+        "- `param.prop = value` (parameter mutation)",
+        "- `param[key] = value` (parameter mutation)",
+        "- Functions modifying parameters",
+        "- `++`/`--` outside loop counters",
+    ],
+}
+
+
+def _current_and_pinned(agent):
     current = [
         _stripped(b.text)
         for b in detect_bullets(AGENT_FILES[agent].read_text(encoding="utf-8"))
@@ -83,8 +106,35 @@ def test_tagging_leaves_detect_wording_unchanged(agent):
             (PINNED_DIR / f"{agent}.txt").read_text(encoding="utf-8")
         )
     ]
+    return current, pinned
 
-    assert current == pinned
+
+@pytest.mark.parametrize("agent", sorted(AGENT_FILES))
+def test_tagging_leaves_detect_wording_unchanged(agent):
+    # The pinned fixtures were captured from each agent's Detect text before it
+    # was tagged. Update them deliberately when a bullet's wording is
+    # intentionally changed.
+    current, pinned = _current_and_pinned(agent)
+
+    assert len(current) == len(pinned)
+    unconverted = [
+        (now, then)
+        for now, then in zip(current, pinned)
+        if not _converted_to_pointer(now)
+    ]
+    assert [now for now, _ in unconverted] == [then for _, then in unconverted]
+    for now, then in zip(current, pinned):
+        if _converted_to_pointer(now):
+            assert now.startswith(then), then
+
+
+@pytest.mark.parametrize("agent", sorted(AGENT_FILES))
+def test_exactly_the_convertible_bullets_are_pointers(agent):
+    current, pinned = _current_and_pinned(agent)
+
+    converted = [then for now, then in zip(current, pinned) if _converted_to_pointer(now)]
+
+    assert converted == CONVERTED_BULLETS.get(agent, [])
 
 
 def test_stripping_removes_each_annotation_form():

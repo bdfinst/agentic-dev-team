@@ -39,10 +39,12 @@ Return `{"status": "skip", "issues": [], "summary": "No JS/TS files in target"}`
 
 ## Detect
 
+Lint pointers: a bullet that says "If `eslint.devteam.config.js` enables ..." applies only when the config is wired: the project's own ESLint config imports it, or `.claude/settings*.json` sets `DEVTEAM_POST_LINT`. Otherwise judge the bullet fully.
+
 Variable declarations:
 
 - `let` never reassigned → use `const` [MECHANICAL] rule: prefer-const
-- `var` → use `const`/`let` [MECHANICAL] rule: no-var
+- `var` → use `const`/`let`. If `eslint.devteam.config.js` enables `no-var` and it is wired, judge only a flagged `var` that carries the `mut`/`mutable`/`_` prefix exemption; otherwise judge fully. [MECHANICAL] rule: no-var
 - Exception: prefixes mut/mutable/_ indicate intentional mutability [MECHANICAL] no rule: name prefix exempts both rules
 
 Array mutations (flag and suggest):
@@ -59,8 +61,8 @@ Array mutations (flag and suggest):
 
 Object mutations:
 
-- `param.prop = value` (parameter mutation) [MECHANICAL] rule: no-param-reassign
-- `param[key] = value` (parameter mutation) [MECHANICAL] rule: no-param-reassign
+- `param.prop = value` (parameter mutation). If `eslint.devteam.config.js` enables `no-param-reassign` and it is wired, judge only writes through an alias of the parameter, which the rule cannot see; otherwise judge fully. [MECHANICAL] rule: no-param-reassign
+- `param[key] = value` (parameter mutation). If `eslint.devteam.config.js` enables `no-param-reassign` and it is wired, judge only writes through an alias of the parameter, which the rule cannot see; otherwise judge fully. [MECHANICAL] rule: no-param-reassign
 - `delete param.prop` [MECHANICAL] no rule: delete on parameter property uncovered
 - `Object.assign(existingObj, ...)` → spread or new object target [MECHANICAL] no rule: Object.assign target argument not covered
 - Exception: `this.property` in class methods allowed [MECHANICAL] rule: no-param-reassign
@@ -74,9 +76,9 @@ Global state:
 
 Impure patterns:
 
-- Functions modifying parameters [MECHANICAL] rule: no-param-reassign
+- Functions modifying parameters. If `eslint.devteam.config.js` enables `no-param-reassign` and it is wired, judge only writes through an alias of the parameter, which the rule cannot see; otherwise judge fully. [MECHANICAL] rule: no-param-reassign
 - Functions depending on/modifying external state [JUDGMENT]
-- `++`/`--` outside loop counters [MECHANICAL] rule: no-plusplus
+- `++`/`--` outside loop counters. If `eslint.devteam.config.js` enables `no-plusplus` and it is wired, judge only a flagged `++`/`--` that is a loop counter outside the `for` header; otherwise judge fully. [MECHANICAL] rule: no-plusplus
 - Side effects buried inside a value-returning computation: `console.*`, DOM access (`document.*`, `querySelector`), network calls (`fetch`, `axios`, `$.ajax`, `$.getJSON`), filesystem calls (`fs.*`), non-deterministic reads (`Math.random()`, `Date.now()`, argless `new Date()`) — each makes the function's output depend on more than its declared inputs [JUDGMENT]
 - Exception: a declared effect boundary — the same word, `io`/`adapter(s)`/`client(s)`/`repository`(`-ies`)/`gateway(s)`/`effects`/`persistence`/`infrastructure`/`dal`, appearing either as a full path segment with any prefix (`src/adapter/`, `lib/io/`) or as a dotted filename suffix regardless of extension (`*.adapter.ts`, `*.client.js`, `*.effects.tsx`) — is expected to perform effects. A bare substring match does not qualify (`options.ts`, `actions.ts`, and `session.ts` are not `io`; a `Client` entity under `domain/` is not exempt) — this narrows purity scope only and never overrides security-review's own findings [JUDGMENT]
 
