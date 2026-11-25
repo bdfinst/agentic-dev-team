@@ -4,10 +4,13 @@
 Usage: npm_lock_current.py [DIR]    (DIR defaults to the current directory)
 
 Reads every `packages` entry of `package-lock.json`, so a change to a
-transitive dependency alone reads as stale. An optional entry that is not
-installed (a platform-specific binary; `optional` or `devOptional`) does not
-count as stale. A missing lockfile, a missing `node_modules`, a missing required
-package, or a version mismatch all exit 1.
+transitive dependency alone reads as stale. A missing `optional` or
+`devOptional` entry is not stale only when it carries `os`/`cpu` limits, which
+make `npm ci` skip it on a platform that does not match. `devOptional` is the
+overlap of the dev and optional trees (npm's package-lock docs), so `npm ci`
+installs it and a missing entry without platform limits is stale. A missing or
+malformed lockfile, a missing `node_modules`, a missing required package, or a
+version mismatch all exit 1.
 
 `npm ci` deletes `node_modules` first, so callers run it only on exit 1.
 
@@ -25,13 +28,20 @@ def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _may_be_skipped(entry: dict) -> bool:
+    """An optional entry limited to some platforms, which `npm ci` leaves out
+    where they do not match."""
+    optional = entry.get("optional") or entry.get("devOptional")
+    return bool(optional and (entry.get("os") or entry.get("cpu")))
+
+
 def _entry_is_current(project: Path, key: str, entry: dict) -> bool:
     if entry.get("link"):
         return True
     try:
         installed = _read_json(project / key / "package.json")
     except FileNotFoundError:
-        return bool(entry.get("optional") or entry.get("devOptional"))
+        return _may_be_skipped(entry)
     return installed["version"] == entry["version"]
 
 
