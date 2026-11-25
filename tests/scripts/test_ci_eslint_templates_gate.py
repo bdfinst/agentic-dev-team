@@ -21,6 +21,7 @@ and `pytest` too.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import signal
@@ -96,8 +97,9 @@ def npm_shim_dir(tmp_path):
     return shim, tmp_path / "npm-calls.txt"
 
 
-def fake_template_tree(root, eslint_version=None):
-    """A template tree holding only `dev/`, with a stub ESLint when given a version."""
+def fake_template_tree(root, eslint_version=None, lock_version=None):
+    """A template tree holding only `dev/`, with a stub ESLint when given a
+    version and a `package-lock.json` pinning ESLint when given a lock version."""
     (root / "dev").mkdir(parents=True)
     if eslint_version is not None:
         eslint = root / "dev" / "node_modules" / "eslint"
@@ -105,15 +107,42 @@ def fake_template_tree(root, eslint_version=None):
         (eslint / "package.json").write_text(
             f'{{"version": "{eslint_version}"}}', encoding="utf-8"
         )
+    if lock_version is not None:
+        (root / "dev" / "package-lock.json").write_text(
+            json.dumps(
+                {"packages": {"node_modules/eslint": {"version": lock_version}}}
+            ),
+            encoding="utf-8",
+        )
     return root
+
+
+def dev_dir(templates):
+    """The `dev/` path as the gate prints it (resolved by `cd ... && pwd`)."""
+    return (templates / "dev").resolve()
+
+
+def path_without_node(tmp_path):
+    """A `bin/` holding only the tools the gate calls before its node probe."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for tool in SHELL_TOOLS:
+        found = shutil.which(tool)
+        if found:
+            (bin_dir / tool).symlink_to(found)
+    return bin_dir
 
 
 @needs_node
 def test_wrong_eslint_major_fails_naming_the_needed_major(tmp_path):
     templates = fake_template_tree(tmp_path / "eslint", eslint_version="8.0.0")
+    dev = dev_dir(templates)
     code, output = run_gate(gate_env(templates), timeout=120)
     assert code != 0, output
-    assert "needs ESLint 9" in output, output
+    assert (
+        f"ESLint 8.0.0 found under {dev}; this gate needs ESLint 9 (run npm ci in {dev})"
+        in output
+    ), output
 
 
 @needs_node
@@ -127,23 +156,52 @@ def test_missing_install_fails_telling_you_to_run_npm_ci_and_never_runs_it(tmp_p
     )
     code, output = run_gate(env, timeout=120)
     assert code != 0, output
-    assert "run npm ci in" in output, output
+    dev = dev_dir(templates)
+    assert f"ESLint is not installed under {dev}; run npm ci in {dev}" in output, output
     assert not calls.exists(), f"the gate ran npm: {calls.read_text()}"
     assert not (templates / "dev" / "node_modules" / ".package-lock.json").exists()
 
 
 def test_missing_node_fails_under_ci(tmp_path):
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    for tool in SHELL_TOOLS:
-        found = shutil.which(tool)
-        if found:
-            (bin_dir / tool).symlink_to(found)
     templates = fake_template_tree(tmp_path / "eslint", eslint_version="9.0.0")
-    env = gate_env(templates, PATH=str(bin_dir), CI="1")
+    env = gate_env(templates, PATH=str(path_without_node(tmp_path)), CI="1")
     code, output = run_gate(env, timeout=120)
     assert code != 0, output
     assert "node and npm are required in CI" in output, output
+
+
+def test_missing_node_skips_outside_ci(tmp_path):
+    templates = fake_template_tree(tmp_path / "eslint", eslint_version="9.0.0")
+    env = gate_env(templates, PATH=str(path_without_node(tmp_path)))
+    assert "CI" not in env
+    code, output = run_gate(env, timeout=120)
+    assert code == 0, output
+    assert "skipped (node or npm not found" in output, output
+
+
+@needs_node
+def test_an_install_that_differs_from_its_lockfile_fails_telling_you_to_run_npm_ci(
+    tmp_path,
+):
+    templates = fake_template_tree(
+        tmp_path / "eslint", eslint_version="9.0.0", lock_version="9.1.0"
+    )
+    dev = dev_dir(templates)
+    code, output = run_gate(gate_env(templates), timeout=120)
+    assert code != 0, output
+    assert (
+        f"node_modules under {dev} differ from its package-lock.json; run npm ci in {dev}"
+        in output
+    ), output
+
+
+@needs_node
+def test_an_install_that_matches_its_lockfile_passes_the_lock_check(tmp_path):
+    templates = fake_template_tree(
+        tmp_path / "eslint", eslint_version="9.0.0", lock_version="9.0.0"
+    )
+    _, output = run_gate(gate_env(templates), timeout=120)
+    assert "differ from its package-lock.json" not in output, output
 
 
 def link_or_copy(src, dst):

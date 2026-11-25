@@ -715,7 +715,7 @@ chk_eslint_templates() {
       python3 -m pytest -q -rs plugins/dev-team/tests/hooks/test_post_lint.py \
       tests/scripts/test_ci_eslint_templates_gate.py >"$out" 2>&1 || rc=1
     cat "$out"
-    if ! grep -Eq '[0-9]+ passed' "$out" || grep -Eq '[0-9]+ skipped' "$out"; then
+    if ! python3 scripts/pytest_ran_all.py "$out"; then
       printf '%s✗ the real-ESLint pytest stage skipped tests or passed none; it must run them all%s\n' "$red" "$reset"
       rc=1
     fi
