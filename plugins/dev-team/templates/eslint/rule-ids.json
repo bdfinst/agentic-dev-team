@@ -5,12 +5,12 @@
     "no-plusplus",
     "no-param-reassign",
     "no-restricted-globals",
-    "no-restricted-syntax"
+    "no-restricted-syntax",
+    "functional/immutable-data"
   ],
   "planned": [
     "max-depth",
-    "no-magic-numbers",
-    "functional/immutable-data"
+    "no-magic-numbers"
   ],
   "convertible": [
     "no-param-reassign"

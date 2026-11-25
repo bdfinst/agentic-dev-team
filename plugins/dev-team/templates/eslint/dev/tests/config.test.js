@@ -5,11 +5,11 @@ import path from "node:path";
 import process from "node:process";
 import test from "node:test";
 
-import devteamConfig from "../../payload/eslint.devteam.config.js";
 import {
   configPath,
   createESLint,
   devDir,
+  devteamConfig,
   diffPairs,
   eslintBin,
   eslintVersion,

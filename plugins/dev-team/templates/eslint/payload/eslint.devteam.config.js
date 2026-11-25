@@ -6,11 +6,101 @@
 //   import devteam from "./eslint.devteam.config.js";
 //   export default [...yourConfig, ...devteam];
 // Globs use forward slashes on every platform.
+//
+// Array-mutation checks need type information, so they run only on files your
+// own `tsconfig.json` (next to this file) covers, and only when
+// `eslint-plugin-functional`, `@typescript-eslint/parser` and `typescript` are
+// installed. Otherwise they are skipped with one notice on stderr. Set
+// `DEVTEAM_LINT_TYPED=0` to skip them silently. This file never creates or
+// edits a tsconfig.
+
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 const SOURCE_FILES = ["**/*.{js,jsx,mjs,ts,tsx,mts}"];
 const COMMONJS_FILES = ["**/*.{cjs,cts}"];
 
 const esmReplacement = (what, instead) => `${what}. ${instead}`;
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
+
+const importOptional = async (id) => {
+  try {
+    const loaded = await import(id);
+    return loaded.default ?? loaded;
+  } catch {
+    return undefined;
+  }
+};
+
+// Characters a glob would read as syntax, wrapped in a class so no backslash is needed.
+const literalGlob = (file) => file.replace(/[*?[\]{}()!+@]/g, "[$&]");
+
+// Project-relative paths of the files the user's tsconfig.json covers.
+const coveredFiles = (ts) => {
+  const tsconfig = path.join(rootDir, "tsconfig.json");
+  const { config, error } = ts.readConfigFile(tsconfig, ts.sys.readFile);
+  if (error !== undefined) return [];
+  return ts
+    .parseJsonConfigFileContent(config, ts.sys, rootDir)
+    .fileNames.map((file) => path.relative(rootDir, file).split(path.sep).join("/"))
+    .filter((relative) => !relative.startsWith(".."))
+    .map(literalGlob);
+};
+
+// `functional/immutable-data` also reports property writes, `delete`,
+// `Object.assign`, and Set/Map mutators. This config covers array mutators
+// only, so the processor keeps that rule's array messages and drops the rest.
+const arrayMutationOnly = {
+  meta: { name: "devteam/array-mutation-only" },
+  supportsAutofix: true,
+  preprocess: (text) => [text],
+  postprocess: ([messages]) =>
+    messages.filter(
+      ({ ruleId, messageId }) =>
+        ruleId !== "functional/immutable-data" || messageId === "array",
+    ),
+};
+
+// The one place that decides whether typed rules run, and for which files.
+const typedConfig = async () => {
+  if (process.env.DEVTEAM_LINT_TYPED === "0") return [];
+  if (!fs.existsSync(path.join(rootDir, "tsconfig.json"))) return [];
+  const needed = {
+    "eslint-plugin-functional": await importOptional("eslint-plugin-functional"),
+    "@typescript-eslint/parser": await importOptional("@typescript-eslint/parser"),
+    typescript: await importOptional("typescript"),
+  };
+  const missing = Object.keys(needed).filter((id) => needed[id] === undefined);
+  if (missing.length > 0) {
+    process.stderr.write(
+      `devteam-lint: typed rules skipped, not installed: ${missing.join(", ")}\n`,
+    );
+    return [];
+  }
+  const files = coveredFiles(needed.typescript);
+  if (files.length === 0) return [];
+  return [
+    {
+      name: "devteam/array-mutation",
+      files,
+      processor: arrayMutationOnly,
+      plugins: { functional: needed["eslint-plugin-functional"] },
+      languageOptions: {
+        parser: needed["@typescript-eslint/parser"],
+        parserOptions: { projectService: true, tsconfigRootDir: rootDir },
+      },
+      rules: {
+        "functional/immutable-data": [
+          "warn",
+          { ignoreAccessorPattern: ["this.**"] },
+        ],
+      },
+    },
+  ];
+};
 
 export default [
   {
@@ -80,4 +170,5 @@ export default [
       ],
     },
   },
+  ...(await typedConfig()),
 ];

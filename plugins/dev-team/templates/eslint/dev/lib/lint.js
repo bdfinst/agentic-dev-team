@@ -8,7 +8,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import devteamConfig from "../../payload/eslint.devteam.config.js";
+import { arrayMutationDir, loadStagedConfig } from "./stage.js";
 
 export const devDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -23,7 +23,7 @@ export const configPath = path.resolve(
 const eslintRequire = createRequire(
   path.join(process.env.DEVTEAM_ESLINT_ROOT ?? devDir, "resolve.js"),
 );
-const { ESLint } = eslintRequire("eslint");
+export const { ESLint } = eslintRequire("eslint");
 const eslintPackage = eslintRequire.resolve("eslint/package.json");
 
 export const eslintVersion = eslintRequire("eslint/package.json").version;
@@ -34,6 +34,9 @@ export const eslintBin = path.join(
 );
 
 const tsParser = createRequire(import.meta.url)("@typescript-eslint/parser");
+
+/** The shipped config as it loads beside the array-mutation fixtures' tsconfig. */
+export const devteamConfig = await loadStagedConfig(arrayMutationDir);
 
 /** The shipped config plus the TypeScript parser the user's own config would supply. */
 export const devteamWithTypeScript = [

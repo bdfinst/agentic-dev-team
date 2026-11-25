@@ -1,0 +1,181 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import test from "node:test";
+
+
+import { ESLint, devteamConfig, diffPairs, eslintBin, toPairs } from "../lib/lint.js";
+import { arrayMutationDir, stageConfig } from "../lib/stage.js";
+
+const tsParser = createRequire(import.meta.url)("@typescript-eslint/parser");
+const expected = JSON.parse(
+  fs.readFileSync(path.join(arrayMutationDir, "expected.json"), "utf8"),
+);
+const readFixture = (rel) =>
+  fs.readFileSync(path.join(arrayMutationDir, rel), "utf8");
+const toCrlf = (text) => text.replace(/\r?\n/g, "\r\n");
+const sortPairs = (pairs) =>
+  [...pairs].sort(
+    ([ruleA, lineA], [ruleB, lineB]) =>
+      lineA - lineB || ruleA.localeCompare(ruleB),
+  );
+
+// A user's own config supplies the TypeScript parser for files the typed
+// block does not cover; the typed block sets it for the files it does.
+const eslint = new ESLint({
+  cwd: arrayMutationDir,
+  overrideConfigFile: true,
+  overrideConfig: [
+    { files: ["**/*.ts"], languageOptions: { parser: tsParser } },
+    ...devteamConfig,
+  ],
+});
+
+const messagesFor = async (rel, text = readFixture(rel)) => {
+  const [result] = await eslint.lintText(text, {
+    filePath: path.join(arrayMutationDir, rel),
+  });
+  return result.messages;
+};
+const pairsFor = async (rel, text) =>
+  sortPairs(toPairs((await messagesFor(rel, text)).map(
+    ({ ruleId, line }) => ({ rule: ruleId, line }),
+  )));
+const lineOf = (rel, needle) =>
+  readFixture(rel).split("\n").findIndex((line) => line.includes(needle)) + 1;
+
+test("typed TS and JSDoc JS flag exactly the expected mutations", async () => {
+  const keys = Object.keys(expected);
+  const typedFiles = fs
+    .readdirSync(path.join(arrayMutationDir, "typed"))
+    .map((name) => `typed/${name}`);
+  assert.deepEqual([...keys].sort(), [...typedFiles].sort());
+  for (const rel of keys) {
+    assert.deepEqual(await pairsFor(rel), sortPairs(expected[rel]), rel);
+  }
+});
+
+test("a local accumulator is a finding; this.* in a class method is not", async () => {
+  for (const rel of ["typed/mutators.ts", "typed/jsdoc-mutators.js"]) {
+    const flagged = (await pairsFor(rel)).map(([, line]) => line);
+    assert.ok(flagged.includes(lineOf(rel, "out.push(item)")), rel);
+    assert.ok(!flagged.includes(lineOf(rel, "this.items.push(value)")), rel);
+  }
+});
+
+test("a file the tsconfig does not cover is not reported and does not fail to parse", async () => {
+  const rel = "uncovered/not-in-tsconfig.ts";
+  assert.ok(readFixture(rel).includes("xs.push(1)"));
+  assert.deepEqual(await messagesFor(rel), []);
+});
+
+test("typed files keep autofix for the other rules", async () => {
+  const rel = "typed/util.ts";
+  const text = `var legacy = 1;\n${readFixture(rel)}`;
+  const fixer = new ESLint({
+    cwd: arrayMutationDir,
+    overrideConfigFile: true,
+    overrideConfig: devteamConfig,
+    fix: true,
+  });
+  const [result] = await fixer.lintText(text, {
+    filePath: path.join(arrayMutationDir, rel),
+  });
+  assert.match(result.output ?? "", /^const legacy/);
+});
+
+test("adding a violation makes the comparison report one extra finding", async () => {
+  const rel = "typed/mutators.ts";
+  const added = `${readFixture(rel)}\nexport function added(xs: number[]): void {\n  xs.push(9);\n}\n`;
+  const { extra, missing } = diffPairs(
+    await pairsFor(rel, added),
+    expected[rel],
+  );
+  assert.equal(extra.length, 1);
+  assert.equal(extra[0][0], "functional/immutable-data");
+  assert.deepEqual(missing, []);
+});
+
+// util.ts is committed in lower case; if "Util.ts" resolves, the file system
+// that holds the fixtures ignores case.
+const caseInsensitive = () =>
+  fs.existsSync(path.join(arrayMutationDir, "typed", "Util.ts"));
+
+test(
+  "a mis-cased import reports no false finding and no parse error",
+  { skip: caseInsensitive() ? "case-insensitive file system" : false },
+  async () => {
+    const rel = "typed/mis-cased.ts";
+    assert.ok(readFixture(rel).includes('"./Util"'));
+    const messages = await messagesFor(rel);
+    assert.ok(messages.every((message) => !message.fatal));
+    assert.deepEqual(await pairsFor(rel), sortPairs(expected[rel]));
+  },
+);
+
+test("CRLF array-mutation fixtures match LF", async () => {
+  for (const rel of ["typed/mutators.ts", "typed/jsdoc-mutators.js"]) {
+    assert.deepEqual(
+      await pairsFor(rel, toCrlf(readFixture(rel))),
+      await pairsFor(rel),
+      rel,
+    );
+  }
+});
+
+const runCli = ({ dir, config, file, env = {} }) => {
+  const run = spawnSync(
+    process.execPath,
+    [eslintBin, "--config", config, "--format", "json", file],
+    { cwd: dir, encoding: "utf8", env: { ...process.env, ...env } },
+  );
+  return { ...run, report: JSON.parse(run.stdout) };
+};
+
+test("typed mode keeps stdout parseable JSON and prints no notice", () => {
+  const config = stageConfig(arrayMutationDir);
+  const run = runCli({
+    dir: arrayMutationDir,
+    config,
+    file: "typed/mutators.ts",
+  });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stderr, "");
+  assert.equal(
+    run.report[0].messages.length,
+    expected["typed/mutators.ts"].length,
+  );
+});
+
+test("DEVTEAM_LINT_TYPED=0 skips the typed rules silently", () => {
+  const run = runCli({
+    dir: arrayMutationDir,
+    config: stageConfig(arrayMutationDir),
+    file: "typed/jsdoc-mutators.js",
+    env: { DEVTEAM_LINT_TYPED: "0" },
+  });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stderr, "");
+  assert.deepEqual(run.report[0].messages, []);
+});
+
+test("absent typed dependencies print one stderr notice and keep stdout parseable", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "devteam-nodeps-"));
+  try {
+    fs.writeFileSync(path.join(dir, "tsconfig.json"), "{}\n");
+    fs.writeFileSync(path.join(dir, "a.js"), "export const a = 1;\n");
+    const config = path.join(dir, "eslint.devteam.config.js");
+    fs.copyFileSync(stageConfig(arrayMutationDir), config);
+    const run = runCli({ dir, config, file: "a.js" });
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(run.report[0].messages, []);
+    assert.equal(run.stderr.match(/devteam-lint/g)?.length, 1, run.stderr);
+    assert.match(run.stderr, /eslint-plugin-functional/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -36,13 +36,35 @@ A rule that is not imported does nothing. The agents treat the config as *wired*
 | `no-restricted-globals` | `esm-enforcer`: `__dirname`, `__filename` | not convertible: no agent evidence |
 | `no-restricted-syntax` | `esm-enforcer`: `require()` calls, `module.exports` and `exports.` assignments | not convertible: no agent evidence |
 
-Every other Detect bullet is `no rule`. The ids `functional/immutable-data`, `max-depth`, and `no-magic-numbers` are `planned`: bullets may map to them, but no shipped rule enables them yet.
+`functional/immutable-data` (typed mode only, see below) is enabled and maps to the `js-fp-review` array-mutator bullets. It is not convertible: no agent evidence has been collected for it, so those bullets keep full agent coverage.
+
+Every other Detect bullet is `no rule`. The ids `max-depth` and `no-magic-numbers` are `planned`: bullets may map to them, but no shipped rule enables them yet.
+
+## Array mutation (typed mode)
+
+`functional/immutable-data` needs type information to tell an array from a `Set` or a class with its own `push`. It runs only on files your own `tsconfig.json` covers. The config reads that file; it never creates or edits one.
+
+Requirements:
+
+- `tsconfig.json` in the same directory as `eslint.devteam.config.js`. Its `include`, `files`, `exclude`, and `extends` decide which files are covered. A solution-style tsconfig that only lists `references` covers no files, so typed rules do not run.
+- `allowJs` or `checkJs` (which implies `allowJs`) in that tsconfig to cover JavaScript with JSDoc types.
+- `eslint-plugin-functional`, `@typescript-eslint/parser`, and `typescript` installed in your project. Tested with `eslint-plugin-functional` 10.0.1 (ESLint 9 and 10), `@typescript-eslint/parser` 8.60.1, `typescript` 5.9.3.
+
+When a dependency is missing, the typed rules are skipped and one line goes to stderr (`devteam-lint: typed rules skipped, not installed: ...`). stdout stays clean for `--format json`. Set `DEVTEAM_LINT_TYPED=0` to skip the typed rules with no notice. Both cases leave every other rule running.
+
+The config registers the plugin as `functional`, so a second `functional` plugin object in your own config for the same files fails with a redefinition error.
+
+What is a finding (`warn`): `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, and `fill` on an array that is a parameter, a captured outer variable, a module-level variable, or a local accumulator (`const out = []; out.push(x)`).
+
+What is not: `this.*` in a class method, copies (`[...a].sort()`, `a.slice().reverse()`), `toSorted`, `toSpliced`, `toReversed`, a `Set` or `Map`, and a custom class with its own `push` or `sort`. The rule also reports property writes, `delete`, and `Object.assign`; a processor in the config drops those messages, so the rule id reports array mutators only.
 
 ## Known limits
 
 - The `no-restricted-syntax` selectors are scope-blind. A call to a local binding named `require` is flagged, for example `const require = createRequire(import.meta.url); require("./data.json")`. A local named `module` or `exports` that is assigned to is flagged the same way.
 - `.cjs` and `.cts` files are exempt from the ESM rules, matching the agent's `jest.config.cjs` exception.
 - `no-param-reassign` does not see a write through an alias of the parameter.
+- The typed rule lists every covered file as a glob when the config loads. A very large tsconfig pays for that on each lint run.
+- The processor that filters the typed rule's messages occupies the processor slot for the covered files. A config that attaches its own processor to the same files conflicts with it.
 
 ## Converted bullets
 

@@ -10,6 +10,7 @@
   "devDependencies": {
     "@typescript-eslint/parser": "8.60.1",
     "eslint": "9.39.4",
+    "eslint-plugin-functional": "10.0.1",
     "typescript": "5.9.3"
   }
 }
