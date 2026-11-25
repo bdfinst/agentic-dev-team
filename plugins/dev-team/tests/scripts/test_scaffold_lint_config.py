@@ -95,8 +95,11 @@ class TestPayloadConstants:
         )
         assert sorted(scaffold.PAYLOAD_FILES) == on_disk
 
-    def test_hook_hardcoded_name_is_a_payload_file(self):
-        assert CONFIG_NAME in scaffold.PAYLOAD_FILES
+    def test_the_file_the_hook_looks_for_is_a_payload_file(self):
+        assert post_lint.CONFIG_NAME in scaffold.PAYLOAD_FILES
+
+    def test_this_suite_names_the_same_file_as_the_hook(self):
+        assert CONFIG_NAME == post_lint.CONFIG_NAME
 
     def test_payload_header_wiring_order_matches_the_scaffold_next_step(self):
         header = (PAYLOAD_DIR / CONFIG_NAME).read_text(encoding="utf-8")
@@ -269,30 +272,6 @@ class TestStamp:
     def test_body_hash_covers_bytes_exactly_so_crlf_changes_it(self):
         assert scaffold.body_hash(b"a\r\nb") != scaffold.body_hash(b"a\nb")
 
-    def test_plugin_version_is_read_from_the_manifest(self, tmp_path):
-        manifest = tmp_path / "plugin.json"
-        manifest.write_text('{"version": "3.1.4"}', encoding="utf-8")
-        assert scaffold.read_plugin_version(manifest) == "3.1.4"
-
-    def test_unreadable_manifest_is_an_error(self, tmp_path):
-        with pytest.raises(scaffold.ScaffoldError):
-            scaffold.read_plugin_version(tmp_path / "missing.json")
-
-    @pytest.mark.parametrize(
-        ("raw", "major"),
-        [
-            ("9.0.0", 9),
-            ("10.4.2", 10),
-            ("10.0.0-rc.1", 10),
-            ("v9", None),
-            ("", None),
-            ("9.0.0\nx", None),
-            ("9.0.0 ", None),
-        ],
-    )
-    def test_parse_major(self, raw, major):
-        assert scaffold.parse_major(raw) == major
-
     def test_user_eslint_config_and_tsconfig_stay_byte_identical(
         self, tmp_path, capsys
     ):
@@ -319,24 +298,6 @@ class TestIdempotentRerun:
         before = snapshot(project)
         run(project, capsys)
         assert snapshot(project) == before
-
-    def test_summary_names_mode_and_next_steps(self, tmp_path, capsys):
-        project = make_project(tmp_path / "p")
-        _, out = run(project, capsys)
-        assert "mode: untyped" in out
-        assert "untyped misses:" in out
-        assert "DEVTEAM_POST_LINT=1" in out
-        assert 'import devteam from "./eslint.devteam.config.js"' in out
-
-    def test_typed_mode_when_tsconfig_and_dependencies_are_installed(
-        self, tmp_path, capsys
-    ):
-        project = make_project(tmp_path / "p")
-        for dep in scaffold.TYPED_DEPENDENCIES:
-            (project / "node_modules" / Path(dep)).mkdir(parents=True)
-        _, out = run(project, capsys)
-        assert "mode: typed" in out
-        assert "untyped misses:" not in out
 
 
 def write_state(project: Path, state: str) -> bytes:
@@ -442,11 +403,6 @@ class TestRefresh:
         assert victim.read_bytes() == scaffold.stamp(OLD_VERSION, body)
         assert json.loads(out) == {"refreshed": [], "skipped": {CONFIG_NAME: "symlink"}}
 
-    def test_check_and_refresh_are_mutually_exclusive(self, tmp_path):
-        with pytest.raises(SystemExit) as exit_info:
-            main(["--project", str(tmp_path), "--check", "--refresh"])
-        assert exit_info.value.code == 2
-
 
 def git_init(path: Path) -> None:
     if shutil.which("git") is None:
@@ -526,3 +482,58 @@ class TestWriteFailure:
         assert code == 2
         assert captured.out == ""
         assert "cannot write" in captured.err
+
+
+class TestVersionParsing:
+    @pytest.mark.parametrize(
+        ("raw", "major"),
+        [
+            ("9.0.0", 9),
+            ("10.4.2", 10),
+            ("10.0.0-rc.1", 10),
+            ("v9", None),
+            ("", None),
+            ("9.0.0\nx", None),
+            ("9.0.0 ", None),
+        ],
+    )
+    def test_parse_major(self, raw, major):
+        assert scaffold.parse_major(raw) == major
+
+
+class TestPluginVersion:
+    def test_plugin_version_is_read_from_the_manifest(self, tmp_path):
+        manifest = tmp_path / "plugin.json"
+        manifest.write_text('{"version": "3.1.4"}', encoding="utf-8")
+        assert scaffold.read_plugin_version(manifest) == "3.1.4"
+
+    def test_unreadable_manifest_is_an_error(self, tmp_path):
+        with pytest.raises(scaffold.ScaffoldError):
+            scaffold.read_plugin_version(tmp_path / "missing.json")
+
+
+class TestSummary:
+    def test_summary_names_mode_and_next_steps(self, tmp_path, capsys):
+        project = make_project(tmp_path / "p")
+        _, out = run(project, capsys)
+        assert "mode: untyped" in out
+        assert "untyped misses:" in out
+        assert "DEVTEAM_POST_LINT=1" in out
+        assert 'import devteam from "./eslint.devteam.config.js"' in out
+
+    def test_typed_mode_when_tsconfig_and_dependencies_are_installed(
+        self, tmp_path, capsys
+    ):
+        project = make_project(tmp_path / "p")
+        for dep in scaffold.TYPED_DEPENDENCIES:
+            (project / "node_modules" / Path(dep)).mkdir(parents=True)
+        _, out = run(project, capsys)
+        assert "mode: typed" in out
+        assert "untyped misses:" not in out
+
+
+class TestArguments:
+    def test_check_and_refresh_are_mutually_exclusive(self, tmp_path):
+        with pytest.raises(SystemExit) as exit_info:
+            main(["--project", str(tmp_path), "--check", "--refresh"])
+        assert exit_info.value.code == 2
