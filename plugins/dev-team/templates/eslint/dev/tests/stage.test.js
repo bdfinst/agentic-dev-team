@@ -42,21 +42,42 @@ test("staging many directories registers one exit listener", () => {
   );
 });
 
+// Runs a fresh process that stages a config in `dir`, reports the staged path
+// and whether it existed, then runs `ending`.
+const runStagingChild = (dir, ending) => {
+  const script = `
+    import fs from "node:fs";
+    import { stageConfig } from ${JSON.stringify(stageUrl)};
+    const file = stageConfig(${JSON.stringify(dir)});
+    process.stdout.write(JSON.stringify({ file, existedBefore: fs.existsSync(file) }));
+    ${ending}
+  `;
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+    encoding: "utf8",
+    timeout: 60_000,
+  });
+  assert.ifError(run.error);
+  return { run, ...JSON.parse(run.stdout) };
+};
+
 test("a SIGTERM removes the staged config", () => {
   withTempDir((dir) => {
-    const script = `
-      import { stageConfig } from ${JSON.stringify(stageUrl)};
-      process.stdout.write(stageConfig(${JSON.stringify(dir)}));
-      process.kill(process.pid, "SIGTERM");
-      setTimeout(() => {}, 5000);
-    `;
-    const run = spawnSync(
-      process.execPath,
-      ["--input-type=module", "-e", script],
-      { encoding: "utf8", timeout: 60_000 },
+    const { run, file, existedBefore } = runStagingChild(
+      dir,
+      'process.kill(process.pid, "SIGTERM"); setTimeout(() => {}, 5000);',
     );
     assert.equal(run.signal, "SIGTERM", run.stderr);
-    assert.ok(run.stdout.endsWith(".config.js"), run.stdout);
-    assert.equal(fs.existsSync(run.stdout), false);
+    assert.ok(file.endsWith(".config.js"), file);
+    assert.equal(existedBefore, true);
+    assert.equal(fs.existsSync(file), false);
+  });
+});
+
+test("a normal exit removes the staged config", () => {
+  withTempDir((dir) => {
+    const { run, file, existedBefore } = runStagingChild(dir, "");
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(existedBefore, true);
+    assert.equal(fs.existsSync(file), false);
   });
 });
