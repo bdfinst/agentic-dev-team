@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -42,8 +43,10 @@ if marker:
 mode = os.environ.get("FAKE_MODE", "json")
 if mode == "sleep":
     child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
-    with open(os.environ["FAKE_PIDS"], "w") as handle:
+    pids = os.environ["FAKE_PIDS"]
+    with open(pids + ".tmp", "w") as handle:
         json.dump([os.getpid(), child.pid], handle)
+    os.replace(pids + ".tmp", pids)
     time.sleep(30)
 elif mode == "exit2":
     sys.stderr.write("config error\\n")
@@ -101,6 +104,22 @@ class Project:
     @property
     def invoked(self) -> bool:
         return self.marker.exists()
+
+
+# Variables that change the hook's or ESLint's behavior; none may leak in from
+# the machine or CI job running the tests. `GIT_*` matters most: a git hook
+# (pre-push) exports GIT_DIR, which redirects the `git rev-parse` that finds the
+# project root to this checkout.
+AMBIENT_PREFIXES = ("DEVTEAM_POST_LINT", "DEVTEAM_LINT_TYPED", "ESLINT_", "GIT_")
+AMBIENT_NAMES = ("NODE_OPTIONS", "CLAUDE_PROJECT_DIR")
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_environment(monkeypatch):
+    for name in [n for n in os.environ if n.startswith(AMBIENT_PREFIXES)]:
+        monkeypatch.delenv(name)
+    for name in AMBIENT_NAMES:
+        monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture
@@ -197,12 +216,29 @@ def _break_config(project: Project) -> None:
     (project.root / post_lint.CONFIG_NAME).unlink()
 
 
+# reason -> (breaks the project, extra fake-node env, the one-line notice)
 FAIL_OPEN_ROWS = {
-    "no-eslint": (_break_eslint, {}),
-    "no-node": (_break_node, {}),
-    "no-config": (_break_config, {}),
-    "no-json": (None, {"FAKE_MODE": "exit2"}),
-    "invalid-json": (None, {"FAKE_STDOUT": "not json"}),
+    "no-eslint": (
+        _break_eslint,
+        {},
+        "ESLint not found in project; lint skipped",
+    ),
+    "no-node": (_break_node, {}, "node not found on PATH; lint skipped"),
+    "no-config": (
+        _break_config,
+        {},
+        "eslint.devteam.config.js not found in project; lint skipped",
+    ),
+    "no-json": (
+        None,
+        {"FAKE_MODE": "exit2"},
+        "ESLint exited with code 2 and no JSON; lint skipped",
+    ),
+    "invalid-json": (
+        None,
+        {"FAKE_STDOUT": "not json"},
+        "ESLint output was not valid JSON; lint skipped",
+    ),
     "parse-error": (
         None,
         {
@@ -218,6 +254,7 @@ FAIL_OPEN_ROWS = {
             ),
             "FAKE_EXIT": "1",
         },
+        "edited file has a parse error; lint skipped",
     ),
 }
 
@@ -225,7 +262,7 @@ FAIL_OPEN_ROWS = {
 @posix_only
 @pytest.mark.parametrize("reason", sorted(FAIL_OPEN_ROWS))
 def test_fail_open_never_blocks_and_notices_once_per_session(project, reason):
-    breaker, extra = FAIL_OPEN_ROWS[reason]
+    breaker, extra, notice = FAIL_OPEN_ROWS[reason]
     if breaker:
         breaker(project)
     env = project.env(**extra)
@@ -235,7 +272,7 @@ def test_fail_open_never_blocks_and_notices_once_per_session(project, reason):
 
     assert first.outcome == second.outcome == post_lint.FAILED_OPEN
     assert "decision" not in (first.output or {})
-    assert _notice_text(first).startswith("post_lint: ")
+    assert _notice_text(first) == f"post_lint: {notice}"
     assert second.output is None
 
 
@@ -271,35 +308,73 @@ def test_valid_json_wins_over_a_nonzero_exit_code(project):
 
 
 def _alive(pid: int) -> bool:
+    """Running, not merely a zombie awaiting its parent's wait()."""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
     except PermissionError:
         return True
-    return True
+    state = subprocess.run(
+        ["ps", "-o", "stat=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    ).stdout.strip()
+    return bool(state) and not state.startswith("Z")
+
+
+@posix_only
+def test_alive_helper_treats_a_zombie_as_dead_and_a_sleeper_as_alive():
+    sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    zombie = subprocess.Popen([sys.executable, "-c", "pass"])
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and _alive(zombie.pid):
+            time.sleep(0.05)  # exited, not yet wait()ed: a zombie
+        assert not _alive(zombie.pid)
+        assert _alive(sleeper.pid)
+    finally:
+        sleeper.kill()
+        sleeper.wait()
+        zombie.wait()
+
+
+def _kill_leftovers(pids_file: Path) -> None:
+    if not pids_file.exists():
+        return
+    for pid in json.loads(pids_file.read_text()):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
 
 
 @posix_only
 def test_timeout_fails_open_and_terminates_the_whole_process_group(project, tmp_path):
     pids = tmp_path / "pids.json"
     env = project.env(
-        FAKE_MODE="sleep", FAKE_PIDS=str(pids), DEVTEAM_POST_LINT_TIMEOUT="1"
+        FAKE_MODE="sleep", FAKE_PIDS=str(pids), DEVTEAM_POST_LINT_TIMEOUT="3"
     )
+    try:
+        started = time.monotonic()
+        result = project.run(env=env)
+        elapsed = time.monotonic() - started
 
-    started = time.monotonic()
-    result = project.run(env=env)
-    elapsed = time.monotonic() - started
-
-    assert result.outcome == post_lint.FAILED_OPEN
-    assert "timed out after 1s" in _notice_text(result)
-    assert elapsed < 10
-    node_pid, grandchild_pid = json.loads(pids.read_text())
-    deadline = time.monotonic() + 3
-    while time.monotonic() < deadline and (_alive(node_pid) or _alive(grandchild_pid)):
-        time.sleep(0.05)
-    assert not _alive(node_pid)
-    assert not _alive(grandchild_pid)
+        assert result.outcome == post_lint.FAILED_OPEN
+        assert "timed out after 3s" in _notice_text(result)
+        assert 2.5 <= elapsed < 30  # waited for the timeout, did not hang
+        node_pid, grandchild_pid = json.loads(pids.read_text())
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and (
+            _alive(node_pid) or _alive(grandchild_pid)
+        ):
+            time.sleep(0.1)
+        assert not _alive(node_pid)
+        assert not _alive(grandchild_pid)
+    finally:
+        _kill_leftovers(pids)
 
 
 @pytest.mark.parametrize(
@@ -417,6 +492,55 @@ def test_parse_findings_rejects_wrong_shapes(stdout, tmp_path):
     assert caught.value.key == "invalid-json"
 
 
+# --- tools, paths, and failures around the run -------------------------------
+
+
+@posix_only
+def test_multiedit_is_linted_like_edit_and_write(project):
+    result = project.run(project.payload(tool_name="MultiEdit"), _violating(project))
+    assert result.outcome == post_lint.BLOCKED
+    assert project.invoked
+
+
+@posix_only
+def test_an_absolute_path_inside_the_project_is_linted(project):
+    absolute = str(project.root / "src" / "a.js")
+    result = project.run(project.payload(absolute), _violating(project))
+    assert result.outcome == post_lint.BLOCKED
+
+
+@posix_only
+def test_an_uppercase_suffix_is_linted(project):
+    (project.root / "src" / "B.JS").write_text("var b = 1;\n")
+    result = project.run(project.payload("src/B.JS"), _violating(project))
+    assert result.outcome == post_lint.BLOCKED
+    assert result.ext == ".js"
+
+
+@posix_only
+def test_a_node_that_cannot_be_started_fails_open_as_no_node(project):
+    broken = project.bin / "node"
+    broken.write_text("#!/nonexistent/interpreter\n")
+    broken.chmod(broken.stat().st_mode | stat.S_IXUSR)
+
+    result = project.run(env=_violating(project))
+
+    assert result.outcome == post_lint.FAILED_OPEN
+    assert _notice_text(result) == "post_lint: node not found on PATH; lint skipped"
+
+
+def test_main_never_raises_when_the_hook_run_itself_crashes(monkeypatch, capsys):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setenv(post_lint.ENV_ENABLE, "1")
+    monkeypatch.setattr(post_lint, "read_stdin_json", dict)
+    monkeypatch.setattr(post_lint, "evaluate", boom)
+
+    assert post_lint.main() == 0
+    assert capsys.readouterr().out == ""
+
+
 # --- off by default (real script, real stdin) --------------------------------
 
 
@@ -437,6 +561,7 @@ def _run_script(
         text=True,
         env=child_env,
         cwd=str(project.root),
+        timeout=60,
         check=False,
     )
 
@@ -765,8 +890,14 @@ def test_metrics_failure_never_changes_the_verdict(project):
 
 @posix_only
 def test_a_disabled_hook_writes_no_metrics(project):
-    _run_script(project, json.dumps(project.payload()))
+    stdin = json.dumps(project.payload())
+
+    _run_script(project, stdin)
     assert not (project.root / ".claude").exists()
+
+    # Control: the same run, enabled, does write the metrics line.
+    _run_script(project, stdin, **{post_lint.ENV_ENABLE: "1"})
+    assert [r["outcome"] for r in _metrics(project)] == [post_lint.CLEAN]
 
 
 # --- real ESLint -------------------------------------------------------------
@@ -778,19 +909,67 @@ PAYLOAD_CONFIG = DEV_TREE / "payload" / post_lint.CONFIG_NAME
 ESLINT_ROOT = Path(os.environ.get("DEVTEAM_ESLINT_ROOT") or DEV_TREE / "dev")
 
 
+# CI does not install the dev tree's `node_modules` yet; the job that does sets
+# this so a missing ESLint fails there instead of skipping unseen.
+ENV_REQUIRE_ESLINT = "DEVTEAM_REQUIRE_REAL_ESLINT"
+
+
 def _require_real_eslint() -> str:
+    """The `node` path, or a skip locally. A missing `node` fails when `CI` is
+    set; a missing ESLint install fails when `DEVTEAM_REQUIRE_REAL_ESLINT` is
+    set."""
     node = shutil.which("node")
     if node is None:
         reason = "node is not on PATH; the real-ESLint tests cannot run"
-        if os.environ.get("CI") == "true":
+        if os.environ.get("CI"):
             pytest.fail(reason)
         pytest.skip(reason)
     if not (ESLINT_ROOT / "node_modules" / "eslint" / "bin" / "eslint.js").is_file():
-        pytest.skip(
+        reason = (
             f"ESLint is not installed under {ESLINT_ROOT}/node_modules; "
             "run `npm ci` in plugins/dev-team/templates/eslint/dev"
         )
+        if os.environ.get(ENV_REQUIRE_ESLINT):
+            pytest.fail(reason)
+        pytest.skip(reason)
     return node
+
+
+@pytest.mark.parametrize(
+    ("env", "node", "eslint_installed", "expected"),
+    [
+        ({}, None, True, "skip"),
+        ({"CI": "1"}, None, True, "fail"),
+        ({"CI": "true"}, None, True, "fail"),
+        ({}, "/usr/bin/node", False, "skip"),
+        ({"CI": "1"}, "/usr/bin/node", False, "skip"),
+        ({ENV_REQUIRE_ESLINT: "1"}, "/usr/bin/node", False, "fail"),
+        ({"CI": "1"}, "/usr/bin/node", True, "pass"),
+    ],
+)
+def test_real_eslint_gate_skips_locally_and_fails_where_required(
+    monkeypatch, tmp_path, env, node, eslint_installed, expected
+):
+    for name in ("CI", ENV_REQUIRE_ESLINT):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(shutil, "which", lambda _name: node)
+    if eslint_installed:
+        (tmp_path / "node_modules" / "eslint" / "bin").mkdir(parents=True)
+        (tmp_path / "node_modules" / "eslint" / "bin" / "eslint.js").write_text("")
+    monkeypatch.setattr(sys.modules[__name__], "ESLINT_ROOT", tmp_path)
+
+    if expected == "pass":
+        assert _require_real_eslint() == node
+        return
+    outcome = pytest.skip.Exception if expected == "skip" else pytest.fail.Exception
+    with pytest.raises(outcome):
+        _require_real_eslint()
+
+
+STRIPPED_PREFIXES = ("DEVTEAM_", "ESLINT_", "GIT_")
+STRIPPED_NAMES = frozenset({"NODE_OPTIONS", "CLAUDE_PROJECT_DIR"})
 
 
 class RealProject:
@@ -820,8 +999,14 @@ class RealProject:
         self.write(name, (FIXTURES / fixture).read_text())
 
     def env(self) -> dict[str, str]:
-        base = {k: v for k, v in os.environ.items() if k != post_lint.ENV_TYPED}
-        return {**base, post_lint.ENV_ENABLE: "1"}
+        """The caller's environment minus anything that changes ESLint's or the
+        hook's behavior, plus a timeout generous enough for a loaded machine."""
+        base = {
+            k: v
+            for k, v in os.environ.items()
+            if not k.startswith(STRIPPED_PREFIXES) and k not in STRIPPED_NAMES
+        }
+        return {**base, post_lint.ENV_ENABLE: "1", post_lint.ENV_TIMEOUT: "60"}
 
     def run(self, file_path: str, session: str = "real") -> post_lint.Result:
         payload = {
@@ -844,13 +1029,26 @@ def test_real_eslint_blocks_on_a_warn_finding(real):
 
     result = real.run("src/violating.js")
 
+    expected = [
+        tuple(pair)
+        for pair in json.loads((FIXTURES / "expected.json").read_text())["violating.js"]
+    ]
+    shown = expected[: post_lint.MAX_FINDINGS]
     assert result.outcome == post_lint.BLOCKED
     assert result.output["decision"] == "block"
     lines = result.output["reason"].splitlines()
     assert lines[0].startswith("dev-team post-edit lint")
-    assert lines[1].startswith("src/violating.js:3 no-var ")
-    assert lines[-1] == "+2 more"
-    assert len(lines) == 12  # header, 10 findings, +N more
+    reported = [
+        (text.split()[1], int(text.split()[0].rsplit(":", 1)[1]))
+        for text in lines[1 : 1 + len(shown)]
+    ]
+    assert reported == shown
+    assert all(
+        text.startswith("src/violating.js:") for text in lines[1 : 1 + len(shown)]
+    )
+    assert lines[1 + len(shown) :] == (
+        [f"+{len(expected) - len(shown)} more"] if len(expected) > len(shown) else []
+    )
 
 
 def test_real_eslint_passes_a_clean_file(real):
@@ -875,6 +1073,10 @@ export const build = () => {
 """
 
 
+PROBE_VAR_LINE = TYPED_PROBE.splitlines().index("var legacy = 1;") + 1
+PROBE_MUTATOR_LINE = TYPED_PROBE.splitlines().index("  out.push(legacy);") + 1
+
+
 def _lint_directly(real: RealProject, file_path: str) -> list[tuple[str, int]]:
     done = subprocess.run(
         [
@@ -890,6 +1092,7 @@ def _lint_directly(real: RealProject, file_path: str) -> list[tuple[str, int]]:
         env=real.env(),
         capture_output=True,
         text=True,
+        timeout=60,
         check=False,
     )
     messages = json.loads(done.stdout)[0]["messages"]
@@ -928,14 +1131,16 @@ def test_typed_rules_are_off_inside_the_hook(real):
     real.write("src/probe.ts", TYPED_PROBE)
 
     # Control: the same file outside the hook does report the typed rule.
-    assert ("functional/immutable-data", 4) in _lint_directly(real, "src/probe.ts")
+    assert ("functional/immutable-data", PROBE_MUTATOR_LINE) in _lint_directly(
+        real, "src/probe.ts"
+    )
 
     result = real.run("src/probe.ts")
 
     assert result.outcome == post_lint.BLOCKED
     findings = result.output["reason"].splitlines()[1:]
     assert len(findings) == 1
-    assert findings[0].startswith("src/probe.ts:1 no-var ")
+    assert findings[0].startswith(f"src/probe.ts:{PROBE_VAR_LINE} no-var ")
 
 
 def test_json_stdout_stays_parseable_when_typed_deps_are_missing(tmp_path):
@@ -958,8 +1163,9 @@ def test_json_stdout_stays_parseable_when_typed_deps_are_missing(tmp_path):
         cwd=bare.root,
         capture_output=True,
         text=True,
+        timeout=60,
         check=False,
-        env={k: v for k, v in os.environ.items() if k != post_lint.ENV_TYPED},
+        env=bare.env(),
     )
 
     assert json.loads(done.stdout)[0]["messages"][0]["ruleId"] == "no-var"
@@ -997,22 +1203,38 @@ def test_registration_does_not_enable_the_hook(registry):
     assert post_lint.ENV_ENABLE not in (PLUGIN / registry).read_text()
 
 
-@posix_only
-def test_registered_command_runs_nothing_by_default(project):
-    """Run the settings.json command string as the harness would, minus the opt-in."""
+def _run_registered_command(project: Project, **env: str):
+    """Run the settings.json command string as the harness would."""
     command = next(
         c for c in _post_edit_commands(PLUGIN / "settings.json") if "post_lint.py" in c
     )
     base = {k: v for k, v in os.environ.items() if k != post_lint.ENV_ENABLE}
-    done = subprocess.run(
+    return subprocess.run(
         command,
         shell=True,
         input=json.dumps(project.payload()),
         capture_output=True,
         text=True,
         cwd=PLUGIN,
-        env={**base, **project.env(), "PATH": f"{project.bin}:{base['PATH']}"},
+        env={
+            **base,
+            **project.env(),
+            "TMPDIR": str(project.state_dir.parent),
+            "PATH": f"{project.bin}:{base['PATH']}",
+            **env,
+        },
+        timeout=60,
         check=False,
     )
+
+
+@posix_only
+def test_registered_command_runs_nothing_by_default(project):
+    done = _run_registered_command(project)
     assert (done.returncode, done.stdout) == (0, "")
     assert not project.invoked
+
+    # Control: the same command string, opted in, does reach ESLint.
+    done = _run_registered_command(project, **{post_lint.ENV_ENABLE: "1"})
+    assert done.returncode == 0
+    assert project.invoked
