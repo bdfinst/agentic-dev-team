@@ -962,7 +962,9 @@ def test_a_disabled_hook_writes_no_metrics(project):
 DEV_TREE = REPO_ROOT / "plugins" / "dev-team" / "templates" / "eslint"
 FIXTURES = DEV_TREE / "dev" / "fixtures"
 PAYLOAD_CONFIG = DEV_TREE / "payload" / post_lint.CONFIG_NAME
-# Same switch the Node tests use, so one run can target ESLint 9 or 10.
+# The dev tree's pinned ESLint 9 unless DEVTEAM_ESLINT_ROOT points elsewhere. The
+# gate unsets it for this file: ESLint 10 runs only in the Node tests
+# (`node --test`), not in these hook tests.
 ESLINT_ROOT = Path(os.environ.get("DEVTEAM_ESLINT_ROOT") or DEV_TREE / "dev")
 
 
@@ -1134,8 +1136,9 @@ PROBE_VAR_LINE = TYPED_PROBE.splitlines().index("var legacy = 1;") + 1
 PROBE_MUTATOR_LINE = TYPED_PROBE.splitlines().index("  out.push(legacy);") + 1
 
 
-def _lint_directly(real: RealProject, file_path: str) -> list[tuple[str, int]]:
-    done = subprocess.run(
+def _lint_directly(real: RealProject, file_path: str) -> subprocess.CompletedProcess:
+    """ESLint run by hand against `file_path`, outside the hook."""
+    return subprocess.run(
         [
             shutil.which("node"),
             str(real.root / "node_modules" / "eslint" / "bin" / "eslint.js"),
@@ -1152,6 +1155,9 @@ def _lint_directly(real: RealProject, file_path: str) -> list[tuple[str, int]]:
         timeout=60,
         check=False,
     )
+
+
+def _rule_lines(done: subprocess.CompletedProcess) -> list[tuple[str, int]]:
     messages = json.loads(done.stdout)[0]["messages"]
     return [(m["ruleId"], m["line"]) for m in messages]
 
@@ -1165,7 +1171,7 @@ def test_real_eslint_ignores_disable_comments_for_rules_that_are_not_loaded(real
         "export const b = 2;\n",
     )
     # Control: ESLint itself does report both as errors carrying a rule id.
-    assert {rule for rule, _ in _lint_directly(real, "src/disables.ts")} >= {
+    assert {rule for rule, _ in _rule_lines(_lint_directly(real, "src/disables.ts"))} >= {
         "functional/immutable-data",
         "@typescript-eslint/no-explicit-any",
     }
@@ -1188,8 +1194,8 @@ def test_typed_rules_are_off_inside_the_hook(real):
     real.write("src/probe.ts", TYPED_PROBE)
 
     # Control: the same file outside the hook does report the typed rule.
-    assert ("functional/immutable-data", PROBE_MUTATOR_LINE) in _lint_directly(
-        real, "src/probe.ts"
+    assert ("functional/immutable-data", PROBE_MUTATOR_LINE) in _rule_lines(
+        _lint_directly(real, "src/probe.ts")
     )
 
     result = real.run("src/probe.ts")
@@ -1205,25 +1211,7 @@ def test_json_stdout_stays_parseable_when_typed_deps_are_missing(tmp_path):
     bare = RealProject(tmp_path / "bare", typed_deps=False)
     bare.write("tsconfig.json", '{"include": ["src/**/*"]}')
     bare.write("src/a.js", "var a = 1;\n")
-    node = shutil.which("node")
-
-    done = subprocess.run(
-        [
-            node,
-            str(bare.root / "node_modules" / "eslint" / "bin" / "eslint.js"),
-            "--config",
-            str(bare.root / post_lint.CONFIG_NAME),
-            "--format",
-            "json",
-            "src/a.js",
-        ],
-        cwd=bare.root,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
-        env=bare.env(),
-    )
+    done = _lint_directly(bare, "src/a.js")
 
     assert json.loads(done.stdout)[0]["messages"][0]["ruleId"] == "no-var"
     assert done.stderr.count("typed rules skipped") == 1
