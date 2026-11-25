@@ -260,6 +260,22 @@ def test_missing_and_unparseable_files_exit_with_a_message(
     assert "Traceback" not in err
 
 
+@pytest.mark.parametrize("flag", ["--agent-found", "--rule-found", "--rules"])
+def test_a_file_that_is_not_utf8_exits_with_a_message(tmp_path, capsys, flag):
+    bad = tmp_path / "bad.json"
+    bad.write_bytes(b"\xff\xfe[]")
+    good = _write(tmp_path, "good.json", [])
+    args = {"--agent-found": good, "--rule-found": good, "--rules": good}
+    args[flag] = str(bad)
+
+    code = main([item for pair in args.items() for item in pair])
+
+    err = capsys.readouterr().err
+    assert code == EXIT_BAD_INPUT
+    assert f"lint_corpus_compare: {bad}" in err
+    assert "Traceback" not in err
+
+
 def test_rules_file_that_is_not_a_list_of_strings_exits_with_a_message(tmp_path, capsys):
     rules = _write(tmp_path, "rules.json", {"no-var": True})
 

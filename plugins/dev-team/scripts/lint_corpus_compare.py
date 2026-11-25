@@ -51,10 +51,6 @@ class InputError(ValueError):
     """An input file is unreadable or not shaped like a findings list."""
 
 
-def _location(item: Finding) -> str:
-    return f"{item['file']}:{item['line']}"
-
-
 def _validate(items: Any, label: str, *, rule_required: bool) -> list[Finding]:
     if isinstance(items, dict) and isinstance(items.get("findings"), list):
         items = items["findings"]
@@ -86,7 +82,7 @@ def _finding_problem(item: Any, rule_required: bool) -> str | None:
 def load_findings(path: str, *, rule_required: bool) -> list[Finding]:
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
+    except (OSError, ValueError) as error:
         raise InputError(f"{path}: {error}") from error
     return _validate(raw, path, rule_required=rule_required)
 
@@ -94,7 +90,7 @@ def load_findings(path: str, *, rule_required: bool) -> list[Finding]:
 def load_rules(path: str) -> list[str]:
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
+    except (OSError, ValueError) as error:
         raise InputError(f"{path}: {error}") from error
     if not isinstance(raw, list) or not all(isinstance(rule, str) for rule in raw):
         raise InputError(f"{path}: expected a list of rule id strings")

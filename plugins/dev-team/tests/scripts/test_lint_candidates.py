@@ -425,8 +425,20 @@ class TestRanking:
         _write_raw(tmp_path, "section-1.json", one)
         _write_raw(tmp_path, "section-2.json", {"findings": [dict(one, file="b.js")]})
         _write_raw(tmp_path, "section-3.json", [dict(one, file="c.js")])
+        _write_raw(tmp_path, "section-4.json", {"issues": [dict(one, file="d.js")]})
         (cand,) = _mine(capsys, root, tmp_path)["candidates"]
-        assert (cand["distinct_files"], cand["occurrences"]) == (3, 3)
+        assert (cand["distinct_files"], cand["occurrences"]) == (4, 4)
+
+    def test_findings_key_wins_over_issues_when_both_are_lists(self, tmp_path, capsys):
+        root = _plugin(tmp_path, {"a-review": ["`require()` calls"]})
+        one = _raw_finding("a.js")
+        _write_raw(
+            tmp_path,
+            "section-1.json",
+            {"findings": [one], "issues": [dict(one, file="b.js")]},
+        )
+        (cand,) = _mine(capsys, root, tmp_path)["candidates"]
+        assert (cand["distinct_files"], cand["occurrences"]) == (1, 1)
 
     def test_raw_finding_with_agent_name_and_rule_id_joins_its_bullet(
         self, tmp_path, capsys

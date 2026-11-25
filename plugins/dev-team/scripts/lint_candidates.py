@@ -12,7 +12,8 @@ Inputs, read when present (a missing input yields a census-only report):
         One JSON object per line with ``lens`` and ``category``.
     <project-root>/.dev-team-reports/code-review/raw/*.json
         Findings with ``agent``, ``file``, ``category``, ``message``: one
-        object, a list of objects, or an object with a ``findings`` list.
+        object, a list of objects, or an object with a ``findings`` (else
+        ``issues``) list.
 A line or finding missing its agent or category, or a file that is not valid
 JSON, is skipped and counted.
 
@@ -46,6 +47,9 @@ CENSUS_DIRS = ("agents", "templates/agents")
 
 FINDINGS_LOG = Path(".claude/metrics/review-findings.jsonl")
 RAW_DIR = Path(".dev-team-reports/code-review/raw")
+# A review agent's own result keys its list `issues`; a section artifact keys it
+# `findings`. `findings` wins when both are lists, as in consolidate.py.
+RAW_FINDINGS_KEYS = ("findings", "issues")
 UNTAGGED = "untagged"
 
 
@@ -211,8 +215,10 @@ def _log_findings(path: Path) -> tuple[list[Finding], int, bool]:
 def _raw_entries(payload: object) -> list[object]:
     if isinstance(payload, list):
         return payload
-    if isinstance(payload, dict) and isinstance(payload.get("findings"), list):
-        return payload["findings"]
+    if isinstance(payload, dict):
+        for key in RAW_FINDINGS_KEYS:
+            if isinstance(payload.get(key), list):
+                return payload[key]
     return [payload]
 
 
