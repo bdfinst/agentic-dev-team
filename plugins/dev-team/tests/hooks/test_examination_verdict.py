@@ -429,3 +429,31 @@ def test_fd_duplication_is_stripped_whatever_the_adjacent_whitespace(call):
 
 def test_fd_duplication_does_not_eat_digits_that_end_a_word():
     assert ev.ran_segments(["pytest2>&1 | tail"]) == {"pytest2", "tail"}
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        "pytest -q > out.txt",
+        "pytest -q >out.txt",
+        "pytest -q >> out.txt",
+        'pytest -q > "$TMPDIR/out.txt" 2>&1',
+        "pytest -q 2> err.txt",
+        "pytest -q 2>/dev/null",
+        "pytest -q > out.txt 2>&1 && tail out.txt",
+    ],
+)
+def test_output_redirection_to_a_file_is_not_part_of_the_command(call):
+    assert "pytest -q" in ev.ran_segments([call])
+
+
+def test_a_redirected_run_still_matches_the_claimed_command():
+    row = _full_row(command="pytest -q")
+    call = "pytest -q > $TMPDIR/t.txt 2>&1"
+    assert _derive({"criteria": [row]}, ["AC1"], [call]) == ("met", [])
+
+
+def test_redirection_does_not_let_a_different_command_match():
+    row = _full_row(command="pytest -q")
+    _, problems = _derive({"criteria": [row]}, ["AC1"], ["pytest -x > out.txt"])
+    assert problems == ["command-not-run AC1"]

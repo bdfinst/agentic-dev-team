@@ -69,6 +69,9 @@ _FINDING_KEYS = ("kind", "target", "command")
 # `2>&1`, `>&2`, `1>&2`: the optional fd digits count only after whitespace, so
 # `pytest2>&1` keeps its `2`. No whitespace is needed on either side.
 _FD_DUPLICATION = re.compile(r"(?:(?<!\S)\d+)?>&\d+")
+# `> file`, `>> file`, `2> file`, `>/dev/null`: where output goes is not what
+# ran. The target may be quoted. Run after fd duplication is removed.
+_FILE_REDIRECT = re.compile(r"(?<!\S)\d*>>?\s*(?:\"[^\"]*\"|'[^']*'|[^\s&|;]+)")
 _SEGMENT_SEPARATORS = re.compile(r"&&|\|\||;|\||\n")
 _LEADING_CD = re.compile(r"^cd\s+\S+$")
 
@@ -110,7 +113,8 @@ def normalize_command(command: str) -> str:
 def _segments(command: str) -> list[str]:
     """Normalized, non-empty segments of one Bash call, minus a leading `cd`."""
     without_dups = _FD_DUPLICATION.sub(" ", command)
-    parts = [normalize_command(p) for p in _SEGMENT_SEPARATORS.split(without_dups)]
+    without_redirects = _FILE_REDIRECT.sub(" ", without_dups)
+    parts = [normalize_command(p) for p in _SEGMENT_SEPARATORS.split(without_redirects)]
     if parts and _LEADING_CD.match(parts[0]):
         parts = parts[1:]
     return [p for p in parts if p]
