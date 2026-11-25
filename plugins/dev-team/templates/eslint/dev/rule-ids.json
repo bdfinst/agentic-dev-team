@@ -1,0 +1,8 @@
+[
+  "no-var",
+  "prefer-const",
+  "no-plusplus",
+  "no-param-reassign",
+  "no-restricted-globals",
+  "no-restricted-syntax"
+]

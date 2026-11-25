@@ -1,0 +1,13 @@
+{
+  "name": "devteam-eslint-templates-dev",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev-only fixtures and tests for the dev-team ESLint template. Never shipped to user projects.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\""
+  },
+  "devDependencies": {
+    "eslint": "9.39.4"
+  }
+}
