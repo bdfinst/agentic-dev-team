@@ -20,9 +20,11 @@ SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 HOOKS_DIR = SCRIPTS_DIR.parent / "hooks"
 sys.path.insert(0, str(SCRIPTS_DIR))
 sys.path.insert(0, str(HOOKS_DIR))
+sys.path.insert(0, str(SCRIPTS_DIR.parent / "tests" / "lib"))
 
 import post_lint
 import scaffold_lint_config as scaffold
+from hermetic import hermetic_git_env
 from scaffold_lint_config import main
 
 PLUGIN_ROOT = SCRIPTS_DIR.parent
@@ -449,7 +451,7 @@ class TestRefresh:
 def git_init(path: Path) -> None:
     if shutil.which("git") is None:
         pytest.skip("git not installed")
-    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    subprocess.run(["git", "init", "-q", str(path)], env=hermetic_git_env(), check=True)
 
 
 class TestProjectRoot:
