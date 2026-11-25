@@ -27,6 +27,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -48,6 +49,7 @@ from atomic_state import (  # type: ignore[import-not-found]
     locked_state,
 )
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]
+from verify_guard_state import purge_stale  # type: ignore[import-not-found]
 
 ENV_ENABLE = "DEVTEAM_POST_LINT"
 ENV_TIMEOUT = "DEVTEAM_POST_LINT_TIMEOUT"
@@ -248,8 +250,34 @@ def timeout_seconds(env: Mapping[str, str]) -> float:
 # --- per-session state (notice-once) ----------------------------------------
 
 
+def _uid() -> int | None:
+    """The user id, or None where the platform has none (Windows, whose temp
+    directory is already per user)."""
+    return os.getuid() if hasattr(os, "getuid") else None
+
+
 def default_state_dir(env: Mapping[str, str]) -> Path:
-    return Path(env.get("TMPDIR") or tempfile.gettempdir()) / "dev-team-post-lint"
+    """A per-user directory under ``$TMPDIR``: a shared ``/tmp`` lets another
+    user pre-create a fixed name."""
+    uid = _uid()
+    name = "dev-team-post-lint" if uid is None else f"dev-team-post-lint-{uid}"
+    return Path(env.get("TMPDIR") or tempfile.gettempdir()) / name
+
+
+def _secure_state_dir(state_dir: Path) -> None:
+    """Create ``state_dir`` private (0700), or raise OSError when it is not a
+    real directory owned by this user (a symlink or another user's directory
+    is never written through). A directory this user owns with looser
+    permissions is tightened."""
+    state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    uid = _uid()
+    if uid is None:
+        return
+    info = state_dir.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != uid:
+        raise OSError(f"{state_dir} is not a directory owned by this user")
+    if stat.S_IMODE(info.st_mode) & 0o077:
+        state_dir.chmod(0o700)
 
 
 def state_path(session: str, state_dir: Path) -> Path:
@@ -269,7 +297,8 @@ def _update_state(session: str, state_dir: Path, mutate) -> object:
     """Run ``mutate(state)`` on the session's state under the lock and save it.
     Raises OSError when the state cannot be read-modify-written."""
     path = state_path(session, state_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    _secure_state_dir(state_dir)
+    purge_stale(state_dir)
     with locked_state(path):
         state = _read_state(path)
         result = mutate(state)
@@ -313,11 +342,12 @@ def try_block(session: str, state_dir: Path) -> bool:
 
 def reset_blocks(session: str, state_dir: Path) -> None:
     """A clean lint ends the run of consecutive blocks."""
-    if _read_state(state_path(session, state_dir)).get("blocks"):
-        try:
+    try:
+        _secure_state_dir(state_dir)
+        if _read_state(state_path(session, state_dir)).get("blocks"):
             _update_state(session, state_dir, lambda state: state.pop("blocks", None))
-        except OSError:
-            pass
+    except OSError:
+        pass
 
 
 # --- running ESLint ---------------------------------------------------------

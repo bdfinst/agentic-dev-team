@@ -597,6 +597,73 @@ def test_unwritable_state_fails_open_instead_of_blocking_forever(project):
     assert "cannot save session state" in _notice_text(result)
 
 
+# --- state directory: private per user, expiring ------------------------------
+
+
+@posix_only
+def test_default_state_dir_is_per_user_under_tmpdir(tmp_path):
+    state_dir = post_lint.default_state_dir({"TMPDIR": str(tmp_path)})
+    assert state_dir == tmp_path / f"dev-team-post-lint-{os.getuid()}"
+
+
+@posix_only
+def test_state_dir_is_created_private(project):
+    project.run(env=_violating(project))
+    assert stat.S_IMODE(project.state_dir.stat().st_mode) == 0o700
+
+
+@posix_only
+def test_an_existing_group_readable_state_dir_is_tightened_to_private(project):
+    project.state_dir.mkdir()
+    project.state_dir.chmod(0o755)
+    project.run(env=_violating(project))
+    assert stat.S_IMODE(project.state_dir.stat().st_mode) == 0o700
+
+
+@posix_only
+def test_a_symlinked_state_dir_fails_open_and_is_never_written_through(project):
+    planted = project.root.parent / "planted"
+    planted.mkdir()
+    project.state_dir.symlink_to(planted, target_is_directory=True)
+
+    result = project.run(env=_violating(project))
+
+    assert result.outcome == post_lint.FAILED_OPEN
+    assert "decision" not in (result.output or {})
+    assert "cannot save session state" in _notice_text(result)
+    assert list(planted.iterdir()) == []
+
+
+@posix_only
+def test_a_state_dir_owned_by_someone_else_fails_open(project, monkeypatch):
+    project.state_dir.mkdir()
+    monkeypatch.setattr(os, "getuid", lambda: os.stat(project.state_dir).st_uid + 1)
+
+    result = project.run(env=_violating(project))
+
+    assert result.outcome == post_lint.FAILED_OPEN
+    assert "cannot save session state" in _notice_text(result)
+    assert list(project.state_dir.iterdir()) == []
+
+
+@posix_only
+def test_stale_session_state_is_purged_on_write_and_fresh_state_is_kept(project):
+    project.state_dir.mkdir(mode=0o700)
+    stale = project.state_dir / "stale.json"
+    fresh = project.state_dir / "fresh.json"
+    other = project.state_dir / "keep.txt"
+    for path in (stale, fresh, other):
+        path.write_text("{}")
+    old = time.time() - 5 * 3600
+    for path in (stale, other):
+        os.utime(path, (old, old))
+
+    project.run(env=_violating(project))
+
+    assert not stale.exists()
+    assert fresh.exists() and other.exists()
+
+
 # --- metrics -----------------------------------------------------------------
 
 
