@@ -746,6 +746,25 @@ One row per review finding recorded at a `/build` inline checkpoint. It ranks
 
 ---
 
+## `post-lint.jsonl`
+
+One row per run of the opt-in post-edit lint hook (`DEVTEAM_POST_LINT=1`; see
+`docs/post-edit-lint-hook.md`). A hook that is off writes nothing.
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `ts` | string | ISO-8601 UTC |
+| `session` | string | Claude Code session id, or `unknown` when the hook input has none |
+| `ext` | string | Lower-case extension of the edited file (for example `.js`), empty when unknown |
+| `wall_ms` | integer | Wall time of the whole hook run, in milliseconds |
+| `outcome` | string | `blocked`, `clean`, `skipped`, `failed-open`, or `capped` |
+
+- **Emitter:** `hooks/post_lint.py::record_metrics()` (locked append; a write failure never changes the hook verdict).
+- **Consent:** unconditional once the hook is enabled. Rows carry no file paths, findings, or messages.
+- **Consumers:** none automated yet; the p50/p95 `wall_ms` per `ext` backs the typed-lint latency budget.
+
+---
+
 ## Adding a new stream
 
 1. Name it `.claude/metrics/<name>.jsonl` (or `.json` for a single-current-value

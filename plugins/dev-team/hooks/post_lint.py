@@ -29,8 +29,10 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 
@@ -40,6 +42,7 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths  # type: ignore[import-not-found]
 from atomic_state import (  # type: ignore[import-not-found]
+    append_line_locked,
     atomic_write,
     locked_state,
 )
@@ -50,6 +53,8 @@ ENV_TIMEOUT = "DEVTEAM_POST_LINT_TIMEOUT"
 ENV_TYPED = "DEVTEAM_LINT_TYPED"
 CONFIG_NAME = "eslint.devteam.config.js"
 DEFAULT_TIMEOUT_SECONDS = 10.0
+# One line per run: .claude/metrics/post-lint.jsonl
+METRICS_FILE = "post-lint.jsonl"
 
 EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit"})
 LINT_SUFFIXES = frozenset(
@@ -59,7 +64,17 @@ LINT_SUFFIXES = frozenset(
 # Outcomes recorded per run.
 SKIPPED = "skipped"
 CLEAN = "clean"
+BLOCKED = "blocked"
+CAPPED = "capped"
 FAILED_OPEN = "failed-open"
+
+# What a block reason shows: the header, at most MAX_FINDINGS findings, then
+# `+N more`, all within MAX_REASON_CHARS.
+REASON_HEADER = "dev-team post-edit lint (set DEVTEAM_POST_LINT=0 to disable):"
+MAX_FINDINGS = 10
+MAX_REASON_CHARS = 4000
+MAX_BLOCKS = 3
+TRUNCATION_MARKER = "... [truncated]"
 
 # One line per fail-open reason; `{}` is filled by the one reason that varies.
 NOTICES = {
@@ -71,6 +86,8 @@ NOTICES = {
     "invalid-json": "ESLint output was not valid JSON; lint skipped",
     "invalid-stdin": "hook input was not valid JSON; lint skipped",
     "parse-error": "edited file has a parse error; lint skipped",
+    "no-state": "cannot save session state; lint skipped",
+    "cap": f"cap {MAX_BLOCKS} reached; set DEVTEAM_POST_LINT=0 to disable",
 }
 
 
@@ -188,6 +205,23 @@ def _display_path(file_path: object, root: Path) -> str:
         return Path(file_path).as_posix()
 
 
+def format_reason(findings: list[Finding]) -> str:
+    """The block reason: one `path:line rule-id message` line per finding."""
+    lines = [
+        REASON_HEADER,
+        *(
+            f"{f.path}:{f.line} {f.rule_id} {f.message}"
+            for f in findings[:MAX_FINDINGS]
+        ),
+    ]
+    if len(findings) > MAX_FINDINGS:
+        lines.append(f"+{len(findings) - MAX_FINDINGS} more")
+    text = "\n".join(lines)
+    if len(text) <= MAX_REASON_CHARS:
+        return text
+    return text[: MAX_REASON_CHARS - len(TRUNCATION_MARKER)] + TRUNCATION_MARKER
+
+
 def timeout_seconds(env: Mapping[str, str]) -> float:
     try:
         value = float(env.get(ENV_TIMEOUT, ""))
@@ -216,22 +250,59 @@ def _read_state(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _update_state(session: str, state_dir: Path, mutate) -> object:
+    """Run ``mutate(state)`` on the session's state under the lock and save it.
+    Raises OSError when the state cannot be read-modify-written."""
+    path = state_path(session, state_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with locked_state(path):
+        state = _read_state(path)
+        result = mutate(state)
+        atomic_write(path, json.dumps(state, separators=(",", ":")), fail_open=False)
+    return result
+
+
 def notice_once(session: str, key: str, text: str, state_dir: Path) -> dict | None:
     """``{"systemMessage": ...}`` the first time ``key`` fires in ``session``."""
-    path = state_path(session, state_dir)
+
+    def mark(state: dict) -> bool:
+        seen = state.get("notices")
+        seen = seen if isinstance(seen, list) else []
+        if key in seen:
+            return False
+        state["notices"] = [*seen, key]
+        return True
+
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with locked_state(path):
-            state = _read_state(path)
-            seen = state.get("notices")
-            seen = seen if isinstance(seen, list) else []
-            if key in seen:
-                return None
-            state["notices"] = [*seen, key]
-            atomic_write(path, json.dumps(state, separators=(",", ":")))
+        if not _update_state(session, state_dir, mark):
+            return None
     except OSError:
         pass  # cannot persist: say it rather than stay silent
     return {"systemMessage": f"post_lint: {text}"}
+
+
+def try_block(session: str, state_dir: Path) -> bool:
+    """Count one more consecutive block; False once MAX_BLOCKS were used.
+    Raises OSError when the count cannot be saved."""
+
+    def count(state: dict) -> bool:
+        blocks = state.get("blocks")
+        blocks = blocks if isinstance(blocks, int) else 0
+        if blocks >= MAX_BLOCKS:
+            return False
+        state["blocks"] = blocks + 1
+        return True
+
+    return bool(_update_state(session, state_dir, count))
+
+
+def reset_blocks(session: str, state_dir: Path) -> None:
+    """A clean lint ends the run of consecutive blocks."""
+    if _read_state(state_path(session, state_dir)).get("blocks"):
+        try:
+            _update_state(session, state_dir, lambda state: state.pop("blocks", None))
+        except OSError:
+            pass
 
 
 # --- running ESLint ---------------------------------------------------------
@@ -281,21 +352,58 @@ def _kill_tree(proc: subprocess.Popen) -> None:
 # --- the hook ---------------------------------------------------------------
 
 
+def _notice(
+    session: str, key: str, state_dir: Path, detail: object = ""
+) -> dict | None:
+    return notice_once(session, key, NOTICES[key].format(detail), state_dir)
+
+
 def _fail_open(session: str, failure: LintFailure, ext: str, state_dir: Path) -> Result:
-    text = NOTICES[failure.key].format(failure.detail)
-    return Result(FAILED_OPEN, notice_once(session, failure.key, text, state_dir), ext)
+    notice = _notice(session, failure.key, state_dir, failure.detail)
+    return Result(FAILED_OPEN, notice, ext)
 
 
 def evaluate(
     payload: dict | None, env: Mapping[str, str], state_dir: Path | None = None
 ) -> Result:
-    state_dir = state_dir or default_state_dir(env)
-    if payload is None:
-        return _fail_open("unknown", LintFailure("invalid-stdin"), "", state_dir)
-    session = str(payload.get("session_id") or "unknown")
-    cwd = payload.get("cwd")
+    """One hook run: decide, then append its metrics line."""
+    started = time.monotonic()
+    session = str((payload or {}).get("session_id") or "unknown")
+    cwd = (payload or {}).get("cwd")
     start = cwd if isinstance(cwd, str) and Path(cwd).is_dir() else os.getcwd()
     root = artifact_paths.project_root(start)
+    result = _decide(payload, env, state_dir or default_state_dir(env), session, root)
+    wall_ms = round((time.monotonic() - started) * 1000)
+    record_metrics(root, session, result, wall_ms)
+    return result
+
+
+def record_metrics(root: Path, session: str, result: Result, wall_ms: int) -> None:
+    """Append `{ts, session, ext, wall_ms, outcome}` to the metrics stream."""
+    row = {
+        "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "session": session,
+        "ext": result.ext,
+        "wall_ms": wall_ms,
+        "outcome": result.outcome,
+    }
+    try:
+        path = artifact_paths.metrics_dir(root) / METRICS_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        append_line_locked(path, json.dumps(row, separators=(",", ":")) + "\n")
+    except OSError:
+        pass  # metrics are best-effort
+
+
+def _decide(
+    payload: dict | None,
+    env: Mapping[str, str],
+    state_dir: Path,
+    session: str,
+    root: Path,
+) -> Result:
+    if payload is None:
+        return _fail_open(session, LintFailure("invalid-stdin"), "", state_dir)
 
     target = should_lint(payload, root)
     ext = Path(target).suffix.lower() if target else _declared_ext(payload)
@@ -320,10 +428,20 @@ def evaluate(
             env,
             timeout_seconds(env),
         )
-        parse_findings(stdout, code, root)
+        findings = parse_findings(stdout, code, root)
     except LintFailure as failure:
         return _fail_open(session, failure, ext, state_dir)
-    return Result(CLEAN, None, ext)
+    if not findings:
+        reset_blocks(session, state_dir)
+        return Result(CLEAN, None, ext)
+    try:
+        allowed = try_block(session, state_dir)
+    except OSError:
+        return _fail_open(session, LintFailure("no-state"), ext, state_dir)
+    if not allowed:
+        return Result(CAPPED, _notice(session, "cap", state_dir), ext)
+    block = {"decision": "block", "reason": format_reason(findings)}
+    return Result(BLOCKED, block, ext)
 
 
 def _declared_ext(payload: dict) -> str:
