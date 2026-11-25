@@ -4,7 +4,7 @@ Date: 2026-07-02
 
 ## Status
 
-Accepted. Supersedes the transition-era clauses of [ADR 0014](0014-python-for-cross-os-scripts.md) for the `plugins/dev-team/` surface.
+Accepted. Supersedes the transition-era clauses of [ADR 0014](0014-python-for-cross-os-scripts.md) for the `plugins/dev-team/` surface. The [ADR 0014 amendment on scaffolded templates](0014-python-for-cross-os-scripts.md#amendment-scaffolded-templates) exempts JavaScript and TypeScript templates written into a user's project.
 
 ## Context
 

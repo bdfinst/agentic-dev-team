@@ -72,3 +72,13 @@ Enforcement: an audit script (`scripts/check-python-only.py`) flags any new `.sh
 - **First conversion (Phase 1)**: PR #573 (csharp-stryker-net-wrapper + status-loop → Python)
 - **Related rules**: CLAUDE.md — new working-rule sections referencing this ADR
 - **Memory**: `feedback_all_scripts_platform_neutral` — the rule-level implementation this ADR formalizes
+
+## Amendment: scaffolded templates
+
+Date: 2026-11-25
+
+JavaScript and TypeScript templates that `/setup` scaffolds into a user's project are outside the Python-only rule. They are the user's code, in the user's language, and run in the user's toolchain. The first such template is the dev-team ESLint config at `plugins/dev-team/templates/eslint/payload/`.
+
+The rule is unchanged for everything the plugin runs. The hook, the scaffold script, the candidate finder, and the audit checks stay stdlib Python.
+
+The plugin has no Node requirement. A user who does not use the ESLint config never needs Node. Node and `npm ci` are a contributor requirement only, for the CI gate that tests the template under ESLint 9 and 10.
