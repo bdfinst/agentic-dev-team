@@ -7,9 +7,18 @@ an existing ESLint rule through ``knowledge/lint-rule-catalog.json``. No model
 is called: the output is a pure function of the files and logs it reads, so it
 is byte-identical across runs.
 
+Inputs, read when present (a missing input yields a census-only report):
+    <project-root>/.claude/metrics/review-findings.jsonl
+        One JSON object per line with ``lens`` and ``category``.
+    <project-root>/.dev-team-reports/code-review/raw/*.json
+        Findings with ``agent``, ``file``, ``category``, ``message``: one
+        object, a list of objects, or an object with a ``findings`` list.
+A line or finding missing its agent or category, or a file that is not valid
+JSON, is skipped and counted.
+
 Usage:
-    python3 lint_candidates.py [--plugin-root DIR] [--catalog FILE]
-                               [--format json|markdown]
+    python3 lint_candidates.py [--plugin-root DIR] [--project-root DIR]
+                               [--catalog FILE] [--format json|markdown]
 
 Stdlib only. See docs/python-hook-contract.md.
 """
@@ -20,20 +29,38 @@ import argparse
 import json
 import re
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+_PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "lib"))
+sys.path.insert(0, str(_PLUGIN_ROOT / "skills" / "code-review" / "scripts"))
 
 from detect_bullets import TAG_PATTERN, detect_bullets
+from finding_signature import finding_agent, finding_category
 
-_PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CATALOG = _PLUGIN_ROOT / "knowledge" / "lint-rule-catalog.json"
 CENSUS_DIRS = ("agents", "templates/agents")
 
-TAG_SCORES = {"MECHANICAL": 1.0, "JUDGMENT": 0.0}
+FINDINGS_LOG = Path(".claude/metrics/review-findings.jsonl")
+RAW_DIR = Path(".dev-team-reports/code-review/raw")
 UNTAGGED = "untagged"
+
+
+@dataclass(frozen=True)
+class Thresholds:
+    """The numbers that decide a bullet's score and a group's file count."""
+
+    mechanical_score: float = 1.0  # a [MECHANICAL] tag
+    judgment_score: float = 0.0  # a [JUDGMENT] tag
+    score_floor: int = 0  # untagged token balance is clamped to
+    score_ceiling: int = 1  # [score_floor, score_ceiling]
+    unfiled_file_count: int = 1  # files credited to findings that name no file
+
+
+THRESHOLDS = Thresholds()
 
 # Signals that a bullet states a checkable fact: backticked code, a numeric
 # threshold, "never", or glob/regex text.
@@ -69,16 +96,20 @@ class Bullet:
     rung: str | None
 
 
-def mechanical_signal(text: str, tags: list[str]) -> float:
+def mechanical_signal(
+    text: str, tags: list[str], thresholds: Thresholds = THRESHOLDS
+) -> float:
     """Score in [0, 1] for how mechanical a bullet is.
 
     One tag decides the score. Zero or several tags fall back to the token
     balance: positive tokens minus negative tokens, clamped.
     """
-    if len(tags) == 1:
-        return TAG_SCORES[tags[0]]
+    if tags == ["MECHANICAL"]:
+        return thresholds.mechanical_score
+    if tags == ["JUDGMENT"]:
+        return thresholds.judgment_score
     balance = len(_POSITIVE.findall(text)) - len(_NEGATIVE.findall(text))
-    return float(max(0, min(1, balance)))
+    return float(max(thresholds.score_floor, min(thresholds.score_ceiling, balance)))
 
 
 def load_catalog(path: Path) -> list[CatalogEntry]:
@@ -134,27 +165,195 @@ def read_census(plugin_root: Path, catalog: list[CatalogEntry]) -> list[Bullet]:
     return bullets
 
 
+class Finding(NamedTuple):
+    agent: str
+    category: str
+    file: str | None
+
+
+@dataclass(frozen=True)
+class Findings:
+    items: list[Finding]
+    skipped: int
+    present: bool  # at least one input file exists
+
+
+def _normalize_file(value: object) -> str | None:
+    text = str(value or "").replace("\\", "/")
+    while text.startswith("./"):
+        text = text[2:]
+    return text or None
+
+
+def _log_findings(path: Path) -> tuple[list[Finding], int, bool]:
+    if not path.is_file():
+        return [], 0, False
+    items: list[Finding] = []
+    skipped = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except ValueError:
+            skipped += 1
+            continue
+        lens = row.get("lens") if isinstance(row, dict) else None
+        category = finding_category(row) if isinstance(row, dict) else ""
+        if not lens or not category:
+            skipped += 1
+            continue
+        items.append(Finding(str(lens), category, None))
+    return items, skipped, True
+
+
+def _raw_entries(payload: object) -> list[object]:
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict) and isinstance(payload.get("findings"), list):
+        return payload["findings"]
+    return [payload]
+
+
+def _raw_findings(raw_dir: Path) -> tuple[list[Finding], int, bool]:
+    paths = sorted(raw_dir.glob("*.json")) if raw_dir.is_dir() else []
+    items: list[Finding] = []
+    skipped = 0
+    for path in paths:
+        try:
+            entries = _raw_entries(json.loads(path.read_text(encoding="utf-8")))
+        except ValueError:
+            skipped += 1
+            continue
+        for entry in entries:
+            agent = finding_agent(entry) if isinstance(entry, dict) else ""
+            category = finding_category(entry) if isinstance(entry, dict) else ""
+            if not agent or not category:
+                skipped += 1
+                continue
+            items.append(Finding(agent, category, _normalize_file(entry.get("file"))))
+    return items, skipped, bool(paths)
+
+
+def read_findings(project_root: Path) -> Findings:
+    log_items, log_skipped, log_present = _log_findings(project_root / FINDINGS_LOG)
+    raw_items, raw_skipped, raw_present = _raw_findings(project_root / RAW_DIR)
+    return Findings(
+        log_items + raw_items, log_skipped + raw_skipped, log_present or raw_present
+    )
+
+
+def _squash(text: str) -> str:
+    """Lowercase and reduce runs of non-alphanumerics to single spaces."""
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
+
+
+class Tally:
+    """Occurrences and distinct files for one group of findings."""
+
+    def __init__(self) -> None:
+        self.occurrences = 0
+        self.files: set[str] = set()
+
+    def add(self, finding: Finding) -> None:
+        self.occurrences += 1
+        if finding.file:
+            self.files.add(finding.file)
+
+    def merge(self, other: Tally) -> None:
+        self.occurrences += other.occurrences
+        self.files |= other.files
+
+    def distinct_files(self, thresholds: Thresholds = THRESHOLDS) -> int:
+        if self.files:
+            return len(self.files)
+        return thresholds.unfiled_file_count if self.occurrences else 0
+
+
+def group_findings(items: list[Finding]) -> dict[tuple[str, str], Tally]:
+    groups: dict[tuple[str, str], Tally] = defaultdict(Tally)
+    for finding in items:
+        groups[(finding.agent, finding.category)].add(finding)
+    return groups
+
+
+def join_groups(
+    ordered: list[Bullet], groups: dict[tuple[str, str], Tally]
+) -> tuple[list[Tally], list[dict]]:
+    """Tally per bullet (parallel to ``ordered``) plus the groups that matched none.
+
+    A group joins the first bullet of its agent, in census order, whose text
+    contains the group's category.
+    """
+    tallies = [Tally() for _ in ordered]
+    unmatched = []
+    for (agent, category), tally in sorted(groups.items()):
+        keyword = _squash(category)
+        index = next(
+            (
+                i
+                for i, b in enumerate(ordered)
+                if keyword and b.agent == agent and keyword in _squash(b.text)
+            ),
+            None,
+        )
+        if index is None:
+            unmatched.append(
+                {
+                    "agent": agent,
+                    "category": category,
+                    "distinct_files": tally.distinct_files(),
+                    "occurrences": tally.occurrences,
+                }
+            )
+        else:
+            tallies[index].merge(tally)
+    return tallies, unmatched
+
+
 def _census_key(b: Bullet) -> tuple:
     return (b.agent, b.text, b.file, b.line)
 
 
-def build_report(bullets: list[Bullet]) -> dict:
-    ordered = sorted(bullets, key=_census_key)
+def _candidate(b: Bullet) -> dict:
     return {
-        "frequency_available": False,
-        "candidates": [
-            {
-                "agent": b.agent,
-                "file": b.file,
-                "line": b.line,
-                "rule": b.rule,
-                "rung": b.rung,
-                "score": b.score,
-                "tag": b.tag,
-                "text": b.text,
-            }
-            for b in ordered
-        ],
+        "agent": b.agent,
+        "file": b.file,
+        "line": b.line,
+        "rule": b.rule,
+        "rung": b.rung,
+        "score": b.score,
+        "tag": b.tag,
+        "text": b.text,
+    }
+
+
+def build_report(bullets: list[Bullet], findings: Findings | None = None) -> dict:
+    ordered = sorted(bullets, key=_census_key)
+    if findings is None or not findings.present:
+        return {
+            "candidates": [_candidate(b) for b in ordered],
+            "frequency_available": False,
+            "skipped": findings.skipped if findings else 0,
+        }
+    tallies, unmatched = join_groups(ordered, group_findings(findings.items))
+    ranked = []
+    for bullet, tally in zip(ordered, tallies):
+        files = tally.distinct_files()
+        entry = _candidate(bullet)
+        entry.update(
+            distinct_files=files,
+            occurrences=tally.occurrences,
+            rank=files * tally.occurrences * bullet.score,
+        )
+        ranked.append(entry)
+    # Stable sort over census order (agent, bullet text) breaks rank ties.
+    ranked.sort(key=lambda c: -c["rank"])
+    return {
+        "candidates": ranked,
+        "frequency_available": True,
+        "skipped": findings.skipped,
+        "unmatched": unmatched,
     }
 
 
@@ -162,31 +361,54 @@ def render_json(report: dict) -> str:
     return json.dumps(report, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
 
 
+def _markdown_row(position: int, c: dict, frequency: bool) -> str:
+    text = c["text"].replace("|", "\\|")
+    cells = [str(position), c["agent"], c["tag"], str(c["score"])]
+    if frequency:
+        cells += [str(c["distinct_files"]), str(c["occurrences"]), str(c["rank"])]
+    cells += [c["rule"] or "-", c["rung"] or "-", text]
+    return "| " + " | ".join(cells) + " |"
+
+
 def render_markdown(report: dict) -> str:
+    frequency = report["frequency_available"]
+    headers = ["#", "agent", "tag", "score"]
+    if frequency:
+        headers += ["files", "occurrences", "rank"]
+    headers += ["rule", "rung", "bullet"]
     lines = [
-        "# Lint candidate census",
+        "# Lint candidates" if frequency else "# Lint candidate census",
         "",
-        "| agent | tag | score | rule | rung | bullet |",
-        "| --- | --- | --- | --- | --- | --- |",
+        f"Skipped inputs: {report['skipped']}",
+        "",
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
     ]
-    for c in report["candidates"]:
-        text = c["text"].replace("|", "\\|")
-        lines.append(
-            f"| {c['agent']} | {c['tag']} | {c['score']} "
-            f"| {c['rule'] or '-'} | {c['rung'] or '-'} | {text} |"
-        )
+    lines += [
+        _markdown_row(i, c, frequency) for i, c in enumerate(report["candidates"], 1)
+    ]
+    unmatched = report.get("unmatched") or []
+    if unmatched:
+        lines += ["", "## Unmatched finding groups", "", "| agent | category | files | occurrences |", "| --- | --- | --- | --- |"]
+        lines += [
+            f"| {u['agent']} | {u['category']} | {u['distinct_files']} | {u['occurrences']} |"
+            for u in unmatched
+        ]
     return "\n".join(lines) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--plugin-root", type=Path, default=_PLUGIN_ROOT)
+    parser.add_argument("--project-root", type=Path, default=Path.cwd())
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--format", choices=("json", "markdown"), default="json")
     args = parser.parse_args(argv)
 
     catalog = load_catalog(args.catalog)
-    report = build_report(read_census(args.plugin_root, catalog))
+    report = build_report(
+        read_census(args.plugin_root, catalog), read_findings(args.project_root)
+    )
     render = render_json if args.format == "json" else render_markdown
     sys.stdout.write(render(report))
     return 0
