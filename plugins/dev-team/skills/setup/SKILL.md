@@ -773,6 +773,8 @@ skip the step silently. The script decides whether the project qualifies: it
 needs `package.json`, JavaScript or TypeScript source files, ESLint 9 or 10
 installed in `node_modules`, and a flat `eslint.config.*` in the project root.
 When any is missing it writes nothing and prints one reason and one action.
+Run it from the repository root: in a subdirectory of a repository it writes
+nothing, because the post-edit hook looks for the config at the repository root.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold_lint_config.py" --project "$PWD"

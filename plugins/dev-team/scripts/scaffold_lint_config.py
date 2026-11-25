@@ -15,6 +15,7 @@ Usage:
     scaffold_lint_config.py [--project DIR] --refresh  rewrite stale-unedited
 
 Statuses: current, current-edited, stale-unedited, stale-edited, unstamped.
+``--refresh`` also lists a symlinked file as skipped (``symlink``).
 Scaffolding writes only when the project meets every precondition, never
 overwrites an existing file, and otherwise prints a reason and one action.
 
@@ -33,6 +34,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+_HOOKS_LIB_DIR = PLUGIN_ROOT / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB_DIR))
+
+import artifact_paths
+
 PAYLOAD_DIR = PLUGIN_ROOT / "templates" / "eslint" / "payload"
 MANIFEST_PATH = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
 
@@ -42,7 +49,11 @@ STAMP_PREFIX = "// devteam-lint"
 STAMP_PATTERN = re.compile(rb"^// devteam-lint v(\S+) sha256:([0-9a-f]{64})\r?$")
 
 SUPPORTED_ESLINT_MAJORS = (9, 10)
+# Strict semver. A version string reaches skip messages the model reads, so
+# anything that is not exactly semver is never echoed.
+SEMVER_PATTERN = re.compile(r"(\d+)\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
 JS_SOURCE_SUFFIXES = (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts")
+DECLARATION_SUFFIXES = (".d.ts", ".d.mts", ".d.cts")
 SKIPPED_DIRS = frozenset(
     {
         "node_modules",
@@ -79,6 +90,7 @@ STATUS_CURRENT_EDITED = "current-edited"
 STATUS_STALE_UNEDITED = "stale-unedited"
 STATUS_STALE_EDITED = "stale-edited"
 STATUS_UNSTAMPED = "unstamped"
+STATUS_SYMLINK = "symlink"  # refresh never writes through a link
 
 EXIT_OK = 0
 EXIT_FAILURE = 2
@@ -124,8 +136,8 @@ class Outcome:
 
 
 def parse_major(version: str) -> int | None:
-    """Major number of ``9.0.0`` or ``10.0.0-rc.1``; ``None`` when unparseable."""
-    match = re.match(r"(\d+)\.\d+\.\d+", version.strip())
+    """Major number of ``9.0.0`` or ``10.0.0-rc.1``; ``None`` unless strict semver."""
+    match = SEMVER_PATTERN.fullmatch(version)
     return int(match.group(1)) if match else None
 
 
@@ -206,7 +218,7 @@ def _has_js_source(project: Path) -> bool:
         for filename in filenames:
             if not filename.endswith(JS_SOURCE_SUFFIXES):
                 continue
-            if filename.endswith(".d.ts") or ".config." in filename:
+            if filename.endswith(DECLARATION_SUFFIXES) or ".config." in filename:
                 continue
             return True
     return False
@@ -245,9 +257,14 @@ def _eslint_gate(project: Path, package: dict) -> Skip | None:
             "run npm install --save-dev eslint (version 9 or 10), then re-run /setup",
         )
     major = parse_major(version)
+    if major is None:
+        return Skip(
+            "unparseable ESLint version in node_modules/eslint/package.json",
+            "reinstall ESLint 9 or 10 (npm install --save-dev eslint@10), then re-run /setup",
+        )
     if major in SUPPORTED_ESLINT_MAJORS:
         return None
-    if major is not None and major > max(SUPPORTED_ESLINT_MAJORS):
+    if major > max(SUPPORTED_ESLINT_MAJORS):
         return Skip(
             f"ESLint {version} found; dev-team config needs ESLint 9 or 10 "
             f"and ESLint {major} is unsupported until tested",
@@ -314,8 +331,20 @@ def detect_mode(project: Path) -> str:
 # --- operations ------------------------------------------------------------
 
 
+def _root_mismatch(project: Path) -> Skip | None:
+    """The hook resolves the git top level; a config beside a subdirectory is never found."""
+    top = artifact_paths.git_toplevel(project)
+    if top is None or top.resolve() == project.resolve():
+        return None
+    return Skip(
+        f"{project} is not the repository root ({top}); the post-edit hook "
+        "looks for eslint.devteam.config.js in the repository root",
+        "run /setup from the repository root",
+    )
+
+
 def scaffold(project: Path) -> Outcome:
-    skip = gate(project)
+    skip = _root_mismatch(project) or gate(project)
     if skip is not None:
         return Outcome(skip=skip)
     version = read_plugin_version()
@@ -328,6 +357,8 @@ def scaffold(project: Path) -> Outcome:
                 handle.write(content)
         except FileExistsError:
             outcome.existing.append(name)
+        except OSError as error:
+            raise ScaffoldError(f"cannot write {target}: {error}") from error
         else:
             outcome.written.append(name)
     return outcome
@@ -349,8 +380,14 @@ def refresh(project: Path) -> dict[str, object]:
     refreshed: list[str] = []
     skipped: dict[str, str] = {}
     for name, status in check(project).items():
-        if status == STATUS_STALE_UNEDITED:
-            (project / name).write_bytes(stamp(version, read_payload(name)))
+        target = project / name
+        if target.is_symlink():
+            skipped[name] = STATUS_SYMLINK
+        elif status == STATUS_STALE_UNEDITED:
+            try:
+                target.write_bytes(stamp(version, read_payload(name)))
+            except OSError as error:
+                raise ScaffoldError(f"cannot write {target}: {error}") from error
             refreshed.append(name)
         else:
             skipped[name] = status
