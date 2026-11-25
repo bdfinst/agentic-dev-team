@@ -249,7 +249,8 @@ fi
 # ESLint 10 (repo root install) and ESLint 9 (pinned in the template's dev
 # tree). Node is verified, not installed: a package manager's node rarely
 # matches .nvmrc. `npm ci` deletes node_modules first, so it runs only when
-# node_modules differs from the lockfile (scripts/npm_lock_current.py).
+# any locked package, transitive ones included, is missing or at another
+# version than package-lock.json (scripts/npm_lock_current.py).
 section "Node + npm dependencies (ESLint 10 at the root, ESLint 9 in templates/eslint/dev)"
 if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
   ok "node ($(node --version 2>&1)); .nvmrc pins $(cat .nvmrc 2>/dev/null || echo unknown)"
