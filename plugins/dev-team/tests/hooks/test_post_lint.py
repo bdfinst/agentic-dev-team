@@ -304,7 +304,20 @@ def test_timeout_fails_open_and_terminates_the_whole_process_group(project, tmp_
 
 @pytest.mark.parametrize(
     ("raw", "expected"),
-    [(None, 10.0), ("", 10.0), ("abc", 10.0), ("0", 10.0), ("-3", 10.0), ("2.5", 2.5)],
+    [
+        (None, 10.0),
+        ("", 10.0),
+        ("abc", 10.0),
+        ("0", 10.0),
+        ("-3", 10.0),
+        ("2.5", 2.5),
+        ("600", 600.0),
+        ("inf", 10.0),
+        ("-inf", 10.0),
+        ("nan", 10.0),
+        ("1e20", 10.0),
+        ("601", 10.0),
+    ],
 )
 def test_timeout_seconds_defaults_to_ten_on_bad_values(raw, expected):
     env = {} if raw is None else {post_lint.ENV_TIMEOUT: raw}

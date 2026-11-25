@@ -54,6 +54,9 @@ ENV_TIMEOUT = "DEVTEAM_POST_LINT_TIMEOUT"
 ENV_TYPED = "DEVTEAM_LINT_TYPED"
 CONFIG_NAME = "eslint.devteam.config.js"
 DEFAULT_TIMEOUT_SECONDS = 10.0
+# Above this, or not finite, a configured timeout falls back to the default:
+# `inf` would never time out and a huge value overflows `communicate()`.
+MAX_TIMEOUT_SECONDS = 600.0
 # One line per run: .claude/metrics/post-lint.jsonl
 METRICS_FILE = "post-lint.jsonl"
 
@@ -239,7 +242,7 @@ def timeout_seconds(env: Mapping[str, str]) -> float:
         value = float(env.get(ENV_TIMEOUT, ""))
     except ValueError:
         return DEFAULT_TIMEOUT_SECONDS
-    return value if value > 0 else DEFAULT_TIMEOUT_SECONDS
+    return value if 0 < value <= MAX_TIMEOUT_SECONDS else DEFAULT_TIMEOUT_SECONDS
 
 
 # --- per-session state (notice-once) ----------------------------------------
