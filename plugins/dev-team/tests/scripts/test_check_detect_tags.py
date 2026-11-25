@@ -434,3 +434,62 @@ def test_valid_fixture_with_both_tags_passes_and_reports_counts(tmp_path, capsys
 
     assert code == 0
     assert "1 MECHANICAL, 1 JUDGMENT, 0 untagged, 0 double-tagged" in out
+
+
+def test_pointer_to_a_rule_that_is_not_enabled_fails(tmp_path, capsys):
+    ids = _rule_ids(tmp_path, enabled=["no-var"], planned=["max-depth"])
+    path = _agent(tmp_path, _pointer(id="max-depth"))
+
+    code = main([str(path), "--rule-ids", ids])
+
+    assert code == EXIT_INVALID
+    assert "pointer names max-depth, which is not an enabled rule" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("groups", "message"),
+    [
+        pytest.param(
+            {"enabled": ["no-var"], "convertible": ["no-plusplus"]},
+            "convertible rules must be enabled: no-plusplus",
+            id="convertible-not-enabled",
+        ),
+        pytest.param(
+            {"enabled": ["no-var"], "conditional": ["functional/immutable-data"]},
+            "conditional rules must be enabled: functional/immutable-data",
+            id="conditional-not-enabled",
+        ),
+        pytest.param(
+            {"enabled": ["no-var"], "planned": ["no-var"]},
+            "enabled and planned overlap: no-var",
+            id="enabled-and-planned",
+        ),
+    ],
+)
+def test_inconsistent_rule_id_groups_exit_with_a_message(
+    tmp_path, capsys, groups, message
+):
+    ids = _rule_ids(tmp_path, **groups)
+    path = _agent(tmp_path, VALID_BULLET)
+
+    assert main([str(path), "--rule-ids", ids]) == EXIT_BAD_INPUT
+    assert message in capsys.readouterr().err
+
+
+def test_an_agent_file_that_is_not_utf8_exits_with_a_message_naming_it(
+    tmp_path, capsys, ids
+):
+    path = tmp_path / "binary.md"
+    path.write_bytes(b"\xff\xfe## Detect\n")
+
+    assert main([str(path), "--rule-ids", ids]) == EXIT_BAD_INPUT
+    assert "binary.md" in capsys.readouterr().err
+
+
+def test_a_rule_ids_file_that_is_not_utf8_exits_with_a_message(tmp_path, capsys):
+    bad = tmp_path / "bad.json"
+    bad.write_bytes(b"\xff\xfe")
+    path = _agent(tmp_path, VALID_BULLET)
+
+    assert main([str(path), "--rule-ids", str(bad)]) == EXIT_BAD_INPUT
+    assert "rule-ids" in capsys.readouterr().err

@@ -9,7 +9,7 @@ means a model must decide it and needs no mapping.
 A bullet converted to a lint pointer ("If ``eslint.devteam.config.js`` enables
 ``<id>`` and it is wired, judge only <residual>; otherwise judge fully") must
 say "otherwise judge fully", name the rule id it relies on, and that id must be
-the rule the bullet maps to and be listed as convertible.
+the rule the bullet maps to, be enabled, and be listed as convertible.
 
 Rule ids come from ``templates/eslint/rule-ids.json``: ``enabled`` (the
 shipped config's rules), ``planned`` (mapping targets whose rule is not shipped
@@ -17,6 +17,8 @@ yet; valid for ``rule:`` but never for a pointer), and ``convertible``
 (``lint_corpus_compare.py`` verdicts on the committed corpus). ``conditional``
 (optional) lists enabled rules that run only when extra dependencies are
 installed; a pointer to one is rejected because a lint run cannot be assumed.
+``convertible`` and ``conditional`` must be subsets of ``enabled``, and
+``enabled`` and ``planned`` must not overlap.
 
 Usage:
     python3 check_detect_tags.py [--rule-ids FILE] [agent-file ...]
@@ -24,7 +26,8 @@ Usage:
 With no file arguments, checks the four agents whose Detect bullets are tagged.
 Exit 0 when every bullet is valid, 1 otherwise, printing
 ``<file>:<line> <bullet text>`` for each offender with the two ways to fix it.
-Exit 2 when the rule-ids file or an agent file is unreadable.
+Exit 2 when the rule-ids file or an agent file is unreadable or not valid UTF-8,
+or the rule-ids groups contradict each other.
 """
 
 from __future__ import annotations
@@ -82,7 +85,23 @@ def load_rule_ids(path: Path = RULE_IDS_PATH) -> RuleIds:
             raise TypeError("enabled, planned, convertible and conditional must be lists of strings")
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise RuleIdsError(f"rule-ids file {path}: {error!r}") from error
-    return RuleIds(**{key: frozenset(ids) for key, ids in groups.items()})
+    rule_ids = RuleIds(**{key: frozenset(ids) for key, ids in groups.items()})
+    if problem := _inconsistency(rule_ids):
+        raise RuleIdsError(f"rule-ids file {path}: {problem}")
+    return rule_ids
+
+
+def _inconsistency(rule_ids: RuleIds) -> str | None:
+    """Why the groups contradict each other, or ``None``."""
+    checks = (
+        ("convertible rules must be enabled", rule_ids.convertible - rule_ids.enabled),
+        ("conditional rules must be enabled", rule_ids.conditional - rule_ids.enabled),
+        ("enabled and planned overlap", rule_ids.enabled & rule_ids.planned),
+    )
+    for label, ids in checks:
+        if ids:
+            return f"{label}: {', '.join(sorted(ids))}"
+    return None
 
 
 MIN_REASON_WORDS = 3
@@ -92,7 +111,8 @@ _NO_RULE = re.compile(r"\bno rule:[ \t]*([^\n]*)")
 _RULE = re.compile(r"\brule:[ \t]*`?([A-Za-z0-9_/@.-]+)`?")
 
 # A bullet converted to a lint pointer carries either marker.
-_POINTER_MARKERS = ("otherwise judge fully", "eslint.devteam.config.js")
+POINTER_PHRASE = "otherwise judge fully"
+_POINTER_MARKERS = (POINTER_PHRASE, "eslint.devteam.config.js")
 _POINTER_RULE = re.compile(r"enables `([^`]+)`")
 
 FIXES = (
@@ -146,14 +166,16 @@ def _pointer_error(text: str, rule_ids: RuleIds) -> str | None:
     mapping = _mapping_text(text)
     if _NO_RULE.search(mapping):
         return "a lint pointer needs a rule: <id> mapping"
-    if "otherwise judge fully" not in text:
-        return "pointer must say 'otherwise judge fully'"
+    if POINTER_PHRASE not in text:
+        return f"pointer must say '{POINTER_PHRASE}'"
     named = _POINTER_RULE.search(text)
     if not named:
         return "pointer must name the rule id it relies on"
     mapped = _RULE.search(mapping)
     if mapped and mapped.group(1) != named.group(1):
         return f"pointer names {named.group(1)} but the bullet maps to {mapped.group(1)}"
+    if named.group(1) not in rule_ids.enabled:
+        return f"pointer names {named.group(1)}, which is not an enabled rule"
     if named.group(1) in rule_ids.conditional:
         return (
             f"pointer names {named.group(1)}, which is conditional: "
@@ -222,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
     for path in files:
         try:
             text = path.read_text(encoding="utf-8")
-        except OSError as error:
+        except (OSError, ValueError) as error:
             print(f"check_detect_tags: {path}: {error}", file=sys.stderr)
             return EXIT_BAD_INPUT
         bullets, file_errors = check_text(str(path), text, rule_ids)
