@@ -86,6 +86,14 @@ review agents. Check:
 3. **Detection rules**: Does the agent list what it detects?
    - MUST have a section listing specific patterns/issues to flag
    - WARN if detection rules are vague or missing
+   - For `esm-enforcer`, `js-fp-review`, `naming-review`, and
+     `structure-review`: run
+     `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/check_detect_tags.py`. Each
+     `## Detect` bullet MUST carry exactly one `[MECHANICAL]` or `[JUDGMENT]`
+     tag, and each `[MECHANICAL]` bullet MUST name a lint rule
+     (`rule: <id>`) or give a reason (`no rule: <reason>`). FAIL on any
+     offender. The same check runs as `detect-bullets-tagged` in
+     `repo_invariants.py`.
 
 4. **Scope boundaries**: Does the agent declare what it ignores?
    - Review agents SHOULD state what other agents handle
