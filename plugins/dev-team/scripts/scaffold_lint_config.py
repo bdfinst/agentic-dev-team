@@ -49,7 +49,11 @@ MANIFEST_PATH = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
 # The scaffold unit. A test pins this list to the payload directory.
 PAYLOAD_FILES = ("eslint.devteam.config.js",)
 STAMP_PREFIX = "// devteam-lint"
-STAMP_PATTERN = re.compile(rb"^// devteam-lint v(\S+) sha256:([0-9a-f]{64})\r?$")
+# The version is printable ASCII only: a hand-edited non-ASCII stamp reads as
+# unstamped instead of failing to decode.
+STAMP_PATTERN = re.compile(
+    rb"^// devteam-lint v([\x21-\x7e]+) sha256:([0-9a-f]{64})\r?$"
+)
 
 SUPPORTED_ESLINT_MAJORS = (9, 10)
 # Strict semver. A version string reaches skip messages the model reads, so
@@ -452,9 +456,16 @@ def _create_new(target: Path, content: bytes) -> bool:
 
 
 def _create_exclusive(target: Path, content: bytes) -> bool:
+    """Create ``target`` only if absent; False when it already exists. A failed
+    write removes the partial file it created, then re-raises."""
     try:
         with open(target, "xb") as handle:
-            handle.write(content)
+            try:
+                handle.write(content)
+                handle.flush()
+            except BaseException:
+                target.unlink(missing_ok=True)
+                raise
     except FileExistsError:
         return False
     return True

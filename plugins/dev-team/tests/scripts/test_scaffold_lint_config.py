@@ -5,6 +5,8 @@ Every case builds a small project under tmp_path and runs the script's
 stay byte-identical.
 """
 
+import contextlib
+import errno
 import hashlib
 import json
 import os
@@ -277,6 +279,14 @@ class TestStamp:
     def test_body_hash_covers_bytes_exactly_so_crlf_changes_it(self):
         assert scaffold.body_hash(b"a\r\nb") != scaffold.body_hash(b"a\nb")
 
+    @pytest.mark.parametrize("version", ["1.0.0\u00e9", "\u00e91.0.0", "1.0.0\u200b"])
+    def test_a_non_ascii_stamp_reads_as_unstamped_not_a_traceback(self, version):
+        body = b"export default [];\n"
+        line = f"// devteam-lint v{version} sha256:{scaffold.body_hash(body)}\n"
+
+        assert scaffold.split_stamp(line.encode() + body) is None
+        assert scaffold.classify(line.encode() + body, PLUGIN_VERSION) == "unstamped"
+
     def test_user_eslint_config_and_tsconfig_stay_byte_identical(
         self, tmp_path, capsys
     ):
@@ -523,6 +533,44 @@ class TestWriteSafety:
         assert (project / CONFIG_NAME).read_bytes() == b"user file\n"
         assert not [p for p in project.iterdir() if p.name.endswith(".tmp")]
 
+    def test_a_failed_exclusive_create_removes_the_partial_file_and_reraises(
+        self, tmp_path, monkeypatch
+    ):
+        target = tmp_path / CONFIG_NAME
+
+        @contextlib.contextmanager
+        def fails_mid_write(path, mode):
+            with open(path, mode) as real:
+
+                class Handle:
+                    @staticmethod
+                    def write(content):
+                        real.write(content[:3])
+                        real.flush()
+                        raise OSError(errno.ENOSPC, "no space left")
+
+                    @staticmethod
+                    def flush():
+                        pass
+
+                yield Handle
+
+        monkeypatch.setattr(scaffold, "open", fails_mid_write, raising=False)
+
+        with pytest.raises(OSError, match="no space"):
+            scaffold._create_exclusive(target, b"export default [];\n")
+
+        assert not target.exists()
+
+    def test_an_exclusive_create_never_removes_a_file_it_did_not_create(
+        self, tmp_path
+    ):
+        target = tmp_path / CONFIG_NAME
+        target.write_bytes(b"user file\n")
+
+        assert scaffold._create_exclusive(target, b"new\n") is False
+        assert target.read_bytes() == b"user file\n"
+
     def test_a_written_scaffold_is_stamped_and_leaves_no_temp_file(self, tmp_path):
         project = make_project(tmp_path / "p")
         scaffold.scaffold(project)
@@ -708,7 +756,7 @@ class TestSupportedMajorsText:
         assert "eslint@11" in out and "ESLint 10 or 11" in out
 
 
-
+class TestArguments:
     def test_check_and_refresh_are_mutually_exclusive(self, tmp_path):
         with pytest.raises(SystemExit) as exit_info:
             main(["--project", str(tmp_path), "--check", "--refresh"])
