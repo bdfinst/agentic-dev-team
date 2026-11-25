@@ -47,16 +47,17 @@ Every other Detect bullet is `no rule`. The ids `max-depth` and `no-magic-number
 Requirements:
 
 - `tsconfig.json` in the same directory as `eslint.devteam.config.js`. Its `include`, `files`, `exclude`, and `extends` decide which files are covered. A solution-style tsconfig that only lists `references` covers no files, so typed rules do not run.
-- `allowJs` or `checkJs` (which implies `allowJs`) in that tsconfig to cover JavaScript with JSDoc types.
+- `eslint.devteam.config.js` beside your own `eslint.config.*` and `tsconfig.json`, with ESLint run from that directory. The config lists covered files as paths relative to its own directory, and ESLint resolves those against the directory it runs from. From any other directory (a monorepo root, an editor that starts ESLint elsewhere) no path matches, and the typed rules do not run, with no notice.
+- `allowJs` or `checkJs` (which implies `allowJs`) in that tsconfig to cover JavaScript with JSDoc types. Without it, JavaScript files are not covered and are linted untyped, with no notice.
 - `eslint-plugin-functional`, `@typescript-eslint/parser`, and `typescript` installed in your project. Tested with `eslint-plugin-functional` 10.0.1 (ESLint 9 and 10), `@typescript-eslint/parser` 8.60.1, `typescript` 5.9.3.
 
 When a dependency is missing, the typed rules are skipped and one line goes to stderr (`devteam-lint: typed rules skipped, not installed: ...`). stdout stays clean for `--format json`. Set `DEVTEAM_LINT_TYPED=0` to skip the typed rules with no notice. Both cases leave every other rule running.
 
-The config registers the plugin as `functional`, so a second `functional` plugin object in your own config for the same files fails with a redefinition error.
+The config registers the plugin as `functional`. Your own config may register the same plugin object under that name. A different plugin object registered as `functional` for the same files fails with a redefinition error.
 
 What is a finding (`warn`): `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, and `fill` on an array that is a parameter, a captured outer variable, a module-level variable, or a local accumulator (`const out = []; out.push(x)`).
 
-What is not: `this.*` in a class method, copies (`[...a].sort()`, `a.slice().reverse()`), `toSorted`, `toSpliced`, `toReversed`, a `Set` or `Map`, and a custom class with its own `push` or `sort`. The rule also reports property writes, `delete`, and `Object.assign`; a processor in the config drops those messages, so the rule id reports array mutators only.
+What is not: `this.*` (the config ignores the pattern `this.**` in every function, not only class methods, because the rule has no option that limits it to classes without also ignoring local accumulators in class methods), copies (`[...a].sort()`, `a.slice().reverse()`), `toSorted`, `toSpliced`, `toReversed`, a `Set` or `Map`, and a custom class with its own `push` or `sort`. The rule also reports property writes, `delete`, and `Object.assign`; a processor in the config drops those messages, so the rule id reports array mutators only.
 
 ## Untyped JavaScript limits
 
@@ -78,6 +79,7 @@ Future work, not built: a `no-restricted-syntax` selector for mutator calls on p
 - `no-param-reassign` does not see a write through an alias of the parameter.
 - The typed rule lists every covered file as a glob when the config loads. A very large tsconfig pays for that on each lint run.
 - The processor that filters the typed rule's messages occupies the processor slot for the covered files. A config that attaches its own processor to the same files conflicts with it.
+- The same processor drops every `functional/immutable-data` message that is not an array message, including those from your own setting of that rule, on covered files. Property writes, `delete`, and `Object.assign` reported by your own `functional/immutable-data` entry do not appear there.
 
 ## Converted bullets
 

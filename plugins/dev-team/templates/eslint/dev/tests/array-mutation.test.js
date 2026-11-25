@@ -124,6 +124,59 @@ test("adding a violation makes the comparison report one extra finding", async (
   assert.deepEqual(missing, []);
 });
 
+const TYPED_RULE = "functional/immutable-data";
+const functionalPlugin = (await import("eslint-plugin-functional")).default;
+
+const typedLintWith = async (userEntry, rel, text) => {
+  const withUserConfig = new ESLint({
+    cwd: arrayMutationDir,
+    overrideConfigFile: true,
+    overrideConfig: [...devteamConfig, userEntry],
+  });
+  const [result] = await withUserConfig.lintText(text, {
+    filePath: path.join(arrayMutationDir, rel),
+  });
+  return result.messages;
+};
+
+const PROPERTY_WRITE_AND_PUSH =
+  "export function f(o: { x: number }, xs: number[]): void {\n  o.x = 1;\n  xs.push(1);\n}\n";
+
+test("a user's own immutable-data setting reports array mutators and loses its other messages on covered files", async () => {
+  const messages = await typedLintWith(
+    {
+      files: ["typed/**/*.ts"],
+      plugins: { functional: functionalPlugin },
+      rules: { [TYPED_RULE]: "error" },
+    },
+    "typed/util.ts",
+    PROPERTY_WRITE_AND_PUSH,
+  );
+  assert.deepEqual(
+    messages
+      .filter(({ ruleId }) => ruleId === TYPED_RULE)
+      .map(({ ruleId, line, severity }) => [ruleId, line, severity]),
+    [[TYPED_RULE, 3, 2]],
+  );
+});
+
+test("a different plugin object registered as functional for the same files is a redefinition error", async () => {
+  await assert.rejects(
+    typedLintWith(
+      { files: ["typed/**/*.ts"], plugins: { functional: { rules: {} } } },
+      "typed/util.ts",
+      PROPERTY_WRITE_AND_PUSH,
+    ),
+    /redefine plugin/i,
+  );
+});
+
+test("this.* is ignored in any function, not only class methods", async () => {
+  const rel = "typed/mutators.ts";
+  const added = `${readFixture(rel)}\nexport function notAMethod(this: { items: number[] }): void {\n  this.items.push(1);\n}\n`;
+  assert.deepEqual(await pairsFor(rel, added), sortPairs(expected[rel]));
+});
+
 // util.ts is committed in lower case; if "Util.ts" resolves, the file system
 // that holds the fixtures ignores case.
 const caseInsensitive = () =>
@@ -186,6 +239,22 @@ const messagePairs = (run) =>
   sortPairs(run.report.flatMap(({ messages }) =>
     messages.map(({ ruleId, line }) => [ruleId, line]),
   ));
+
+test("typed globs resolve against the directory ESLint runs from", () => {
+  const config = stageConfig(arrayMutationDir);
+  const file = "typed/jsdoc-mutators.js";
+  const fromProjectDir = runCli({ dir: arrayMutationDir, config, file });
+  assert.equal(fromProjectDir.status, 0, fromProjectDir.stderr);
+  assert.ok(messagePairs(fromProjectDir).length > 0);
+
+  const fromParent = runCli({
+    dir: path.dirname(arrayMutationDir),
+    config,
+    file: `array-mutation/${file}`,
+  });
+  assert.equal(fromParent.status, 0, fromParent.stderr);
+  assert.deepEqual(messagePairs(fromParent), []);
+});
 
 test("typed mode keeps stdout parseable JSON and prints no notice", () => {
   const config = stageConfig(arrayMutationDir);
@@ -294,6 +363,25 @@ for (const [name, tsconfig] of Object.entries(SKIPPED_PROJECTS)) {
     );
   });
 }
+
+test("without allowJs in the user's tsconfig a JS file with a mutation is silently untyped", () => {
+  const jsPush = "/** @param {number[]} xs */\nexport function f(xs) {\n  xs.push(1);\n}\n";
+  withTempProject(
+    {
+      "tsconfig.json": TS_INCLUDE(["*"]),
+      "a.ts": PUSH_SOURCE,
+      "a.js": jsPush,
+    },
+    ({ dir, config }) => {
+      const js = runCli({ dir, config, file: "a.js" });
+      assert.equal(js.status, 0, js.stderr);
+      assert.equal(js.stderr, "");
+      assert.deepEqual(messagePairs(js), []);
+      const ts = runCli({ dir, config, file: "a.ts" });
+      assert.deepEqual(messagePairs(ts), [[TYPED_RULE, 2]]);
+    },
+  );
+});
 
 // A dependency that is installed but fails to load must be reported as such,
 // not as "not installed".
