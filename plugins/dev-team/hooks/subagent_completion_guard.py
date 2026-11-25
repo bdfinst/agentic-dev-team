@@ -263,6 +263,11 @@ def classify_stop(transcript_path: str) -> StopClassification:
     return "clean"
 
 
+def _agent_id_field(payload: dict) -> dict:
+    agent_id = payload.get("agent_id")
+    return {"agent_id": agent_id} if isinstance(agent_id, str) and agent_id else {}
+
+
 def main() -> int:
     """Fail-open SubagentStop entry point.
 
@@ -287,7 +292,13 @@ def main() -> int:
             # the divergence rate needs (#2201). Observational only.
             append_row(
                 "subagent-stops",
-                {"classification": classification},
+                {
+                    "classification": classification,
+                    # Joins the stop to its `agent-<id>.jsonl` transcript so
+                    # `scripts/subagent_liveness.py` can tell finished agents
+                    # from hung ones.
+                    **_agent_id_field(payload),
+                },
                 cwd=payload.get("cwd"),
                 session_id=payload.get("session_id"),
             )

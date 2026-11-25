@@ -64,3 +64,18 @@ State the terminal condition inside the prompt, so the loop can end itself —
 — and end it with a `stop: true` call, not by silently letting the last wake
 pass. A loop with no terminal condition in its own prompt runs until the
 operator kills it.
+
+## Detecting a hung subagent
+
+A subagent can stop making progress without erroring. When a poll waits on
+dispatched subagents, run on each wake:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/subagent_liveness.py" \
+  --dir <session>/subagents --stops .claude/metrics/subagent-stops.jsonl
+```
+
+Exit 1 lists agents whose transcript has not grown for over 600 seconds (set
+`--threshold-seconds` or `DEV_TEAM_SUBAGENT_STUCK_SECONDS`) and that have no
+`SubagentStop` row. Report them and stop the wait or re-dispatch; never re-arm
+a check-in that only waits.

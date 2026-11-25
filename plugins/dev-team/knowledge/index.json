@@ -941,6 +941,10 @@
     "Re-arming loops": {
       "summary": "A check-in that is supposed to repeat must carry its own continuation: the",
       "anchor": "re-arming-loops"
+    },
+    "Detecting a hung subagent": {
+      "summary": "A subagent can stop making progress without erroring.",
+      "anchor": "detecting-a-hung-subagent"
     }
   },
   "plugins/dev-team/knowledge/microservice-testing.md": {

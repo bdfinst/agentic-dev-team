@@ -94,6 +94,12 @@ the plan file, `risks_surfaced` is `[]` unless the plan's status itself signals 
 (e.g. resuming an `in-progress` plan). The non-interactive path writes the same three
 fields; `description` names the bypass trigger.
 
+**Plan lint (preflight).** Before dispatching any slice, run
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_lint.py" <plan-file>`. On exit 2, print every
+fault it names and stop — the plan has structural faults (non-numeric step id, a step
+with no files, a line citation into an earlier step's file, or a wrong stated step
+count) that fail late. Do not auto-fix; send the plan back to `/plan`.
+
 ### 3. Verify acceptance criteria (gate)
 
 **Dispatch-capability gate (re-confirm here — issue #1461).** Before dispatching `spec-compliance-review` below, re-verify the `Agent`/`Task` tool is present. If it is not, STOP per the Orchestrator constraints above — do not self-verify the criteria inline; report the missing capability and halt before implementation begins.
@@ -162,7 +168,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_wave.py" <plan-file>          # ord
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py" --wave-width <W> [--jobs N]  # effective concurrency
 ```
 
-`build_jobs.py` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)`. Parallel fan-out is **opt-in**: when neither `--jobs` nor `DEV_TEAM_MAX_PARALLEL_BUILDS` is set, the **default is sequential** (effective 1) — fan-out never *saves* tokens, it trades them for wall-clock (#1515). Opt in with `--jobs N` (bounded only by wave width) or `DEV_TEAM_MAX_PARALLEL_BUILDS` (an explicit env value is honored verbatim, never re-capped); non-positive/non-integer values clamp to 1. **Sequential fallback:** when effective concurrency is **1** (the unset default, a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).
+`build_jobs.py` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)`. Parallel fan-out is **opt-in**: when neither `--jobs` nor `DEV_TEAM_MAX_PARALLEL_BUILDS` is set, the **default is sequential** (effective 1) — fan-out never *saves* tokens, it trades them for wall-clock (#1515). Opt in with `--jobs N` (bounded only by wave width) or `DEV_TEAM_MAX_PARALLEL_BUILDS` (an explicit env value is honored verbatim, never re-capped); non-positive/non-integer values clamp to 1. **Sequential fallback:** when effective concurrency is **1** (the unset default, a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly). While waiting on concurrent slices, run `scripts/subagent_liveness.py` per [`knowledge/long-run-waiting.md`](../../knowledge/long-run-waiting.md#detecting-a-hung-subagent); exit 1 names a hung slice agent to re-dispatch.
 
 **Concurrent dispatch (effective concurrency > 1):**
 

@@ -320,6 +320,12 @@ SLICE_EXCLUSIONS = {
     "plan_falsifiers.py": (
         "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
     ),
+    "subagent_liveness.py": (
+        "stdlib argparse/json/os/time/pathlib only; no floor-sensitive runtime API"
+    ),
+    "plan_lint.py": (
+        "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
+    ),
     "plan_waves.py": (
         "stdlib argparse/fnmatch/json/re/pathlib only; no floor-sensitive runtime API"
     ),
