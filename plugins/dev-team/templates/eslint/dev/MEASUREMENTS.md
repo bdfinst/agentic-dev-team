@@ -48,6 +48,8 @@ All other corpus files produced zero findings, including the clean fixtures and 
 
 `js-fp-review` was run live over the ten `evals/fixtures/fp-*.ts` fixtures (`claude -p`, model `claude-sonnet-4-6`, the agent file as committed, each fixture path passed alone). `scripts/eval_grade.py` graded it: 10 of 10 pairs passed. The raw issues are in `corpus/live-eval-js-fp-review.json`; tests in `tests/repo/test_lint_conversion_evidence.py` check the comparison below against it.
 
+The agent file declares `model: haiku`, so the run was repeated on haiku (`corpus/live-eval-js-fp-review-haiku.json`, no `file` or `line` fields: haiku returned the line only in the message text). `eval_grade.py` again graded 10 of 10. Every line the three converted rules flag in the eval fixtures (5 `no-param-reassign`, 2 `no-plusplus`, 2 `prefer-const`) appears by line number in a haiku message. The tests grade the sonnet file only; the haiku match was checked by hand. Each model was run once.
+
 | Rule | Planted cases | Rule found | Agent reported every rule line | Rule lines the agent missed |
 | --- | --- | --- | --- | --- |
 | `no-param-reassign` | 5 | 5 | yes | 0 |
