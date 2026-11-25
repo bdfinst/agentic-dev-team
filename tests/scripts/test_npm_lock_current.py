@@ -11,7 +11,9 @@ import json
 from scripts import npm_lock_current
 
 
-def make_project(root, *, locked, installed, optional=(), links=()):
+def make_project(
+    root, *, locked, installed, optional=(), dev_optional=(), links=()
+):
     """`locked` and `installed` map a node_modules path (``a``, ``a/node_modules/b``)
     to a version."""
     root.mkdir(parents=True, exist_ok=True)
@@ -21,6 +23,8 @@ def make_project(root, *, locked, installed, optional=(), links=()):
         entry = {"version": version}
         if name in optional:
             entry["optional"] = True
+        if name in dev_optional:
+            entry["devOptional"] = True
         packages[f"node_modules/{name}"] = entry
     for name in links:
         packages[f"node_modules/{name}"] = {"resolved": "../elsewhere", "link": True}
@@ -85,6 +89,25 @@ def test_current_when_only_an_optional_package_is_not_installed(tmp_path):
         optional={"fsevents"},
     )
     assert npm_lock_current.main([str(project)]) == 0
+
+
+def test_current_when_only_a_dev_optional_package_is_not_installed(tmp_path):
+    project = make_project(
+        tmp_path,
+        locked={"eslint": "9.39.4", "fsevents": "2.3.3"},
+        installed={"eslint": "9.39.4"},
+        dev_optional={"fsevents"},
+    )
+    assert npm_lock_current.main([str(project)]) == 0
+
+
+def test_a_missing_package_that_is_neither_optional_kind_is_stale(tmp_path):
+    project = make_project(
+        tmp_path,
+        locked={"eslint": "9.39.4", "ajv": "6.12.6"},
+        installed={"eslint": "9.39.4"},
+    )
+    assert npm_lock_current.main([str(project)]) == 1
 
 
 def test_a_linked_entry_is_not_compared(tmp_path):

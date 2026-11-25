@@ -5,9 +5,9 @@ Usage: npm_lock_current.py [DIR]    (DIR defaults to the current directory)
 
 Reads every `packages` entry of `package-lock.json`, so a change to a
 transitive dependency alone reads as stale. An optional entry that is not
-installed (a platform-specific binary) does not count as stale. A missing
-lockfile, a missing `node_modules`, a missing required package, or a version
-mismatch all exit 1.
+installed (a platform-specific binary; `optional` or `devOptional`) does not
+count as stale. A missing lockfile, a missing `node_modules`, a missing required
+package, or a version mismatch all exit 1.
 
 `npm ci` deletes `node_modules` first, so callers run it only on exit 1.
 
@@ -31,7 +31,7 @@ def _entry_is_current(project: Path, key: str, entry: dict) -> bool:
     try:
         installed = _read_json(project / key / "package.json")
     except FileNotFoundError:
-        return bool(entry.get("optional"))
+        return bool(entry.get("optional") or entry.get("devOptional"))
     return installed["version"] == entry["version"]
 
 
