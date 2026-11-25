@@ -125,13 +125,17 @@ test("advisory severity keeps plain eslint green", () => {
   assert.equal(run.status, 0, run.stderr);
 });
 
+// A backslash is allowed only as an escape before a glob metacharacter.
 test("config globs use forward slashes only", () => {
   const patterns = devteamConfig
     .flatMap((entry) => [...(entry.files ?? []), ...(entry.ignores ?? [])])
     .flat();
   assert.ok(patterns.length > 0);
   for (const pattern of patterns) {
-    assert.ok(!pattern.includes("\\"), `backslash in glob ${pattern}`);
+    assert.ok(
+      !/\\(?![\\*?[\]{}()!+@])/.test(pattern),
+      `backslash path separator in glob ${pattern}`,
+    );
   }
 });
 

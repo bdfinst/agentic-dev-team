@@ -7,7 +7,6 @@ import path from "node:path";
 import process from "node:process";
 import test from "node:test";
 
-
 import {
   ESLint,
   devDir,
@@ -55,11 +54,15 @@ const pairsFor = async (rel, text) =>
 const lineOf = (rel, needle) =>
   readFixture(rel).split("\n").findIndex((line) => line.includes(needle)) + 1;
 
+const tsconfigExcludes = JSON.parse(readFixture("tsconfig.json")).exclude;
+
 test("typed TS and JSDoc JS flag exactly the expected mutations", async () => {
   const keys = Object.keys(expected);
   const typedFiles = fs
     .readdirSync(path.join(arrayMutationDir, "typed"))
-    .map((name) => `typed/${name}`);
+    .filter((name) => /\.(ts|js)$/.test(name))
+    .map((name) => `typed/${name}`)
+    .filter((rel) => !tsconfigExcludes.includes(rel));
   assert.deepEqual([...keys].sort(), [...typedFiles].sort());
   for (const rel of keys) {
     assert.deepEqual(await pairsFor(rel), sortPairs(expected[rel]), rel);
@@ -78,6 +81,16 @@ test("a file the tsconfig does not cover is not reported and does not fail to pa
   const rel = "uncovered/not-in-tsconfig.ts";
   assert.ok(readFixture(rel).includes("xs.push(1)"));
   assert.deepEqual(await messagesFor(rel), []);
+});
+
+// Each excluded file differs by one character from a covered file whose name
+// holds glob syntax; a glob that over-matches would report it.
+test("a file the tsconfig excludes is not matched by a glob-metacharacter sibling", async () => {
+  assert.deepEqual(tsconfigExcludes, ["typed/aXb.ts", "typed/xa.ts"]);
+  for (const rel of tsconfigExcludes) {
+    assert.ok(readFixture(rel).includes("ids.push"), rel);
+    assert.deepEqual(await messagesFor(rel), [], rel);
+  }
 });
 
 test("typed files keep autofix for the other rules", async () => {
@@ -168,6 +181,45 @@ test("DEVTEAM_LINT_TYPED=0 skips the typed rules silently", () => {
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.stderr, "");
   assert.deepEqual(run.report[0].messages, []);
+});
+
+// A throwaway project directory that resolves the dev tree's dependencies.
+const withTempProject = (files, body) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "devteam-project-"));
+  try {
+    fs.symlinkSync(
+      path.join(devDir, "node_modules"),
+      path.join(dir, "node_modules"),
+      "junction",
+    );
+    for (const [name, content] of Object.entries(files)) {
+      fs.writeFileSync(path.join(dir, name), content);
+    }
+    return body({ dir, config: stageConfig(dir) });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+const PUSH_SOURCE = "export function f(xs: number[]): void {\n  xs.push(1);\n}\n";
+const TS_INCLUDE = (include) =>
+  JSON.stringify({
+    compilerOptions: { strict: true, noEmit: true },
+    include,
+  });
+
+test("a covered root file whose name starts with two dots is still linted", () => {
+  withTempProject(
+    { "tsconfig.json": TS_INCLUDE(["..dots.ts"]), "..dots.ts": PUSH_SOURCE },
+    ({ dir, config }) => {
+      const run = runCli({ dir, config, file: "..dots.ts" });
+      assert.equal(run.status, 0, run.stderr);
+      assert.deepEqual(
+        run.report[0].messages.map(({ ruleId, line }) => [ruleId, line]),
+        [["functional/immutable-data", 2]],
+      );
+    },
+  );
 });
 
 test("absent typed dependencies print one stderr notice and keep stdout parseable", () => {

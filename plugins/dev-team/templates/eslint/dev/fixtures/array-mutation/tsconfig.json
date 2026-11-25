@@ -9,5 +9,6 @@
     "checkJs": true,
     "noEmit": true
   },
-  "include": ["typed/**/*"]
+  "include": ["typed/**/*"],
+  "exclude": ["typed/aXb.ts", "typed/xa.ts"]
 }

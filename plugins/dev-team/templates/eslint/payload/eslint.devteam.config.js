@@ -35,8 +35,15 @@ const importOptional = async (id) => {
   }
 };
 
-// Characters a glob would read as syntax, wrapped in a class so no backslash is needed.
-const literalGlob = (file) => file.replace(/[*?[\]{}()!+@]/g, "[$&]");
+// Backslash-escape every character a glob reads as syntax. A character class
+// is not enough: `[!]` negates and `[{]a[,]b[}]` is still brace-expanded.
+const literalGlob = (file) => file.replace(/[\\*?[\]{}()!+@]/g, "\\$&");
+
+const isInside = (relative) =>
+  relative !== ".." &&
+  !relative.startsWith("../") &&
+  !relative.startsWith("..\\") &&
+  !path.isAbsolute(relative);
 
 // Project-relative paths of the files the user's tsconfig.json covers.
 const coveredFiles = (ts) => {
@@ -45,9 +52,9 @@ const coveredFiles = (ts) => {
   if (error !== undefined) return [];
   return ts
     .parseJsonConfigFileContent(config, ts.sys, rootDir)
-    .fileNames.map((file) => path.relative(rootDir, file).split(path.sep).join("/"))
-    .filter((relative) => !relative.startsWith(".."))
-    .map(literalGlob);
+    .fileNames.map((file) => path.relative(rootDir, file))
+    .filter(isInside)
+    .map((relative) => literalGlob(relative.split(path.sep).join("/")));
 };
 
 // `functional/immutable-data` also reports property writes, `delete`,

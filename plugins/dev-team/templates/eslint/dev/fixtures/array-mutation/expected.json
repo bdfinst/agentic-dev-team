@@ -56,6 +56,12 @@
   "typed/[slug].ts": [
     ["functional/immutable-data", 3]
   ],
+  "typed/a!b.ts": [
+    ["functional/immutable-data", 3]
+  ],
+  "typed/x{a,b}.ts": [
+    ["functional/immutable-data", 3]
+  ],
   "typed/mis-cased.ts": [],
   "typed/util.ts": []
 }
