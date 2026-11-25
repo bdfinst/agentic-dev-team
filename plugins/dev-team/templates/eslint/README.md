@@ -83,13 +83,14 @@ Future work, not built: a `no-restricted-syntax` selector for mutator calls on p
 
 A bullet is converted to a pointer only when its rule is listed in `convertible` in `rule-ids.json`. The pointer keeps the original bullet and adds: "If `eslint.devteam.config.js` enables `<id>` and it is wired, judge only `<residual>`; otherwise judge fully."
 
-`rule-ids.json` holds three lists:
+`rule-ids.json` holds four lists:
 
 - `enabled`: the rule ids the config enables. A Node test fails when it drifts from the config. The Node tests run manually (`cd dev && npm ci && node --test`); a CI gate for them is planned and not yet in place.
 - `planned`: valid `rule:` targets that no shipped rule enables yet. Never valid for a pointer.
 - `convertible`: the rules `lint_corpus_compare.py` reports as convertible on `dev/corpus/`. A Python test fails when it drifts from the comparison.
+- `conditional`: enabled rules that run only when extra dependencies are installed (`functional/immutable-data`). A Node test fails when it drifts from the typed block of the config.
 
-`scripts/check_detect_tags.py` reads this file. It rejects an unknown rule id and any pointer whose rule is not convertible.
+`scripts/check_detect_tags.py` reads this file. It rejects an unknown rule id, any pointer whose rule is not convertible, and any pointer whose rule is conditional. A `rule:` mapping to a conditional rule is accepted.
 
 ## Develop
 

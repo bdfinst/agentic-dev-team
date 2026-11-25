@@ -155,6 +155,18 @@ test("config and rule-ids.json agree", () => {
   assert.deepEqual(enabledRuleIds(devteamConfig), new Set(enabled));
 });
 
+test("conditional rule ids are exactly the rules of the typed block", () => {
+  const { enabled, conditional } = JSON.parse(
+    fs.readFileSync(path.join(devDir, "..", "rule-ids.json"), "utf8"),
+  );
+  const typedBlock = devteamConfig.filter(
+    ({ name }) => name === "devteam/array-mutation",
+  );
+  assert.equal(typedBlock.length, 1);
+  assert.deepEqual(enabledRuleIds(typedBlock), new Set(conditional));
+  assert.ok(conditional.every((id) => enabled.includes(id)));
+});
+
 test("every enabled rule is severity warn", () => {
   const settings = devteamConfig
     .flatMap((entry) => Object.entries(entry.rules ?? {}))

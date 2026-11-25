@@ -14,7 +14,9 @@ the rule the bullet maps to and be listed as convertible.
 Rule ids come from ``templates/eslint/rule-ids.json``: ``enabled`` (the
 shipped config's rules), ``planned`` (mapping targets whose rule is not shipped
 yet; valid for ``rule:`` but never for a pointer), and ``convertible``
-(``lint_corpus_compare.py`` verdicts on the committed corpus).
+(``lint_corpus_compare.py`` verdicts on the committed corpus). ``conditional``
+(optional) lists enabled rules that run only when extra dependencies are
+installed; a pointer to one is rejected because a lint run cannot be assumed.
 
 Usage:
     python3 check_detect_tags.py [--rule-ids FILE] [agent-file ...]
@@ -57,6 +59,7 @@ class RuleIds(NamedTuple):
     enabled: frozenset[str]
     planned: frozenset[str]
     convertible: frozenset[str]
+    conditional: frozenset[str] = frozenset()
 
     @property
     def mappable(self) -> frozenset[str]:
@@ -71,11 +74,12 @@ def load_rule_ids(path: Path = RULE_IDS_PATH) -> RuleIds:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         groups = {key: raw[key] for key in ("enabled", "planned", "convertible")}
+        groups["conditional"] = raw.get("conditional", [])
         if not all(
             isinstance(ids, list) and all(isinstance(i, str) for i in ids)
             for ids in groups.values()
         ):
-            raise TypeError("enabled, planned and convertible must be lists of strings")
+            raise TypeError("enabled, planned, convertible and conditional must be lists of strings")
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise RuleIdsError(f"rule-ids file {path}: {error!r}") from error
     return RuleIds(**{key: frozenset(ids) for key, ids in groups.items()})
@@ -150,6 +154,11 @@ def _pointer_error(text: str, rule_ids: RuleIds) -> str | None:
     mapped = _RULE.search(mapping)
     if mapped and mapped.group(1) != named.group(1):
         return f"pointer names {named.group(1)} but the bullet maps to {mapped.group(1)}"
+    if named.group(1) in rule_ids.conditional:
+        return (
+            f"pointer names {named.group(1)}, which is conditional: "
+            "it runs only when typed dependencies are installed"
+        )
     if named.group(1) not in rule_ids.convertible:
         return f"pointer names {named.group(1)}, which is not marked convertible"
     return None

@@ -39,7 +39,9 @@ def _agent(tmp_path: Path, *bullets: str, name: str = "agent.md") -> Path:
     return path
 
 
-def _rule_ids(tmp_path: Path, enabled=(), planned=(), convertible=()) -> str:
+def _rule_ids(
+    tmp_path: Path, enabled=(), planned=(), convertible=(), conditional=()
+) -> str:
     path = tmp_path / "rule-ids.json"
     path.write_text(
         json.dumps(
@@ -47,6 +49,7 @@ def _rule_ids(tmp_path: Path, enabled=(), planned=(), convertible=()) -> str:
                 "enabled": list(enabled),
                 "planned": list(planned),
                 "convertible": list(convertible),
+                "conditional": list(conditional),
             }
         ),
         encoding="utf-8",
@@ -243,6 +246,8 @@ def test_every_shipped_rule_id_and_planned_id_is_accepted(tmp_path, capsys):
         '{"enabled": [1], "planned": [], "convertible": []}',
         '{"enabled": [], "planned": [["no-var"]], "convertible": []}',
         '{"enabled": [], "planned": [], "convertible": [null]}',
+        '{"enabled": [], "planned": [], "convertible": [], "conditional": [1]}',
+        '{"enabled": [], "planned": [], "convertible": [], "conditional": "x"}',
     ],
 )
 def test_malformed_rule_ids_file_exits_with_a_message(tmp_path, capsys, content):
@@ -326,6 +331,52 @@ def test_malformed_pointer_fails_with_the_reason(tmp_path, capsys, bullet, reaso
 
     assert code == EXIT_INVALID
     assert reason in capsys.readouterr().out
+
+
+def test_pointer_to_a_conditional_rule_fails_even_when_listed_convertible(
+    tmp_path, capsys
+):
+    ids = _rule_ids(
+        tmp_path,
+        enabled=["no-var"],
+        convertible=["no-var"],
+        conditional=["no-var"],
+    )
+    path = _agent(tmp_path, _pointer())
+
+    code = main([str(path), "--rule-ids", ids])
+
+    assert code == EXIT_INVALID
+    assert (
+        "pointer names no-var, which is conditional: it runs only when typed "
+        "dependencies are installed"
+    ) in capsys.readouterr().out
+
+
+def test_rule_mapping_to_a_conditional_rule_is_still_accepted(tmp_path, capsys):
+    ids = _rule_ids(tmp_path, enabled=["no-var"], conditional=["no-var"])
+    path = _agent(tmp_path, "Check [MECHANICAL] rule: no-var")
+
+    assert main([str(path), "--rule-ids", ids]) == 0
+
+
+def test_rule_ids_file_without_a_conditional_list_still_loads(tmp_path):
+    legacy = tmp_path / "legacy.json"
+    legacy.write_text(
+        '{"enabled": ["no-var"], "planned": [], "convertible": []}',
+        encoding="utf-8",
+    )
+    path = _agent(tmp_path, "Check [MECHANICAL] rule: no-var")
+
+    assert main([str(path), "--rule-ids", str(legacy)]) == 0
+
+
+def test_shipped_conditional_rules_are_enabled_and_never_convertible():
+    shipped = json.loads(SHIPPED_RULE_IDS.read_text(encoding="utf-8"))
+
+    assert shipped["conditional"] == ["functional/immutable-data"]
+    assert set(shipped["conditional"]) <= set(shipped["enabled"])
+    assert not set(shipped["conditional"]) & set(shipped["convertible"])
 
 
 def test_pointer_on_a_no_rule_bullet_says_it_needs_a_rule_mapping(tmp_path, capsys):
