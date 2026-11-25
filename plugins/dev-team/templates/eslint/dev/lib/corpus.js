@@ -6,13 +6,10 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { devDir, lintFiles, repoRoot } from "./lint.js";
+import { devDir, lintFiles, relativeToRepo, repoRoot } from "./lint.js";
 
 const EVAL_FIXTURES = "evals/fixtures";
-const DEV_CORPUS = path
-  .relative(repoRoot, path.join(devDir, "corpus"))
-  .split(path.sep)
-  .join("/");
+const DEV_CORPUS = relativeToRepo(path.join(devDir, "corpus"));
 
 const listed = (dir, keep) =>
   fs
