@@ -176,6 +176,18 @@ def test_node_modules_path_is_skipped(project):
 
 
 @posix_only
+@pytest.mark.parametrize("absolute", [False, True], ids=["relative", "absolute"])
+def test_a_project_checked_out_under_node_modules_still_lints(tmp_path, absolute):
+    app = Project(tmp_path / "node_modules" / "app")
+    declared = str(app.root / "src" / "a.js") if absolute else "src/a.js"
+
+    result = app.run(app.payload(declared), env=_clean(app))
+
+    assert result.outcome == post_lint.CLEAN
+    assert app.invoked
+
+
+@posix_only
 def test_symlink_resolving_outside_project_is_skipped(project):
     other = project.root.parent / "elsewhere.js"
     other.write_text("var a;\n")

@@ -189,7 +189,13 @@ def resolve_lint_target(payload: dict, root: Path) -> Path | None:
         relative = resolved.relative_to(root.resolve())
     except (OSError, ValueError, RuntimeError):
         return None
-    if NODE_MODULES in relative.parts or NODE_MODULES in declared.parts:
+    # Judge only the part of the path inside the project: a project checked
+    # out under some `node_modules/` directory must still lint.
+    try:
+        declared_relative = declared.relative_to(root)
+    except ValueError:
+        declared_relative = relative
+    if NODE_MODULES in relative.parts or NODE_MODULES in declared_relative.parts:
         return None
     return resolved if resolved.is_file() else None
 
