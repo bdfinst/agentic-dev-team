@@ -467,6 +467,27 @@ class TestRanking:
         assert report["candidates"][0]["occurrences"] == 2
         assert report["skipped"] == 0
 
+    def test_an_issue_keeps_its_own_agent_over_the_wrappers(self, tmp_path, capsys):
+        root = _plugin(
+            tmp_path,
+            {"a-review": ["`require()` calls"], "b-review": ["`require()` calls"]},
+        )
+        issue = {"file": "a.js", "category": "require", "agent": "b-review"}
+        _write_raw(tmp_path, "s.json", {"agentName": "a-review", "issues": [issue]})
+        by_agent = {
+            c["agent"]: c["occurrences"]
+            for c in _mine(capsys, root, tmp_path)["candidates"]
+        }
+        assert by_agent.get("b-review") == 1
+        assert by_agent.get("a-review", 0) == 0
+
+    def test_a_wrapper_may_name_its_agent_with_the_agent_key(self, tmp_path, capsys):
+        root = _plugin(tmp_path, {"a-review": ["`require()` calls"]})
+        issue = {"file": "a.js", "category": "require"}
+        _write_raw(tmp_path, "s.json", {"agent": "a-review", "issues": [issue]})
+        (cand,) = _mine(capsys, root, tmp_path)["candidates"]
+        assert cand["occurrences"] == 1
+
     def test_log_and_raw_findings_are_summed(self, tmp_path, capsys):
         root = _plugin(tmp_path, {"a-review": ["`require()` calls"]})
         _write_log(tmp_path, [_log_row("a-review", "require")] * 2)

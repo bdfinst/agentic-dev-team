@@ -16,7 +16,7 @@ STATUS_CHECKS = REPO_ROOT / ".github" / "required-status-checks.json"
 MEASUREMENTS = REPO_ROOT / "plugins/dev-team/templates/eslint/dev/MEASUREMENTS.md"
 UPGRADE_SKILL = REPO_ROOT / "plugins/dev-team/skills/upgrade/SKILL.md"
 NODE_GATE = "ESLint templates (Node)"
-TABLE_ROW = re.compile(r"^\|.*\d.*\|$", re.MULTILINE)
+TABLE_ROW = re.compile(r"^\|.*\|$", re.MULTILINE)
 
 
 def _section(text: str, heading: str) -> str:
@@ -37,26 +37,31 @@ def _cells(row: str) -> list[str]:
     return [cell.strip() for cell in row.strip().strip("|").split("|")]
 
 
-def _row(section: str, label: str) -> list[str]:
-    """The cells of the table row whose first cell holds `label`."""
+def _rows(section: str, label: str) -> list[list[str]]:
+    """The cells of every table row whose first cell starts with `label`
+    (`typed` never matches an `untyped` row)."""
     rows = [_cells(r) for r in TABLE_ROW.findall(section)]
-    matching = [cells for cells in rows if label in cells[0]]
-    assert matching, f"no table row names {label!r}"
-    return matching[0]
+    matching = [cells for cells in rows if cells[0].startswith(label)]
+    assert matching, f"no table row starts with {label!r}"
+    return matching
 
 
 def test_measurements_record_token_counts_before_and_after_for_both_agents():
     section = _section(MEASUREMENTS.read_text(encoding="utf-8"), "Tokens")
     for agent in ("esm-enforcer", "js-fp-review"):
-        _, before, after = _row(section, agent)
+        file_cell = next(
+            c for c in map(_cells, TABLE_ROW.findall(section)) if agent in c[0]
+        )
+        _, before, after = file_cell
         assert before.isdigit() and after.isdigit(), (agent, before, after)
 
 
 def test_measurements_record_typed_and_untyped_lint_times():
     section = _section(MEASUREMENTS.read_text(encoding="utf-8"), "Lint latency")
     for mode in ("typed", "untyped"):
-        p50, p95 = _row(section, mode)[-2:]
-        assert float(p50) > 0 and float(p95) > 0, (mode, p50, p95)
+        for row in _rows(section, mode):
+            p50, p95 = row[-2:]
+            assert float(p50) > 0 and float(p95) > 0, (mode, row)
 
 
 def test_upgrade_skill_drives_scaffold_check_and_refresh():
