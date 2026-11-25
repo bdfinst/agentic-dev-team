@@ -272,8 +272,16 @@ def _accumulate_lines(
     unpriced_models: set,
     dispatch_types: dict,
     agent_types: dict,
+    requests: dict | None = None,
 ) -> None:
     """Fold `lines` (raw JSONL transcript records) into the given aggregates.
+
+    One API request spans several transcript lines that each repeat its
+    `usage` block, so usage is keyed by `requestId` (falling back to
+    `message.id`) and each repeat replaces, not adds to, the key's earlier
+    contribution. `requests` is that per-key map; persist it with the
+    running state so incremental folds stay equal to one full parse. Lines
+    with neither id are counted as-is.
 
     Mutates the bucket dicts, `totals`, `unpriced_models`, and the
     `dispatch_types`/`agent_types` join maps in place so callers can seed them
@@ -302,7 +310,6 @@ def _accumulate_lines(
         agent_type = _agent_type_key(rec, agent_types)
 
         rate = _rate(pricing, model)
-        cost = _cost(usage, rate, pricing)
         # Excludes zero-token records from `unpriced_models` (#1830 fix
         # review), not just the literal "unknown" placeholder: the harness
         # writes assistant records with `model: "<synthetic>"` and every usage
@@ -318,21 +325,52 @@ def _accumulate_lines(
         if not rate and model != "unknown" and any(usage.get(f) for f in _TOKEN_FIELDS):
             unpriced_models.add(model)
 
-        for bucket, key in (
-            (by_model, model),
-            (by_thread, thread),
-            (by_agent_type, agent_type),
-        ):
-            b = bucket.setdefault(key, _new_bucket())
-            for f in _TOKEN_FIELDS:
-                b[f] += usage.get(f, 0) or 0
-            b["cost_usd"] = round(b["cost_usd"] + cost, 6)
-            b["messages"] += 1
+        message = rec.get("message")
+        request_key = _first_present_field(rec, "requestId") or (
+            message.get("id") if isinstance(message, dict) else None
+        )
+        entry = {
+            "usage": {f: usage.get(f, 0) or 0 for f in _TOKEN_FIELDS},
+            "model": model,
+            "thread": thread,
+            "agent_type": agent_type,
+        }
+        if requests is not None and request_key:
+            previous = requests.get(request_key)
+            if previous is not None:
+                _apply_entry(by_model, by_thread, by_agent_type, totals, previous, -1)
+                # A repeat only ever grows: keep the per-field maximum.
+                for f in _TOKEN_FIELDS:
+                    entry["usage"][f] = max(entry["usage"][f], previous["usage"].get(f, 0))
+            requests[request_key] = entry
+        entry["cost_usd"] = _cost(entry["usage"], rate, pricing)
+        _apply_entry(by_model, by_thread, by_agent_type, totals, entry, 1)
 
+
+def _apply_entry(
+    by_model: dict,
+    by_thread: dict,
+    by_agent_type: dict,
+    totals: dict,
+    entry: dict,
+    sign: int,
+) -> None:
+    """Add (`sign` 1) or retire (`sign` -1) one request's usage and cost.
+
+    `messages` moves by `sign` too, so a retired-then-re-added request
+    still counts once.
+    """
+    for bucket, key in (
+        (by_model, entry["model"]),
+        (by_thread, entry["thread"]),
+        (by_agent_type, entry["agent_type"]),
+        (None, None),
+    ):
+        b = totals if bucket is None else bucket.setdefault(key, _new_bucket())
         for f in _TOKEN_FIELDS:
-            totals[f] += usage.get(f, 0) or 0
-        totals["cost_usd"] = round(totals["cost_usd"] + cost, 6)
-        totals["messages"] += 1
+            b[f] += sign * entry["usage"][f]
+        b["cost_usd"] = round(b["cost_usd"] + sign * entry["cost_usd"], 6)
+        b["messages"] += sign
 
 
 def parse_transcript(path: Path, pricing: dict) -> dict:
@@ -357,6 +395,7 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
     unpriced_models: set[str] = set()
     dispatch_types: dict[str, str] = {}
     agent_types: dict[str, str] = {}
+    requests: dict[str, dict] = {}
 
     # Main transcript first so the dispatch join maps are populated before the
     # sibling subagent files (whose records fall back on them) are folded in.
@@ -378,6 +417,7 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
             unpriced_models,
             dispatch_types,
             agent_types,
+            requests,
         )
 
     return {
@@ -445,6 +485,8 @@ def _record_state_is_usable(
         return False
     if "by_agent_type" not in state:
         return False  # pre-#1094 state schema — rebuild from byte 0
+    if "requests" not in state:
+        return False  # pre-dedupe state schema — rebuild from byte 0
     subagent_offsets = state.get("subagent_offsets")
     if subagent_offsets is not None and not isinstance(subagent_offsets, dict):
         return False
@@ -496,6 +538,7 @@ def cmd_record(args, pricing) -> int:
         unpriced_models = set(state.get("unpriced_models") or [])
         dispatch_types = state.get("dispatch_types") or {}
         agent_types = state.get("agent_types") or {}
+        requests = state.get("requests") or {}
     else:
         # First fire, a pre-#1094 state schema, or a transcript that shrank
         # (rotated/truncated) since the last fire — start fresh rather than
@@ -505,6 +548,7 @@ def cmd_record(args, pricing) -> int:
         by_model, by_thread, by_agent_type = {}, {}, {}
         totals, unpriced_models = _new_bucket(), set()
         dispatch_types, agent_types = {}, {}
+        requests = {}
 
     def _fold(lines) -> None:
         _accumulate_lines(
@@ -517,6 +561,7 @@ def cmd_record(args, pricing) -> int:
             unpriced_models,
             dispatch_types,
             agent_types,
+            requests,
         )
 
     # Main transcript first so dispatch joins land before subagent turns that
@@ -543,6 +588,7 @@ def cmd_record(args, pricing) -> int:
             "unpriced_models": sorted(unpriced_models),
             "dispatch_types": dispatch_types,
             "agent_types": agent_types,
+            "requests": requests,
         },
     )
 
