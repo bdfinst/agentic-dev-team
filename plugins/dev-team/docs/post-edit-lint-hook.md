@@ -49,7 +49,7 @@ The hook lints files with these extensions: `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`
 - Tools other than `Edit`, `Write`, and `MultiEdit`. The hook is registered on all three.
 - Files that do not exist after the edit.
 - Files outside the project, including a symlink that resolves outside it.
-- Anything under `node_modules`.
+- Anything under `node_modules` inside the project root.
 
 ## Block output
 
@@ -63,7 +63,7 @@ The reason lists at most 10 findings, then `+N more`. The whole reason is at mos
 
 The hook blocks at most 3 times in a row in one session. The fourth violating edit is not blocked, and the hook prints `cap 3 reached; set DEVTEAM_POST_LINT=0 to disable`. A clean lint resets the count. Each session has its own count.
 
-The count lives in `$TMPDIR/dev-team-post-lint-<uid>/`, keyed by a hash of the session id. The directory is private to your user (mode `0700`). The hook does not use a directory that is a symlink or that another user owns. It deletes state files older than 4 hours when it writes.
+The count lives in `$TMPDIR/dev-team-post-lint-<uid>/`, keyed by a hash of the session id. The directory is private to your user (mode `0700`). The hook does not use a directory that is a symlink or that another user owns. It deletes state files not used for 4 hours when it writes, with their orphaned lock files.
 
 When the hook cannot read or write that directory, it cannot count blocks, so it never blocks. It says `cannot save session state; lint skipped` (reason key `no-state`) once per session.
 
