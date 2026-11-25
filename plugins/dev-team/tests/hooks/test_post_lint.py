@@ -959,6 +959,33 @@ def test_a_block_and_the_cap_each_emit_a_boundary_event_with_rule_ids_only(proje
 
 
 @posix_only
+def test_one_cap_release_emits_one_boundary_event_however_many_edits_follow(project):
+    env = _violating(project)
+    for _ in range(7):
+        project.run(env=env)
+
+    caps = [r for r in _boundary_rows(project) if r["matched_rule"] == "block-cap"]
+    assert len(caps) == 1
+
+
+@posix_only
+def test_a_new_run_of_blocks_gets_its_own_cap_notice_and_boundary_event(project):
+    violating, clean = _violating(project), _clean(project)
+    for _ in range(4):
+        project.run(env=violating)
+    assert project.run(env=clean).outcome == post_lint.CLEAN
+    for _ in range(3):
+        assert project.run(env=violating).outcome == post_lint.BLOCKED
+
+    second_cap = project.run(env=violating)
+
+    assert second_cap.outcome == post_lint.CAPPED
+    assert "cap 3 reached" in _notice_text(second_cap)
+    caps = [r for r in _boundary_rows(project) if r["matched_rule"] == "block-cap"]
+    assert len(caps) == 2
+
+
+@posix_only
 def test_runs_that_do_not_block_emit_no_boundary_event(project):
     project.run(env=_clean(project))
     project.run(project.payload("src/a.py"))
@@ -1210,7 +1237,9 @@ def test_real_eslint_ignores_disable_comments_for_rules_that_are_not_loaded(real
         "export const b = 2;\n",
     )
     # Control: ESLint itself does report both as errors carrying a rule id.
-    assert {rule for rule, _ in _rule_lines(_lint_directly(real, "src/disables.ts"))} >= {
+    assert {
+        rule for rule, _ in _rule_lines(_lint_directly(real, "src/disables.ts"))
+    } >= {
         "functional/immutable-data",
         "@typescript-eslint/no-explicit-any",
     }

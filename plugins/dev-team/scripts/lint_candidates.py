@@ -218,8 +218,17 @@ def _raw_entries(payload: object) -> list[object]:
     if isinstance(payload, dict):
         for key in RAW_FINDINGS_KEYS:
             if isinstance(payload.get(key), list):
-                return payload[key]
+                return [_with_wrapper_agent(payload, e) for e in payload[key]]
     return [payload]
+
+
+def _with_wrapper_agent(wrapper: dict, entry: object) -> object:
+    """A native per-agent result names its agent once, on the wrapper; lend it
+    to each entry that does not carry its own."""
+    agent = wrapper.get("agentName") or wrapper.get("agent")
+    if not agent or not isinstance(entry, dict) or finding_agent(entry):
+        return entry
+    return {**entry, "agentName": agent}
 
 
 def _raw_findings(raw_dir: Path) -> tuple[list[Finding], int, bool]:

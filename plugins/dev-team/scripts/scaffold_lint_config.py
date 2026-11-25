@@ -125,7 +125,8 @@ NEXT_WIRE = (
 )
 NEXT_HOOK = (
     "next: to get findings after each edit, set DEVTEAM_POST_LINT=1 under "
-    '"env" in .claude/settings.json, only in a repository you trust '
+    '"env" in .claude/settings.local.json (yours alone; .claude/settings.json is '
+    "shared with your team), only in a repository you trust "
     "(read the Security section of the plugin's post-edit-lint-hook.md first)"
 )
 

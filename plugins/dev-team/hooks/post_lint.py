@@ -402,11 +402,17 @@ def try_block(session: str, state_dir: Path) -> bool:
 
 
 def reset_blocks(session: str, state_dir: Path) -> None:
-    """A clean lint ends the run of consecutive blocks."""
+    """A clean lint ends the run of consecutive blocks, and with it the cap
+    notice: the next run of blocks that hits the cap says so again."""
+
+    def reset(state: dict) -> None:
+        state.pop(STATE_BLOCKS, None)
+        seen = state.get(STATE_NOTICES)
+        if isinstance(seen, list) and CAP in seen:
+            state[STATE_NOTICES] = [key for key in seen if key != CAP]
+
     try:
-        _update_state(
-            session, state_dir, lambda state: state.pop(STATE_BLOCKS, None)
-        )
+        _update_state(session, state_dir, reset)
     except OSError:
         pass
 
@@ -492,7 +498,9 @@ def record_boundary_event(
     boundary-events ledger. Fail-open: it never changes the verdict."""
     if result.outcome == BLOCKED:
         decision, rule = "block", RULE_FINDINGS
-    elif result.outcome == CAPPED:
+    elif result.outcome == CAPPED and result.output is not None:
+        # Only the release that said so: later capped edits of the same run
+        # carry no notice and add no row.
         decision, rule = "warn", RULE_CAP
     else:
         return

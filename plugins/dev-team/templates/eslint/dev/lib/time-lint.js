@@ -24,7 +24,7 @@ const CASES = [
   { label: "untyped file, typed deps installed", file: "untyped/mutators.js", env: {} },
 ];
 
-const millis = ({ file, env }) => {
+const timeLintRun = ({ file, env }) => {
   const started = process.hrtime.bigint();
   const run = spawnSync(
     process.execPath,
@@ -44,8 +44,8 @@ const percentile = (sorted, p) =>
 const seconds = (ms) => (ms / 1000).toFixed(2);
 
 const rows = CASES.map((entry) => {
-  Array.from({ length: WARMUP }, () => millis(entry));
-  const times = Array.from({ length: RUNS }, () => millis(entry)).sort(
+  Array.from({ length: WARMUP }, () => timeLintRun(entry));
+  const times = Array.from({ length: RUNS }, () => timeLintRun(entry)).sort(
     (a, b) => a - b,
   );
   return `| ${entry.label} | \`${entry.file}\` | ${seconds(percentile(times, 0.5))} | ${seconds(percentile(times, 0.95))} | ${seconds(times[0])} | ${seconds(times.at(-1))} |`;

@@ -453,6 +453,20 @@ class TestRanking:
         assert report["candidates"][0]["occurrences"] == 1
         assert report["unmatched"] == []
 
+    def test_a_native_agent_result_lends_its_agent_name_to_its_issues(
+        self, tmp_path, capsys
+    ):
+        root = _plugin(tmp_path, {"a-review": ["`require()` calls"]})
+        issue = {"file": "a.js", "category": "require", "message": "m"}
+        _write_raw(
+            tmp_path,
+            "section-1.json",
+            {"agentName": "a-review", "issues": [issue, dict(issue, file="b.js")]},
+        )
+        report = _mine(capsys, root, tmp_path)
+        assert report["candidates"][0]["occurrences"] == 2
+        assert report["skipped"] == 0
+
     def test_log_and_raw_findings_are_summed(self, tmp_path, capsys):
         root = _plugin(tmp_path, {"a-review": ["`require()` calls"]})
         _write_log(tmp_path, [_log_row("a-review", "require")] * 2)

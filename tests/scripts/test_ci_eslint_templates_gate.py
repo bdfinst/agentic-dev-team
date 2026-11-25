@@ -59,9 +59,24 @@ slow_gate = pytest.mark.skipif(
 )
 
 
-def gate_env(templates_dir, **extra):
+def stub_repo_root(root):
+    """A repo root holding a current ESLint 10 install, so a test of the `dev/`
+    install does not depend on the host having run `npm ci` at the real root."""
+    eslint = root / "node_modules" / "eslint"
+    eslint.mkdir(parents=True)
+    (eslint / "package.json").write_text('{"version": "10.0.0"}', encoding="utf-8")
+    (root / "package-lock.json").write_text(
+        json.dumps({"packages": {"node_modules/eslint": {"version": "10.0.0"}}}),
+        encoding="utf-8",
+    )
+    return root
+
+
+def gate_env(templates_dir, repo_dir=None, **extra):
     env = {name: os.environ[name] for name in ENV_ALLOWLIST if name in os.environ}
     env["DEVTEAM_ESLINT_TEMPLATES_DIR"] = str(templates_dir)
+    if repo_dir is not None:
+        env["DEVTEAM_ESLINT_REPO_DIR"] = str(repo_dir)
     env["DEVTEAM_ESLINT_GATE_NESTED"] = "1"
     env.update(extra)
     return env
@@ -137,7 +152,8 @@ def path_without_node(tmp_path):
 def test_wrong_eslint_major_fails_naming_the_needed_major(tmp_path):
     templates = fake_template_tree(tmp_path / "eslint", eslint_version="8.0.0")
     dev = dev_dir(templates)
-    code, output = run_gate(gate_env(templates), timeout=120)
+    repo = stub_repo_root(tmp_path / "repo")
+    code, output = run_gate(gate_env(templates, repo), timeout=120)
     assert code != 0, output
     assert (
         f"ESLint 8.0.0 found under {dev}; this gate needs ESLint 9 (run npm ci in {dev})"
@@ -151,6 +167,7 @@ def test_missing_install_fails_telling_you_to_run_npm_ci_and_never_runs_it(tmp_p
     shim, calls = npm_shim_dir(tmp_path)
     env = gate_env(
         templates,
+        stub_repo_root(tmp_path / "repo"),
         PATH=f"{shim}{os.pathsep}{os.environ['PATH']}",
         NPM_CALLS_FILE=str(calls),
     )
@@ -187,7 +204,8 @@ def test_an_install_that_differs_from_its_lockfile_fails_telling_you_to_run_npm_
         tmp_path / "eslint", eslint_version="9.0.0", lock_version="9.1.0"
     )
     dev = dev_dir(templates)
-    code, output = run_gate(gate_env(templates), timeout=120)
+    repo = stub_repo_root(tmp_path / "repo")
+    code, output = run_gate(gate_env(templates, repo), timeout=120)
     assert code != 0, output
     assert (
         f"node_modules under {dev} differ from its package-lock.json; run npm ci in {dev}"
@@ -200,7 +218,8 @@ def test_an_install_that_matches_its_lockfile_passes_the_lock_check(tmp_path):
     templates = fake_template_tree(
         tmp_path / "eslint", eslint_version="9.0.0", lock_version="9.0.0"
     )
-    _, output = run_gate(gate_env(templates), timeout=120)
+    repo = stub_repo_root(tmp_path / "repo")
+    _, output = run_gate(gate_env(templates, repo), timeout=120)
     assert "differ from its package-lock.json" not in output, output
     assert "ESLint major 9 (9.0.0): node --test in" in output, output
 

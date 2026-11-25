@@ -17,7 +17,7 @@ When enabled, the hook runs the project's own ESLint and its `eslint.devteam.con
 
 ## Enable and disable
 
-Set `DEVTEAM_POST_LINT=1` to enable the hook. For one project, set it in `.claude/settings.json`:
+Set `DEVTEAM_POST_LINT=1` to enable the hook. For one project, set it in `.claude/settings.local.json`, which is yours alone. Set it in `.claude/settings.json` only when the whole team agrees, because that file enables the hook for every contributor and every fresh clone:
 
 ```json
 { "env": { "DEVTEAM_POST_LINT": "1" } }

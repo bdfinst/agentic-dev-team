@@ -33,18 +33,30 @@ def test_node_gate_is_exempt_not_required():
     assert NODE_GATE not in manifest["required"]
 
 
+def _cells(row: str) -> list[str]:
+    return [cell.strip() for cell in row.strip().strip("|").split("|")]
+
+
+def _row(section: str, label: str) -> list[str]:
+    """The cells of the table row whose first cell holds `label`."""
+    rows = [_cells(r) for r in TABLE_ROW.findall(section)]
+    matching = [cells for cells in rows if label in cells[0]]
+    assert matching, f"no table row names {label!r}"
+    return matching[0]
+
+
 def test_measurements_record_token_counts_before_and_after_for_both_agents():
     section = _section(MEASUREMENTS.read_text(encoding="utf-8"), "Tokens")
-    rows = [row for row in TABLE_ROW.findall(section)]
-    assert any("esm-enforcer" in row for row in rows)
-    assert any("js-fp-review" in row for row in rows)
+    for agent in ("esm-enforcer", "js-fp-review"):
+        _, before, after = _row(section, agent)
+        assert before.isdigit() and after.isdigit(), (agent, before, after)
 
 
 def test_measurements_record_typed_and_untyped_lint_times():
     section = _section(MEASUREMENTS.read_text(encoding="utf-8"), "Lint latency")
-    rows = TABLE_ROW.findall(section)
-    assert any(row.lstrip("| ").startswith("typed") for row in rows)
-    assert any(row.lstrip("| ").startswith("untyped") for row in rows)
+    for mode in ("typed", "untyped"):
+        p50, p95 = _row(section, mode)[-2:]
+        assert float(p50) > 0 and float(p95) > 0, (mode, p50, p95)
 
 
 def test_upgrade_skill_drives_scaffold_check_and_refresh():

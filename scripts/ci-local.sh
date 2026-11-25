@@ -675,7 +675,9 @@ chk_eslint() {
 # the pytest stage, so that test's inner gate run cannot recurse into itself.
 chk_eslint_templates() {
   local tpl="${DEVTEAM_ESLINT_TEMPLATES_DIR:-plugins/dev-team/templates/eslint}"
-  local root="$PWD" rc=0 dev version expected target out
+  # DEVTEAM_ESLINT_REPO_DIR points the ESLint 10 install check at another
+  # directory; the gate's own tests use it so they need no host install.
+  local root="${DEVTEAM_ESLINT_REPO_DIR:-$PWD}" rc=0 dev version expected target out
   if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
     if [ -n "${CI:-}" ]; then
       printf '%s✗ node and npm are required in CI%s\n' "$red" "$reset"
