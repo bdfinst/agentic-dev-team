@@ -202,6 +202,7 @@ def test_an_install_that_matches_its_lockfile_passes_the_lock_check(tmp_path):
     )
     _, output = run_gate(gate_env(templates), timeout=120)
     assert "differ from its package-lock.json" not in output, output
+    assert "ESLint major 9 (9.0.0): node --test in" in output, output
 
 
 def link_or_copy(src, dst):

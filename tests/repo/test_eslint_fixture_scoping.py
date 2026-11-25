@@ -12,6 +12,7 @@ whichever fixtures actually belong on an allow-list.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 
@@ -29,10 +30,33 @@ DIRTY_JS_FIXTURES = [
 
 npx_available = shutil.which("npx") is not None
 node_modules_present = (REPO_ROOT / "node_modules").is_dir()
+_prerequisites_present = npx_available and node_modules_present
+# Locally a missing install skips; under CI it fails, so a broken job cannot
+# pass by skipping every test here.
 requires_npx = pytest.mark.skipif(
-    not (npx_available and node_modules_present),
+    not _prerequisites_present and not os.environ.get("CI"),
     reason="npx/node_modules not available — run `npm ci` first",
 )
+
+# Variables that change which config or options ESLint loads, or which
+# repository `git` reports.
+_AMBIENT_PREFIXES = ("ESLINT_", "GIT_")
+_AMBIENT_NAMES = ("NODE_OPTIONS",)
+
+
+def _eslint_env() -> dict[str, str]:
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(_AMBIENT_PREFIXES) and name not in _AMBIENT_NAMES
+    }
+
+
+@pytest.fixture(autouse=True)
+def _require_prerequisites_under_ci():
+    if os.environ.get("CI") and not _prerequisites_present:
+        pytest.fail("npx and node_modules are required in CI; run npm ci first")
+
 
 # All five tests below spawn their own `npx eslint` subprocess. Measured
 # directly (issue #1557): one invocation takes ~18-20s wall-clock alone on
@@ -64,6 +88,7 @@ def test_dirty_js_fixture_is_not_linted(fixture: str) -> None:
     result = subprocess.run(
         ["npx", "--no-install", "eslint", fixture],
         cwd=REPO_ROOT,
+        env=_eslint_env(),
         capture_output=True,
         text=True,
         timeout=120,
@@ -90,6 +115,7 @@ def test_first_party_js_is_still_linted() -> None:
             "unused_var_probe.js",
         ],
         cwd=REPO_ROOT,
+        env=_eslint_env(),
         input="const unused = 1;\n",
         capture_output=True,
         text=True,

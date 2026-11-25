@@ -22,6 +22,16 @@ from scripts import pytest_ran_all
         ("97 passed in 1.0s\nthen noise 3 skipped\n", True),
         ("5 passed in 1.0s (0:00:01)\n", True),
         ("5 passed, 1 skipped in 1.0s (0:00:01)\n", False),
+        # Only skips and a lack of passes decide; pytest's own exit code, which
+        # the gate checks first, rejects failures and errors.
+        ("1 failed, 4 passed in 1.0s\n", True),
+        ("4 passed, 1 error in 1.0s\n", True),
+        ("4 passed, 1 xfailed, 1 xpassed in 1.0s\n", True),
+        ("4 passed, 2 deselected in 1.0s\n", True),
+        ("1 failed in 1.0s\n", False),
+        ("1 error in 1.0s\n", False),
+        ("1 xfailed in 1.0s\n", False),
+        ("4 deselected in 1.0s\n", False),
     ],
 )
 def test_a_run_counts_only_when_it_passed_something_and_skipped_nothing(
