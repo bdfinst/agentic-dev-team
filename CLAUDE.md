@@ -95,7 +95,7 @@ Every shipped script under `plugins/dev-team/` is Python 3.10+, stdlib only (see
 - Probe OS-specific paths at runtime rather than hard-coding them.
 - Tests are pytest, `test_*.py` under the plugin's `tests/` tree.
 
-Repo-root `scripts/*.sh` are out of scope — they orchestrate dev tooling, not shipped code.
+Repo-root `scripts/*.sh` are out of scope — they orchestrate dev tooling, not shipped code. JavaScript templates that `/setup` scaffolds into a user's project, and their contributor-only Node test harness, are exempt ([ADR 0014 amendment](docs/adr/0014-python-for-cross-os-scripts.md#amendment-scaffolded-templates)).
 
 ### Testing locally
 

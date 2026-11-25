@@ -40,6 +40,8 @@ def _amendment_body() -> str:
         ("outside", "say the templates are outside the rule"),
         ("Python-only", "name the rule the templates are outside of"),
         ("user's project", "say where the templates are written"),
+        ("templates/eslint/dev/", "name the contributor-only Node test harness"),
+        ("contributor-only", "say the harness is for contributors, not users"),
     ],
 )
 def test_amendment_exempts_scaffolded_templates(phrase, why):
@@ -62,4 +64,23 @@ def test_adr_0015_links_to_the_amendment():
     link = f"0014-python-for-cross-os-scripts.md#{ANCHOR}"
     assert link in ADR_0015.read_text(encoding="utf-8"), (
         f"ADR 0015 must link to the ADR 0014 amendment anchor ({link})"
+    )
+
+
+def test_adr_0014_status_line_records_the_amendment():
+    text = ADR_0014.read_text(encoding="utf-8")
+    status = text.split("\n## Status\n", 1)[1].split("\n## ", 1)[0]
+    assert "Amended 2026-11-25 for scaffolded templates" in status, (
+        "ADR 0014's Status section must record the amendment"
+    )
+    assert f"(#{ANCHOR})" in status, (
+        "the Status line must link to the amendment heading"
+    )
+
+
+def test_claude_md_script_authoring_points_to_the_amendment():
+    text = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    section = text.split("### Script authoring", 1)[1].split("\n### ", 1)[0]
+    assert f"0014-python-for-cross-os-scripts.md#{ANCHOR}" in section, (
+        "CLAUDE.md 'Script authoring' must link to the ADR 0014 amendment"
     )

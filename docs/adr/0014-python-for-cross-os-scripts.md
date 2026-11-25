@@ -4,7 +4,7 @@ Date: 2026-07-02
 
 ## Status
 
-Accepted, superseded by [ADR 0015](0015-bash-removal-complete.md) for the shipped-script surface (the bash → Python migration completed with epic #572), and by [ADR 0031](0031-raise-shipped-python-floor-to-3-10.md) for the "Minimum Python version" design question below (the floor moved 3.8 → 3.10; every other decision here stands).
+Accepted, superseded by [ADR 0015](0015-bash-removal-complete.md) for the shipped-script surface (the bash → Python migration completed with epic #572), and by [ADR 0031](0031-raise-shipped-python-floor-to-3-10.md) for the "Minimum Python version" design question below (the floor moved 3.8 → 3.10; every other decision here stands). Amended 2026-11-25 for scaffolded templates: see [Amendment: scaffolded templates](#amendment-scaffolded-templates).
 
 ## Context
 
@@ -82,3 +82,5 @@ JavaScript and TypeScript templates that `/setup` scaffolds into a user's projec
 The rule is unchanged for everything the plugin runs. The hook, the scaffold script, the candidate finder, and the audit checks stay stdlib Python.
 
 The plugin has no Node requirement. A user who does not use the ESLint config never needs Node. Node and `npm ci` are a contributor requirement only, for the CI gate that tests the template under ESLint 9 and 10.
+
+The Node test harness for that template lives in `plugins/dev-team/templates/eslint/dev/`. It is contributor-only: it is never scaffolded and the plugin never runs it.
