@@ -51,6 +51,12 @@ def test_adr_0015_links_to_the_amendment():
     )
 
 
+def test_adr_0015_status_names_the_contributor_only_node_harness():
+    text = ADR_0015.read_text(encoding="utf-8")
+    status = text.split("\n## Status\n", 1)[1].split("\n## ", 1)[0]
+    assert "plugins/dev-team/templates/eslint/dev/" in status
+
+
 def test_adr_0014_status_line_records_the_amendment():
     text = ADR_0014.read_text(encoding="utf-8")
     status = text.split("\n## Status\n", 1)[1].split("\n## ", 1)[0]
