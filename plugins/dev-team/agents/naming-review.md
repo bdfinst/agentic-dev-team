@@ -81,25 +81,25 @@ Calibrate against these worked examples before flagging real code:
 
 Intent:
 
-- Variables not revealing contents/purpose
-- Functions not describing action
-- Parameters not indicating expected values
+- Variables not revealing contents/purpose [JUDGMENT]
+- Functions not describing action [JUDGMENT]
+- Parameters not indicating expected values [JUDGMENT]
 
 Conventions:
 
-- Booleans missing is/has/can/should prefix
-- Collections not pluralized
-- Unnecessary prefixes/suffixes (dataList, strName)
+- Booleans missing is/has/can/should prefix [JUDGMENT]
+- Collections not pluralized [JUDGMENT]
+- Unnecessary prefixes/suffixes (dataList, strName) [JUDGMENT]
 
 Magic values:
 
-- Hardcoded numbers without named constants
-- Hardcoded strings without constants/enums
+- Hardcoded numbers without named constants [MECHANICAL] rule: no-magic-numbers
+- Hardcoded strings without constants/enums [JUDGMENT]
 
 Consistency:
 
-- Same concept named differently across declarations — call this out as **inconsistent naming** in the finding `message`, and list the variant names
-- Non-standard abbreviations
+- Same concept named differently across declarations — call this out as **inconsistent naming** in the finding `message`, and list the variant names [JUDGMENT]
+- Non-standard abbreviations [JUDGMENT]
 
 ## Authoring checklist
 

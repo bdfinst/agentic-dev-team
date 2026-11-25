@@ -13,51 +13,23 @@ never both.
 
 from __future__ import annotations
 
-import re
+import sys
 
 import pytest
 
 from _repo_root import REPO_ROOT
 
-AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "test-review.md"
+sys.path.insert(0, str(REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib"))
 
-TAG_PATTERN = re.compile(r"\[(MECHANICAL|JUDGMENT)\]")
-BULLET_START = re.compile(r"^- ")
-CONTINUATION = re.compile(r"^[ \t]+\S")
+from detect_bullets import TAG_PATTERN
+from detect_bullets import bullet_blocks as _bullet_blocks
+from detect_bullets import section_between as _section
+
+AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "test-review.md"
 
 
 def _text() -> str:
     return AGENT.read_text(encoding="utf-8")
-
-
-def _section(text: str, start_heading: str, end_heading: str) -> str:
-    start = text.index(start_heading) + len(start_heading)
-    end = text.index(end_heading, start)
-    return text[start:end]
-
-
-def _bullet_blocks(section: str) -> list[str]:
-    """Split a section into top-level ``- `` bullets, folding in indented
-    continuation lines (this file wraps long bullets across multiple
-    2-space-indented lines) but stopping at the next unindented line —
-    a blank line, a new bullet, or a bare paragraph like
-    ``**Consolidation rule** ...`` — so a bullet's trailing tag isn't
-    accidentally absorbed into the next, untagged, non-bullet paragraph."""
-    lines = section.split("\n")
-    blocks: list[str] = []
-    i, n = 0, len(lines)
-    while i < n:
-        if BULLET_START.match(lines[i]):
-            block_lines = [lines[i]]
-            j = i + 1
-            while j < n and CONTINUATION.match(lines[j]):
-                block_lines.append(lines[j])
-                j += 1
-            blocks.append("\n".join(block_lines))
-            i = j
-        else:
-            i += 1
-    return blocks
 
 
 def _assert_each_bullet_has_exactly_one_tag(blocks: list[str]) -> None:

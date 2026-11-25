@@ -1666,6 +1666,14 @@
       "summary": "Static audit of each instrument; the per-session confirmation the issue also",
       "anchor": "instrument-audit-2201"
     },
+    "`review-findings.jsonl`": {
+      "summary": "One row per review finding recorded at a `/build` inline checkpoint.",
+      "anchor": "review-findingsjsonl"
+    },
+    "`post-lint.jsonl`": {
+      "summary": "One row per run of the opt-in post-edit lint hook (`DEVTEAM_POST_LINT=1`; see",
+      "anchor": "post-lintjsonl"
+    },
     "Adding a new stream": {
       "summary": "1.",
       "anchor": "adding-a-new-stream"
@@ -3177,6 +3185,10 @@
     "9. Write pre-commit gate file": {
       "summary": "**This step is NOT skipped by `--json` (issue #1904 Bug 2b) — see step 7's own note.** It applies whenever the scope condition below holds, `--json` or not; step 7 only skips step **8** for `--json`.",
       "anchor": "9-write-pre-commit-gate-file"
+    },
+    "Lint candidate finder": {
+      "summary": "Run `python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/lint_candidates.py\"` to rank agent `## Detect` bullets as candidates for conversion to ESLint rules.",
+      "anchor": "lint-candidate-finder"
     }
   },
   "plugins/dev-team/skills/competitive-analysis/SKILL.md": {
@@ -6022,6 +6034,10 @@
       "summary": "Based on detected stack, select applicable templates from `templates/agents/`:",
       "anchor": "7-select-agent-templates"
     },
+    "7b. Scaffold the dev-team lint config (JavaScript/TypeScript only)": {
+      "summary": "Run only when Step 5 recorded a JavaScript or TypeScript stack in",
+      "anchor": "7b-scaffold-the-dev-team-lint-config-javascripttypescript-only"
+    },
     "8. Generate project-level CLAUDE.md": {
       "summary": "If `.claude/CLAUDE.md` does not already exist in the target project, generate one containing:",
       "anchor": "8-generate-project-level-claudemd"
@@ -7009,6 +7025,10 @@
     "4. Confirm the update": {
       "summary": "Read the new `plugin.json` to verify the version changed:",
       "anchor": "4-confirm-the-update"
+    },
+    "5. Refresh scaffolded lint config": {
+      "summary": "Run only when the installed plugin version is the one this session is running (the \"already up to date\" path in step 3).",
+      "anchor": "5-refresh-scaffolded-lint-config"
     },
     "Notes": {
       "summary": "The `claude plugin update` command handles fetching, caching, and version management",

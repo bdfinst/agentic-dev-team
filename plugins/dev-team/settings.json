@@ -243,6 +243,15 @@
         ]
       },
       {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/post_lint.py"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {

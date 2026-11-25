@@ -765,6 +765,34 @@ Present the list to the user and ask for confirmation before scaffolding.
 **Under `--yes`, activate the selected templates without prompting** and list
 them in the Step 12 report.
 
+### 7b. Scaffold the dev-team lint config (JavaScript/TypeScript only)
+
+Run only when Step 5 recorded a JavaScript or TypeScript stack in
+`.claude/project-stack.json` (`javascript`, `typescript`, or `node`). Otherwise
+skip the step silently. The script decides whether the project qualifies: it
+needs `package.json`, JavaScript or TypeScript source files, ESLint 9 or 10
+installed in `node_modules`, and a flat `eslint.config.*` in the project root.
+When any is missing it writes nothing and prints one reason and one action.
+Run it from the repository root: in a subdirectory of a repository it writes
+nothing, because the post-edit hook looks for the config at the repository root.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold_lint_config.py" --project "$PWD"
+```
+
+The script writes `eslint.devteam.config.js` beside your `eslint.config.*`
+and never edits `eslint.config.js` or `tsconfig.json`. It never overwrites an
+existing file, so a re-run is safe and needs no confirmation, also under
+`--yes`. Under `--dry-run`, skip the script and report
+`Lint config: would run scaffold_lint_config.py`.
+
+Print the script's output. It lists the files written, the files skipped
+because they exist, the mode (typed rules expected, or untyped with the
+reason; untyped mode also lists the array mutations it cannot report), and the next steps: import the config first
+in your own `eslint.config.js`, and optionally set `DEVTEAM_POST_LINT=1` in the
+project's `.claude/settings.json`. The config does nothing until it is wired.
+Do not set `DEVTEAM_POST_LINT` for the user.
+
 ### 8. Generate project-level CLAUDE.md
 
 If `.claude/CLAUDE.md` does not already exist in the target project, generate one containing:
@@ -1092,6 +1120,10 @@ Repowise's own install/decline state for that run.
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint); `env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (Step 9b)
 - `.gitignore` — dev-team runtime artifacts (.claude/memory/, .claude/metrics/, .claude/plans/, .dev-team-reports/, memory/, reports/, metrics/, plans/, .pr-review-passed)   [downstream only; omit if already covered] plus `.mcp.json` machine-specific-path hygiene (#1376, #1416)   [runs in-repo too, via project-init's Repowise standing check; omit if already covered]
 - Activated templates: ts-enforcer, esm-enforcer, react-testing
+- `eslint.devteam.config.js` — dev-team lint rules, inert until imported (Step 7b)   [JS/TS only; omit when skipped]
+
+Add one `Lint config:` line from Step 7b: `written`, `kept (exists)`, or
+`skipped — <reason from the script>`. Omit it for a non-JS/TS stack.
 
 ### Recommendations
 - Add `"type": "module"` to package.json

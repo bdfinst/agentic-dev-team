@@ -32,17 +32,17 @@ Return skip when no JS/TS files in the changeset, or when files are in `node_mod
 
 CJS patterns in source code:
 
-- `require()` calls (except in `.cjs` config files like `jest.config.cjs`)
-- `module.exports` or `exports.` assignments
-- `__dirname` or `__filename` (use `import.meta.dirname` / `import.meta.filename` or `fileURLToPath(import.meta.url)`)
+- `require()` calls (except in `.cjs` config files like `jest.config.cjs`) [MECHANICAL] rule: no-restricted-syntax
+- `module.exports` or `exports.` assignments [MECHANICAL] rule: no-restricted-syntax
+- `__dirname` or `__filename` (use `import.meta.dirname` / `import.meta.filename` or `fileURLToPath(import.meta.url)`) [MECHANICAL] rule: no-restricted-globals
 
 Package.json:
 
-- Missing `"type": "module"` (warn on first detection, do not repeat)
+- Missing `"type": "module"` (warn on first detection, do not repeat) [MECHANICAL] no rule: package.json manifest field check
 
 File extensions:
 
-- `.js` files that should be `.mjs` in a non-ESM package (or add `"type": "module"`)
+- `.js` files that should be `.mjs` in a non-ESM package (or add `"type": "module"`) [MECHANICAL] no rule: file extension against package type
 
 ## Ignore
 

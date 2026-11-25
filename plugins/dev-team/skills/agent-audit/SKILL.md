@@ -15,7 +15,8 @@ allowed-tools: >-
        python3 plugins/dev-team/scripts/verify_tier.py *,
        python3 -m pytest tests/agents/test_agent_knowledge_anchor.py,
        python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py" *,
-       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py" *)
+       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py" *,
+       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_detect_tags.py" *)
 ---
 
 # Agent Audit
@@ -86,6 +87,16 @@ review agents. Check:
 3. **Detection rules**: Does the agent list what it detects?
    - MUST have a section listing specific patterns/issues to flag
    - WARN if detection rules are vague or missing
+   - For `esm-enforcer`, `js-fp-review`, `naming-review`, and
+     `structure-review`: run
+     `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/check_detect_tags.py`. Each
+     `## Detect` bullet MUST carry exactly one `[MECHANICAL]` or `[JUDGMENT]`
+     tag, and each `[MECHANICAL]` bullet MUST name a lint rule
+     (`rule: <id>`) or give a reason (`no rule: <reason>`). The id MUST be in
+     `templates/eslint/rule-ids.json` (`enabled` or `planned`). A bullet
+     converted to a lint pointer MUST say "otherwise judge fully" and name a
+     rule listed as `convertible` there. FAIL on any offender. The same check runs as `detect-bullets-tagged` in
+     `repo_invariants.py`.
 
 4. **Scope boundaries**: Does the agent declare what it ignores?
    - Review agents SHOULD state what other agents handle

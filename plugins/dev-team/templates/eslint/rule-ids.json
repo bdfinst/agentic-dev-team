@@ -1,0 +1,21 @@
+{
+  "enabled": [
+    "no-var",
+    "prefer-const",
+    "no-plusplus",
+    "no-param-reassign",
+    "no-restricted-globals",
+    "no-restricted-syntax",
+    "functional/immutable-data"
+  ],
+  "planned": [
+    "max-depth",
+    "no-magic-numbers"
+  ],
+  "convertible": [
+    "no-param-reassign"
+  ],
+  "conditional": [
+    "functional/immutable-data"
+  ]
+}

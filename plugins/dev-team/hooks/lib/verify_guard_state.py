@@ -24,9 +24,10 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-import time
 import zlib
 from pathlib import Path
+
+import atomic_state  # type: ignore[import-not-found]
 
 _STATE_DIRNAME = "dev-team-verify-guard"
 
@@ -87,15 +88,7 @@ def purge_stale(directory: Path) -> None:
     keeps the shared state dir from accumulating one file per session
     forever (#732).
     """
-    if not directory.is_dir():
-        return
-    now = time.time()
-    for path in directory.glob("*.json"):
-        try:
-            if now - path.stat().st_mtime > _STATE_TTL_SECONDS:
-                path.unlink()
-        except OSError:
-            pass
+    atomic_state.purge_stale(directory, _STATE_TTL_SECONDS)
 
 
 def write_state(path: Path, data: dict) -> None:

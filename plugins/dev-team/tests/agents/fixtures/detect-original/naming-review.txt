@@ -1,0 +1,10 @@
+- Variables not revealing contents/purpose
+- Functions not describing action
+- Parameters not indicating expected values
+- Booleans missing is/has/can/should prefix
+- Collections not pluralized
+- Unnecessary prefixes/suffixes (dataList, strName)
+- Hardcoded numbers without named constants
+- Hardcoded strings without constants/enums
+- Same concept named differently across declarations — call this out as **inconsistent naming** in the finding `message`, and list the variant names
+- Non-standard abbreviations

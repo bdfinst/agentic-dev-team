@@ -1,0 +1,41 @@
+{
+  "description": "Vehicle map for scripts/lint_candidates.py: which existing ESLint rule could carry an agent Detect bullet, and how much work that takes. It names a vehicle only; whether a rule is convertible comes from the corpus comparison, not from this file.",
+  "rungs": {
+    "a": "existing rule, enable as is",
+    "b": "existing rule, needs options or a restricted-syntax selector",
+    "c": "custom rule needed",
+    "d": "no deterministic rule feasible"
+  },
+  "entries": [
+    { "pattern": "`var`", "rule": "no-var", "rung": "a" },
+    {
+      "pattern": "`let` never reassigned",
+      "rule": "prefer-const",
+      "rung": "a"
+    },
+    {
+      "pattern": "^(?!Exception\\b).*\\.(push|pop|shift|unshift|splice|reverse|sort|fill)\\(",
+      "rule": "functional/immutable-data",
+      "rung": "b"
+    },
+    {
+      "pattern": "param(\\.|\\[)|modifying parameters",
+      "rule": "no-param-reassign",
+      "rung": "b"
+    },
+    { "pattern": "`\\+\\+`", "rule": "no-plusplus", "rung": "b" },
+    { "pattern": "require\\(\\)", "rule": "no-restricted-syntax", "rung": "b" },
+    {
+      "pattern": "module\\.exports",
+      "rule": "no-restricted-syntax",
+      "rung": "b"
+    },
+    {
+      "pattern": "__dirname|__filename",
+      "rule": "no-restricted-globals",
+      "rung": "b"
+    },
+    { "pattern": "levels of conditionals", "rule": "max-depth", "rung": "b" },
+    { "pattern": "hardcoded numbers", "rule": "no-magic-numbers", "rung": "b" }
+  ]
+}

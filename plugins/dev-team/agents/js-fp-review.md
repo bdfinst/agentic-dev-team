@@ -39,52 +39,54 @@ Return `{"status": "skip", "issues": [], "summary": "No JS/TS files in target"}`
 
 ## Detect
 
+Lint pointers: a bullet that says "If `eslint.devteam.config.js` enables ..." applies only when the config is wired: the project's own ESLint config imports it, or `.claude/settings*.json` sets `DEVTEAM_POST_LINT`. Otherwise judge the bullet fully.
+
 Variable declarations:
 
-- `let` never reassigned → use `const`
-- `var` → use `const`/`let`
-- Exception: prefixes mut/mutable/_ indicate intentional mutability
+- `let` never reassigned → use `const` [MECHANICAL] rule: prefer-const
+- `var` → use `const`/`let` [MECHANICAL] rule: no-var
+- Exception: prefixes mut/mutable/_ indicate intentional mutability [MECHANICAL] no rule: name prefix exempts both rules
 
 Array mutations (flag and suggest):
 
-- `.push()` → `[...arr, item]`
-- `.pop()` → `arr.slice(0, -1)`
-- `.shift()` → `arr.slice(1)`
-- `.unshift()` → `[item, ...arr]`
-- `.splice()` → slice + spread
-- `.reverse()` → `[...arr].reverse()` or `toReversed()`
-- `.sort()` → `[...arr].sort()` or `toSorted()`
-- `.fill()` → map
-- Exception: mutations on spread copies `[...arr].sort()` allowed
+- `.push()` → `[...arr, item]` [MECHANICAL] rule: functional/immutable-data
+- `.pop()` → `arr.slice(0, -1)` [MECHANICAL] rule: functional/immutable-data
+- `.shift()` → `arr.slice(1)` [MECHANICAL] rule: functional/immutable-data
+- `.unshift()` → `[item, ...arr]` [MECHANICAL] rule: functional/immutable-data
+- `.splice()` → slice + spread [MECHANICAL] rule: functional/immutable-data
+- `.reverse()` → `[...arr].reverse()` or `toReversed()` [MECHANICAL] rule: functional/immutable-data
+- `.sort()` → `[...arr].sort()` or `toSorted()` [MECHANICAL] rule: functional/immutable-data
+- `.fill()` → map [MECHANICAL] rule: functional/immutable-data
+- Exception: mutations on spread copies `[...arr].sort()` allowed [MECHANICAL] rule: functional/immutable-data
 
 Object mutations:
 
-- `param.prop = value` (parameter mutation)
-- `param[key] = value` (parameter mutation)
-- `delete param.prop`
-- `Object.assign(existingObj, ...)` → spread or new object target
-- Exception: `this.property` in class methods allowed
+- `param.prop = value` (parameter mutation). If `eslint.devteam.config.js` enables `no-param-reassign` and it is wired, judge only writes through an alias of the parameter, which the rule cannot see; otherwise judge fully. [MECHANICAL] rule: no-param-reassign
+- `param[key] = value` (parameter mutation). If `eslint.devteam.config.js` enables `no-param-reassign` and it is wired, judge only writes through an alias of the parameter, which the rule cannot see; otherwise judge fully. [MECHANICAL] rule: no-param-reassign
+- `delete param.prop`. If `eslint.devteam.config.js` enables `no-param-reassign` and it is wired, judge only writes through an alias of the parameter, which the rule cannot see; otherwise judge fully. [MECHANICAL] rule: no-param-reassign
+- `Object.assign(existingObj, ...)` → spread or new object target [MECHANICAL] no rule: Object.assign target argument not covered
+- Exception: `this.property` in class methods allowed [MECHANICAL] rule: no-param-reassign
 
 Global state:
 
-- `window.*` mutations
-- `global.*` mutations
-- `globalThis.*` mutations
-- `process.env.*` mutations
+- `window.*` mutations [MECHANICAL] no rule: global object mutation not covered
+- `global.*` mutations [MECHANICAL] no rule: global object mutation not covered
+- `globalThis.*` mutations [MECHANICAL] no rule: global object mutation not covered
+- `process.env.*` mutations [MECHANICAL] no rule: process.env mutation not covered
 
 Impure patterns:
 
-- Functions modifying parameters
-- Functions depending on/modifying external state
-- `++`/`--` outside loop counters
-- Side effects buried inside a value-returning computation: `console.*`, DOM access (`document.*`, `querySelector`), network calls (`fetch`, `axios`, `$.ajax`, `$.getJSON`), filesystem calls (`fs.*`), non-deterministic reads (`Math.random()`, `Date.now()`, argless `new Date()`) — each makes the function's output depend on more than its declared inputs
-- Exception: a declared effect boundary — the same word, `io`/`adapter(s)`/`client(s)`/`repository`(`-ies`)/`gateway(s)`/`effects`/`persistence`/`infrastructure`/`dal`, appearing either as a full path segment with any prefix (`src/adapter/`, `lib/io/`) or as a dotted filename suffix regardless of extension (`*.adapter.ts`, `*.client.js`, `*.effects.tsx`) — is expected to perform effects. A bare substring match does not qualify (`options.ts`, `actions.ts`, and `session.ts` are not `io`; a `Client` entity under `domain/` is not exempt) — this narrows purity scope only and never overrides security-review's own findings
+- Functions modifying parameters. If `eslint.devteam.config.js` enables `no-param-reassign` and it is wired, judge only writes through an alias of the parameter, which the rule cannot see; otherwise judge fully. [MECHANICAL] rule: no-param-reassign
+- Functions depending on/modifying external state [JUDGMENT]
+- `++`/`--` outside loop counters [MECHANICAL] rule: no-plusplus
+- Side effects buried inside a value-returning computation: `console.*`, DOM access (`document.*`, `querySelector`), network calls (`fetch`, `axios`, `$.ajax`, `$.getJSON`), filesystem calls (`fs.*`), non-deterministic reads (`Math.random()`, `Date.now()`, argless `new Date()`) — each makes the function's output depend on more than its declared inputs [JUDGMENT]
+- Exception: a declared effect boundary — the same word, `io`/`adapter(s)`/`client(s)`/`repository`(`-ies`)/`gateway(s)`/`effects`/`persistence`/`infrastructure`/`dal`, appearing either as a full path segment with any prefix (`src/adapter/`, `lib/io/`) or as a dotted filename suffix regardless of extension (`*.adapter.ts`, `*.client.js`, `*.effects.tsx`) — is expected to perform effects. A bare substring match does not qualify (`options.ts`, `actions.ts`, and `session.ts` are not `io`; a `Client` entity under `domain/` is not exempt) — this narrows purity scope only and never overrides security-review's own findings [JUDGMENT]
 
 Point-free opportunities (style, confidence medium unless noted):
 
-- `x => f(x)` (or `(...a) => f(...a)`) where the wrapper forwards every argument to `f` unchanged, in the same order, adding no logic → `const g = f;` (confidence high — mechanical substitution)
-- A nested chain of single-argument calls — function application (`x => step3(step2(step1(x)))`) or the equivalent method chain (`x.step1().step2()`) — that only reshapes one input through a fixed sequence of steps → candidate for `compose`/`pipe`
-- Exception: the wrapper supplies or captures a value that only exists at call time (a timestamp, a generated id) or preserves a bound receiver a bare reference would lose (`const readCached = cache.read` drops `cache` as `this`) such that it cannot be replaced by a bare reference to the wrapped function — removing it would change behavior, not just style. A wrapper whose parameters and body add nothing beyond forwarding (e.g. `fn => () => { fn(); }` for an already-zero-arg `fn`) is not this exception; it is the mechanical case above. A call-time value that is itself a separately-flagged non-deterministic read (`Date.now()`, `Math.random()`) still earns its own Impure-patterns finding — this exception only spares the *point-free* suggestion, not the underlying impurity
+- `x => f(x)` (or `(...a) => f(...a)`) where the wrapper forwards every argument to `f` unchanged, in the same order, adding no logic → `const g = f;` (confidence high — mechanical substitution) [JUDGMENT]
+- A nested chain of single-argument calls — function application (`x => step3(step2(step1(x)))`) or the equivalent method chain (`x.step1().step2()`) — that only reshapes one input through a fixed sequence of steps → candidate for `compose`/`pipe` [JUDGMENT]
+- Exception: the wrapper supplies or captures a value that only exists at call time (a timestamp, a generated id) or preserves a bound receiver a bare reference would lose (`const readCached = cache.read` drops `cache` as `this`) such that it cannot be replaced by a bare reference to the wrapped function — removing it would change behavior, not just style. A wrapper whose parameters and body add nothing beyond forwarding (e.g. `fn => () => { fn(); }` for an already-zero-arg `fn`) is not this exception; it is the mechanical case above. A call-time value that is itself a separately-flagged non-deterministic read (`Date.now()`, `Math.random()`) still earns its own Impure-patterns finding — this exception only spares the *point-free* suggestion, not the underlying impurity [JUDGMENT]
 
 ## Self-Challenge
 

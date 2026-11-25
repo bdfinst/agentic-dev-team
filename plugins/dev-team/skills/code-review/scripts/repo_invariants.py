@@ -55,6 +55,7 @@ Stdlib-only. See docs/python-hook-contract.md.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import subprocess
@@ -1100,6 +1101,56 @@ def check_test_skill_shared_core_in_sync(changed_files=None) -> list[dict]:
     return []
 
 
+_DETECT_TAGS_SCRIPT = _PLUGIN_ROOT / "scripts" / "check_detect_tags.py"
+
+
+def _load_check_detect_tags():
+    """Return the `check_detect_tags` module, loaded by path under its own name.
+
+    `scripts/` holds modules that share names with others on `sys.path`, so it
+    is not added to the path; the file is loaded directly instead. The checker
+    extends `sys.path` while importing, so the path is restored afterwards.
+    """
+    cached = sys.modules.get("check_detect_tags")
+    if cached is not None:
+        return cached
+    spec = importlib.util.spec_from_file_location("check_detect_tags", _DETECT_TAGS_SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["check_detect_tags"] = module
+    path_before = list(sys.path)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = path_before
+    return module
+
+
+def check_detect_bullets_tagged(changed_files=None) -> list[dict]:
+    """Every `## Detect` bullet in the tagged agent files carries one
+    `[MECHANICAL]` or `[JUDGMENT]` tag, and each `[MECHANICAL]` bullet names
+    the lint rule that decides it or says why none exists. The rules live in
+    `scripts/check_detect_tags.py`; this check reports its errors.
+
+    Corpus-wide by design: `changed_files` is ignored.
+    """
+    if not _is_marketplace_checkout():
+        return []
+    detect_tags = _load_check_detect_tags()
+    findings = []
+    for path in detect_tags.DEFAULT_AGENT_FILES:
+        rel = _repo_relative(Path(path))
+        _, errors = detect_tags.check_text(rel, Path(path).read_text(encoding="utf-8"))
+        findings.extend(
+            {
+                "invariant": "detect-bullets-tagged",
+                "file": rel,
+                "message": f"{rel}:{error.line} {error.reason}",
+            }
+            for error in errors
+        )
+    return findings
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -1115,6 +1166,7 @@ CHECKS = [
     check_no_live_ceiling_refs,
     check_no_bare_stdin_read_in_shipped_scripts,
     check_test_skill_shared_core_in_sync,
+    check_detect_bullets_tagged,
 ]
 
 

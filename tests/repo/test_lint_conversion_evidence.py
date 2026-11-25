@@ -1,0 +1,110 @@
+"""Recorded evidence the lint-conversion batch promises.
+
+Each test names a fact a reader would otherwise check by opening a file: the
+Node gate is advisory, the measurements file records token counts and lint
+times, and `/upgrade` drives the scaffold script's `--check` and `--refresh`.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+
+from _repo_root import REPO_ROOT
+
+STATUS_CHECKS = REPO_ROOT / ".github" / "required-status-checks.json"
+MEASUREMENTS = REPO_ROOT / "plugins/dev-team/templates/eslint/dev/MEASUREMENTS.md"
+UPGRADE_SKILL = REPO_ROOT / "plugins/dev-team/skills/upgrade/SKILL.md"
+CORPUS = REPO_ROOT / "plugins/dev-team/templates/eslint/dev/corpus"
+LIVE_EVAL = CORPUS / "live-eval-js-fp-review.json"
+EVAL_FIXTURES = "evals/fixtures/"
+CONVERTED_RULES = ("no-param-reassign", "no-plusplus", "prefer-const")
+NODE_GATE = "ESLint templates (Node)"
+TABLE_ROW = re.compile(r"^\|.*\|$", re.MULTILINE)
+
+
+def _section(text: str, heading: str) -> str:
+    match = re.search(
+        rf"^## {re.escape(heading)}.*?(?=^## |\Z)", text, re.MULTILINE | re.DOTALL
+    )
+    assert match, f"MEASUREMENTS.md has no '## {heading}' section"
+    return match.group(0)
+
+
+def test_node_gate_is_exempt_not_required():
+    manifest = json.loads(STATUS_CHECKS.read_text(encoding="utf-8"))
+    assert NODE_GATE in manifest["exempt"]
+    assert NODE_GATE not in manifest["required"]
+
+
+def _cells(row: str) -> list[str]:
+    return [cell.strip() for cell in row.strip().strip("|").split("|")]
+
+
+def _rows(section: str, label: str) -> list[list[str]]:
+    """The cells of every table row whose first cell starts with `label`
+    (`typed` never matches an `untyped` row)."""
+    rows = [_cells(r) for r in TABLE_ROW.findall(section)]
+    matching = [cells for cells in rows if cells[0].startswith(label)]
+    assert matching, f"no table row starts with {label!r}"
+    return matching
+
+
+def test_measurements_record_token_counts_before_and_after_for_both_agents():
+    section = _section(MEASUREMENTS.read_text(encoding="utf-8"), "Tokens")
+    for agent in ("esm-enforcer", "js-fp-review"):
+        file_cell = next(
+            c for c in map(_cells, TABLE_ROW.findall(section)) if agent in c[0]
+        )
+        _, before, after = file_cell
+        assert before.isdigit() and after.isdigit(), (agent, before, after)
+
+
+def test_measurements_record_typed_and_untyped_lint_times():
+    section = _section(MEASUREMENTS.read_text(encoding="utf-8"), "Lint latency")
+    for mode in ("typed", "untyped"):
+        for row in _rows(section, mode):
+            p50, p95 = row[-2:]
+            assert float(p50) > 0 and float(p95) > 0, (mode, row)
+
+
+def test_upgrade_skill_drives_scaffold_check_and_refresh():
+    skill = UPGRADE_SKILL.read_text(encoding="utf-8")
+    assert re.search(r"scaffold_lint_config\.py\"? .*--check", skill)
+    assert re.search(r"scaffold_lint_config\.py\"? .*--refresh", skill)
+
+
+def _live_agent_lines() -> set[tuple[str, int]]:
+    actuals = json.loads(LIVE_EVAL.read_text(encoding="utf-8"))["actuals"]
+    return {
+        (f"{EVAL_FIXTURES}{issue['file']}", issue["line"])
+        for fixture in actuals.values()
+        for issue in fixture["agents"]["js-fp-review"]["issues"]
+    }
+
+
+def _rule_lines(rule: str, findings: list[dict]) -> set[tuple[str, int]]:
+    return {
+        (f["file"], f["line"])
+        for f in findings
+        if f["rule"] == rule and f["file"].startswith(EVAL_FIXTURES)
+    }
+
+
+def test_the_live_agent_reported_every_eval_fixture_line_a_converted_rule_flags():
+    """A rule is only a safe replacement for part of an agent bullet when the
+    agent itself, run live, reported every line the rule reports."""
+    rule_found = json.loads((CORPUS / "rule-found.json").read_text(encoding="utf-8"))
+    live = _live_agent_lines()
+    for rule in CONVERTED_RULES:
+        flagged = _rule_lines(rule, rule_found)
+        assert flagged, f"{rule} flags nothing in the eval fixtures"
+        assert flagged <= live, (rule, sorted(flagged - live))
+
+
+def test_the_live_agent_reported_every_planted_line_a_converted_rule_decides():
+    planted = json.loads((CORPUS / "agent-found.json").read_text(encoding="utf-8"))
+    live = _live_agent_lines()
+    for rule in CONVERTED_RULES:
+        decided = _rule_lines(rule, planted["findings"])
+        assert decided <= live, (rule, sorted(decided - live))

@@ -1,0 +1,16 @@
+{
+  "violating.js": [
+    ["no-var", 3],
+    ["prefer-const", 4],
+    ["no-restricted-syntax", 7],
+    ["no-restricted-syntax", 8],
+    ["no-plusplus", 11],
+    ["no-param-reassign", 16],
+    ["no-param-reassign", 17],
+    ["no-restricted-syntax", 21],
+    ["no-restricted-syntax", 22],
+    ["no-restricted-syntax", 23],
+    ["no-restricted-globals", 24],
+    ["no-restricted-globals", 25]
+  ]
+}

@@ -72,6 +72,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # tests/repo/test_eslint_fixture_scoping.py spawns a real `npx eslint`
+      # and fails under CI without this install.
+      - name: Install node dev dependencies
+        run: npm ci --ignore-scripts
+
       - name: Cache apt packages
         uses: actions/cache@v6
         with:
@@ -198,6 +208,16 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # tests/repo/test_eslint_fixture_scoping.py spawns a real `npx eslint`
+      # and fails under CI without this install.
+      - name: Install node dev dependencies
+        run: npm ci --ignore-scripts
+
       - name: Python ceiling check (via ci-local)
         run: bash scripts/ci-local.sh --only=chk_python_ceiling
 
@@ -313,6 +333,38 @@ jobs:
 
       - name: Red-team harness smoke test (via ci-local)
         run: bash scripts/ci-local.sh --only=chk_harness_smoke,chk_harness_scope
+
+  # Node tests for the ESLint template that /setup scaffolds, under ESLint 10
+  # (the root install) and ESLint 9 (pinned in templates/eslint/dev), plus the
+  # post-edit hook's real-ESLint pytest tests. Defined once in
+  # scripts/ci-local.sh. Runs on ubuntu only; macOS and Windows are not
+  # covered. Advisory: listed under `exempt` in
+  # .github/required-status-checks.json, so a red run does not block a merge.
+  eslint-templates:
+    name: ESLint templates (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # --ignore-scripts: no locked package has an install script, and CI needs
+      # no git hooks, so nothing from the dependency tree runs at install time.
+      - name: Install node dev dependencies (ESLint 10)
+        run: npm ci --ignore-scripts
+
+      - name: Install the template dev tree (ESLint 9)
+        run: npm ci --no-audit --no-fund --ignore-scripts
+        working-directory: plugins/dev-team/templates/eslint/dev
+
+      - name: Install pytest
+        run: python3 -m pip install --quiet pytest pytest-asyncio
+
+      - name: ESLint template tests (via ci-local)
+        run: bash scripts/ci-local.sh --only=chk_eslint_templates
 
   # Both language linters (#1676). They were declared in ci-local.sh's
   # always-run CHECKS array but named by NO CI job's --only= list, so they ran

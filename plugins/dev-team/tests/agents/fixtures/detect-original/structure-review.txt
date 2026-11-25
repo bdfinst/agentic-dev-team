@@ -1,0 +1,31 @@
+- Module/class with multiple responsibilities
+- God objects/functions doing too much
+- Mixed concerns (UI + business logic + data access)
+- Duplicated code blocks
+- Copy-paste patterns
+- Hardcoded dependencies (not injected)
+- Circular dependencies
+- Change propagation across modules
+- >3 levels of conditionals/loops (the reconciled single threshold — see Charter above)
+- Complex boolean expressions
+- Large switch statements
+- Too many concepts per function (independent of raw line/parameter count —
+  a short function juggling several unrelated responsibilities is still a
+  finding)
+- Non-obvious control flow
+- Callback hell (nested callbacks) — JS/TS
+- Unstructured promise chains — JS/TS: chained `.then()` without error
+  handling; C#: deeply nested `ContinueWith()` instead of `async/await`;
+  Java: deeply nested `CompletableFuture` chains without `exceptionally()`
+- Blocking calls inside async methods — C#: `.Result` or `.Wait()` on a
+  `Task`; Java: `Future.get()` without timeout
+- Inconsistent file/folder structure
+- Misplaced abstractions
+- Duplicate type definitions — same interface, class, or module defined
+  in multiple locations (e.g., an interface file at both project root
+  and inside an Interfaces/ subdirectory)
+- Non-functional assets in API projects — static web assets (CSS, JS,
+  images, fonts) shipped in projects that serve only JSON/XML API
+  responses with no UI
+- For SRP violations and coupling issues, map to the smell → pattern table in `${CLAUDE_PLUGIN_ROOT}/knowledge/design-smells.md#design-smells-pattern-mapping`. Every finding should name the smell, quote the code, and include a refactor sketch.
+- For method-level issues (nesting, long methods, flag arguments), check Object Calisthenics rules 1-2 and 7 in `${CLAUDE_PLUGIN_ROOT}/knowledge/object-calisthenics.md`. Whole-file load: the nine-rule catalog is short enough that the agent reads the whole file rather than picking specific rule anchors.

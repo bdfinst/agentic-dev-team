@@ -83,6 +83,11 @@ export default tseslint.config(
       ".claude/worktrees/**",
       "**/knowledge/rule-fixtures/**/*.js",
       "**/tests/fixtures/agent-readiness/**/*.js",
+      // Violating fixtures and comparison corpus for the dev-team ESLint
+      // template: they contain CommonJS, `var`, and mutation on purpose, and are
+      // linted only by the template's own config in its tests.
+      "plugins/dev-team/templates/eslint/dev/fixtures/**",
+      "plugins/dev-team/templates/eslint/dev/corpus/**",
       // Parity harness fixtures for the token-efficiency-review hook are
       // synthetic files whose whole point is being oversized or having long
       // functions — that's the behavior under test. Not first-party source.

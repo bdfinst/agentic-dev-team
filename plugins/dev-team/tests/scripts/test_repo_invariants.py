@@ -834,3 +834,61 @@ class TestNoBareStdinReadInShippedScripts:
         assert repo_invariants.check_no_bare_stdin_read_in_shipped_scripts(
             ["some/file.py"]
         ) == repo_invariants.check_no_bare_stdin_read_in_shipped_scripts(None)
+
+
+class TestDetectBulletsTagged:
+    UNMAPPED = "- Flags `var` declarations [MECHANICAL]\n"
+    MAPPED = "- Flags `var` declarations [MECHANICAL] rule: no-var\n"
+
+    def _agent(self, tmp_path, monkeypatch, bullets):
+        (tmp_path / ".claude-plugin").mkdir()
+        (tmp_path / ".claude-plugin" / "marketplace.json").write_text("{}")
+        agent = tmp_path / "agents" / "x-review.md"
+        agent.parent.mkdir()
+        agent.write_text(f"# X\n\n## Detect\n\n{bullets}\n## Output\n\nNone.\n")
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", tmp_path)
+        monkeypatch.setattr(
+            repo_invariants._load_check_detect_tags(), "DEFAULT_AGENT_FILES", (agent,)
+        )
+
+    def test_clean_in_the_real_repo(self):
+        assert repo_invariants.check_detect_bullets_tagged() == []
+
+    def test_registered_in_checks(self):
+        assert repo_invariants.check_detect_bullets_tagged in repo_invariants.CHECKS
+
+    def test_flags_an_unmapped_mechanical_bullet(self, tmp_path, monkeypatch):
+        self._agent(tmp_path, monkeypatch, self.UNMAPPED)
+
+        findings = repo_invariants.check_detect_bullets_tagged()
+
+        assert [f["file"] for f in findings] == ["agents/x-review.md"]
+        assert findings[0]["invariant"] == "detect-bullets-tagged"
+        assert "agents/x-review.md:5" in findings[0]["message"]
+
+    def test_passes_once_the_bullet_is_mapped(self, tmp_path, monkeypatch):
+        self._agent(tmp_path, monkeypatch, self.MAPPED)
+
+        assert repo_invariants.check_detect_bullets_tagged() == []
+
+    def test_silent_outside_the_marketplace_checkout(self, tmp_path, monkeypatch):
+        self._agent(tmp_path, monkeypatch, self.UNMAPPED)
+        (tmp_path / ".claude-plugin" / "marketplace.json").unlink()
+
+        assert repo_invariants.check_detect_bullets_tagged() == []
+
+    def test_corpus_wide_regardless_of_changed_files(self, tmp_path, monkeypatch):
+        self._agent(tmp_path, monkeypatch, self.UNMAPPED)
+
+        baseline = repo_invariants.check_detect_bullets_tagged(None)
+
+        assert baseline != []
+        assert repo_invariants.check_detect_bullets_tagged(["unrelated.py"]) == baseline
+
+    def test_loading_the_checker_leaves_sys_path_unchanged(self, monkeypatch):
+        monkeypatch.delitem(sys.modules, "check_detect_tags", raising=False)
+        before = list(sys.path)
+
+        repo_invariants._load_check_detect_tags()
+
+        assert sys.path == before

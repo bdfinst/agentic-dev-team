@@ -188,6 +188,9 @@ SLICE_EXCLUSIONS = {
     "ship_resume_guard.py": "stdlib argparse/json/re/pathlib/subprocess only; no floor-sensitive runtime API",
     "ship_review_gate.py": "stdlib argparse/json/re/pathlib/subprocess only; no floor-sensitive runtime API",
     "authoring_digest.py": "stdlib argparse/re/pathlib only; no floor-sensitive runtime API",
+    "lint_candidates.py": "stdlib argparse/dataclasses/json/re/pathlib only (plus lib/detect_bullets and skills/code-review/scripts/finding_signature); no floor-sensitive runtime API",
+    "lint_corpus_compare.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
+    "scaffold_lint_config.py": "stdlib argparse/dataclasses/hashlib/json/os/re/pathlib only; no floor-sensitive runtime API",
     "skill_report_grader.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
     "system_test_design_args.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
     "coverage_evidence_detect.py": "stdlib argparse/json/xml.etree/pathlib only; no floor-sensitive runtime API",
@@ -216,6 +219,7 @@ SLICE_EXCLUSIONS = {
     ),
     "build_worktree_baseref.py": "stdlib json/os/pathlib only; no floor-sensitive runtime API",
     "check_agent_scope.py": "stdlib argparse/pathlib only; no floor-sensitive runtime API",
+    "check_detect_tags.py": "stdlib re/pathlib/typing only (plus lib/detect_bullets); no floor-sensitive runtime API",
     "check_agent_tool_mapping.py": (
         "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
     ),
@@ -265,8 +269,7 @@ SLICE_EXCLUSIONS = {
         "floor-sensitive runtime API"
     ),
     "gherkin_cross_feature_duplicate_titles_gate.py": (
-        "stdlib argparse/json/collections/pathlib only; no floor-sensitive "
-        "runtime API"
+        "stdlib argparse/json/collections/pathlib only; no floor-sensitive runtime API"
     ),
     "gherkin_effectiveness_rollup.py": (
         "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
@@ -318,17 +321,14 @@ SLICE_EXCLUSIONS = {
         "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
     ),
     "plan_waves.py": (
-        "stdlib argparse/fnmatch/json/re/pathlib only; no floor-sensitive "
-        "runtime API"
+        "stdlib argparse/fnmatch/json/re/pathlib only; no floor-sensitive runtime API"
     ),
     "pr_close_keyword_lint.py": (
-        "stdlib argparse/json/re/dataclasses only; no floor-sensitive "
-        "runtime API"
+        "stdlib argparse/json/re/dataclasses only; no floor-sensitive runtime API"
     ),
     "recon_inventory.py": "stdlib os/re/subprocess/pathlib only; no floor-sensitive runtime API",
     "run_invariants.py": (
-        "stdlib argparse/subprocess/pathlib/typing only; no floor-sensitive "
-        "runtime API"
+        "stdlib argparse/subprocess/pathlib/typing only; no floor-sensitive runtime API"
     ),
     "select_lenses.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
     "sql_review_roster.py": (
@@ -510,8 +510,9 @@ class TestTheFloorIsDeclaredOnce:
         Anchored to "Python <FLOOR_DOTTED>", built from the constant at assertion
         time rather than restated here, so this prose cannot go stale again; a
         bare version substring could match a section number."""
-        assert re.search(r"Python\s+" + re.escape(FLOOR_DOTTED), ADR.read_text(encoding="utf-8"))
-
+        assert re.search(
+            r"Python\s+" + re.escape(FLOOR_DOTTED), ADR.read_text(encoding="utf-8")
+        )
 
     def test_the_doctor_python_floor_check_states_the_same_floor(self, monkeypatch):
         """``/doctor``'s ``python-floor`` check holds the floor as a tuple and in
@@ -581,9 +582,9 @@ class TestTheFloorIsProvenByRunningIt:
         # a comment — so `py310="$(command -v python3)"` anywhere above the call
         # would run every stage of this gate on the dev interpreter with all tests
         # green. Pin the single assignment and its source.
-        assert re.findall(
-            r"\bpy310=\S*", without_comments(body)
-        ) == ['py310="$(_resolve_python310)"'], (
+        assert re.findall(r"\bpy310=\S*", without_comments(body)) == [
+            'py310="$(_resolve_python310)"'
+        ], (
             "py310 must be assigned exactly once, from _resolve_python310. "
             "Reassigning it silently runs the whole gate off-floor."
         )
@@ -612,7 +613,9 @@ class TestTheFloorIsProvenByRunningIt:
         assert "exec_module" in source, "the probe must actually import modules"
         assert "VERSION_ERRORS" in source, "failures must come from the interpreter"
 
-    def test_the_check_also_runs_a_real_test_slice_under_the_floor_interpreter(self, ci_local):
+    def test_the_check_also_runs_a_real_test_slice_under_the_floor_interpreter(
+        self, ci_local
+    ):
         """#1650: byte-compiling and importing prove a module parses and
         loads, not that its function bodies run clean under the floor
         interpreter. `chk_python_floor` must actually execute pytest against
@@ -726,9 +729,7 @@ class TestTheFloorIsProvenByRunningIt:
         from the repo root) with ``_resolve_below_floor_python`` replaced by
         ``resolver_body`` (default: no interpreter resolvable) and this
         interpreter as the JSON judge."""
-        env = {
-            k: v for k, v in os.environ.items() if k not in ("CI", "GITHUB_ACTIONS")
-        }
+        env = {k: v for k, v in os.environ.items() if k not in ("CI", "GITHUB_ACTIONS")}
         env.update(env_overrides)
         override = f'\nPROBE_BELOW_FLOOR_PYTHONS="{versions}"' if versions else ""
         script = (
@@ -852,9 +853,7 @@ class TestTheFloorIsProvenByRunningIt:
             "DEV_TEAM_PYTHON": "/decoy/python",
             "GIT_CEILING_DIRECTORIES": "/decoy/ceiling",
         }
-        fake, _, report_call = self._run_logged_gate(
-            ci_local, tmp_path, env=decoys
-        )
+        fake, _, report_call = self._run_logged_gate(ci_local, tmp_path, env=decoys)
 
         plugin_root, config_dir, cwd, dev_team_python, ceiling, args = report_call
         project = Path(args.split("--project ", 1)[1])
@@ -967,7 +966,9 @@ class TestTheFloorIsProvenByRunningIt:
             "recorded in #1829."
         )
         found = [x for x in ("|| true", "|| :", "&& true", "set +e") if x in code]
-        assert not found, f"chk_python_floor contains {found}, which discards the verdict"
+        assert not found, (
+            f"chk_python_floor contains {found}, which discards the verdict"
+        )
 
     def test_the_declared_slice_files_all_exist(self):
         """A slice entry naming a file that is not in the tree fails the gate
@@ -1096,7 +1097,9 @@ class TestTheFloorSliceAccountsForEveryShippedScript:
         )
 
     def test_slice_exclusions_all_carry_a_real_reason(self):
-        empty = [name for name, reason in SLICE_EXCLUSIONS.items() if not reason.strip()]
+        empty = [
+            name for name, reason in SLICE_EXCLUSIONS.items() if not reason.strip()
+        ]
         assert not empty, f"SLICE_EXCLUSIONS entries with no reason: {empty}"
 
     def test_no_script_is_both_slice_covered_and_excluded(self):
@@ -1285,8 +1288,12 @@ class TestTheFloorIsCheckedInCI:
         to co-tenanting without this test noticing, without also forbidding
         a second, equally-isolated invocation (e.g. a future matrix leg)
         that the isolation property itself has no objection to."""
-        floor_lists = [lst for lst in _only_lists(ci_workflow) if "chk_python_floor" in lst]
-        assert floor_lists and all(lst == ["chk_python_floor"] for lst in floor_lists), (
+        floor_lists = [
+            lst for lst in _only_lists(ci_workflow) if "chk_python_floor" in lst
+        ]
+        assert floor_lists and all(
+            lst == ["chk_python_floor"] for lst in floor_lists
+        ), (
             "chk_python_floor must be the only check in every --only= list "
             f"that invokes it — found {floor_lists!r}. Co-tenanting it risks "
             "the exact PATH-shadowing regression #1635's review caught once "

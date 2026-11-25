@@ -1,0 +1,134 @@
+{
+  "fp-array-mutations": {
+    "agents": {
+      "js-fp-review": {
+        "status": "fail",
+        "issues": [
+          { "severity": "error", "message": "addTask pushes onto the module-level taskQueue array, an external state mutation (line 13)." },
+          { "severity": "error", "message": "addMultipleTasks pushes onto the module-level taskQueue inside forEach, an external state mutation (line 18)." },
+          { "severity": "error", "message": "sortTasksByPriority calls tasks.sort in place on the caller-owned parameter array (line 23)." },
+          { "severity": "error", "message": "removeTaskAt calls tasks.splice on the caller-owned parameter array (line 28)." },
+          { "severity": "error", "message": "insertTaskAt calls tasks.splice on the caller-owned parameter array, mutating it in place (line 33)." },
+          { "severity": "error", "message": "reverseTaskOrder calls tasks.reverse in place on the caller-owned parameter array (line 37)." },
+          { "severity": "error", "message": "processCompletedTasks calls tasks.splice on the caller-owned parameter array inside the loop (line 46)." },
+          { "severity": "warning", "message": "processCompletedTasks pushes onto the local completed array (line 45); a local mutation that could be a spread or filter." },
+          { "severity": "error", "message": "reorderByCompletion calls tasks.sort in place on the caller-owned parameter array (line 53)." }
+        ],
+        "summary": "Nine findings across the fixture: module-level push (2), parameter sort/splice/reverse (6), and one local push (1). The let i loop counter at line 43 is reassigned by i--, so it is not flagged. No point-free opportunities found."
+      }
+    }
+  },
+  "fp-effect-boundary.adapter": {
+    "agents": {
+      "js-fp-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "No mutations, let/var, parameter writes, or point-free candidates. fetch (network) and console.log in fp-effect-boundary.adapter.ts are exempt because the dotted suffix .adapter.ts is a declared effect boundary."
+      }
+    }
+  },
+  "fp-global-state": {
+    "agents": {
+      "js-fp-review": {
+        "status": "fail",
+        "issues": [
+          { "severity": "error", "message": "trackPageView increments the module-level requestCount with ++, an external state mutation outside any loop (line 9)." },
+          { "severity": "error", "message": "trackPageView writes to window.localStorage, a global side effect in a function that depends on external state (line 10)." },
+          { "severity": "error", "message": "setFeatureFlag assigns to window[ff_${name}], mutating the global window object (line 14)." },
+          { "severity": "error", "message": "configureEnvironment assigns process.env.NODE_ENV and process.env.APP_VERSION, mutating global process state (lines 18-19)." },
+          { "severity": "error", "message": "redirectToLogin assigns window.location.href, a global side effect (line 23)." },
+          { "severity": "error", "message": "incrementCounter increments the module-level requestCount with ++, an external state mutation outside any loop (line 27)." },
+          { "severity": "error", "message": "enableDebug reassigns the module-level debugMode binding, an external state mutation (line 34)." },
+          { "severity": "error", "message": "enableDebug assigns process.env.DEBUG, mutating global process state (line 35)." },
+          { "severity": "error", "message": "registerGlobalHandler assigns window[name], mutating the global window object with a caller-chosen key (line 39)." },
+          { "severity": "warning", "message": "appVersion is declared with let but never reassigned; use const (line 5)." },
+          { "severity": "warning", "message": "label in buildInfo is declared with let but never reassigned; use const (line 43)." }
+        ],
+        "summary": "Eight error-level external/global mutations (module-level requestCount and debugMode, window.*, process.env.*) plus two let-never-reassigned warnings."
+      }
+    }
+  },
+  "fp-immutable-state": {
+    "agents": {
+      "js-fp-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "Single TS file, no let/var, no array mutation, no parameter or global mutation, no side effects or non-deterministic reads. Every update function returns a fresh object via spread; no point-free finding applies."
+      }
+    }
+  },
+  "fp-impure-computations": {
+    "agents": {
+      "js-fp-review": {
+        "status": "fail",
+        "issues": [
+          { "severity": "error", "message": "computeDiscountedPrice (line 7) calls console.log, a buried side effect inside a value-returning computation." },
+          { "severity": "error", "message": "readRoundedTotal (lines 12-13) reads the DOM via document.querySelector, a buried side effect inside a value-returning computation." },
+          { "severity": "error", "message": "loadClampedUserScore (line 18) performs a network call via fetch, a buried side effect inside a value-returning computation." },
+          { "severity": "error", "message": "generateRequestId (line 24) reads Math.random(), a non-deterministic read buried in a value-returning computation." },
+          { "severity": "error", "message": "timestampedLabel (line 28) reads argless new Date(), a non-deterministic read buried in a value-returning computation." }
+        ],
+        "summary": "Five buried side effects (console, DOM, network, Math.random, argless new Date) across five functions; no declared effect-boundary exemption applies."
+      }
+    }
+  },
+  "fp-object-mutations": {
+    "agents": {
+      "js-fp-review": {
+        "status": "fail",
+        "issues": [
+          { "severity": "error", "message": "normalizeProfile mutates its caller-owned profile parameter by assigning name (line 13) and email (line 14); return a new object via spread instead." },
+          { "severity": "error", "message": "mergeMetadata calls Object.assign on the caller-owned profile.metadata (line 22), mutating an argument's nested object; build a new metadata object instead." },
+          { "severity": "error", "message": "applyDefaults uses Object.assign on the caller-owned profile parameter (line 27); return { ...profile, role, metadata } instead." },
+          { "severity": "error", "message": "stripLegacyFields uses delete on the caller-owned profile parameter (line 35); omit the key in a new object instead." },
+          { "severity": "error", "message": "setMetadataEntry writes profile.metadata[key] on a caller-owned argument (line 44) and returns void, so its only effect is external mutation; return a new profile with a spread metadata copy." },
+          { "severity": "error", "message": "promoteToAdmin assigns profile.role on the caller-owned parameter (line 48); return { ...profile, role: \"admin\" } instead." },
+          { "severity": "error", "message": "cleanProfile chains three mutating helpers on the same caller-owned profile (lines 53-55), so it mutates its argument indirectly; reduce over pure helpers that each return a new object." }
+        ],
+        "summary": "All seven functions mutate caller-owned parameters (property assignment, Object.assign, delete, nested index write)."
+      }
+    }
+  },
+  "fp-point-free-wrappers": {
+    "agents": {
+      "js-fp-review": {
+        "status": "warn",
+        "issues": [
+          { "severity": "suggestion", "message": "Line 8: shout forwards its single argument unchanged to toUpperCase; replace with const shout = toUpperCase; (high confidence)." },
+          { "severity": "suggestion", "message": "Line 12: sumPair forwards both arguments unchanged in order to sum; replace with const sumPair = sum; (high confidence)." },
+          { "severity": "suggestion", "message": "Line 15: cleanTitle nests three single-argument calls (trim, toUpperCase, exclaim); a compose/pipe form would express the sequence (medium confidence)." }
+        ],
+        "summary": "Style-only findings: three point-free/composition suggestions. Line 20 isNumeric is exempt because a bare digitsOnly.test would lose its receiver. No mutation, global state, or buried side effects found."
+      }
+    }
+  },
+  "fp-pure-transforms": {
+    "agents": {
+      "js-fp-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All declarations are const. No array mutators are used. Object updates use spread copies and no parameter is mutated. No side effects or non-deterministic reads. buildSummary chains sequential const bindings, so no composition finding."
+      }
+    }
+  },
+  "fp-safe-sort": {
+    "agents": {
+      "js-fp-review": {
+        "status": "pass",
+        "issues": [],
+        "summary": "All array sorts and reversals are on fresh copies: toSorted/toReversed, or spread/slice copies before sort/reverse. No let/var, no ++/--, no parameter or global mutation, no side effects, and no point-free forwarding wrappers."
+      }
+    }
+  },
+  "fp-shallow-copy-nested-write": {
+    "agents": {
+      "js-fp-review": {
+        "status": "fail",
+        "issues": [
+          { "severity": "error", "message": "applyCoupon's spread { ...order } is shallow, so next.totals is the caller's order.totals object; lines 55-56 write discount and tax into it, mutating the argument." }
+        ],
+        "summary": "One error: applyCoupon mutates the caller-owned nested totals object through a shallow copy. Remaining functions are pure."
+      }
+    }
+  }
+}
