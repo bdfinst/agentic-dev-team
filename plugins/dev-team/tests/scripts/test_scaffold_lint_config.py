@@ -24,7 +24,7 @@ sys.path.insert(0, str(SCRIPTS_DIR.parent / "tests" / "lib"))
 
 import post_lint
 import scaffold_lint_config as scaffold
-from hermetic import hermetic_git_env
+from hermetic import hermetic_git_env, scrub_ambient_environment
 from scaffold_lint_config import main
 
 PLUGIN_ROOT = SCRIPTS_DIR.parent
@@ -37,6 +37,11 @@ OLD_VERSION = "0.0.1"
 
 USER_ESLINT_CONFIG = "export default [];\n"
 USER_TSCONFIG = '{ "compilerOptions": {} }\n'
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_environment(monkeypatch):
+    scrub_ambient_environment(monkeypatch)
 
 
 def make_project(

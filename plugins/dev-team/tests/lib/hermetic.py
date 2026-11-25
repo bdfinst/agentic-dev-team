@@ -40,3 +40,19 @@ def hermetic_git_env(home: Path | None = None) -> dict[str, str]:
     if home is not None:
         env["HOME"] = str(home)
     return env
+
+
+# Variables that change the post-edit lint hook's or ESLint's behavior; none
+# may leak into a test from the machine or CI job running it. `GIT_*` matters
+# most: a git hook (pre-push) exports GIT_DIR, which redirects the
+# `git rev-parse` that finds the project root to the enclosing checkout.
+AMBIENT_PREFIXES = ("DEVTEAM_POST_LINT", "DEVTEAM_LINT_TYPED", "ESLINT_", "GIT_")
+AMBIENT_NAMES = ("NODE_OPTIONS", "CLAUDE_PROJECT_DIR")
+
+
+def scrub_ambient_environment(monkeypatch) -> None:
+    """Delete every ambient variable that steers the lint hook or ESLint."""
+    for name in [n for n in os.environ if n.startswith(AMBIENT_PREFIXES)]:
+        monkeypatch.delenv(name)
+    for name in AMBIENT_NAMES:
+        monkeypatch.delenv(name, raising=False)

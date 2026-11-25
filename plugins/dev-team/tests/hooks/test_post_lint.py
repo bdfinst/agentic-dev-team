@@ -26,8 +26,10 @@ import pytest
 from _repo_root import REPO_ROOT
 
 sys.path.insert(0, str(REPO_ROOT / "plugins" / "dev-team" / "hooks"))
+sys.path.insert(0, str(REPO_ROOT / "plugins" / "dev-team" / "tests" / "lib"))
 
 import post_lint
+from hermetic import scrub_ambient_environment
 
 HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "post_lint.py"
 
@@ -107,20 +109,9 @@ class Project:
         return self.marker.exists()
 
 
-# Variables that change the hook's or ESLint's behavior; none may leak in from
-# the machine or CI job running the tests. `GIT_*` matters most: a git hook
-# (pre-push) exports GIT_DIR, which redirects the `git rev-parse` that finds the
-# project root to this checkout.
-AMBIENT_PREFIXES = ("DEVTEAM_POST_LINT", "DEVTEAM_LINT_TYPED", "ESLINT_", "GIT_")
-AMBIENT_NAMES = ("NODE_OPTIONS", "CLAUDE_PROJECT_DIR")
-
-
 @pytest.fixture(autouse=True)
 def _no_ambient_environment(monkeypatch):
-    for name in [n for n in os.environ if n.startswith(AMBIENT_PREFIXES)]:
-        monkeypatch.delenv(name)
-    for name in AMBIENT_NAMES:
-        monkeypatch.delenv(name, raising=False)
+    scrub_ambient_environment(monkeypatch)
 
 
 @pytest.fixture
