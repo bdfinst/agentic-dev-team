@@ -188,6 +188,7 @@ SLICE_EXCLUSIONS = {
     "ship_resume_guard.py": "stdlib argparse/json/re/pathlib/subprocess only; no floor-sensitive runtime API",
     "ship_review_gate.py": "stdlib argparse/json/re/pathlib/subprocess only; no floor-sensitive runtime API",
     "authoring_digest.py": "stdlib argparse/re/pathlib only; no floor-sensitive runtime API",
+    "lint_candidates.py": "stdlib argparse/dataclasses/json/re/pathlib only (plus lib/detect_bullets and skills/code-review/scripts/finding_signature); no floor-sensitive runtime API",
     "skill_report_grader.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
     "system_test_design_args.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
     "coverage_evidence_detect.py": "stdlib argparse/json/xml.etree/pathlib only; no floor-sensitive runtime API",
