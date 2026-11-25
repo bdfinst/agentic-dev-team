@@ -255,9 +255,14 @@ section "Node + npm dependencies (ESLint 10 at the root, ESLint 9 in templates/e
 if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
   ok "node ($(node --version 2>&1)); .nvmrc pins $(cat .nvmrc 2>/dev/null || echo unknown)"
   for npm_dir in . plugins/dev-team/templates/eslint/dev; do
+    # No locked package has an install script, so dependency scripts never need
+    # to run. The root keeps them only because its own `prepare` (husky) is
+    # what installs the git hooks; --ignore-scripts would skip that too.
+    npm_ci_flags=(--no-audit --no-fund)
+    [ "$npm_dir" = "." ] || npm_ci_flags+=(--ignore-scripts)
     if python3 scripts/npm_lock_current.py "$npm_dir"; then
       ok "$npm_dir: node_modules already match the lockfile"
-    elif (cd "$npm_dir" && npm ci --no-audit --no-fund >/dev/null 2>&1); then
+    elif (cd "$npm_dir" && npm ci "${npm_ci_flags[@]}" >/dev/null 2>&1); then
       ok "$npm_dir: npm ci"
     else
       err "$npm_dir: npm ci failed — run it by hand to see why"

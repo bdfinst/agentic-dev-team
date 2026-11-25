@@ -331,11 +331,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # --ignore-scripts: no locked package has an install script, and CI needs
+      # no git hooks, so nothing from the dependency tree runs at install time.
       - name: Install node dev dependencies (ESLint 10)
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Install the template dev tree (ESLint 9)
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund --ignore-scripts
         working-directory: plugins/dev-team/templates/eslint/dev
 
       - name: Install pytest
