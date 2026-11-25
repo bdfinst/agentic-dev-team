@@ -9,6 +9,7 @@ absent locally; a failure when `CI=true`).
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import json
 import os
@@ -833,8 +834,39 @@ def test_stale_session_state_is_purged_on_write_and_fresh_state_is_kept(project)
     assert fresh.exists() and other.exists()
 
 
+@posix_only
+def test_an_unchanged_state_run_still_counts_as_use_for_the_ttl(project, monkeypatch):
+    _break_config(project)
+    first = project.run()
+    assert first.output is not None
+    (state_file,) = project.state_dir.glob("*.json")
+    three_hours_ago = time.time() - 3 * 3600
+    os.utime(state_file, (three_hours_ago, three_hours_ago))
+
+    second = project.run()  # notice already seen: the state does not change
+
+    assert second.output is None
+    assert state_file.stat().st_mtime > time.time() - 60
+    real_time = time.time
+    monkeypatch.setattr(time, "time", lambda: real_time() + 2 * 3600)
+    third = project.run()  # 2h after last use: kept; 5h after last change: purged
+    assert third.output is None
+
+
+@posix_only
+def test_an_unchanged_run_without_a_state_file_does_not_fail(project):
+    project.run(env=_clean(project))
+    assert list(project.state_dir.glob("*.json")) == []
+
+
 def test_the_hook_does_not_import_another_hooks_private_module():
-    assert "verify_guard_state" not in HOOK.read_text()
+    imported = set()
+    for node in ast.walk(ast.parse(HOOK.read_text())):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module)
+    assert "verify_guard_state" not in imported
 
 
 # --- metrics -----------------------------------------------------------------

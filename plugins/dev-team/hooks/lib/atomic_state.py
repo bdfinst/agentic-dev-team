@@ -205,7 +205,9 @@ def atomic_write(path: Path, text: str, *, fail_open: bool = True) -> None:
 def purge_stale(directory: Path, ttl_seconds: float) -> None:
     """Delete `*.json` files in `directory` last modified more than
     `ttl_seconds` ago, so a per-session state directory does not accumulate one
-    file per session forever. A missing directory or an unremovable file is
+    file per session forever. A `*.json.lock` file goes only once its `.json`
+    is gone and it is itself older than `ttl_seconds` — never by age alone
+    while the state file exists. A missing directory or an unremovable file is
     skipped."""
     if not directory.is_dir():
         return
@@ -214,6 +216,14 @@ def purge_stale(directory: Path, ttl_seconds: float) -> None:
         try:
             if now - path.stat().st_mtime > ttl_seconds:
                 path.unlink()
+        except OSError:
+            pass
+    for lock in directory.glob("*.json.lock"):
+        try:
+            if lock.with_suffix("").exists():
+                continue
+            if now - lock.stat().st_mtime > ttl_seconds:
+                lock.unlink()
         except OSError:
             pass
 

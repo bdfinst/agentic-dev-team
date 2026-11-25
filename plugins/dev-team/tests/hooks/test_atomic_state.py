@@ -407,5 +407,39 @@ def test_purge_stale_removes_only_json_files_older_than_the_ttl(tmp_path: Path) 
     assert fresh.exists() and other.exists()
 
 
+def test_purge_stale_removes_an_old_lock_only_once_its_json_is_gone(
+    tmp_path: Path,
+) -> None:
+    old = time.time() - 120
+    orphan, kept, fresh_orphan = (
+        tmp_path / n for n in ("orphan.json.lock", "kept.json.lock", "new.json.lock")
+    )
+    for path in (orphan, kept, fresh_orphan):
+        path.write_text("")
+    (tmp_path / "kept.json").write_text("{}")
+    for path in (orphan, kept):
+        os.utime(path, (old, old))
+    os.utime(tmp_path / "kept.json", (time.time(), time.time()))
+
+    atomic_state.purge_stale(tmp_path, 60)
+
+    assert not orphan.exists()
+    assert kept.exists(), "a lock must stay while its json exists, however old"
+    assert fresh_orphan.exists(), "a lock younger than the TTL must stay"
+
+
+def test_purge_stale_removes_a_stale_json_and_then_its_old_lock(tmp_path: Path) -> None:
+    old = time.time() - 120
+    state, lock = tmp_path / "s.json", tmp_path / "s.json.lock"
+    for path in (state, lock):
+        path.write_text("")
+        os.utime(path, (old, old))
+
+    atomic_state.purge_stale(tmp_path, 60)
+    assert not state.exists()
+    atomic_state.purge_stale(tmp_path, 60)
+    assert not lock.exists()
+
+
 def test_purge_stale_ignores_a_missing_directory(tmp_path: Path) -> None:
     assert atomic_state.purge_stale(tmp_path / "absent", 60) is None

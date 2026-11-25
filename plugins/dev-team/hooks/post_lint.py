@@ -352,6 +352,10 @@ def _update_state(
         result = mutate(state)
         if _dump(state) != before:
             atomic_write(path, _dump(state), fail_open=False)
+        else:
+            # Use, not change, keeps a session's state alive past the TTL.
+            with contextlib.suppress(OSError):
+                os.utime(path)
     return result
 
 
