@@ -787,8 +787,8 @@ existing file, so a re-run is safe and needs no confirmation, also under
 `Lint config: would run scaffold_lint_config.py`.
 
 Print the script's output. It lists the files written, the files skipped
-because they exist, the mode (typed or untyped; untyped mode also lists the
-array mutations it cannot report), and the next steps: import the config first
+because they exist, the mode (typed rules expected, or untyped with the
+reason; untyped mode also lists the array mutations it cannot report), and the next steps: import the config first
 in your own `eslint.config.js`, and optionally set `DEVTEAM_POST_LINT=1` in the
 project's `.claude/settings.json`. The config does nothing until it is wired.
 Do not set `DEVTEAM_POST_LINT` for the user.

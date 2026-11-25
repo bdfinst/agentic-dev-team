@@ -134,6 +134,7 @@ The output is JSON, file name to status. No output entries means nothing was sca
 | `stale-unedited` | "{file} is from an older dev-team version and unedited" |
 | `stale-edited` | "{file} is from an older dev-team version and you edited it. Compare it with the shipped file before you change it: `diff {file} "${CLAUDE_PLUGIN_ROOT}/templates/eslint/payload/{file}"` (the first line of {file} is a stamp)" |
 | `unstamped` | "{file} has no dev-team stamp, so `/upgrade` leaves it alone" |
+| `symlink` | "{file} is a symlink, so `/upgrade` leaves it alone" |
 
 When any file is `stale-unedited`, ask: "Refresh all unedited dev-team lint config files? (yes/no)". On yes, run:
 

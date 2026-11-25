@@ -25,10 +25,13 @@ Stdlib only.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
 import re
+import secrets
+import stat
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,7 +54,10 @@ STAMP_PATTERN = re.compile(rb"^// devteam-lint v(\S+) sha256:([0-9a-f]{64})\r?$"
 SUPPORTED_ESLINT_MAJORS = (9, 10)
 # Strict semver. A version string reaches skip messages the model reads, so
 # anything that is not exactly semver is never echoed.
-SEMVER_PATTERN = re.compile(r"(\d+)\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
+SEMVER_PATTERN = re.compile(
+    r"(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?"
+)
+
 JS_SOURCE_SUFFIXES = (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts")
 DECLARATION_SUFFIXES = (".d.ts", ".d.mts", ".d.cts")
 SKIPPED_DIRS = frozenset(
@@ -102,6 +108,12 @@ UNTYPED_MISSES = (
     "types to close these gaps"
 )
 
+TYPED_HINT = (
+    "typed rules expected (tsconfig.json and typed dependencies found; not "
+    "checked: DEVTEAM_LINT_TYPED=0, whether the dependencies load, and whether "
+    "the tsconfig covers each file)"
+)
+
 NEXT_WIRE = (
     "next: the config does nothing until it is wired. Import it first in your "
     'eslint.config.js: import devteam from "./eslint.devteam.config.js"; '
@@ -128,7 +140,8 @@ class Skip:
 class Outcome:
     written: list[str] = field(default_factory=list)
     existing: list[str] = field(default_factory=list)
-    mode: str = ""
+    typed: bool = False
+    untyped_reason: str = ""
     skip: Skip | None = None
 
 
@@ -139,6 +152,29 @@ def parse_major(version: str) -> int | None:
     """Major number of ``9.0.0`` or ``10.0.0-rc.1``; ``None`` unless strict semver."""
     match = SEMVER_PATTERN.fullmatch(version)
     return int(match.group(1)) if match else None
+
+
+def semver_key(version: str) -> tuple | None:
+    """Sort key for strict semver (build metadata ignored, a release above its
+    own pre-releases); ``None`` for anything else."""
+    match = SEMVER_PATTERN.fullmatch(version)
+    if match is None:
+        return None
+    major, minor, patch, pre = match.groups()
+    identifiers = tuple(
+        (0, int(part), "") if part.isdigit() else (1, 0, part)
+        for part in (pre.split(".") if pre else ())
+    )
+    return (int(major), int(minor), int(patch), pre is None, identifiers)
+
+
+def _supported_text() -> str:
+    """``9 or 10``: the supported ESLint majors, for messages."""
+    return " or ".join(str(major) for major in SUPPORTED_ESLINT_MAJORS)
+
+
+def _latest_supported() -> int:
+    return max(SUPPORTED_ESLINT_MAJORS)
 
 
 def body_hash(body: bytes) -> str:
@@ -168,9 +204,22 @@ def classify(content: bytes, current_version: str) -> str:
         return STATUS_UNSTAMPED
     version, stamped_hash, body = parts
     edited = body_hash(body) != stamped_hash
-    if version == current_version:
+    if _is_current(version, current_version):
         return STATUS_CURRENT_EDITED if edited else STATUS_CURRENT
     return STATUS_STALE_EDITED if edited else STATUS_STALE_UNEDITED
+
+
+def _is_current(stamped: str, running: str) -> bool:
+    """A stamp from this plugin version or a newer one: refreshing it would
+    downgrade a file a newer plugin wrote."""
+    if stamped == running:
+        return True
+    stamped_key, running_key = semver_key(stamped), semver_key(running)
+    return (
+        stamped_key is not None
+        and running_key is not None
+        and stamped_key >= running_key
+    )
 
 
 def read_plugin_version(manifest: Path = MANIFEST_PATH) -> str:
@@ -254,24 +303,30 @@ def _eslint_gate(project: Path, package: dict) -> Skip | None:
             )
         return Skip(
             "ESLint is not installed",
-            "run npm install --save-dev eslint (version 9 or 10), then re-run /setup",
+            f"run npm install --save-dev eslint (version {_supported_text()}), "
+            "then re-run /setup",
         )
     major = parse_major(version)
     if major is None:
         return Skip(
             "unparseable ESLint version in node_modules/eslint/package.json",
-            "reinstall ESLint 9 or 10 (npm install --save-dev eslint@10), then re-run /setup",
+            f"reinstall ESLint {_supported_text()} "
+            f"(npm install --save-dev eslint@{_latest_supported()}), "
+            "then re-run /setup",
         )
     if major in SUPPORTED_ESLINT_MAJORS:
         return None
-    if major > max(SUPPORTED_ESLINT_MAJORS):
+    if major > _latest_supported():
         return Skip(
-            f"ESLint {version} found; dev-team config needs ESLint 9 or 10 "
-            f"and ESLint {major} is unsupported until tested",
-            "install ESLint 10 (npm install --save-dev eslint@10), then re-run /setup",
+            f"ESLint {version} found; dev-team config needs ESLint "
+            f"{_supported_text()} and ESLint {major} is unsupported until "
+            "tested",
+            f"install ESLint {_latest_supported()} "
+            f"(npm install --save-dev eslint@{_latest_supported()}), "
+            "then re-run /setup",
         )
     return Skip(
-        f"ESLint {version} found; dev-team config needs ESLint 9 or 10",
+        f"ESLint {version} found; dev-team config needs ESLint {_supported_text()}",
         "upgrade ESLint, then re-run /setup",
     )
 
@@ -314,18 +369,21 @@ def gate(project: Path) -> Skip | None:
     return _eslint_gate(project, package) or _config_gate(project, package)
 
 
-def detect_mode(project: Path) -> str:
-    """``typed`` when type information is available, else ``untyped`` with why."""
+def detect_mode(project: Path) -> tuple[bool, str]:
+    """``(is_typed, reason)``: whether the typed rules are expected to run, and
+    why not when they are not. A hint only: the payload decides at lint time,
+    and also skips them when ``DEVTEAM_LINT_TYPED=0`` or a dependency fails to
+    load."""
     if not (project / "tsconfig.json").is_file():
-        return "untyped (no tsconfig.json beside eslint.config.*)"
+        return False, "no tsconfig.json beside eslint.config.*"
     missing = [
         name
         for name in TYPED_DEPENDENCIES
         if not (project / "node_modules" / Path(name)).is_dir()
     ]
     if missing:
-        return f"untyped (not installed: {', '.join(missing)})"
-    return "typed"
+        return False, f"not installed: {', '.join(missing)}"
+    return True, ""
 
 
 # --- operations ------------------------------------------------------------
@@ -348,20 +406,58 @@ def scaffold(project: Path) -> Outcome:
     if skip is not None:
         return Outcome(skip=skip)
     version = read_plugin_version()
-    outcome = Outcome(mode=detect_mode(project))
+    typed, untyped_reason = detect_mode(project)
+    outcome = Outcome(typed=typed, untyped_reason=untyped_reason)
     for name in PAYLOAD_FILES:
         target = project / name
         content = stamp(version, read_payload(name))
         try:
-            with open(target, "xb") as handle:
-                handle.write(content)
-        except FileExistsError:
-            outcome.existing.append(name)
+            created = _create_new(target, content)
         except OSError as error:
             raise ScaffoldError(f"cannot write {target}: {error}") from error
-        else:
-            outcome.written.append(name)
+        (outcome.written if created else outcome.existing).append(name)
     return outcome
+
+
+def _write_temp(directory: Path, name: str, content: bytes) -> Path:
+    """Write ``content`` to a new hidden file beside the target, with the mode a
+    plain create would give."""
+    temp = directory / f".{name}.{secrets.token_hex(6)}.tmp"
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(content)
+    except BaseException:
+        temp.unlink(missing_ok=True)
+        raise
+    return temp
+
+
+def _create_new(target: Path, content: bytes) -> bool:
+    """Create ``target`` with all of ``content`` or not at all, never replacing
+    an existing file. ``False`` when it already exists. A hard link of a fully
+    written temp file makes the stamped file appear whole; on a filesystem
+    without hard links, an exclusive create is the fallback."""
+    temp = _write_temp(target.parent, target.name, content)
+    try:
+        try:
+            os.link(temp, target)
+        except FileExistsError:
+            return False
+        except OSError:
+            return _create_exclusive(target, content)
+        return True
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def _create_exclusive(target: Path, content: bytes) -> bool:
+    try:
+        with open(target, "xb") as handle:
+            handle.write(content)
+    except FileExistsError:
+        return False
+    return True
 
 
 def check(project: Path) -> dict[str, str]:
@@ -374,23 +470,52 @@ def check(project: Path) -> dict[str, str]:
     }
 
 
+def _read_status(target: Path, version: str) -> tuple[bytes, str]:
+    content = target.read_bytes()
+    return content, classify(content, version)
+
+
+def _refresh_one(target: Path, version: str, replacement: bytes) -> bool:
+    """Replace ``target`` only if it is still stale-unedited at the moment of
+    the swap. The new bytes are written beside it first and swapped in with
+    ``os.replace``, so an interrupt never leaves a partial file."""
+    if not os.access(target, os.W_OK):
+        raise PermissionError(errno.EACCES, "file is read-only", str(target))
+    temp = _write_temp(target.parent, target.name, replacement)
+    try:
+        temp.chmod(stat.S_IMODE(target.stat().st_mode))
+        if _read_status(target, version)[1] != STATUS_STALE_UNEDITED:
+            return False
+        os.replace(temp, target)
+        return True
+    finally:
+        temp.unlink(missing_ok=True)
+
+
 def refresh(project: Path) -> dict[str, object]:
     """Rewrite only stale-unedited files; report every other status as skipped."""
     version = read_plugin_version()
     refreshed: list[str] = []
     skipped: dict[str, str] = {}
-    for name, status in check(project).items():
+    for name in PAYLOAD_FILES:
         target = project / name
+        if not target.is_file():
+            continue
         if target.is_symlink():
             skipped[name] = STATUS_SYMLINK
-        elif status == STATUS_STALE_UNEDITED:
-            try:
-                target.write_bytes(stamp(version, read_payload(name)))
-            except OSError as error:
-                raise ScaffoldError(f"cannot write {target}: {error}") from error
+            continue
+        status = _read_status(target, version)[1]
+        if status != STATUS_STALE_UNEDITED:
+            skipped[name] = status
+            continue
+        try:
+            replaced = _refresh_one(target, version, stamp(version, read_payload(name)))
+        except OSError as error:
+            raise ScaffoldError(f"cannot write {target}: {error}") from error
+        if replaced:
             refreshed.append(name)
         else:
-            skipped[name] = status
+            skipped[name] = _read_status(target, version)[1]
     return {"refreshed": refreshed, "skipped": skipped}
 
 
@@ -408,8 +533,10 @@ def render(outcome: Outcome) -> str:
     lines += [f"skipped (exists): {name}" for name in outcome.existing]
     if not outcome.written and not outcome.existing:
         lines.append("written: none")
-    lines.append(f"mode: {outcome.mode}")
-    if outcome.mode != "typed":
+    if outcome.typed:
+        lines.append(f"mode: {TYPED_HINT}")
+    else:
+        lines.append(f"mode: untyped ({outcome.untyped_reason})")
         lines.append(f"untyped misses: {UNTYPED_MISSES}")
     lines.append(NEXT_WIRE)
     lines.append(NEXT_HOOK)

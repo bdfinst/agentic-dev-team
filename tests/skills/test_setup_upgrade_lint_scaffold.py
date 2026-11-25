@@ -9,8 +9,13 @@ the flags it accepts.
 from __future__ import annotations
 
 import re
+import sys
 
 from _repo_root import REPO_ROOT
+
+sys.path.insert(0, str(REPO_ROOT / "plugins" / "dev-team" / "scripts"))
+
+import scaffold_lint_config as scaffold
 
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 SETUP = (PLUGIN / "skills" / "setup" / "SKILL.md").read_text(encoding="utf-8")
@@ -61,3 +66,12 @@ def test_upgrade_runs_check_lists_stale_edited_and_offers_refresh_of_unedited():
     assert "stale-edited" in step and "stale-unedited" in step
     assert "diff" in step
     assert "does not compare stamps" in step
+
+
+def test_upgrade_reports_every_status_the_script_can_emit():
+    step = _section(UPGRADE, r"### 5\.", r"## Notes")
+    statuses = {
+        value for name, value in vars(scaffold).items() if name.startswith("STATUS_")
+    }
+    missing = {status for status in statuses if f"`{status}`" not in step}
+    assert not missing
