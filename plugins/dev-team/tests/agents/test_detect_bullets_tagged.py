@@ -62,16 +62,15 @@ def test_checker_passes_on_the_four_real_files():
         bullets.extend(file_bullets)
         errors.extend(file_errors)
 
+    assert bullets
     assert [e.render() for e in errors] == []
-    assert sum(1 for b in bullets if not b.tags) == 0
-    assert sum(1 for b in bullets if len(b.tags) > 1) == 0
     assert check_detect_tags.main([str(p) for p in AGENT_FILES.values()]) == 0
 
 
-# AC3 exclusion, by name: a bullet converted to a lint pointer is not held to
-# the pinned-wording equality below. It is held to a weaker rule instead: the
-# pinned wording must still be its prefix, because "otherwise judge fully"
-# means the original judgment stays in force when the config is not wired.
+# Pointer bullets are exempt from the pinned-wording equality below. They are
+# held to a weaker rule instead: the pinned wording must still be their prefix,
+# because "otherwise judge fully" means the original judgment stays in force
+# when the config is not wired.
 def _converted_to_pointer(bullet_text: str) -> bool:
     return check_detect_tags.is_pointer(bullet_text)
 

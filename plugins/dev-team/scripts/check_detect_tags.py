@@ -11,7 +11,7 @@ A bullet converted to a lint pointer ("If ``eslint.devteam.config.js`` enables
 say "otherwise judge fully", name the rule id it relies on, and that id must be
 the rule the bullet maps to and be listed as convertible.
 
-Rule ids come from ``templates/eslint/dev/rule-ids.json``: ``enabled`` (the
+Rule ids come from ``templates/eslint/rule-ids.json``: ``enabled`` (the
 shipped config's rules), ``planned`` (mapping targets whose rule is not shipped
 yet; valid for ``rule:`` but never for a pointer), and ``convertible``
 (``lint_corpus_compare.py`` verdicts on the committed corpus).
@@ -22,7 +22,7 @@ Usage:
 With no file arguments, checks the four agents whose Detect bullets are tagged.
 Exit 0 when every bullet is valid, 1 otherwise, printing
 ``<file>:<line> <bullet text>`` for each offender with the two ways to fix it.
-Exit 2 when the rule-ids file is unreadable.
+Exit 2 when the rule-ids file or an agent file is unreadable.
 """
 
 from __future__ import annotations
@@ -47,7 +47,10 @@ DEFAULT_AGENT_FILES = (
     _PLUGIN_ROOT / "agents" / "structure-review.md",
 )
 
-RULE_IDS_PATH = _PLUGIN_ROOT / "templates" / "eslint" / "dev" / "rule-ids.json"
+EXIT_INVALID = 1
+EXIT_BAD_INPUT = 2
+
+RULE_IDS_PATH = _PLUGIN_ROOT / "templates" / "eslint" / "rule-ids.json"
 
 
 class RuleIds(NamedTuple):
@@ -68,8 +71,11 @@ def load_rule_ids(path: Path = RULE_IDS_PATH) -> RuleIds:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         groups = {key: raw[key] for key in ("enabled", "planned", "convertible")}
-        if not all(isinstance(ids, list) for ids in groups.values()):
-            raise TypeError("enabled, planned and convertible must be lists")
+        if not all(
+            isinstance(ids, list) and all(isinstance(i, str) for i in ids)
+            for ids in groups.values()
+        ):
+            raise TypeError("enabled, planned and convertible must be lists of strings")
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise RuleIdsError(f"rule-ids file {path}: {error!r}") from error
     return RuleIds(**{key: frozenset(ids) for key, ids in groups.items()})
@@ -104,14 +110,15 @@ class TagError(NamedTuple):
         )
 
 
-def _mapping_error(text: str, rule_ids: RuleIds) -> str | None:
-    """Return why a ``[MECHANICAL]`` bullet's rule mapping is invalid, or ``None``.
-
-    Only the text after the tag counts as the mapping, so ``rule:`` in the
-    bullet's prose does not satisfy it.
-    """
+def _mapping_text(text: str) -> str:
+    """Return the text after the tag, so ``rule:`` in the bullet's prose never counts."""
     tag = TAG_PATTERN.search(text)
-    mapping = text[tag.end() :] if tag else text
+    return text[tag.end() :] if tag else text
+
+
+def _mapping_error(text: str, rule_ids: RuleIds) -> str | None:
+    """Return why a ``[MECHANICAL]`` bullet's rule mapping is invalid, or ``None``."""
+    mapping = _mapping_text(text)
     no_rule_match = _NO_RULE.search(mapping)
     if no_rule_match:
         reason_words = no_rule_match.group(1).split()
@@ -132,13 +139,15 @@ def is_pointer(text: str) -> bool:
 
 def _pointer_error(text: str, rule_ids: RuleIds) -> str | None:
     """Return why a lint-pointer bullet is malformed, or ``None``."""
+    mapping = _mapping_text(text)
+    if _NO_RULE.search(mapping):
+        return "a lint pointer needs a rule: <id> mapping"
     if "otherwise judge fully" not in text:
         return "pointer must say 'otherwise judge fully'"
     named = _POINTER_RULE.search(text)
     if not named:
         return "pointer must name the rule id it relies on"
-    tag = TAG_PATTERN.search(text)
-    mapped = _RULE.search(text[tag.end() :] if tag else text)
+    mapped = _RULE.search(mapping)
     if mapped and mapped.group(1) != named.group(1):
         return f"pointer names {named.group(1)} but the bullet maps to {mapped.group(1)}"
     if named.group(1) not in rule_ids.convertible:
@@ -197,14 +206,17 @@ def main(argv: list[str] | None = None) -> int:
         rule_ids = load_rule_ids(args.rule_ids)
     except RuleIdsError as error:
         print(f"check_detect_tags: {error}", file=sys.stderr)
-        return 2
+        return EXIT_BAD_INPUT
     files = args.files or list(DEFAULT_AGENT_FILES)
     all_bullets: list[DetectBullet] = []
     errors: list[TagError] = []
     for path in files:
-        bullets, file_errors = check_text(
-            str(path), path.read_text(encoding="utf-8"), rule_ids
-        )
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as error:
+            print(f"check_detect_tags: {path}: {error}", file=sys.stderr)
+            return EXIT_BAD_INPUT
+        bullets, file_errors = check_text(str(path), text, rule_ids)
         all_bullets.extend(bullets)
         errors.extend(file_errors)
     if errors:
@@ -212,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"FAIL: {len(errors)} invalid Detect bullets. {_summary(all_bullets, len(files))}"
         )
-        return 1
+        return EXIT_INVALID
     print(f"OK: {_summary(all_bullets, len(files))}")
     return 0
 

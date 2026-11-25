@@ -32,12 +32,20 @@ test(`runs under ESLint ${eslintVersion}`, () => {
   assert.match(eslintVersion, /^(9|10)\./);
 });
 
+const sortPairs = (pairs) =>
+  [...pairs].sort(([ruleA, lineA], [ruleB, lineB]) =>
+    lineA - lineB || ruleA.localeCompare(ruleB),
+  );
+
+// A stability guard, not a spec: `fixtures/expected.json` is a hand-kept list of
+// every flagged line in `fixtures/violating.js`. Edit it with the fixture.
 test("violating fixture yields exactly the expected findings", async () => {
-  const actual = toPairs(await lintFixture("violating.js"));
-  assert.deepEqual(diffPairs(actual, expected["violating.js"]), {
-    extra: [],
-    missing: [],
-  });
+  const actual = sortPairs(toPairs(await lintFixture("violating.js")));
+  assert.deepEqual(
+    actual,
+    sortPairs(expected["violating.js"]),
+    "findings on fixtures/violating.js differ from fixtures/expected.json; update expected.json by hand with the fixture",
+  );
 });
 
 test("a non-empty clean control yields nothing", async () => {
@@ -48,6 +56,46 @@ test("a non-empty clean control yields nothing", async () => {
 test("lookalike identifiers are not flagged", async () => {
   assert.ok(readFixture("lookalikes.js").includes("module.exports"));
   assert.deepEqual(await lintFixture("lookalikes.js"), []);
+});
+
+// A selector cannot see scope, so a local binding named `require` that is
+// CALLED is flagged. This pins that documented false positive.
+test("a createRequire binding named require is flagged (documented false positive)", async () => {
+  const text = [
+    'import { createRequire } from "node:module";',
+    "const require = createRequire(import.meta.url);",
+    'const pkg = require("./package.json");',
+    "export { pkg };",
+    "",
+  ].join("\n");
+  const findings = await lintText(text, path.join(fixturesDir, "scoped.js"));
+  assert.deepEqual(toPairs(findings), [["no-restricted-syntax", 3]]);
+});
+
+const CJS_TEXT = [
+  "module.exports = { here: __dirname };",
+  'const fs = require("node:fs");',
+  "",
+].join("\n");
+const restricted = (findings) =>
+  findings.filter(({ rule }) => rule.startsWith("no-restricted-"));
+
+test(".cjs files are exempt from the ESM-only rules", async () => {
+  assert.deepEqual(
+    restricted(await lintText(CJS_TEXT, path.join(fixturesDir, "x.cjs"))),
+    [],
+  );
+});
+
+test("the same CommonJS text in a .js file is flagged", async () => {
+  assert.deepEqual(
+    toPairs(restricted(await lintText(CJS_TEXT, path.join(fixturesDir, "x.js")))),
+    [
+      ["no-restricted-globals", 1],
+      ["no-restricted-syntax", 1],
+      ["no-restricted-syntax", 2],
+    ],
+  );
 });
 
 test("CRLF fixtures match LF", async () => {
@@ -98,16 +146,18 @@ const enabledRuleIds = (config) =>
 
 test("config and rule-ids.json agree", () => {
   const { enabled } = JSON.parse(
-    fs.readFileSync(path.join(devDir, "rule-ids.json"), "utf8"),
+    fs.readFileSync(path.join(devDir, "..", "rule-ids.json"), "utf8"),
   );
   assert.deepEqual(enabledRuleIds(devteamConfig), new Set(enabled));
 });
 
 test("every enabled rule is severity warn", () => {
-  for (const entry of devteamConfig) {
-    for (const [id, setting] of Object.entries(entry.rules ?? {})) {
-      assert.ok(["warn", 1].includes([setting].flat()[0]), id);
-    }
+  const settings = devteamConfig
+    .flatMap((entry) => Object.entries(entry.rules ?? {}))
+    .filter(([, setting]) => ![0, "off"].includes([setting].flat()[0]));
+  assert.ok(settings.length > 0, "no enabled rules found");
+  for (const [id, setting] of settings) {
+    assert.ok(["warn", 1].includes([setting].flat()[0]), id);
   }
 });
 
@@ -120,6 +170,18 @@ test("an added violation makes the comparison report one extra finding", async (
   assert.deepEqual(missing, []);
 });
 
+// Each restricted message starts with what it found and ends with the
+// replacement the user should write. Keyed by the message's opening words.
+const REPLACEMENT_BY_MESSAGE = {
+  "require() is CommonJS": "Use ESM import/export instead of require()",
+  "module.exports is CommonJS": "Use ESM export instead of module.exports",
+  "module.exports.* is CommonJS":
+    "Use ESM named export instead of module.exports",
+  "exports.* is CommonJS": "Use ESM named export instead of exports",
+  "__dirname is CommonJS only": "Use import.meta.dirname",
+  "__filename is CommonJS only": "Use import.meta.filename",
+};
+
 test("messages name the replacement", async () => {
   const [result] = await createESLint().lintText(readFixture("violating.js"), {
     filePath: path.join(fixturesDir, "violating.js"),
@@ -127,8 +189,19 @@ test("messages name the replacement", async () => {
   const cjs = result.messages.filter((m) =>
     ["no-restricted-syntax", "no-restricted-globals"].includes(m.ruleId),
   );
-  assert.ok(cjs.length > 0);
-  for (const message of cjs) {
-    assert.match(message.message, /import|export/, message.message);
+  const seen = new Set();
+  for (const { message: raw } of cjs) {
+    // no-restricted-globals prefixes its own "Unexpected use of '<name>'. ".
+    const message = raw.replace(/^Unexpected use of '[^']+'\. /, "");
+    const key = Object.keys(REPLACEMENT_BY_MESSAGE).find((opening) =>
+      message.startsWith(`${opening}.`),
+    );
+    assert.ok(key, `no replacement phrase registered for: ${message}`);
+    assert.ok(
+      message.includes(REPLACEMENT_BY_MESSAGE[key]),
+      `${message} lacks "${REPLACEMENT_BY_MESSAGE[key]}"`,
+    );
+    seen.add(key);
   }
+  assert.deepEqual([...seen].sort(), Object.keys(REPLACEMENT_BY_MESSAGE).sort());
 });

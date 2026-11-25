@@ -27,6 +27,7 @@ from lint_candidates import (
 )
 
 SHIPPED_CATALOG = SCRIPTS_DIR.parent / "knowledge" / "lint-rule-catalog.json"
+SHIPPED_RULE_IDS = SCRIPTS_DIR.parent / "templates" / "eslint" / "rule-ids.json"
 SCRIPT = SCRIPTS_DIR / "lint_candidates.py"
 
 
@@ -136,13 +137,13 @@ class TestCatalog:
             assert entry.rung in {"a", "b", "c", "d"}
             assert entry.rule
 
-    def test_shipped_catalog_rules_are_known_rule_ids(self):
-        from check_detect_tags import load_rule_ids
+    def test_shipped_catalog_rules_are_enabled_or_planned_rule_ids(self):
+        shipped = json.loads(SHIPPED_RULE_IDS.read_text("utf-8"))
+        known = set(shipped["enabled"]) | set(shipped["planned"])
+        catalog_rules = {e.rule for e in load_catalog(SHIPPED_CATALOG)}
 
-        unknown = {
-            e.rule for e in load_catalog(SHIPPED_CATALOG)
-        } - load_rule_ids().mappable
-        assert not unknown
+        assert catalog_rules
+        assert catalog_rules - known == set()
 
     def test_shipped_catalog_maps_the_pilot_bullets(self):
         entries = load_catalog(SHIPPED_CATALOG)

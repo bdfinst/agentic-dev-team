@@ -11,10 +11,13 @@ const readJson = (...parts) =>
 
 const agentFound = readJson(devDir, "corpus", "agent-found.json").findings;
 
+// A stability guard, not a spec: it fails whenever the config's findings on the
+// corpus change, so the comparison in MEASUREMENTS.md is re-run on purpose.
 test("committed rule-found.json matches what the config reports now", async () => {
   assert.deepEqual(
     await ruleFound(),
     readJson(devDir, "corpus", "rule-found.json"),
+    "rule-found.json is stale; regenerate with `node lib/corpus.js > corpus/rule-found.json` in the dev directory, then re-run lint_corpus_compare.py",
   );
 });
 

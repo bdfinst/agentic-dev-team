@@ -8,6 +8,8 @@
     "test": "node --test \"tests/**/*.test.js\""
   },
   "devDependencies": {
-    "eslint": "9.39.4"
+    "@typescript-eslint/parser": "8.60.1",
+    "eslint": "9.39.4",
+    "typescript": "5.9.3"
   }
 }

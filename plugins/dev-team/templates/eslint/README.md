@@ -5,6 +5,7 @@ Lint rules for checks that the `esm-enforcer` and `js-fp-review` agents otherwis
 ## Layout
 
 - `payload/` is the only tree that is scaffolded into user projects. It holds `eslint.devteam.config.js`.
+- `rule-ids.json` is read at runtime by the plugin's own scripts and by `/agent-audit`. It is not scaffolded.
 - `dev/` holds fixtures, tests, the comparison corpus, and measurements. It is never scaffolded.
 
 ## Use
@@ -13,12 +14,16 @@ Import the array from your own flat config. ESLint 9 and 10 are supported.
 
 ```js
 import devteam from "./eslint.devteam.config.js";
-export default [...yourConfig, ...devteam];
+export default [...devteam, ...yourConfig];
 ```
+
+Put the dev-team config first. In a flat config, a later entry overrides an earlier one for the same file and rule, so options in `yourConfig` (for example `no-plusplus` without `allowForLoopAfterthoughts`) replace the dev-team options. With the order reversed, the dev-team options replace yours.
 
 Every rule is `warn`, so a plain `eslint` run exits 0 on a finding. The config does not set a parser. For TypeScript, your own config supplies one.
 
 A rule that is not imported does nothing. The agents treat the config as *wired* only when your ESLint config imports it or `.claude/settings*.json` sets `DEVTEAM_POST_LINT`.
+
+"Wired" assumes ESLint warnings are actually produced for the files under review. The config only warns, so a missing or skipped lint run looks the same as a clean one. When a bullet is narrowed because the config is wired and the lint run did not happen, nothing judges the cases the rule would have caught.
 
 ## Rule-to-bullet table
 
@@ -35,17 +40,17 @@ Every other Detect bullet is `no rule`. The ids `functional/immutable-data`, `ma
 
 ## Known limits
 
-- A `require()` call through a local binding named `require` (for example `createRequire`) is flagged. A selector cannot see scope.
+- The `no-restricted-syntax` selectors are scope-blind. A call to a local binding named `require` is flagged, for example `const require = createRequire(import.meta.url); require("./data.json")`. A local named `module` or `exports` that is assigned to is flagged the same way.
 - `.cjs` and `.cts` files are exempt from the ESM rules, matching the agent's `jest.config.cjs` exception.
 - `no-param-reassign` does not see a write through an alias of the parameter.
 
 ## Converted bullets
 
-A bullet is converted to a pointer only when its rule is listed in `convertible` in `dev/rule-ids.json`. The pointer keeps the original bullet and adds: "If `eslint.devteam.config.js` enables `<id>` and it is wired, judge only `<residual>`; otherwise judge fully."
+A bullet is converted to a pointer only when its rule is listed in `convertible` in `rule-ids.json`. The pointer keeps the original bullet and adds: "If `eslint.devteam.config.js` enables `<id>` and it is wired, judge only `<residual>`; otherwise judge fully."
 
-`dev/rule-ids.json` holds three lists:
+`rule-ids.json` holds three lists:
 
-- `enabled`: the rule ids the config enables. A Node test fails when it drifts from the config.
+- `enabled`: the rule ids the config enables. A Node test fails when it drifts from the config. The Node tests run manually (`cd dev && npm ci && node --test`); a CI gate for them is planned and not yet in place.
 - `planned`: valid `rule:` targets that no shipped rule enables yet. Never valid for a pointer.
 - `convertible`: the rules `lint_corpus_compare.py` reports as convertible on `dev/corpus/`. A Python test fails when it drifts from the comparison.
 
@@ -64,4 +69,4 @@ python3 ../../../scripts/lint_corpus_compare.py \
   --format text
 ```
 
-After a change, update `convertible` in `dev/rule-ids.json` to match the comparison. Measurements are in `dev/MEASUREMENTS.md`.
+After a change, update `convertible` in `rule-ids.json` to match the comparison. Measurements are in `dev/MEASUREMENTS.md`.

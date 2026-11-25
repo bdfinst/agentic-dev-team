@@ -22,7 +22,8 @@ from lint_corpus_compare import (
     main,
 )
 
-ESLINT_DEV = SCRIPTS_DIR.parent / "templates" / "eslint" / "dev"
+ESLINT_TEMPLATE = SCRIPTS_DIR.parent / "templates" / "eslint"
+ESLINT_DEV = ESLINT_TEMPLATE / "dev"
 
 
 def _f(rule, line, file="a.ts"):
@@ -118,6 +119,17 @@ def test_findings_are_keyed_by_file_and_line():
     assert compare(agent, rule)["rules"]["no-var"]["residual"] == ["b.ts:1"]
 
 
+def test_duplicate_file_line_rule_findings_collapse_to_one_case():
+    agent = [_f("no-var", 1), _f("no-var", 1)]
+    rule = [_f("no-var", 1), _f("no-var", 1), _f("no-var", 1)]
+
+    entry = compare(agent, rule)["rules"]["no-var"]
+
+    assert (entry["agent_found"], entry["rule_found"]) == (1, 1)
+    assert entry["false_positives"] == 0
+    assert entry["convertible"] is True
+
+
 def test_input_order_does_not_change_the_report():
     agent = [_f("no-var", 1), _f("no-var", 5), _f("prefer-const", 3)]
     rule = [_f("no-var", 5), _f("prefer-const", 3), _f("no-var", 1), _f("no-var", 9)]
@@ -150,9 +162,11 @@ def test_text_format_marks_non_convertible_rules(tmp_path, capsys):
         "text",
     )
 
+    verdicts = {
+        line.split(" | ")[0]: line.split(" | ")[-1] for line in out.out.splitlines()[1:]
+    }
     assert code == 0
-    assert "no-var" in out.out and "convertible" in out.out
-    assert "prefer-const" in out.out and "NOT convertible" in out.out
+    assert verdicts == {"no-var": "convertible", "prefer-const": "NOT convertible"}
 
 
 def test_rules_file_adds_rules_with_no_findings(tmp_path, capsys):
@@ -165,29 +179,85 @@ def test_rules_file_adds_rules_with_no_findings(tmp_path, capsys):
 
 
 @pytest.mark.parametrize(
-    "agent, rule",
+    "agent, rule, fragment",
     [
-        pytest.param({"nope": 1}, [], id="object-without-findings"),
-        pytest.param([{"rule": "no-var", "file": "a.ts"}], [], id="missing-line"),
-        pytest.param([], [{"rule": None, "file": "a.ts", "line": 1}], id="rule-found-without-rule"),
-        pytest.param([], [{"rule": "no-var", "file": "a.ts", "line": "3"}], id="string-line"),
+        pytest.param(
+            {"nope": 1}, [], "expected a list or an object with 'findings'",
+            id="object-without-findings",
+        ),
+        pytest.param(
+            [{"rule": "no-var", "file": "a.ts"}], [], "agent.json[0]: 'line' must be an integer",
+            id="missing-line",
+        ),
+        pytest.param(
+            [{"rule": "no-var", "file": "a.ts", "line": True}], [],
+            "agent.json[0]: 'line' must be an integer",
+            id="boolean-line",
+        ),
+        pytest.param(
+            [], [{"rule": "no-var", "file": "a.ts", "line": "3"}],
+            "rule.json[0]: 'line' must be an integer",
+            id="string-line",
+        ),
+        pytest.param(
+            ["no-var:1"], [], "agent.json[0]: not an object", id="agent-item-not-an-object"
+        ),
+        pytest.param(
+            [], [[]], "rule.json[0]: not an object", id="rule-item-not-an-object"
+        ),
+        pytest.param(
+            [{"rule": "no-var", "file": 7, "line": 1}], [],
+            "agent.json[0]: 'file' must be a string",
+            id="non-string-file",
+        ),
+        pytest.param(
+            [{"rule": 7, "file": "a.ts", "line": 1}], [],
+            "agent.json[0]: 'rule' must be a string or null",
+            id="non-string-agent-rule",
+        ),
+        pytest.param(
+            [], [{"rule": 7, "file": "a.ts", "line": 1}],
+            "rule.json[0]: 'rule' must be a string or null",
+            id="non-string-rule-found-rule",
+        ),
+        pytest.param(
+            [], [{"rule": None, "file": "a.ts", "line": 1}],
+            "rule.json[0]: 'rule' is required",
+            id="rule-found-without-rule",
+        ),
     ],
 )
-def test_malformed_input_exits_with_a_message(tmp_path, capsys, agent, rule):
+def test_malformed_input_exits_with_the_reason(tmp_path, capsys, agent, rule, fragment):
     code, out = _run(tmp_path, capsys, agent, rule)
 
     assert code == EXIT_BAD_INPUT
-    assert out.err.strip()
+    assert fragment in out.err
 
 
-def test_missing_and_unparseable_files_exit_with_a_message(tmp_path, capsys):
+@pytest.mark.parametrize(
+    "bad_side, state",
+    [
+        pytest.param("agent", "unparseable", id="agent-unparseable"),
+        pytest.param("rule", "unparseable", id="rule-unparseable"),
+        pytest.param("agent", "absent", id="agent-absent"),
+        pytest.param("rule", "absent", id="rule-absent"),
+    ],
+)
+def test_missing_and_unparseable_files_exit_with_a_message(
+    tmp_path, capsys, bad_side, state
+):
     bad = tmp_path / "bad.json"
-    bad.write_text("{not json", encoding="utf-8")
+    if state == "unparseable":
+        bad.write_text("{not json", encoding="utf-8")
     good = _write(tmp_path, "good.json", [])
+    paths = {"agent": good, "rule": good, bad_side: str(bad)}
 
-    assert main(["--agent-found", str(bad), "--rule-found", good]) == EXIT_BAD_INPUT
-    assert main(["--agent-found", good, "--rule-found", str(tmp_path / "absent.json")]) == EXIT_BAD_INPUT
-    assert capsys.readouterr().err.count("lint_corpus_compare:") == 2
+    code = main(["--agent-found", paths["agent"], "--rule-found", paths["rule"]])
+
+    err = capsys.readouterr().err
+    assert code == EXIT_BAD_INPUT
+    assert f"lint_corpus_compare: {bad}" in err
+    assert "Traceback" not in err
 
 
 def test_rules_file_that_is_not_a_list_of_strings_exits_with_a_message(tmp_path, capsys):
@@ -202,12 +272,16 @@ def test_rules_file_that_is_not_a_list_of_strings_exits_with_a_message(tmp_path,
 def test_rule_ids_convertible_list_is_the_comparison_of_the_committed_corpus():
     agent = load_findings(str(ESLINT_DEV / "corpus" / "agent-found.json"), rule_required=False)
     rule = load_findings(str(ESLINT_DEV / "corpus" / "rule-found.json"), rule_required=True)
-    ids = json.loads((ESLINT_DEV / "rule-ids.json").read_text(encoding="utf-8"))
+    ids = json.loads((ESLINT_TEMPLATE / "rule-ids.json").read_text(encoding="utf-8"))
 
     report = compare(agent, rule, rules=ids["enabled"])
 
-    assert ids["convertible"] == report["convertible"]
+    assert sorted(ids["convertible"]) == sorted(report["convertible"])
     assert set(ids["convertible"]) <= set(ids["enabled"])
+    verdicts = {rule_id: row["convertible"] for rule_id, row in report["rules"].items()}
+    assert {r: verdicts[r] for r in ids["enabled"]} == {
+        r: r in ids["convertible"] for r in ids["enabled"]
+    }
 
 
 def test_script_is_executable_with_a_shebang():
