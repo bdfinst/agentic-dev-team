@@ -1666,6 +1666,10 @@
       "summary": "Static audit of each instrument; the per-session confirmation the issue also",
       "anchor": "instrument-audit-2201"
     },
+    "`review-findings.jsonl`": {
+      "summary": "One row per review finding recorded at a `/build` inline checkpoint.",
+      "anchor": "review-findingsjsonl"
+    },
     "Adding a new stream": {
       "summary": "1.",
       "anchor": "adding-a-new-stream"
@@ -3177,6 +3181,10 @@
     "9. Write pre-commit gate file": {
       "summary": "**This step is NOT skipped by `--json` (issue #1904 Bug 2b) — see step 7's own note.** It applies whenever the scope condition below holds, `--json` or not; step 7 only skips step **8** for `--json`.",
       "anchor": "9-write-pre-commit-gate-file"
+    },
+    "Lint candidate finder": {
+      "summary": "Run `python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/lint_candidates.py\"` to rank agent `## Detect` bullets as candidates for conversion to ESLint rules.",
+      "anchor": "lint-candidate-finder"
     }
   },
   "plugins/dev-team/skills/competitive-analysis/SKILL.md": {

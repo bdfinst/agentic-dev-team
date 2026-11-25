@@ -1027,3 +1027,22 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event single-agen
 This step only runs when the review was auto-scoped to uncommitted changes or scoped via `--since <base>` (see the gate condition above). Do not `git add` a different file set, and do not recompute `$HASH` against different content, at this point: staging or hashing something other than what this run actually reviewed would write a gate hash unrelated to the review that produced it.
 
 If overall status is `fail`, do **not** write the gate file — `hooks/pre_pr_review.py` will keep blocking `gh pr create` until issues are resolved and the review re-run.
+
+## Lint candidate finder
+
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lint_candidates.py"` to rank agent `## Detect` bullets as candidates for conversion to ESLint rules. It is a maintainer tool. `/code-review` does not call it.
+
+Inputs:
+
+- Census: the Detect bullets in `agents/*.md` and `templates/agents/*.md`.
+- Findings log: `.claude/metrics/review-findings.jsonl`, as written by `review_findings_log.py`.
+- Raw artifacts: `.dev-team-reports/code-review/raw/*.json`.
+- Rule map: `knowledge/lint-rule-catalog.json`. It names the ESLint rule that could carry a bullet. It does not decide whether the rule is correct.
+
+Run it from the project root, or pass `--project-root`. `--format markdown` prints a table instead of JSON.
+
+Each bullet gets a score: 1.0 for `[MECHANICAL]`, 0.0 for `[JUDGMENT]`. An untagged bullet gets its count of checkable tokens (backticked code, numbers, "never", glob or regex text) minus its count of judgment words, clamped to 0 to 1. Rank is distinct files x occurrences x score. Ties break by agent name, then bullet text. A finding group joins the first bullet of the same agent whose text contains the group's category. Groups that match no bullet are listed separately. A log line or finding with no agent or category is skipped and counted.
+
+The script calls no model and imports no model SDK. The same inputs give byte-identical output. The output has no timestamps or absolute paths. With no log and no raw artifacts, it prints a census only, without frequency columns.
+
+This checkout has no findings log, so a run here gives a census only.

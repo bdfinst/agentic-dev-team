@@ -725,6 +725,27 @@ location; rows are local files and are never transmitted.
 
 ---
 
+## `review-findings.jsonl`
+
+One row per review finding recorded at a `/build` inline checkpoint. It ranks
+`(lens, category)` by frequency and first-pass-fix rate, and feeds
+`scripts/lint_candidates.py`.
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `ts` | string | ISO-8601 UTC |
+| `lens` | string | Review agent name |
+| `category` | string | Finding category (a taxonomy tag, not message text) |
+| `severity` | string | `error` \| `warning` \| `suggestion` \| `unknown` |
+| `iteration` | integer | Checkpoint fix-loop iteration, starting at 1 |
+| `fixed` | boolean | Whether the finding was fixed in that iteration |
+
+- **Emitter:** `scripts/review_findings_log.py append`, called from `skills/build/SKILL.md`'s checkpoint step. Fail-open: a write error never blocks the phase.
+- **Consent:** unconditional (counts and enums only).
+- **Consumers:** `scripts/review_findings_log.py report`; `scripts/lint_candidates.py` (see `skills/code-review/SKILL.md`, "Lint candidate finder").
+
+---
+
 ## Adding a new stream
 
 1. Name it `.claude/metrics/<name>.jsonl` (or `.json` for a single-current-value
