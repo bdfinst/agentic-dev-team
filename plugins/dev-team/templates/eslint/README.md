@@ -24,12 +24,12 @@ A rule that is not imported does nothing. The agents treat the config as *wired*
 
 | Rule | Agent bullet | Verdict on the corpus |
 | --- | --- | --- |
-| `no-var` | `js-fp-review`: `var` | convertible |
+| `no-var` | `js-fp-review`: `var` | not convertible: the rule flags the `mut` prefix the agent exempts |
 | `prefer-const` | `js-fp-review`: `let` never reassigned | not convertible: the rule flags `mut`, `mutable`, and `_` names the agent exempts |
-| `no-plusplus` (loop afterthoughts allowed) | `js-fp-review`: `++`/`--` outside loop counters | convertible |
-| `no-param-reassign` (`props: true`) | `js-fp-review`: `param.prop = value`, `param[key] = value`, functions modifying parameters | convertible |
-| `no-restricted-globals` | `esm-enforcer`: `__dirname`, `__filename` | convertible |
-| `no-restricted-syntax` | `esm-enforcer`: `require()` calls, `module.exports` and `exports.` assignments | convertible |
+| `no-plusplus` (loop afterthoughts allowed) | `js-fp-review`: `++`/`--` outside loop counters | not convertible: the rule flags a `while` loop counter the agent exempts |
+| `no-param-reassign` (`props: true`) | `js-fp-review`: `param.prop = value`, `param[key] = value`, `delete param.prop`, functions modifying parameters | convertible |
+| `no-restricted-globals` | `esm-enforcer`: `__dirname`, `__filename` | not convertible: no agent evidence |
+| `no-restricted-syntax` | `esm-enforcer`: `require()` calls, `module.exports` and `exports.` assignments | not convertible: no agent evidence |
 
 Every other Detect bullet is `no rule`. The ids `functional/immutable-data`, `max-depth`, and `no-magic-numbers` are `planned`: bullets may map to them, but no shipped rule enables them yet.
 

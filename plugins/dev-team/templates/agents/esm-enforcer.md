@@ -30,13 +30,11 @@ Return skip when no JS/TS files in the changeset, or when files are in `node_mod
 
 ## Detect
 
-Lint pointers: a bullet that says "If `eslint.devteam.config.js` enables ..." applies only when the config is wired: the project's own ESLint config imports it, or `.claude/settings*.json` sets `DEVTEAM_POST_LINT`. Otherwise judge the bullet fully.
-
 CJS patterns in source code:
 
-- `require()` calls (except in `.cjs` config files like `jest.config.cjs`). If `eslint.devteam.config.js` enables `no-restricted-syntax` and it is wired, judge only files the config does not lint; otherwise judge fully. [MECHANICAL] rule: no-restricted-syntax
-- `module.exports` or `exports.` assignments. If `eslint.devteam.config.js` enables `no-restricted-syntax` and it is wired, judge only files the config does not lint, and forms such as `Object.assign(module.exports, ...)`; otherwise judge fully. [MECHANICAL] rule: no-restricted-syntax
-- `__dirname` or `__filename` (use `import.meta.dirname` / `import.meta.filename` or `fileURLToPath(import.meta.url)`). If `eslint.devteam.config.js` enables `no-restricted-globals` and it is wired, judge only files the config does not lint; otherwise judge fully. [MECHANICAL] rule: no-restricted-globals
+- `require()` calls (except in `.cjs` config files like `jest.config.cjs`) [MECHANICAL] rule: no-restricted-syntax
+- `module.exports` or `exports.` assignments [MECHANICAL] rule: no-restricted-syntax
+- `__dirname` or `__filename` (use `import.meta.dirname` / `import.meta.filename` or `fileURLToPath(import.meta.url)`) [MECHANICAL] rule: no-restricted-globals
 
 Package.json:
 

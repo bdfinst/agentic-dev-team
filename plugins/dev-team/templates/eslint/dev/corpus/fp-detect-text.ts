@@ -30,4 +30,12 @@ class Counter {
   }
 }
 
-export { legacyFlag, neverChanged, mutScratch, _cache, tick, sum, rename, Counter };
+// Exceptions the agent grants and the rules do not: a `mut` prefix exempts a
+// `var`, and a `while` loop counter is a loop counter outside the `for` header.
+var mutLegacy = 1;
+let spin = 0;
+while (spin < 3) {
+  spin++;
+}
+
+export { legacyFlag, neverChanged, mutScratch, _cache, mutLegacy, tick, sum, rename, Counter };

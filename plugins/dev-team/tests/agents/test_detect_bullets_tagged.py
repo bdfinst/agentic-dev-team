@@ -80,17 +80,11 @@ def _converted_to_pointer(bullet_text: str) -> bool:
 # rule that rule-ids.json marks convertible are converted; the exception
 # bullets and the `let` bullet (prefer-const is not convertible) stay as they were.
 CONVERTED_BULLETS = {
-    "esm-enforcer": [
-        "- `require()` calls (except in `.cjs` config files like `jest.config.cjs`)",
-        "- `module.exports` or `exports.` assignments",
-        "- `__dirname` or `__filename` (use `import.meta.dirname` / `import.meta.filename` or `fileURLToPath(import.meta.url)`)",
-    ],
     "js-fp-review": [
-        "- `var` → use `const`/`let`",
         "- `param.prop = value` (parameter mutation)",
         "- `param[key] = value` (parameter mutation)",
+        "- `delete param.prop`",
         "- Functions modifying parameters",
-        "- `++`/`--` outside loop counters",
     ],
 }
 

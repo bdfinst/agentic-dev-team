@@ -13,10 +13,6 @@
     "functional/immutable-data"
   ],
   "convertible": [
-    "no-param-reassign",
-    "no-plusplus",
-    "no-restricted-globals",
-    "no-restricted-syntax",
-    "no-var"
+    "no-param-reassign"
   ]
 }

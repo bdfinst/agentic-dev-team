@@ -1,5 +1,5 @@
 {
-  "provenance": "Not a live agent run. evals/fixtures/fp-*.ts: the cases the fixtures plant (their '// mutation:' and 'should be const' comments), cross-checked against the committed issueCount ranges in evals/expected/fp-*.json. corpus/esm-cjs.js and corpus/fp-detect-text.ts: written from the agents' Detect text, so agreement there holds by construction. rule null means no lint rule decides the case.",
+  "provenance": "Not a live agent run. evals/fixtures/fp-*.ts: the cases the fixtures plant (their '// mutation:' and 'should be const' comments), cross-checked against the committed issueCount ranges in evals/expected/fp-*.json. corpus/fp-detect-text.ts: written from js-fp-review's Detect text, so agreement there holds by construction; its value is the exception cases (the `mut` prefix, a `while` loop counter), where the agent reports nothing and a rule that reports there is a false positive. There is no esm-enforcer eval fixture, so no esm rule has agent evidence. rule null means no lint rule decides the case.",
   "findings": [
     {
       "rule": null,
@@ -165,41 +165,6 @@
       "rule": null,
       "file": "evals/fixtures/fp-shallow-copy-nested-write.ts",
       "line": 56
-    },
-    {
-      "rule": "no-restricted-syntax",
-      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
-      "line": 3
-    },
-    {
-      "rule": "no-restricted-syntax",
-      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
-      "line": 4
-    },
-    {
-      "rule": "no-restricted-syntax",
-      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
-      "line": 5
-    },
-    {
-      "rule": "no-restricted-syntax",
-      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
-      "line": 6
-    },
-    {
-      "rule": "no-restricted-globals",
-      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
-      "line": 7
-    },
-    {
-      "rule": "no-restricted-globals",
-      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
-      "line": 8
-    },
-    {
-      "rule": "no-restricted-syntax",
-      "file": "plugins/dev-team/templates/eslint/dev/corpus/esm-cjs.js",
-      "line": 9
     },
     {
       "rule": "no-var",
