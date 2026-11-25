@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
 
@@ -77,24 +76,27 @@ def test_dirty_js_fixture_is_not_linted(fixture: str) -> None:
 
 
 @requires_npx
-def test_first_party_js_is_still_linted(tmp_path: Path) -> None:
+def test_first_party_js_is_still_linted() -> None:
     """The fixture-scoping fix must not blanket-disable first-party linting —
-    only evals/fixtures/** is exempted."""
-    bad_file = REPO_ROOT / "unused_var_probe.js"
-    assert not bad_file.exists(), "probe file collides with a tracked file"
-    bad_file.write_text("const unused = 1;\n")
-    try:
-        result = subprocess.run(
-            ["npx", "--no-install", "eslint", bad_file.name],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-        assert result.returncode != 0, (
-            "first-party JS outside evals/fixtures/** must still be linted"
-        )
-        assert "no-unused-vars" in result.stdout
-    finally:
-        bad_file.unlink()
+    only evals/fixtures/** is exempted. The probe is piped in under a
+    first-party file name, so nothing is written into the repository."""
+    result = subprocess.run(
+        [
+            "npx",
+            "--no-install",
+            "eslint",
+            "--stdin",
+            "--stdin-filename",
+            "unused_var_probe.js",
+        ],
+        cwd=REPO_ROOT,
+        input="const unused = 1;\n",
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert result.returncode != 0, (
+        "first-party JS outside evals/fixtures/** must still be linted"
+    )
+    assert "no-unused-vars" in result.stdout

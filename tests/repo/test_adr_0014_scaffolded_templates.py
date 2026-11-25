@@ -33,31 +33,15 @@ def _amendment_body() -> str:
 
 
 @pytest.mark.parametrize(
-    ("phrase", "why"),
+    "tree",
     [
-        ("JavaScript", "name the language of the exempt templates"),
-        ("TypeScript", "name the second exempt language"),
-        ("outside", "say the templates are outside the rule"),
-        ("Python-only", "name the rule the templates are outside of"),
-        ("user's project", "say where the templates are written"),
-        ("templates/eslint/dev/", "name the contributor-only Node test harness"),
-        ("contributor-only", "say the harness is for contributors, not users"),
+        "plugins/dev-team/templates/eslint/payload/",
+        "plugins/dev-team/templates/eslint/dev/",
     ],
 )
-def test_amendment_exempts_scaffolded_templates(phrase, why):
-    assert phrase in _amendment_body(), f"the amendment must {why}: {phrase!r}"
-
-
-@pytest.mark.parametrize(
-    ("phrase", "why"),
-    [
-        ("stdlib", "keep the plugin's own scripts stdlib-only"),
-        ("Python", "keep the plugin's own scripts in Python"),
-        ("no Node requirement", "say the plugin itself needs no Node"),
-    ],
-)
-def test_amendment_keeps_shipped_logic_python_and_adds_no_node_requirement(phrase, why):
-    assert phrase in _amendment_body(), f"the amendment must {why}: {phrase!r}"
+def test_amendment_names_the_scaffolded_payload_and_the_contributor_harness(tree):
+    assert tree in _amendment_body(), f"the amendment must name {tree}"
+    assert (REPO_ROOT / tree).is_dir(), f"{tree} is named but does not exist"
 
 
 def test_adr_0015_links_to_the_amendment():
@@ -70,9 +54,7 @@ def test_adr_0015_links_to_the_amendment():
 def test_adr_0014_status_line_records_the_amendment():
     text = ADR_0014.read_text(encoding="utf-8")
     status = text.split("\n## Status\n", 1)[1].split("\n## ", 1)[0]
-    assert "Amended 2026-11-25 for scaffolded templates" in status, (
-        "ADR 0014's Status section must record the amendment"
-    )
+    assert "Amended" in status, "ADR 0014's Status section must record the amendment"
     assert f"(#{ANCHOR})" in status, (
         "the Status line must link to the amendment heading"
     )

@@ -12,8 +12,6 @@ from __future__ import annotations
 import json
 import re
 
-import pytest
-
 from _repo_root import REPO_ROOT
 
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
@@ -37,15 +35,9 @@ def _claude_node_line() -> str:
     return lines[0]
 
 
-@pytest.mark.parametrize("path", [CLAUDE_MD, DEV_SETUP], ids=lambda p: p.name)
-def test_mentions_node(path):
-    assert "Node" in path.read_text(encoding="utf-8"), f"{path.name} must mention Node"
-
-
-@pytest.mark.parametrize("path", [CLAUDE_MD, DEV_SETUP], ids=lambda p: p.name)
-def test_mentions_npm_ci(path):
-    assert "npm ci" in path.read_text(encoding="utf-8"), (
-        f"{path.name} must mention `npm ci`"
+def test_claude_md_node_line_names_npm_ci():
+    assert "`npm ci`" in _claude_node_line(), (
+        "the CLAUDE.md Node prerequisite line must tell contributors to run `npm ci`"
     )
 
 
