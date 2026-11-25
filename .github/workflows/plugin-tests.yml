@@ -314,6 +314,32 @@ jobs:
       - name: Red-team harness smoke test (via ci-local)
         run: bash scripts/ci-local.sh --only=chk_harness_smoke,chk_harness_scope
 
+  # Node tests for the ESLint template that /setup scaffolds, under ESLint 10
+  # (the root install) and ESLint 9 (pinned in templates/eslint/dev), plus the
+  # post-edit hook's real-ESLint pytest tests. Defined once in
+  # scripts/ci-local.sh. Runs on ubuntu only; macOS and Windows are not
+  # covered. Advisory: listed under `exempt` in
+  # .github/required-status-checks.json, so a red run does not block a merge.
+  eslint-templates:
+    name: ESLint templates (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install node dev dependencies (ESLint 10)
+        run: npm ci
+
+      - name: Install pytest
+        run: python3 -m pip install --quiet pytest pytest-asyncio
+
+      - name: ESLint template tests (via ci-local)
+        run: bash scripts/ci-local.sh --only=chk_eslint_templates
+
   # Both language linters (#1676). They were declared in ci-local.sh's
   # always-run CHECKS array but named by NO CI job's --only= list, so they ran
   # only on a contributor machine with a working pre-push hook — and only at

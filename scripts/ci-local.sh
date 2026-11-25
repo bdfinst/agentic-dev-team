@@ -655,6 +655,54 @@ chk_eslint() {
     printf '%s∼ skipped (npx not found)%s\n' "$yellow" "$reset"
   fi
 }
+# Node tests for the ESLint template that /setup scaffolds into user projects
+# (plugins/dev-team/templates/eslint), run under ESLint 10 (the repo-root
+# install, pinned by package-lock.json) and ESLint 9 (pinned in
+# templates/eslint/dev/package.json). Then the post-edit hook's real-ESLint
+# pytest tests, and the test that proves this gate fails on a broken fixture;
+# DEVTEAM_REQUIRE_REAL_ESLINT=1 makes both fail instead of skip when ESLint is
+# missing. Covers Node on the host OS only (ubuntu in CI, macOS locally), not
+# Windows. Locally a missing node/npm skips; under CI it fails.
+#
+# DEVTEAM_ESLINT_TEMPLATES_DIR points the gate at another copy of the template
+# tree (the broken-fixture test does this). DEVTEAM_ESLINT_GATE_NESTED=1 skips
+# the pytest stage, so that test's inner gate run cannot recurse into itself.
+chk_eslint_templates() {
+  local tpl="${DEVTEAM_ESLINT_TEMPLATES_DIR:-plugins/dev-team/templates/eslint}"
+  local root="$PWD" rc=0 dev version expected target
+  if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+    if [ -n "${CI:-}" ]; then
+      printf '%s✗ node and npm are required in CI%s\n' "$red" "$reset"
+      return 1
+    fi
+    printf '%s∼ skipped (node or npm not found; install Node, then: npm ci)%s\n' "$yellow" "$reset"
+    return 0
+  fi
+  dev="$(cd "$tpl/dev" && pwd)" || return 1
+  if ! python3 scripts/npm_lock_current.py "$dev"; then
+    (cd "$dev" && npm ci --no-audit --no-fund) || return 1
+  fi
+  for expected in 10 9; do
+    if [ "$expected" = "10" ]; then target="$root"; else target="$dev"; fi
+    version="$(node -p 'require(process.argv[1]).version' "$target/node_modules/eslint/package.json" 2>/dev/null)" || {
+      printf '%s✗ ESLint is not installed under %s; run npm ci there%s\n' "$red" "$target" "$reset"
+      return 1
+    }
+    if [ "${version%%.*}" != "$expected" ]; then
+      printf '%s✗ ESLint %s found under %s; this gate needs ESLint %s (run npm ci there)%s\n' \
+        "$red" "$version" "$target" "$expected" "$reset"
+      return 1
+    fi
+    printf 'ESLint major %s (%s): node --test in %s\n' "$expected" "$version" "${dev#"$root"/}"
+    (cd "$dev" && DEVTEAM_ESLINT_ROOT="$target" node --test "tests/**/*.test.js") || rc=1
+  done
+  if [ -z "${DEVTEAM_ESLINT_GATE_NESTED:-}" ]; then
+    env -u DEVTEAM_ESLINT_ROOT DEVTEAM_REQUIRE_REAL_ESLINT=1 \
+      python3 -m pytest -q plugins/dev-team/tests/hooks/test_post_lint.py \
+      tests/scripts/test_ci_eslint_templates_gate.py || rc=1
+  fi
+  return "$rc"
+}
 # Python lint (ruff.toml at repo root excludes fixture/eval-corpus snippet
 # dirs — see that file's header comment for why). Same tool /code-review and
 # /build's self-heal dispatch on Python files (plugins/dev-team/skills/
@@ -829,6 +877,7 @@ CHECKS=(
   # adding an entry: an always-run check that no CI job names is a gate only
   # a correctly-configured contributor machine enforces.
   "eslint::chk_eslint"
+  "ESLint template tests under ESLint 9 and 10 (node --test)::chk_eslint_templates"
   "ruff check (Python lint)::chk_ruff"
   "shipped Python 3.10 floor (compile + import + test slice on a real 3.10)::chk_python_floor"
   "plugin hook + script unit tests (pytest plugins/dev-team/tests)::chk_hook_units"

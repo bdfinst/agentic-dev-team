@@ -244,6 +244,29 @@ else
   fi
 fi
 
+# --- Node + npm dependencies ----------------------------------------------
+# chk_eslint_templates runs the ESLint template's `node --test` suite under
+# ESLint 10 (repo root install) and ESLint 9 (pinned in the template's dev
+# tree). Node is verified, not installed: a package manager's node rarely
+# matches .nvmrc. `npm ci` deletes node_modules first, so it runs only when
+# node_modules differs from the lockfile (scripts/npm_lock_current.py).
+section "Node + npm dependencies (ESLint 10 at the root, ESLint 9 in templates/eslint/dev)"
+if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+  ok "node ($(node --version 2>&1)); .nvmrc pins $(cat .nvmrc 2>/dev/null || echo unknown)"
+  for npm_dir in . plugins/dev-team/templates/eslint/dev; do
+    if python3 scripts/npm_lock_current.py "$npm_dir"; then
+      ok "$npm_dir: node_modules already match the lockfile"
+    elif (cd "$npm_dir" && npm ci --no-audit --no-fund >/dev/null 2>&1); then
+      ok "$npm_dir: npm ci"
+    else
+      err "$npm_dir: npm ci failed — run it by hand to see why"
+      note_failure
+    fi
+  done
+else
+  warn "node or npm not found — chk_eslint_templates will skip locally until you install Node (see .nvmrc), then run: bash scripts/dev-setup.sh"
+fi
+
 # --- Graphify (code knowledge graph) ---------------------------------------
 # Graphify turns the repo into a queryable multi-modal knowledge graph. We use
 # its native Claude integration: `graphify install --project` writes the

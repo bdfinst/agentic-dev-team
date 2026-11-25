@@ -909,8 +909,8 @@ PAYLOAD_CONFIG = DEV_TREE / "payload" / post_lint.CONFIG_NAME
 ESLINT_ROOT = Path(os.environ.get("DEVTEAM_ESLINT_ROOT") or DEV_TREE / "dev")
 
 
-# CI does not install the dev tree's `node_modules` yet; the job that does sets
-# this so a missing ESLint fails there instead of skipping unseen.
+# Only the `chk_eslint_templates` gate installs the dev tree's `node_modules`
+# in CI; it sets this so a missing ESLint fails there instead of skipping unseen.
 ENV_REQUIRE_ESLINT = "DEVTEAM_REQUIRE_REAL_ESLINT"
 
 

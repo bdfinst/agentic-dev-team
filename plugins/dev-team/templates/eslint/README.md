@@ -89,7 +89,7 @@ A bullet is converted to a pointer only when its rule is listed in `convertible`
 
 `rule-ids.json` holds four lists:
 
-- `enabled`: the rule ids the config enables. A Node test fails when it drifts from the config. The Node tests run manually (`cd dev && npm ci && node --test`); a CI gate for them is planned and not yet in place.
+- `enabled`: the rule ids the config enables. A Node test fails when it drifts from the config. The Node tests run in CI and in the pre-push gate as `chk_eslint_templates` (ESLint 10 and 9), or by hand with the commands under Develop.
 - `planned`: valid `rule:` targets that no shipped rule enables yet. Never valid for a pointer.
 - `convertible`: the rules `lint_corpus_compare.py` reports as convertible on `dev/corpus/`. A Python test fails when it drifts from the comparison.
 - `conditional`: enabled rules that run only when extra dependencies are installed (`functional/immutable-data`). A Node test fails when it drifts from the typed block of the config.
