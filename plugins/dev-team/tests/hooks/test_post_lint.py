@@ -741,7 +741,10 @@ def test_a_clean_run_reads_session_state_only_under_the_lock(project, monkeypatc
         finally:
             held.pop()
 
+    reads = []
+
     def spy_read(path):
+        reads.append(path)
         assert held, "session state was read without holding the lock"
         return real_read(path)
 
@@ -749,6 +752,7 @@ def test_a_clean_run_reads_session_state_only_under_the_lock(project, monkeypatc
     monkeypatch.setattr(post_lint, "_read_state", spy_read)
 
     assert project.run(env=_clean(project)).outcome == post_lint.CLEAN
+    assert reads, "the clean run never read session state, so the spy proved nothing"
 
 
 @posix_only
