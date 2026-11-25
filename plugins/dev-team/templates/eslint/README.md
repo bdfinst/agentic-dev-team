@@ -21,6 +21,8 @@ Put the dev-team config first. In a flat config, a later entry overrides an earl
 
 Every rule is `warn`, so a plain `eslint` run exits 0 on a finding. The config does not set a parser. For TypeScript, your own config supplies one.
 
+To turn these findings into feedback after each edit, enable the opt-in [post-edit lint hook](../../docs/post-edit-lint-hook.md). Read its Security section first.
+
 A rule that is not imported does nothing. The agents treat the config as *wired* only when your ESLint config imports it or `.claude/settings*.json` sets `DEVTEAM_POST_LINT`.
 
 "Wired" assumes ESLint warnings are actually produced for the files under review. The config only warns, so a missing or skipped lint run looks the same as a clean one. When a bullet is narrowed because the config is wired and the lint run did not happen, nothing judges the cases the rule would have caught.

@@ -8,7 +8,8 @@ Off unless ``DEVTEAM_POST_LINT=1``. Runs the project's own ESLint (9.x or
 exit code (the shipped rules are ``warn``, so a finding never changes it).
 The hook only reports; it never passes ``--fix``.
 
-Contract (docs/python-hook-contract.md, docs/post-edit-lint-hook.md):
+Contract (docs/python-hook-contract.md,
+    plugins/dev-team/docs/post-edit-lint-hook.md):
     Input : PostToolUse JSON on stdin (tool_name, session_id, cwd,
             tool_input.file_path)
     Output: JSON on stdout — ``{"decision": "block", "reason": ...}`` for

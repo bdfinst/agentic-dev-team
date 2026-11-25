@@ -749,7 +749,7 @@ One row per review finding recorded at a `/build` inline checkpoint. It ranks
 ## `post-lint.jsonl`
 
 One row per run of the opt-in post-edit lint hook (`DEVTEAM_POST_LINT=1`; see
-`docs/post-edit-lint-hook.md`). A hook that is off writes nothing.
+[`docs/post-edit-lint-hook.md`](../docs/post-edit-lint-hook.md)). A hook that is off writes nothing.
 
 | Field | Type | Values / source |
 | --- | --- | --- |

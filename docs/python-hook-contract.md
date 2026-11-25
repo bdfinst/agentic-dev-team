@@ -107,6 +107,12 @@ plugin's own settings.json sets them:
 - `DEV_TEAM_FEATURE_RECORD_GUARD` — escape hatch for `feature_record_guard.py`.
   The value `off` (case-insensitive) allows every plan and spec write; the
   hook prints a one-line notice on stderr.
+- `DEVTEAM_POST_LINT` — opt-in switch for `post_lint.py`. The hook does nothing
+  unless the value is `1`.
+- `DEVTEAM_POST_LINT_TIMEOUT` — seconds `post_lint.py` waits for ESLint, above
+  0 and at most 600. Any other value gives the 10-second default.
+- `DEVTEAM_LINT_TYPED` — `post_lint.py` sets it to `0` for the ESLint process it
+  starts, so typed lint rules do not run in the hook. It does not read it.
 - `DEV_TEAM_VERSION_CHECK_CACHE_DIR` — overrides `version_check.py`'s daily
   cache directory (default `/tmp`). This is a test-only escape hatch (#1574).
   It lets pytest give each worker or run its own cache path instead of racing
