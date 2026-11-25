@@ -52,7 +52,7 @@ Edit files directly in `plugins/dev-team/`. All plugin components (agents, skill
 
 - `jq`, `python3`, `uv` (`brew install jq python3 uv`, or `uv` via `curl -LsSf https://astral.sh/uv/install.sh | sh`).
 - `shellcheck`, version-pinned as `SHELLCHECK_VERSION` in `scripts/ci-local.sh` (fetched to `~/.cache/agentic-dev-team/` on first use — not from a package manager).
-- Node (>= 22, see `.nvmrc`) and `npm ci`, run twice: at the repo root (ESLint 10) and in `plugins/dev-team/templates/eslint/dev` (pinned ESLint 9). `chk_eslint_templates` runs the template's `node --test` suite against both; it covers ubuntu/macOS, not Windows. Locally a missing `node` skips it; in CI it fails.
+- Node (>= 22, see `.nvmrc`) and `npm ci`, run twice: at the repo root (ESLint 10) and in `plugins/dev-team/templates/eslint/dev` (pinned ESLint 9). `chk_eslint_templates` runs the template's `node --test` suite against both; it covers ubuntu/macOS, not Windows. The gate never runs `npm ci` itself; it fails with "run npm ci" when an install is missing or differs from its lockfile (`dev-setup.sh` and the CI job provision them). Locally a missing `node` skips it; in CI it fails.
 - Python deps: `python3 -m pip install -r requirements-dev.txt`. On a PEP 668 "externally-managed" interpreter, use a project `.venv/`, or let `dev-setup.sh` retry `--user`/`--break-system-packages` for you.
 - Graphify (optional): `uv tool install graphifyy`, then `dev-setup.sh` runs `graphify hook install` (never `graphify install --project`, which overwrites this file). Build the graph on demand with `graphify extract .`. Use **codegraph** for structural queries while editing; **graphify** for architecture/onboarding across code+docs+infra.
 

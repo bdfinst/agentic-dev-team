@@ -334,6 +334,10 @@ jobs:
       - name: Install node dev dependencies (ESLint 10)
         run: npm ci
 
+      - name: Install the template dev tree (ESLint 9)
+        run: npm ci --no-audit --no-fund
+        working-directory: plugins/dev-team/templates/eslint/dev
+
       - name: Install pytest
         run: python3 -m pip install --quiet pytest pytest-asyncio
 
