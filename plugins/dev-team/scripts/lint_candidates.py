@@ -190,20 +190,21 @@ def _log_findings(path: Path) -> tuple[list[Finding], int, bool]:
         return [], 0, False
     items: list[Finding] = []
     skipped = 0
-    for line in path.read_text(encoding="utf-8").splitlines():
+    # Bytes, decoded per line: one undecodable line must not abort the log.
+    for line in path.read_bytes().splitlines():
         if not line.strip():
             continue
         try:
-            row = json.loads(line)
-        except ValueError:
+            row = json.loads(line.decode("utf-8"))
+        except ValueError:  # JSONDecodeError and UnicodeDecodeError
             skipped += 1
             continue
-        lens = row.get("lens") if isinstance(row, dict) else None
-        category = finding_category(row) if isinstance(row, dict) else ""
+        row = row if isinstance(row, dict) else {}
+        lens, category = row.get("lens"), row.get("category")
         if not lens or not category:
             skipped += 1
             continue
-        items.append(Finding(str(lens), category, None))
+        items.append(Finding(str(lens), str(category), None))
     return items, skipped, True
 
 
@@ -222,7 +223,7 @@ def _raw_findings(raw_dir: Path) -> tuple[list[Finding], int, bool]:
     for path in paths:
         try:
             entries = _raw_entries(json.loads(path.read_text(encoding="utf-8")))
-        except ValueError:
+        except (OSError, ValueError):
             skipped += 1
             continue
         for entry in entries:
@@ -361,13 +362,21 @@ def render_json(report: dict) -> str:
     return json.dumps(report, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
 
 
+def _cell(value: object) -> str:
+    """One markdown table cell: newlines collapsed, pipes escaped."""
+    return " ".join(str(value).split()).replace("|", "\\|")
+
+
+def _row(*cells: object) -> str:
+    return "| " + " | ".join(_cell(c) for c in cells) + " |"
+
+
 def _markdown_row(position: int, c: dict, frequency: bool) -> str:
-    text = c["text"].replace("|", "\\|")
-    cells = [str(position), c["agent"], c["tag"], str(c["score"])]
+    cells = [position, c["agent"], c["tag"], c["score"]]
     if frequency:
-        cells += [str(c["distinct_files"]), str(c["occurrences"]), str(c["rank"])]
-    cells += [c["rule"] or "-", c["rung"] or "-", text]
-    return "| " + " | ".join(cells) + " |"
+        cells += [c["distinct_files"], c["occurrences"], c["rank"]]
+    cells += [c["rule"] or "-", c["rung"] or "-", c["text"]]
+    return _row(*cells)
 
 
 def render_markdown(report: dict) -> str:
@@ -389,9 +398,15 @@ def render_markdown(report: dict) -> str:
     ]
     unmatched = report.get("unmatched") or []
     if unmatched:
-        lines += ["", "## Unmatched finding groups", "", "| agent | category | files | occurrences |", "| --- | --- | --- | --- |"]
         lines += [
-            f"| {u['agent']} | {u['category']} | {u['distinct_files']} | {u['occurrences']} |"
+            "",
+            "## Unmatched finding groups",
+            "",
+            "| agent | category | files | occurrences |",
+            "| --- | --- | --- | --- |",
+        ]
+        lines += [
+            _row(u["agent"], u["category"], u["distinct_files"], u["occurrences"])
             for u in unmatched
         ]
     return "\n".join(lines) + "\n"
@@ -404,6 +419,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--format", choices=("json", "markdown"), default="json")
     args = parser.parse_args(argv)
+
+    # Bullet text carries non-ASCII (arrows); a legacy console encoding such as
+    # Windows cp1252 would raise UnicodeEncodeError before any output.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
 
     catalog = load_catalog(args.catalog)
     report = build_report(

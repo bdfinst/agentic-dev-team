@@ -14,7 +14,7 @@
       "rung": "a"
     },
     {
-      "pattern": "\\.(push|pop|shift|unshift|splice|reverse|sort|fill)\\(\\)",
+      "pattern": "^(?!Exception\\b).*\\.(push|pop|shift|unshift|splice|reverse|sort|fill)\\(",
       "rule": "functional/immutable-data",
       "rung": "b"
     },
