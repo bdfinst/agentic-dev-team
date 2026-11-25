@@ -792,3 +792,50 @@ def test_json_stdout_stays_parseable_when_typed_deps_are_missing(tmp_path):
     assert json.loads(done.stdout)[0]["messages"][0]["ruleId"] == "no-var"
     assert done.stderr.count("typed rules skipped") == 1
     assert "not installed" in done.stderr
+
+
+# --- registration ------------------------------------------------------------
+
+PLUGIN = REPO_ROOT / "plugins" / "dev-team"
+
+
+def _post_edit_commands(path: Path) -> list[str]:
+    hooks = json.loads(path.read_text())["hooks"]["PostToolUse"]
+    return [
+        hook["command"]
+        for entry in hooks
+        if entry.get("matcher") == "Edit|Write"
+        for hook in entry["hooks"]
+    ]
+
+
+@pytest.mark.parametrize("registry", ["hooks/hooks.json", "settings.json"])
+def test_hook_is_registered_once_on_post_edit_write(registry):
+    commands = _post_edit_commands(PLUGIN / registry)
+    assert sum("post_lint.py" in command for command in commands) == 1
+
+
+@pytest.mark.parametrize("registry", ["hooks/hooks.json", "settings.json"])
+def test_registration_does_not_enable_the_hook(registry):
+    assert post_lint.ENV_ENABLE not in (PLUGIN / registry).read_text()
+
+
+@posix_only
+def test_registered_command_runs_nothing_by_default(project):
+    """Run the settings.json command string as the harness would, minus the opt-in."""
+    command = next(
+        c for c in _post_edit_commands(PLUGIN / "settings.json") if "post_lint.py" in c
+    )
+    base = {k: v for k, v in os.environ.items() if k != post_lint.ENV_ENABLE}
+    done = subprocess.run(
+        command,
+        shell=True,
+        input=json.dumps(project.payload()),
+        capture_output=True,
+        text=True,
+        cwd=PLUGIN,
+        env={**base, **project.env(), "PATH": f"{project.bin}:{base['PATH']}"},
+        check=False,
+    )
+    assert (done.returncode, done.stdout) == (0, "")
+    assert not project.invoked
