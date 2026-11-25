@@ -80,9 +80,12 @@ const arrayMutationOnly = {
 };
 
 // The one place that decides whether typed rules run, and for which files.
+// It computes a value and reports a skipped-dependency reason as data; the
+// config's export, below, is what writes the notice.
+const typedSkipped = { configs: [], notice: null };
 const typedConfig = async () => {
-  if (process.env.DEVTEAM_LINT_TYPED === "0") return [];
-  if (!fs.existsSync(path.join(rootDir, "tsconfig.json"))) return [];
+  if (process.env.DEVTEAM_LINT_TYPED === "0") return typedSkipped;
+  if (!fs.existsSync(path.join(rootDir, "tsconfig.json"))) return typedSkipped;
   const ids = [
     "eslint-plugin-functional",
     "@typescript-eslint/parser",
@@ -98,15 +101,15 @@ const typedConfig = async () => {
       ...(missing.length > 0 ? [`not installed: ${missing.join(", ")}`] : []),
       ...failed.map((id) => `failed to load ${id}: ${found[id].failure}`),
     ];
-    process.stderr.write(
-      `devteam-lint: typed rules skipped, ${reasons.join("; ")}\n`,
-    );
-    return [];
+    return {
+      configs: [],
+      notice: `devteam-lint: typed rules skipped, ${reasons.join("; ")}\n`,
+    };
   }
   const needed = Object.fromEntries(ids.map((id) => [id, found[id].value]));
   const files = coveredFiles(needed.typescript);
-  if (files.length === 0) return [];
-  return [
+  if (files.length === 0) return typedSkipped;
+  const configs = [
     {
       name: "devteam/array-mutation",
       files,
@@ -124,7 +127,11 @@ const typedConfig = async () => {
       },
     },
   ];
+  return { configs, notice: null };
 };
+
+const typed = await typedConfig();
+if (typed.notice !== null) process.stderr.write(typed.notice);
 
 export default [
   {
@@ -194,5 +201,5 @@ export default [
       ],
     },
   },
-  ...(await typedConfig()),
+  ...typed.configs,
 ];

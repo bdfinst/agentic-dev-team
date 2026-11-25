@@ -9,7 +9,7 @@ import {
   configPath,
   createESLint,
   devDir,
-  devteamConfig,
+  loadDevteamConfig,
   diffPairs,
   eslintBin,
   eslintVersion,
@@ -18,6 +18,7 @@ import {
   toPairs,
 } from "../lib/lint.js";
 
+const devteamConfig = await loadDevteamConfig();
 const fixturesDir = path.join(devDir, "fixtures");
 const expected = JSON.parse(
   fs.readFileSync(path.join(fixturesDir, "expected.json"), "utf8"),
@@ -33,8 +34,9 @@ test(`runs under ESLint ${eslintVersion}`, () => {
 });
 
 const sortPairs = (pairs) =>
-  [...pairs].sort(([ruleA, lineA], [ruleB, lineB]) =>
-    lineA - lineB || ruleA.localeCompare(ruleB),
+  [...pairs].sort(
+    ([ruleA, lineA], [ruleB, lineB]) =>
+      lineA - lineB || ruleA.localeCompare(ruleB),
   );
 
 // A stability guard, not a spec: `fixtures/expected.json` is a hand-kept list of
@@ -89,7 +91,9 @@ test(".cjs files are exempt from the ESM-only rules", async () => {
 
 test("the same CommonJS text in a .js file is flagged", async () => {
   assert.deepEqual(
-    toPairs(restricted(await lintText(CJS_TEXT, path.join(fixturesDir, "x.js")))),
+    toPairs(
+      restricted(await lintText(CJS_TEXT, path.join(fixturesDir, "x.js"))),
+    ),
     [
       ["no-restricted-globals", 1],
       ["no-restricted-syntax", 1],
@@ -199,7 +203,9 @@ const REPLACEMENT_BY_MESSAGE = {
 };
 
 test("messages name the replacement", async () => {
-  const [result] = await createESLint().lintText(readFixture("violating.js"), {
+  const [result] = await (
+    await createESLint()
+  ).lintText(readFixture("violating.js"), {
     filePath: path.join(fixturesDir, "violating.js"),
   });
   const cjs = result.messages.filter((m) =>
@@ -219,5 +225,8 @@ test("messages name the replacement", async () => {
     );
     seen.add(key);
   }
-  assert.deepEqual([...seen].sort(), Object.keys(REPLACEMENT_BY_MESSAGE).sort());
+  assert.deepEqual(
+    [...seen].sort(),
+    Object.keys(REPLACEMENT_BY_MESSAGE).sort(),
+  );
 });

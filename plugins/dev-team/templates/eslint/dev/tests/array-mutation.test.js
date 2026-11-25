@@ -10,13 +10,14 @@ import test from "node:test";
 import {
   ESLint,
   devDir,
-  devteamConfig,
+  loadDevteamConfig,
   diffPairs,
   eslintBin,
   toPairs,
 } from "../lib/lint.js";
-import { arrayMutationDir, stageConfig } from "../lib/stage.js";
+import { arrayMutationDir, stageConfig } from "../lib/effects/stage.js";
 
+const devteamConfig = await loadDevteamConfig();
 const tsParser = createRequire(import.meta.url)("@typescript-eslint/parser");
 const expected = JSON.parse(
   fs.readFileSync(path.join(arrayMutationDir, "expected.json"), "utf8"),
@@ -48,9 +49,14 @@ const messagesFor = async (rel, text = readFixture(rel)) => {
   return result.messages;
 };
 const pairsFor = async (rel, text) =>
-  sortPairs(toPairs((await messagesFor(rel, text)).map(
-    ({ ruleId, line }) => ({ rule: ruleId, line }),
-  )));
+  sortPairs(
+    toPairs(
+      (await messagesFor(rel, text)).map(({ ruleId, line }) => ({
+        rule: ruleId,
+        line,
+      })),
+    ),
+  );
 const lineOf = (rel, needle, text = readFixture(rel)) => {
   const index = text.split(/\r?\n/).findIndex((line) => line.includes(needle));
   assert.notEqual(index, -1, `${rel} has no line containing ${needle}`);
@@ -236,9 +242,11 @@ const runCli = ({ dir, config, file, env = {} }) => {
 };
 
 const messagePairs = (run) =>
-  sortPairs(run.report.flatMap(({ messages }) =>
-    messages.map(({ ruleId, line }) => [ruleId, line]),
-  ));
+  sortPairs(
+    run.report.flatMap(({ messages }) =>
+      messages.map(({ ruleId, line }) => [ruleId, line]),
+    ),
+  );
 
 test("typed globs resolve against the directory ESLint runs from", () => {
   const config = stageConfig(arrayMutationDir);
@@ -302,7 +310,8 @@ const withTempProject = (files, body) => {
   }
 };
 
-const PUSH_SOURCE = "export function f(xs: number[]): void {\n  xs.push(1);\n}\n";
+const PUSH_SOURCE =
+  "export function f(xs: number[]): void {\n  xs.push(1);\n}\n";
 const TS_INCLUDE = (include) =>
   JSON.stringify({
     compilerOptions: { strict: true, noEmit: true },
@@ -365,7 +374,8 @@ for (const [name, tsconfig] of Object.entries(SKIPPED_PROJECTS)) {
 }
 
 test("without allowJs in the user's tsconfig a JS file with a mutation is silently untyped", () => {
-  const jsPush = "/** @param {number[]} xs */\nexport function f(xs) {\n  xs.push(1);\n}\n";
+  const jsPush =
+    "/** @param {number[]} xs */\nexport function f(xs) {\n  xs.push(1);\n}\n";
   withTempProject(
     {
       "tsconfig.json": TS_INCLUDE(["*"]),
@@ -401,8 +411,14 @@ test("a typed dependency that throws on load is reported as a load failure", () 
     brokenFunctionalPlugin('throw new Error("boom in plugin");\n'),
     ({ dir, config }) => {
       const run = runCli({ dir, config, file: "a.ts" });
-      assert.match(run.stderr, /failed to load eslint-plugin-functional: boom in plugin/);
-      assert.doesNotMatch(run.stderr, /not installed: [^;\n]*eslint-plugin-functional/);
+      assert.match(
+        run.stderr,
+        /failed to load eslint-plugin-functional: boom in plugin/,
+      );
+      assert.doesNotMatch(
+        run.stderr,
+        /not installed: [^;\n]*eslint-plugin-functional/,
+      );
     },
   );
 });
@@ -412,8 +428,14 @@ test("a typed dependency whose own import is missing is a load failure, not 'not
     brokenFunctionalPlugin('import "devteam-no-such-dependency";\n'),
     ({ dir, config }) => {
       const run = runCli({ dir, config, file: "a.ts" });
-      assert.match(run.stderr, /failed to load eslint-plugin-functional: .*devteam-no-such-dependency/);
-      assert.doesNotMatch(run.stderr, /not installed: [^;\n]*eslint-plugin-functional/);
+      assert.match(
+        run.stderr,
+        /failed to load eslint-plugin-functional: .*devteam-no-such-dependency/,
+      );
+      assert.doesNotMatch(
+        run.stderr,
+        /not installed: [^;\n]*eslint-plugin-functional/,
+      );
     },
   );
 });
@@ -446,9 +468,9 @@ test("untyped JS reports nothing, and its unreported mutations equal the manifes
 
 // The README lists each untyped limit as "- `<case>`: ..." under one heading.
 const readmeCases = (readme) => {
-  const section = readme.split(/^## /m).find((part) =>
-    part.startsWith("Untyped JavaScript limits"),
-  );
+  const section = readme
+    .split(/^## /m)
+    .find((part) => part.startsWith("Untyped JavaScript limits"));
   assert.ok(section, "README has no 'Untyped JavaScript limits' section");
   return [...section.matchAll(/^- `([^`]+)`:/gm)].map(([, name]) => name);
 };

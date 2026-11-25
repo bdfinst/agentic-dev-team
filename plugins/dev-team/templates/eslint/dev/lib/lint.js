@@ -8,7 +8,11 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { arrayMutationDir, loadStagedConfig, payloadConfig } from "./stage.js";
+import {
+  arrayMutationDir,
+  loadStagedConfig,
+  payloadConfig,
+} from "./effects/stage.js";
 
 export const devDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -33,19 +37,19 @@ export const eslintBin = path.join(
 const tsParser = createRequire(import.meta.url)("@typescript-eslint/parser");
 
 /** The shipped config as it loads beside the array-mutation fixtures' tsconfig. */
-export const devteamConfig = await loadStagedConfig(arrayMutationDir);
+export const loadDevteamConfig = () => loadStagedConfig(arrayMutationDir);
 
 /** The shipped config plus the TypeScript parser the user's own config would supply. */
-export const devteamWithTypeScript = [
-  ...devteamConfig,
+export const withTypeScript = (config) => [
+  ...config,
   { files: ["**/*.ts"], languageOptions: { parser: tsParser } },
 ];
 
-export const createESLint = () =>
+export const createESLint = async () =>
   new ESLint({
     cwd: repoRoot,
     overrideConfigFile: true,
-    overrideConfig: devteamWithTypeScript,
+    overrideConfig: withTypeScript(await loadDevteamConfig()),
   });
 
 export const relativeToRepo = (absolute) =>
@@ -75,10 +79,12 @@ export const compareFindings = (a, b) =>
   a.rule.localeCompare(b.rule);
 
 export const lintFiles = async (files) =>
-  toFindings(await createESLint().lintFiles(files)).sort(compareFindings);
+  toFindings(await (await createESLint()).lintFiles(files)).sort(
+    compareFindings,
+  );
 
 export const lintText = async (text, filePath) =>
-  toFindings(await createESLint().lintText(text, { filePath })).sort(
+  toFindings(await (await createESLint()).lintText(text, { filePath })).sort(
     compareFindings,
   );
 

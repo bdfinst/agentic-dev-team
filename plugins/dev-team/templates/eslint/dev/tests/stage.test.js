@@ -7,10 +7,13 @@ import process from "node:process";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { stageConfig } from "../lib/stage.js";
+import { stageConfig } from "../lib/effects/stage.js";
 
 const stageUrl = pathToFileURL(
-  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../lib/stage.js"),
+  path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../lib/effects/stage.js",
+  ),
 ).href;
 
 const withTempDir = (body) => {
@@ -52,10 +55,14 @@ const runStagingChild = (dir, ending) => {
     process.stdout.write(JSON.stringify({ file, existedBefore: fs.existsSync(file) }));
     ${ending}
   `;
-  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
-    encoding: "utf8",
-    timeout: 60_000,
-  });
+  const run = spawnSync(
+    process.execPath,
+    ["--input-type=module", "-e", script],
+    {
+      encoding: "utf8",
+      timeout: 60_000,
+    },
+  );
   assert.ifError(run.error);
   return { run, ...JSON.parse(run.stdout) };
 };

@@ -7,7 +7,7 @@ import os from "node:os";
 import process from "node:process";
 
 import { eslintBin, eslintVersion } from "./lint.js";
-import { arrayMutationDir, stageConfig } from "./stage.js";
+import { arrayMutationDir, stageConfig } from "./effects/stage.js";
 
 const RUNS = Number(process.argv[2] ?? 15);
 const WARMUP = 2;
@@ -21,7 +21,11 @@ const CASES = [
     file: "typed/jsdoc-mutators.js",
     env: { DEVTEAM_LINT_TYPED: "0" },
   },
-  { label: "untyped file, typed deps installed", file: "untyped/mutators.js", env: {} },
+  {
+    label: "untyped file, typed deps installed",
+    file: "untyped/mutators.js",
+    env: {},
+  },
 ];
 
 const timeLintRun = ({ file, env }) => {
