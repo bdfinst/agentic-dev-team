@@ -51,8 +51,11 @@ const pairsFor = async (rel, text) =>
   sortPairs(toPairs((await messagesFor(rel, text)).map(
     ({ ruleId, line }) => ({ rule: ruleId, line }),
   )));
-const lineOf = (rel, needle) =>
-  readFixture(rel).split("\n").findIndex((line) => line.includes(needle)) + 1;
+const lineOf = (rel, needle, text = readFixture(rel)) => {
+  const index = text.split(/\r?\n/).findIndex((line) => line.includes(needle));
+  assert.notEqual(index, -1, `${rel} has no line containing ${needle}`);
+  return index + 1;
+};
 
 const tsconfigExcludes = JSON.parse(readFixture("tsconfig.json")).exclude;
 
@@ -115,8 +118,9 @@ test("adding a violation makes the comparison report one extra finding", async (
     await pairsFor(rel, added),
     expected[rel],
   );
-  assert.equal(extra.length, 1);
-  assert.equal(extra[0][0], "functional/immutable-data");
+  assert.deepEqual(extra, [
+    ["functional/immutable-data", lineOf(rel, "xs.push(9)", added)],
+  ]);
   assert.deepEqual(missing, []);
 });
 
@@ -141,20 +145,47 @@ test("CRLF array-mutation fixtures match LF", async () => {
   for (const rel of ["typed/mutators.ts", "typed/jsdoc-mutators.js"]) {
     assert.deepEqual(
       await pairsFor(rel, toCrlf(readFixture(rel))),
-      await pairsFor(rel),
+      sortPairs(expected[rel]),
       rel,
     );
   }
 });
 
+// Runs the ESLint CLI. `report` parses stdout only when read, so a failed run
+// surfaces its status and stderr rather than a JSON syntax error.
 const runCli = ({ dir, config, file, env = {} }) => {
+  const inherited = { ...process.env };
+  delete inherited.DEVTEAM_LINT_TYPED;
   const run = spawnSync(
     process.execPath,
     [eslintBin, "--config", config, "--format", "json", file],
-    { cwd: dir, encoding: "utf8", env: { ...process.env, ...env } },
+    {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...inherited, ...env },
+      timeout: 60_000,
+    },
   );
-  return { ...run, report: JSON.parse(run.stdout) };
+  assert.equal(run.error, undefined, `eslint did not run: ${run.error}`);
+  return {
+    status: run.status,
+    stderr: run.stderr,
+    get report() {
+      try {
+        return JSON.parse(run.stdout);
+      } catch {
+        throw new Error(
+          `eslint printed no JSON (status ${run.status}): ${run.stderr}`,
+        );
+      }
+    },
+  };
 };
+
+const messagePairs = (run) =>
+  sortPairs(run.report.flatMap(({ messages }) =>
+    messages.map(({ ruleId, line }) => [ruleId, line]),
+  ));
 
 test("typed mode keeps stdout parseable JSON and prints no notice", () => {
   const config = stageConfig(arrayMutationDir);
@@ -165,10 +196,7 @@ test("typed mode keeps stdout parseable JSON and prints no notice", () => {
   });
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.stderr, "");
-  assert.equal(
-    run.report[0].messages.length,
-    expected["typed/mutators.ts"].length,
-  );
+  assert.deepEqual(messagePairs(run), sortPairs(expected["typed/mutators.ts"]));
 });
 
 test("DEVTEAM_LINT_TYPED=0 skips the typed rules silently", () => {
@@ -243,6 +271,30 @@ test("absent typed dependencies print one stderr notice and keep stdout parseabl
   }
 });
 
+// Each of these leaves the typed rules off with no notice and no finding, even
+// though every typed dependency is installed.
+const SKIPPED_PROJECTS = {
+  "no tsconfig.json": {},
+  "a tsconfig with only references": {
+    "tsconfig.json": '{"references":[]}\n',
+  },
+  "an unparseable tsconfig": { "tsconfig.json": "{ not json" },
+};
+
+for (const [name, tsconfig] of Object.entries(SKIPPED_PROJECTS)) {
+  test(`${name} skips the typed rules silently`, () => {
+    withTempProject(
+      { ...tsconfig, "a.js": "export const a = 1;\n" },
+      ({ dir, config }) => {
+        const run = runCli({ dir, config, file: "a.js" });
+        assert.equal(run.status, 0, run.stderr);
+        assert.equal(run.stderr, "");
+        assert.deepEqual(run.report[0].messages, []);
+      },
+    );
+  });
+}
+
 // A dependency that is installed but fails to load must be reported as such,
 // not as "not installed".
 const brokenFunctionalPlugin = (source) => ({
@@ -285,7 +337,7 @@ const manifest = JSON.parse(readFixture("untyped/expected-misses.json"));
 // untyped config cannot see, grouped by case.
 const markedMisses = () =>
   readFixture(UNTYPED)
-    .split("\n")
+    .split(/\r?\n/)
     .flatMap((text, index) => {
       const marker = text.match(/\/\/ miss: (\S+)$/);
       return marker ? [[marker[1], index + 1]] : [];
@@ -304,10 +356,8 @@ test("untyped JS reports nothing, and its unreported mutations equal the manifes
   assert.deepEqual(markedMisses(), manifest.cases);
 });
 
-const readme = fs.readFileSync(path.join(devDir, "..", "README.md"), "utf8");
-
 // The README lists each untyped limit as "- `<case>`: ..." under one heading.
-const readmeCases = () => {
+const readmeCases = (readme) => {
   const section = readme.split(/^## /m).find((part) =>
     part.startsWith("Untyped JavaScript limits"),
   );
@@ -316,5 +366,9 @@ const readmeCases = () => {
 };
 
 test("the README lists the same untyped misses as the manifest", () => {
-  assert.deepEqual(readmeCases().sort(), Object.keys(manifest.cases).sort());
+  const readme = fs.readFileSync(path.join(devDir, "..", "README.md"), "utf8");
+  assert.deepEqual(
+    readmeCases(readme).sort(),
+    Object.keys(manifest.cases).sort(),
+  );
 });
