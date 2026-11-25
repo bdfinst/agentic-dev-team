@@ -87,7 +87,7 @@ If the command succeeds with a version change, proceed to step 4.
 If the output indicates already up to date:
 > Already running the latest version (v{version}).
 
-Exit.
+Continue to step 5 (a restarted session after an update is where scaffolded files get refreshed), then exit.
 
 If the command fails, report the error and suggest:
 > Update failed. You can try a manual reinstall:
@@ -115,8 +115,33 @@ Report:
 Previous: v{old_version}
 Updated:  v{new_version}
 
-Restart Claude Code to apply the update.
+Restart Claude Code to apply the update, then run `/upgrade` again to refresh the scaffolded lint config (step 5). The running session still resolves the old plugin version, so refreshing now would stamp the old version.
 ```
+
+### 5. Refresh scaffolded lint config
+
+Run only when the installed plugin version is the one this session is running (the "already up to date" path in step 3). `/setup` may have scaffolded `eslint.devteam.config.js` into this project. Ask the script for the state of each file; this step does not compare stamps itself:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold_lint_config.py" --project "$PWD" --check
+```
+
+The output is JSON, file name to status. No output entries means nothing was scaffolded here: say nothing and exit.
+
+| Status | Report |
+| --- | --- |
+| `current`, `current-edited` | nothing |
+| `stale-unedited` | "{file} is from an older dev-team version and unedited" |
+| `stale-edited` | "{file} is from an older dev-team version and you edited it. Compare it with the shipped file before you change it: `diff {file} "${CLAUDE_PLUGIN_ROOT}/templates/eslint/payload/{file}"` (the first line of {file} is a stamp)" |
+| `unstamped` | "{file} has no dev-team stamp, so `/upgrade` leaves it alone" |
+
+When any file is `stale-unedited`, ask: "Refresh all unedited dev-team lint config files? (yes/no)". On yes, run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold_lint_config.py" --project "$PWD" --refresh
+```
+
+The script rewrites only `stale-unedited` files and lists the others under `skipped` with their status. Report the `refreshed` list and, for each `skipped` file with a stale status, the diff pointer above. Never rewrite an edited file by hand.
 
 ## Notes
 
