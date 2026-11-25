@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -799,19 +800,23 @@ def test_json_stdout_stays_parseable_when_typed_deps_are_missing(tmp_path):
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
 
-def _post_edit_commands(path: Path) -> list[str]:
+def _post_edit_commands(path: Path, tool: str = "Edit") -> list[str]:
+    """Commands the harness would run after `tool`: groups whose matcher
+    (`*` or empty means every tool, otherwise a full-match regex) covers it."""
     hooks = json.loads(path.read_text())["hooks"]["PostToolUse"]
     return [
         hook["command"]
         for entry in hooks
-        if entry.get("matcher") == "Edit|Write"
+        if entry.get("matcher", "*") in ("", "*")
+        or re.fullmatch(entry["matcher"], tool)
         for hook in entry["hooks"]
     ]
 
 
+@pytest.mark.parametrize("tool", sorted(post_lint.EDIT_TOOLS))
 @pytest.mark.parametrize("registry", ["hooks/hooks.json", "settings.json"])
-def test_hook_is_registered_once_on_post_edit_write(registry):
-    commands = _post_edit_commands(PLUGIN / registry)
+def test_hook_is_registered_once_for_every_edit_tool_it_accepts(registry, tool):
+    commands = _post_edit_commands(PLUGIN / registry, tool)
     assert sum("post_lint.py" in command for command in commands) == 1
 
 
