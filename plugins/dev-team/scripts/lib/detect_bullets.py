@@ -71,10 +71,10 @@ def detect_bullets(text: str) -> list[DetectBullet]:
     """Return the bullets under ``## Detect``, or ``[]`` when there is no such section."""
     lines = text.split("\n")
     try:
-        heading = lines.index(_DETECT_HEADING)
+        heading_index = lines.index(_DETECT_HEADING)
     except ValueError:
         return []
-    body_start = heading + 1
+    body_start = heading_index + 1
     body_end = next(
         (i for i in range(body_start, len(lines)) if _NEXT_H2.match(lines[i])),
         len(lines),

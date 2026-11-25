@@ -15,7 +15,8 @@ allowed-tools: >-
        python3 plugins/dev-team/scripts/verify_tier.py *,
        python3 -m pytest tests/agents/test_agent_knowledge_anchor.py,
        python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py" *,
-       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py" *)
+       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py" *,
+       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_detect_tags.py" *)
 ---
 
 # Agent Audit

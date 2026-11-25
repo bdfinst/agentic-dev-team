@@ -70,6 +70,9 @@ def test_checker_passes_on_the_four_real_files():
 
 @pytest.mark.parametrize("agent", sorted(AGENT_FILES))
 def test_tagging_leaves_detect_wording_unchanged(agent):
+    # The pinned fixtures were captured from each agent's Detect text before it
+    # was tagged. Update them deliberately when a bullet's wording is
+    # intentionally changed.
     current = [
         _stripped(b.text)
         for b in detect_bullets(AGENT_FILES[agent].read_text(encoding="utf-8"))

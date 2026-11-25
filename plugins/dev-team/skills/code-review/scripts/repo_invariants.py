@@ -1108,7 +1108,8 @@ def _load_check_detect_tags():
     """Return the `check_detect_tags` module, loaded by path under its own name.
 
     `scripts/` holds modules that share names with others on `sys.path`, so it
-    is not added to the path; the file is loaded directly instead.
+    is not added to the path; the file is loaded directly instead. The checker
+    extends `sys.path` while importing, so the path is restored afterwards.
     """
     cached = sys.modules.get("check_detect_tags")
     if cached is not None:
@@ -1116,7 +1117,11 @@ def _load_check_detect_tags():
     spec = importlib.util.spec_from_file_location("check_detect_tags", _DETECT_TAGS_SCRIPT)
     module = importlib.util.module_from_spec(spec)
     sys.modules["check_detect_tags"] = module
-    spec.loader.exec_module(module)
+    path_before = list(sys.path)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = path_before
     return module
 
 
@@ -1139,10 +1144,7 @@ def check_detect_bullets_tagged(changed_files=None) -> list[dict]:
             {
                 "invariant": "detect-bullets-tagged",
                 "file": rel,
-                "message": (
-                    f"{rel}:{error.line} {error.reason}. Name the lint rule "
-                    "(`rule: <id>`) or tag the bullet [JUDGMENT]."
-                ),
+                "message": f"{rel}:{error.line} {error.reason}",
             }
             for error in errors
         )

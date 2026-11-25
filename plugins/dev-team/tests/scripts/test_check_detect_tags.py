@@ -47,6 +47,26 @@ FAILING_BULLETS = [
         "[MECHANICAL] no rule: needs graph", "at least 3 words", id="two-word-reason"
     ),
     pytest.param(
+        "ESLint rule: no-var suppressed inline [MECHANICAL]",
+        "no 'rule: <id>'",
+        id="rule-in-prose-before-tag",
+    ),
+    pytest.param(
+        "Prose no rule: at all here [MECHANICAL]",
+        "no 'rule: <id>'",
+        id="no-rule-in-prose-before-tag",
+    ),
+    pytest.param(
+        "no rule: needs graph [MECHANICAL]",
+        "no 'rule: <id>'",
+        id="two-word-reason-before-tag",
+    ),
+    pytest.param(
+        "no rule: needs call graph [MECHANICAL]",
+        "no 'rule: <id>'",
+        id="three-word-reason-before-tag",
+    ),
+    pytest.param(
         "[MECHANICAL] rule: not-a-real-rule",
         "unknown rule id not-a-real-rule",
         id="unknown-id",

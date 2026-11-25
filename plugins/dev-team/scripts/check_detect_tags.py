@@ -23,7 +23,7 @@ from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
-from detect_bullets import DetectBullet, detect_bullets
+from detect_bullets import TAG_PATTERN, DetectBullet, detect_bullets
 
 _PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 
@@ -55,7 +55,6 @@ MIN_REASON_WORDS = 3
 # "no rule:" is tested first because "rule:" also matches inside it.
 _NO_RULE = re.compile(r"\bno rule:[ \t]*([^\n]*)")
 _RULE = re.compile(r"\brule:[ \t]*`?([A-Za-z0-9_/@.-]+)`?")
-_TAG_TOKEN = re.compile(r"\[(?:MECHANICAL|JUDGMENT)\]")
 
 FIXES = (
     "  fix 1: name the lint rule that decides it: rule: <id>",
@@ -77,18 +76,24 @@ class TagError(NamedTuple):
 
 
 def _mapping_error(text: str) -> str | None:
-    """Return why a ``[MECHANICAL]`` bullet's rule mapping is invalid, or ``None``."""
-    no_rule = _NO_RULE.search(text)
-    if no_rule:
-        reason = _TAG_TOKEN.sub("", no_rule.group(1)).split()
-        if len(reason) < MIN_REASON_WORDS:
+    """Return why a ``[MECHANICAL]`` bullet's rule mapping is invalid, or ``None``.
+
+    Only the text after the tag counts as the mapping, so ``rule:`` in the
+    bullet's prose does not satisfy it.
+    """
+    tag = TAG_PATTERN.search(text)
+    mapping = text[tag.end() :] if tag else text
+    no_rule_match = _NO_RULE.search(mapping)
+    if no_rule_match:
+        reason_words = no_rule_match.group(1).split()
+        if len(reason_words) < MIN_REASON_WORDS:
             return f"'no rule:' needs a reason of at least {MIN_REASON_WORDS} words"
         return None
-    rule = _RULE.search(text)
-    if not rule:
+    rule_match = _RULE.search(mapping)
+    if not rule_match:
         return "[MECHANICAL] bullet has no 'rule: <id>' or 'no rule: <reason>' mapping"
-    if rule.group(1) not in PENDING_RULE_IDS:
-        return f"unknown rule id {rule.group(1)}"
+    if rule_match.group(1) not in PENDING_RULE_IDS:
+        return f"unknown rule id {rule_match.group(1)}"
     return None
 
 

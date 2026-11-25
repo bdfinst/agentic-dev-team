@@ -880,6 +880,15 @@ class TestDetectBulletsTagged:
     def test_corpus_wide_regardless_of_changed_files(self, tmp_path, monkeypatch):
         self._agent(tmp_path, monkeypatch, self.UNMAPPED)
 
-        assert repo_invariants.check_detect_bullets_tagged(
-            ["unrelated.py"]
-        ) == repo_invariants.check_detect_bullets_tagged(None)
+        baseline = repo_invariants.check_detect_bullets_tagged(None)
+
+        assert baseline != []
+        assert repo_invariants.check_detect_bullets_tagged(["unrelated.py"]) == baseline
+
+    def test_loading_the_checker_leaves_sys_path_unchanged(self, monkeypatch):
+        monkeypatch.delitem(sys.modules, "check_detect_tags", raising=False)
+        before = list(sys.path)
+
+        repo_invariants._load_check_detect_tags()
+
+        assert sys.path == before
