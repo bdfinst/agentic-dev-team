@@ -19,6 +19,8 @@ export default [...devteam, ...yourConfig];
 
 Put the dev-team config first. In a flat config, a later entry overrides an earlier one for the same file and rule, so options in `yourConfig` (for example `no-plusplus` without `allowForLoopAfterthoughts`) replace the dev-team options. With the order reversed, the dev-team options replace yours.
 
+Rule options replace each other; they do not merge. A config that also sets `no-restricted-syntax` (the `/project-init` JavaScript template does, for classes and `this`) replaces the dev-team selectors for `require()` and `module.exports`, so those stop being reported. To keep both sets, copy the selectors from `eslint.devteam.config.js` into your own `no-restricted-syntax` entry.
+
 Every rule is `warn`, so a plain `eslint` run exits 0 on a finding. The config does not set a parser. For TypeScript, your own config supplies one.
 
 To turn these findings into feedback after each edit, enable the opt-in [post-edit lint hook](../../docs/post-edit-lint-hook.md). Read its Security section first.
