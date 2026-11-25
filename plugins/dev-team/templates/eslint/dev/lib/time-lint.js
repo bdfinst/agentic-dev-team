@@ -7,10 +7,17 @@ import os from "node:os";
 import process from "node:process";
 
 import { eslintBin, eslintVersion } from "./lint.js";
-import { arrayMutationDir, stageConfig } from "./effects/stage.js";
+import {
+  arrayMutationDir,
+  clearAmbientTypedOptOut,
+  stageConfig,
+} from "./effects/stage.js";
 
 const RUNS = Number(process.argv[2] ?? 15);
 const WARMUP = 2;
+// The spawned runs inherit this process's env; an ambient opt-out would time
+// the untyped path in the "typed" rows.
+clearAmbientTypedOptOut();
 const config = stageConfig(arrayMutationDir);
 
 const CASES = [

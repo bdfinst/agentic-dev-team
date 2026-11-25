@@ -53,9 +53,13 @@ export const stageConfig = (dir) => {
   return file;
 };
 
+/** An ambient opt-out would make every typed-rule run pass vacuously. */
+export const clearAmbientTypedOptOut = () => {
+  delete process.env.DEVTEAM_LINT_TYPED;
+};
+
 /** The staged copy's default export, loaded as a user's flat config would. */
 export const loadStagedConfig = async (dir) => {
-  // An ambient opt-out would make every typed-rule test pass vacuously.
-  delete process.env.DEVTEAM_LINT_TYPED;
+  clearAmbientTypedOptOut();
   return (await import(pathToFileURL(stageConfig(dir)).href)).default;
 };
