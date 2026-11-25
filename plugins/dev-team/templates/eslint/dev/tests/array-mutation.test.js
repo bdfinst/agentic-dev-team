@@ -8,7 +8,14 @@ import process from "node:process";
 import test from "node:test";
 
 
-import { ESLint, devteamConfig, diffPairs, eslintBin, toPairs } from "../lib/lint.js";
+import {
+  ESLint,
+  devDir,
+  devteamConfig,
+  diffPairs,
+  eslintBin,
+  toPairs,
+} from "../lib/lint.js";
 import { arrayMutationDir, stageConfig } from "../lib/stage.js";
 
 const tsParser = createRequire(import.meta.url)("@typescript-eslint/parser");
@@ -178,4 +185,45 @@ test("absent typed dependencies print one stderr notice and keep stdout parseabl
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+const UNTYPED = "untyped/mutators.js";
+const manifest = JSON.parse(readFixture("untyped/expected-misses.json"));
+
+// Sites the fixture marks `// miss: <case>`: real array mutations that the
+// untyped config cannot see, grouped by case.
+const markedMisses = () =>
+  readFixture(UNTYPED)
+    .split("\n")
+    .flatMap((text, index) => {
+      const marker = text.match(/\/\/ miss: (\S+)$/);
+      return marker ? [[marker[1], index + 1]] : [];
+    })
+    .reduce(
+      (cases, [name, line]) => ({
+        ...cases,
+        [name]: [...(cases[name] ?? []), line],
+      }),
+      {},
+    );
+
+test("untyped JS reports nothing, and its unreported mutations equal the manifest", async () => {
+  assert.equal(manifest.file, UNTYPED);
+  assert.deepEqual(await messagesFor(UNTYPED), []);
+  assert.deepEqual(markedMisses(), manifest.cases);
+});
+
+const readme = fs.readFileSync(path.join(devDir, "..", "README.md"), "utf8");
+
+// The README lists each untyped limit as "- `<case>`: ..." under one heading.
+const readmeCases = () => {
+  const section = readme.split(/^## /m).find((part) =>
+    part.startsWith("Untyped JavaScript limits"),
+  );
+  assert.ok(section, "README has no 'Untyped JavaScript limits' section");
+  return [...section.matchAll(/^- `([^`]+)`:/gm)].map(([, name]) => name);
+};
+
+test("the README lists the same untyped misses as the manifest", () => {
+  assert.deepEqual(readmeCases().sort(), Object.keys(manifest.cases).sort());
 });

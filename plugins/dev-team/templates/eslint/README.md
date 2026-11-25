@@ -58,6 +58,19 @@ What is a finding (`warn`): `push`, `pop`, `shift`, `unshift`, `splice`, `sort`,
 
 What is not: `this.*` in a class method, copies (`[...a].sort()`, `a.slice().reverse()`), `toSorted`, `toSpliced`, `toReversed`, a `Set` or `Map`, and a custom class with its own `push` or `sort`. The rule also reports property writes, `delete`, and `Object.assign`; a processor in the config drops those messages, so the rule id reports array mutators only.
 
+## Untyped JavaScript limits
+
+JavaScript that no `tsconfig.json` covers gets no array-mutation rule. Without types, a rule cannot tell `xs.push(1)` on an array from `push` on a `Set`-like object or a class with its own `push`, so the config reports nothing rather than guess. That keeps false positives at zero and accepts these false negatives. Each is committed as a case in `dev/fixtures/array-mutation/untyped/expected-misses.json`:
+
+- `parameter`: a mutator called on a parameter (`xs.push(1)`).
+- `captured`: a mutator called on an array captured from an enclosing scope.
+- `module-level`: a mutator called on a module-level array.
+- `accumulator`: a mutator called on a local accumulator (`const out = []; out.push(x)`).
+
+To close these gaps, cover the file with a `tsconfig.json` that sets `allowJs` and add JSDoc types.
+
+Future work, not built: a `no-restricted-syntax` selector for mutator calls on parameters, and a small custom rule that tracks `const x = []` bindings. Either would give untyped JavaScript coverage at the cost of more false positives than typed mode.
+
 ## Known limits
 
 - The `no-restricted-syntax` selectors are scope-blind. A call to a local binding named `require` is flagged, for example `const require = createRequire(import.meta.url); require("./data.json")`. A local named `module` or `exports` that is assigned to is flagged the same way.
