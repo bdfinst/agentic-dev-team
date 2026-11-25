@@ -707,6 +707,56 @@ def test_fail_open_and_cap_outcomes_are_recorded(project):
     ]
 
 
+def _boundary_rows(project: Project) -> list[dict]:
+    path = project.root / ".claude" / "metrics" / "boundary-events.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
+@posix_only
+def test_a_block_and_the_cap_each_emit_a_boundary_event_with_rule_ids_only(project):
+    env = _violating(project)
+    for _ in range(4):
+        project.run(env=env)
+    project.run(env=_clean(project))
+
+    rows = _boundary_rows(project)
+    assert [(r["decision"], r["matched_rule"]) for r in rows] == [
+        ("block", "lint-findings"),
+        ("block", "lint-findings"),
+        ("block", "lint-findings"),
+        ("warn", "block-cap"),
+    ]
+    for row in rows:
+        assert (row["hook"], row["tool"], row["session_id"]) == (
+            "post_lint",
+            "Edit",
+            "s1",
+        )
+        assert "a.js" not in json.dumps(row)
+
+
+@posix_only
+def test_runs_that_do_not_block_emit_no_boundary_event(project):
+    project.run(env=_clean(project))
+    project.run(project.payload("src/a.py"))
+    _break_config(project)
+    project.run(env=_violating(project))
+    assert _boundary_rows(project) == []
+
+
+@posix_only
+def test_a_failing_boundary_emit_never_changes_the_verdict(project, monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("ledger broke")
+
+    monkeypatch.setattr(post_lint, "_emit_boundary_event", boom)
+    result = project.run(env=_violating(project))
+    assert result.outcome == post_lint.BLOCKED
+    assert result.output["decision"] == "block"
+
+
 @posix_only
 def test_metrics_failure_never_changes_the_verdict(project):
     (project.root / ".claude").write_text("not a directory")

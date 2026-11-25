@@ -22,6 +22,7 @@ Stdlib-only. See ADR 0014.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -48,6 +49,9 @@ from atomic_state import (  # type: ignore[import-not-found]
     atomic_write,
     locked_state,
 )
+from boundary_events import (  # type: ignore[import-not-found]
+    emit_boundary_event as _emit_boundary_event,
+)
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 from verify_guard_state import purge_stale  # type: ignore[import-not-found]
 
@@ -73,6 +77,10 @@ CLEAN = "clean"
 BLOCKED = "blocked"
 CAPPED = "capped"
 FAILED_OPEN = "failed-open"
+
+# Closed vocabulary for the boundary-events ledger (never paths or findings).
+RULE_FINDINGS = "lint-findings"
+RULE_CAP = "block-cap"
 
 # What a block reason shows: the header, at most MAX_FINDINGS findings, then
 # `+N more`, all within MAX_REASON_CHARS.
@@ -420,7 +428,24 @@ def evaluate(
     result = _decide(payload, env, state_dir or default_state_dir(env), session, root)
     wall_ms = round((time.monotonic() - started) * 1000)
     record_metrics(root, session, result, wall_ms)
+    record_boundary_event(root, payload, session, result)
     return result
+
+
+def record_boundary_event(
+    root: Path, payload: dict | None, session: str, result: Result
+) -> None:
+    """Note a block, or the cap that ended a run of blocks, in the shared
+    boundary-events ledger. Fail-open: it never changes the verdict."""
+    if result.outcome == BLOCKED:
+        decision, rule = "block", RULE_FINDINGS
+    elif result.outcome == CAPPED:
+        decision, rule = "warn", RULE_CAP
+    else:
+        return
+    tool = str((payload or {}).get("tool_name") or "")
+    with contextlib.suppress(Exception):  # the ledger must never affect the hook
+        _emit_boundary_event(root, "post_lint", tool, decision, rule, session)
 
 
 def record_metrics(root: Path, session: str, result: Result, wall_ms: int) -> None:
