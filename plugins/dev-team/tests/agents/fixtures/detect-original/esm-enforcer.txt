@@ -1,0 +1,5 @@
+- `require()` calls (except in `.cjs` config files like `jest.config.cjs`)
+- `module.exports` or `exports.` assignments
+- `__dirname` or `__filename` (use `import.meta.dirname` / `import.meta.filename` or `fileURLToPath(import.meta.url)`)
+- Missing `"type": "module"` (warn on first detection, do not repeat)
+- `.js` files that should be `.mjs` in a non-ESM package (or add `"type": "module"`)

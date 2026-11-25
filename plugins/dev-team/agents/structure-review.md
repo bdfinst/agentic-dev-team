@@ -64,56 +64,56 @@ Return `{"status": "skip", "issues": [], "summary": "No multi-module code to ana
 
 SRP violations:
 
-- Module/class with multiple responsibilities
-- God objects/functions doing too much
-- Mixed concerns (UI + business logic + data access)
+- Module/class with multiple responsibilities [JUDGMENT]
+- God objects/functions doing too much [JUDGMENT]
+- Mixed concerns (UI + business logic + data access) [JUDGMENT]
 
 DRY violations:
 
-- Duplicated code blocks
-- Copy-paste patterns
+- Duplicated code blocks [JUDGMENT]
+- Copy-paste patterns [JUDGMENT]
 
 Coupling issues:
 
-- Hardcoded dependencies (not injected)
-- Circular dependencies
-- Change propagation across modules
+- Hardcoded dependencies (not injected) [JUDGMENT]
+- Circular dependencies [JUDGMENT]
+- Change propagation across modules [JUDGMENT]
 
 Nesting:
 
-- >3 levels of conditionals/loops (the reconciled single threshold — see Charter above)
+- >3 levels of conditionals/loops (the reconciled single threshold — see Charter above) [MECHANICAL] rule: max-depth
 
 Cognitive load and async patterns (judgment, not raw counts — branch-count and
 cyclomatic complexity are the lizard pre-pass's territory):
 
-- Complex boolean expressions
-- Large switch statements
+- Complex boolean expressions [JUDGMENT]
+- Large switch statements [JUDGMENT]
 - Too many concepts per function (independent of raw line/parameter count —
   a short function juggling several unrelated responsibilities is still a
-  finding)
-- Non-obvious control flow
-- Callback hell (nested callbacks) — JS/TS
+  finding) [JUDGMENT]
+- Non-obvious control flow [JUDGMENT]
+- Callback hell (nested callbacks) — JS/TS [JUDGMENT]
 - Unstructured promise chains — JS/TS: chained `.then()` without error
   handling; C#: deeply nested `ContinueWith()` instead of `async/await`;
-  Java: deeply nested `CompletableFuture` chains without `exceptionally()`
+  Java: deeply nested `CompletableFuture` chains without `exceptionally()` [JUDGMENT]
 - Blocking calls inside async methods — C#: `.Result` or `.Wait()` on a
-  `Task`; Java: `Future.get()` without timeout
+  `Task`; Java: `Future.get()` without timeout [JUDGMENT]
 
 Organization:
 
-- Inconsistent file/folder structure
-- Misplaced abstractions
+- Inconsistent file/folder structure [JUDGMENT]
+- Misplaced abstractions [JUDGMENT]
 - Duplicate type definitions — same interface, class, or module defined
   in multiple locations (e.g., an interface file at both project root
-  and inside an Interfaces/ subdirectory)
+  and inside an Interfaces/ subdirectory) [JUDGMENT]
 - Non-functional assets in API projects — static web assets (CSS, JS,
   images, fonts) shipped in projects that serve only JSON/XML API
-  responses with no UI
+  responses with no UI [JUDGMENT]
 
 Design smells:
 
-- For SRP violations and coupling issues, map to the smell → pattern table in `${CLAUDE_PLUGIN_ROOT}/knowledge/design-smells.md#design-smells-pattern-mapping`. Every finding should name the smell, quote the code, and include a refactor sketch.
-- For method-level issues (nesting, long methods, flag arguments), check Object Calisthenics rules 1-2 and 7 in `${CLAUDE_PLUGIN_ROOT}/knowledge/object-calisthenics.md`. Whole-file load: the nine-rule catalog is short enough that the agent reads the whole file rather than picking specific rule anchors.
+- For SRP violations and coupling issues, map to the smell → pattern table in `${CLAUDE_PLUGIN_ROOT}/knowledge/design-smells.md#design-smells-pattern-mapping`. Every finding should name the smell, quote the code, and include a refactor sketch. [JUDGMENT]
+- For method-level issues (nesting, long methods, flag arguments), check Object Calisthenics rules 1-2 and 7 in `${CLAUDE_PLUGIN_ROOT}/knowledge/object-calisthenics.md`. Whole-file load: the nine-rule catalog is short enough that the agent reads the whole file rather than picking specific rule anchors. [JUDGMENT]
 
 ## Authoring checklist
 
