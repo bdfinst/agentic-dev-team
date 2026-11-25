@@ -15,6 +15,10 @@ from _repo_root import REPO_ROOT
 STATUS_CHECKS = REPO_ROOT / ".github" / "required-status-checks.json"
 MEASUREMENTS = REPO_ROOT / "plugins/dev-team/templates/eslint/dev/MEASUREMENTS.md"
 UPGRADE_SKILL = REPO_ROOT / "plugins/dev-team/skills/upgrade/SKILL.md"
+CORPUS = REPO_ROOT / "plugins/dev-team/templates/eslint/dev/corpus"
+LIVE_EVAL = CORPUS / "live-eval-js-fp-review.json"
+EVAL_FIXTURES = "evals/fixtures/"
+CONVERTED_RULES = ("no-param-reassign", "no-plusplus", "prefer-const")
 NODE_GATE = "ESLint templates (Node)"
 TABLE_ROW = re.compile(r"^\|.*\|$", re.MULTILINE)
 
@@ -68,3 +72,39 @@ def test_upgrade_skill_drives_scaffold_check_and_refresh():
     skill = UPGRADE_SKILL.read_text(encoding="utf-8")
     assert re.search(r"scaffold_lint_config\.py\"? .*--check", skill)
     assert re.search(r"scaffold_lint_config\.py\"? .*--refresh", skill)
+
+
+def _live_agent_lines() -> set[tuple[str, int]]:
+    actuals = json.loads(LIVE_EVAL.read_text(encoding="utf-8"))["actuals"]
+    return {
+        (f"{EVAL_FIXTURES}{issue['file']}", issue["line"])
+        for fixture in actuals.values()
+        for issue in fixture["agents"]["js-fp-review"]["issues"]
+    }
+
+
+def _rule_lines(rule: str, findings: list[dict]) -> set[tuple[str, int]]:
+    return {
+        (f["file"], f["line"])
+        for f in findings
+        if f["rule"] == rule and f["file"].startswith(EVAL_FIXTURES)
+    }
+
+
+def test_the_live_agent_reported_every_eval_fixture_line_a_converted_rule_flags():
+    """A rule is only a safe replacement for part of an agent bullet when the
+    agent itself, run live, reported every line the rule reports."""
+    rule_found = json.loads((CORPUS / "rule-found.json").read_text(encoding="utf-8"))
+    live = _live_agent_lines()
+    for rule in CONVERTED_RULES:
+        flagged = _rule_lines(rule, rule_found)
+        assert flagged, f"{rule} flags nothing in the eval fixtures"
+        assert flagged <= live, (rule, sorted(flagged - live))
+
+
+def test_the_live_agent_reported_every_planted_line_a_converted_rule_decides():
+    planted = json.loads((CORPUS / "agent-found.json").read_text(encoding="utf-8"))
+    live = _live_agent_lines()
+    for rule in CONVERTED_RULES:
+        decided = _rule_lines(rule, planted["findings"])
+        assert decided <= live, (rule, sorted(decided - live))

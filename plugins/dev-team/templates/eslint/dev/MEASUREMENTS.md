@@ -1,10 +1,10 @@
 # Measurements: pilot ESLint config vs the agents
 
-Recorded 2026-11-25. Informational, except that the comparison decides which bullets are converted. The verdicts are provisional: see "Evidence limits".
+Recorded 2026-11-25. Informational, except that the comparison decides which bullets are converted. The `js-fp-review` verdicts are backed by a live `/agent-eval` run: see "Live agent run". The `esm-enforcer` verdicts have no agent evidence: see "Evidence limits".
 
 ## Method
 
-- **Agent found** is not a live `/agent-eval` run. It is `corpus/agent-found.json`:
+- **Agent found** in the tables below is `corpus/agent-found.json`, a baseline built from planted cases. A live run checks it: see "Live agent run". The baseline is:
   - For `evals/fixtures/fp-*.ts`, the cases the fixtures plant (their `// mutation:` and `should be const` comments). The committed `evals/expected/fp-*.json` carry only issue-count ranges, so a Node test checks each fixture's planted count against that range.
   - For `corpus/fp-detect-text.ts`, cases written from `js-fp-review`'s Detect text. Agreement on positive cases there holds by construction. The file's value is its exception cases, where the agent reports nothing and a rule that reports is a false positive.
   - There is no `esm-enforcer` eval fixture, so the esm rules have no agent cases at all.
@@ -44,9 +44,26 @@ The `delete profile.legacyField` case (`evals/fixtures/fp-object-mutations.ts` l
 
 All other corpus files produced zero findings, including the clean fixtures and `jest.config.cjs`.
 
+## Live agent run
+
+`js-fp-review` was run live over the ten `evals/fixtures/fp-*.ts` fixtures (`claude -p`, model `claude-sonnet-4-6`, the agent file as committed, each fixture path passed alone). `scripts/eval_grade.py` graded it: 10 of 10 pairs passed. The raw issues are in `corpus/live-eval-js-fp-review.json`; tests in `tests/repo/test_lint_conversion_evidence.py` check the comparison below against it.
+
+| Rule | Planted cases | Rule found | Agent reported every rule line | Rule lines the agent missed |
+| --- | --- | --- | --- | --- |
+| `no-param-reassign` | 5 | 5 | yes | 0 |
+| `no-plusplus` | 2 | 2 | yes | 0 |
+| `prefer-const` | 2 | 2 | yes | 0 |
+| `no-var` | 0 | 0 | not applicable | 0 |
+
+The live agent reported 37 findings. 32 of the 33 planted cases matched by file and line. The one mismatch is `fp-array-mutations.ts` line 13, where the agent reported line 14 (the `push`); no lint rule decides that case. The agent also reported five cases the baseline did not plant: a module-level `push`, a local-accumulator `push`, and three point-free suggestions. None belongs to a converted rule.
+
+The agent also reports parameter mutations that `no-param-reassign` does not see: array mutators on a parameter (`sort`, `splice`, `reverse`) and `Object.assign(param, ...)`. They stay with the agent because their own bullets are not converted. The pointer on each converted bullet says to judge only writes through an alias, and the array and `Object.assign` bullets still say "judge fully".
+
+One run, one model, so this is evidence for the conversion, not a measure of agent variance.
+
 ## Evidence limits
 
-- The agent-found baseline is derived from planted cases and Detect text. It is not a live agent run, so every verdict above is provisional until a live `/agent-eval` run confirms it.
+- The agent-found baseline in the tables is derived from planted cases and Detect text. The live run below checked the eval-fixture half of it for `js-fp-review`. The half in `corpus/fp-detect-text.ts` (the exception cases) is still author-written and was not run against the agent.
 - `no-var`, `no-plusplus`, `no-restricted-globals`, and `no-restricted-syntax` are non-convertible pending independent agent evidence. The esm rules have none; `no-var` has only a self-written case; `no-plusplus` passes on the eval fixtures but has a false positive the corpus now tests.
 - Known false positives the corpus does not test: a local `require` from `createRequire` is flagged by `no-restricted-syntax`.
 
@@ -77,7 +94,7 @@ Conversion adds tokens. "Otherwise judge fully" keeps each original bullet, and 
 
 ## Agent pass criterion
 
-Every case the agent found before is still found by agent-or-rule on the fixture set. No fixture has a wired config, so the agent falls back to "judge fully" and its behavior is unchanged by construction. A live `/agent-eval` run was not made: it is opt-in and costly.
+Every case the agent found before is still found by agent-or-rule on the fixture set. No fixture has a wired config, so the agent falls back to "judge fully". The live run below confirms it on the converted `js-fp-review` file: ten of ten fixtures graded as passed, and every line a converted rule flags was also reported by the agent.
 
 ## Lint latency (informational)
 

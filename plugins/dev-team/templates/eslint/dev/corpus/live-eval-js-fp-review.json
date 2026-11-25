@@ -1,0 +1,324 @@
+{
+  "provenance": "Live /agent-eval unit-tier run of js-fp-review over the ten evals/fixtures/fp-*.ts fixtures, on 2026-11-25, dispatched with claude -p (model claude-sonnet-4-6), against agents/js-fp-review.md as committed at 86686b83. Each fixture path was passed alone; no expected file was shown to the agent. scripts/eval_grade.py graded it 10/10 pairs passed. Raw issues are kept as the agent returned them.",
+  "agent": "js-fp-review",
+  "actuals": {
+    "fp-array-mutations": {
+      "agents": {
+        "js-fp-review": {
+          "status": "fail",
+          "issues": [
+            {
+              "severity": "error",
+              "message": "taskQueue.push(task) in addTask mutates the module-level taskQueue array.",
+              "file": "fp-array-mutations.ts",
+              "line": 14
+            },
+            {
+              "severity": "error",
+              "message": "taskQueue.push(task) inside addMultipleTasks mutates the module-level taskQueue array.",
+              "file": "fp-array-mutations.ts",
+              "line": 18
+            },
+            {
+              "severity": "error",
+              "message": "tasks.sort() in sortTasksByPriority mutates the caller-owned tasks parameter in place.",
+              "file": "fp-array-mutations.ts",
+              "line": 23
+            },
+            {
+              "severity": "error",
+              "message": "tasks.splice(index, 1) in removeTaskAt mutates the caller-owned tasks parameter.",
+              "file": "fp-array-mutations.ts",
+              "line": 28
+            },
+            {
+              "severity": "error",
+              "message": "tasks.splice(index, 0, task) in insertTaskAt mutates the caller-owned tasks parameter.",
+              "file": "fp-array-mutations.ts",
+              "line": 33
+            },
+            {
+              "severity": "error",
+              "message": "tasks.reverse() in reverseTaskOrder mutates the caller-owned tasks parameter in place.",
+              "file": "fp-array-mutations.ts",
+              "line": 37
+            },
+            {
+              "severity": "warning",
+              "message": "completed.push(tasks[i]) in processCompletedTasks mutates the locally-constructed completed array.",
+              "file": "fp-array-mutations.ts",
+              "line": 45
+            },
+            {
+              "severity": "error",
+              "message": "tasks.splice(i, 1) in processCompletedTasks mutates the caller-owned tasks parameter.",
+              "file": "fp-array-mutations.ts",
+              "line": 46
+            },
+            {
+              "severity": "error",
+              "message": "tasks.sort() in reorderByCompletion mutates the caller-owned tasks parameter in place.",
+              "file": "fp-array-mutations.ts",
+              "line": 53
+            }
+          ],
+          "summary": "Nine mutations found: two push calls on the module-level taskQueue array (error), five in-place mutations on caller-owned parameter arrays via sort/splice/reverse (error), one splice inside processCompletedTasks on the parameter array (error), and one local push on a locally-constructed array (warning). Confidence: High."
+        }
+      }
+    },
+    "fp-global-state": {
+      "agents": {
+        "js-fp-review": {
+          "status": "fail",
+          "issues": [
+            {
+              "severity": "suggestion",
+              "message": "let appVersion is never reassigned; use const.",
+              "file": "fp-global-state.ts",
+              "line": 5
+            },
+            {
+              "severity": "error",
+              "message": "requestCount++ in trackPageView mutates module-level state with ++ outside a loop.",
+              "file": "fp-global-state.ts",
+              "line": 9
+            },
+            {
+              "severity": "error",
+              "message": "window[`ff_${name}`] = enabled in setFeatureFlag mutates global window state.",
+              "file": "fp-global-state.ts",
+              "line": 14
+            },
+            {
+              "severity": "error",
+              "message": "process.env.NODE_ENV = env in configureEnvironment mutates global process.env state.",
+              "file": "fp-global-state.ts",
+              "line": 18
+            },
+            {
+              "severity": "error",
+              "message": "process.env.APP_VERSION = appVersion in configureEnvironment mutates global process.env state.",
+              "file": "fp-global-state.ts",
+              "line": 19
+            },
+            {
+              "severity": "error",
+              "message": "window.location.href = '/login' in redirectToLogin mutates global window state.",
+              "file": "fp-global-state.ts",
+              "line": 23
+            },
+            {
+              "severity": "error",
+              "message": "requestCount++ in incrementCounter mutates module-level state with ++ outside a loop.",
+              "file": "fp-global-state.ts",
+              "line": 27
+            },
+            {
+              "severity": "error",
+              "message": "debugMode = true in enableDebug reassigns a captured module-level variable from inside a function.",
+              "file": "fp-global-state.ts",
+              "line": 34
+            },
+            {
+              "severity": "error",
+              "message": "process.env.DEBUG = 'true' in enableDebug mutates global process.env state.",
+              "file": "fp-global-state.ts",
+              "line": 35
+            },
+            {
+              "severity": "error",
+              "message": "window[name] = handler in registerGlobalHandler mutates global window state.",
+              "file": "fp-global-state.ts",
+              "line": 39
+            },
+            {
+              "severity": "suggestion",
+              "message": "let label in buildInfo is never reassigned; use const.",
+              "file": "fp-global-state.ts",
+              "line": 43
+            }
+          ],
+          "summary": "Eleven findings: eight external-state mutations (two module-level ++ increments, three process.env writes, two window property writes, one module-level variable reassignment from a function) flagged as errors, and two never-reassigned let declarations flagged as suggestions. Confidence: High."
+        }
+      }
+    },
+    "fp-immutable-state": {
+      "agents": {
+        "js-fp-review": {
+          "status": "pass",
+          "issues": [],
+          "summary": "No mutations, impure patterns, or style issues found. All state updates use spread copies; all declarations use const; Object.freeze enforces immutability at the edges. Confidence: High."
+        }
+      }
+    },
+    "fp-impure-computations": {
+      "agents": {
+        "js-fp-review": {
+          "status": "fail",
+          "issues": [
+            {
+              "severity": "error",
+              "message": "console.log inside computeDiscountedPrice buries a logging side effect in a value-returning computation.",
+              "file": "fp-impure-computations.ts",
+              "line": 7
+            },
+            {
+              "severity": "error",
+              "message": "document.querySelector inside readRoundedTotal buries a DOM-access side effect in a value-returning computation.",
+              "file": "fp-impure-computations.ts",
+              "line": 12
+            },
+            {
+              "severity": "error",
+              "message": "fetch call inside loadClampedUserScore buries a network side effect in a value-returning computation.",
+              "file": "fp-impure-computations.ts",
+              "line": 18
+            },
+            {
+              "severity": "error",
+              "message": "Math.random() inside generateRequestId buries a non-deterministic read in a value-returning computation.",
+              "file": "fp-impure-computations.ts",
+              "line": 24
+            },
+            {
+              "severity": "error",
+              "message": "new Date() inside timestampedLabel buries a non-deterministic read in a value-returning computation.",
+              "file": "fp-impure-computations.ts",
+              "line": 28
+            }
+          ],
+          "summary": "Five buried side effects in value-returning computations: console.log, DOM access via querySelector, network fetch, Math.random(), and argless new Date(). The file does not carry a declared effect-boundary suffix, so none are exempt. Confidence: High."
+        }
+      }
+    },
+    "fp-object-mutations": {
+      "agents": {
+        "js-fp-review": {
+          "status": "fail",
+          "issues": [
+            {
+              "severity": "error",
+              "message": "profile.name = ... in normalizeProfile directly mutates the caller-owned parameter.",
+              "file": "fp-object-mutations.ts",
+              "line": 13
+            },
+            {
+              "severity": "error",
+              "message": "profile.email = ... in normalizeProfile directly mutates the caller-owned parameter.",
+              "file": "fp-object-mutations.ts",
+              "line": 14
+            },
+            {
+              "severity": "error",
+              "message": "Object.assign(profile.metadata, extra) in mergeMetadata mutates the caller-owned profile.metadata object.",
+              "file": "fp-object-mutations.ts",
+              "line": 22
+            },
+            {
+              "severity": "error",
+              "message": "Object.assign(profile, {...}) in applyDefaults mutates the caller-owned profile parameter.",
+              "file": "fp-object-mutations.ts",
+              "line": 27
+            },
+            {
+              "severity": "error",
+              "message": "delete profile.legacyField in stripLegacyFields mutates the caller-owned parameter.",
+              "file": "fp-object-mutations.ts",
+              "line": 35
+            },
+            {
+              "severity": "error",
+              "message": "profile.metadata[key] = value in setMetadataEntry mutates the caller-owned nested metadata object.",
+              "file": "fp-object-mutations.ts",
+              "line": 44
+            },
+            {
+              "severity": "error",
+              "message": "profile.role = 'admin' in promoteToAdmin directly mutates the caller-owned parameter.",
+              "file": "fp-object-mutations.ts",
+              "line": 48
+            }
+          ],
+          "summary": "Seven parameter mutations: two property writes in normalizeProfile, Object.assign on profile.metadata in mergeMetadata, Object.assign on profile itself in applyDefaults, delete on profile in stripLegacyFields, nested metadata write in setMetadataEntry, and role write in promoteToAdmin. Confidence: High."
+        }
+      }
+    },
+    "fp-point-free-wrappers": {
+      "agents": {
+        "js-fp-review": {
+          "status": "warn",
+          "issues": [
+            {
+              "severity": "suggestion",
+              "message": "shout = (s) => toUpperCase(s) is a redundant wrapper that forwards its single argument unchanged; replace with const shout = toUpperCase.",
+              "file": "fp-point-free-wrappers.ts",
+              "line": 8
+            },
+            {
+              "severity": "suggestion",
+              "message": "sumPair = (a, b) => sum(a, b) is a redundant wrapper that forwards every argument unchanged in order; replace with const sumPair = sum.",
+              "file": "fp-point-free-wrappers.ts",
+              "line": 12
+            },
+            {
+              "severity": "suggestion",
+              "message": "cleanTitle composes three single-argument steps through nested calls; extract with pipe(trim, toUpperCase, exclaim) or compose.",
+              "file": "fp-point-free-wrappers.ts",
+              "line": 15
+            }
+          ],
+          "summary": "Three point-free/composition suggestions: shout and sumPair are redundant forwarding wrappers (high confidence \u2014 mechanical substitution); cleanTitle is a three-deep nested pipeline that could use pipe/compose (medium confidence). isNumeric correctly preserves the RegExp.prototype.test receiver and is not flagged. Confidence: High."
+        }
+      }
+    },
+    "fp-pure-transforms": {
+      "agents": {
+        "js-fp-review": {
+          "status": "pass",
+          "issues": [],
+          "summary": "No mutations, impure patterns, or style issues found. All transforms use map/filter/reduce with spread copies; reduce accumulator is rebuilt on each step rather than mutated. Confidence: High."
+        }
+      }
+    },
+    "fp-safe-sort": {
+      "agents": {
+        "js-fp-review": {
+          "status": "pass",
+          "issues": [],
+          "summary": "No array mutations found. All sort and reverse operations use toSorted(), toReversed(), [...].sort(), or .slice().sort() \u2014 every sort target is a fresh copy, so no input array is mutated. Confidence: High."
+        }
+      }
+    },
+    "fp-shallow-copy-nested-write": {
+      "agents": {
+        "js-fp-review": {
+          "status": "fail",
+          "issues": [
+            {
+              "severity": "error",
+              "message": "next.totals.discount = ... in applyCoupon writes through a shallow-copy reference \u2014 next.totals is the same object as order.totals, so the caller's order is mutated.",
+              "file": "fp-shallow-copy-nested-write.ts",
+              "line": 55
+            },
+            {
+              "severity": "error",
+              "message": "next.totals.tax = ... in applyCoupon writes through a shallow-copy reference \u2014 next.totals is shared with the caller's order, so the caller's order is mutated.",
+              "file": "fp-shallow-copy-nested-write.ts",
+              "line": 56
+            }
+          ],
+          "summary": "applyCoupon spreads order into next but writes directly into next.totals, which is the same nested object the caller owns \u2014 a shallow copy does not deep-clone totals. Two property writes on the shared totals object constitute external parameter mutation. All other functions copy correctly. Confidence: High."
+        }
+      }
+    },
+    "fp-effect-boundary.adapter": {
+      "agents": {
+        "js-fp-review": {
+          "status": "pass",
+          "issues": [],
+          "summary": "No violations found. The file carries the .adapter.ts dotted suffix \u2014 a declared effect boundary \u2014 so the fetch call and console.log in logAudit are expected and are not flagged as buried side effects. Confidence: High."
+        }
+      }
+    }
+  }
+}
