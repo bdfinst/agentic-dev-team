@@ -90,6 +90,21 @@ dimensions were always empty. The main/subagent split uses the native
 likewise reads only harness-recorded fields (verified against a real
 transcript, #1094).
 
+## Per-request counting and timing
+
+One API request spans several transcript lines that repeat its usage, so the
+meter counts each `requestId` (falling back to `message.id`) once, keeping the
+largest usage seen. Log rows written before this fix over-count tokens and
+dollars (roughly 3x output, 1.8x input on a sample of local transcripts), so
+`regression` shows a one-time step down at the first post-fix row. That drop is
+the correction, not a saving.
+
+`report` also prints a TIME table per agent type, and each log row carries
+`timing_by_agent_type` (`wall_s`, `tool_s`). `wall_s` is last minus first record
+timestamp for that agent. `tool_s` sums every `tool_use` to `tool_result` gap,
+so parallel tool calls can push it past `wall_s`. Rows written before this
+change have no `timing_by_agent_type`; treat absence as "not measured".
+
 ## Review value (#348)
 
 `/build` records, per inline review checkpoint, whether review actually changed

@@ -679,3 +679,62 @@ def test_cmd_record_dedupes_a_request_split_across_fires(hermetic_cost_meter):
     assert last["total"]["input_tokens"] == expected["input_tokens"] == 120
     assert last["total"]["output_tokens"] == expected["output_tokens"] == 55
     assert last["total"]["cost_usd"] == expected["cost_usd"]
+
+
+# ---------------------------------------------------------------------------
+# Per-agent wall-clock and tool-held time
+# ---------------------------------------------------------------------------
+
+
+def _ts_line(ts, *, sidechain=False, agent="reviewer", tool_use=None, tool_result=None):
+    content = []
+    if tool_use:
+        content.append({"type": "tool_use", "id": tool_use, "name": "Bash", "input": {}})
+    if tool_result:
+        content.append({"type": "tool_result", "tool_use_id": tool_result})
+    rec = {"timestamp": ts, "message": {"content": content}}
+    if sidechain:
+        rec["isSidechain"] = True
+        rec["attributionAgent"] = agent
+    return json.dumps(rec) + "\n"
+
+
+def _timing_transcript():
+    return (
+        _ts_line("2026-01-01T00:00:00Z")
+        + _ts_line("2026-01-01T00:00:10Z", tool_use="t1")
+        + _ts_line("2026-01-01T00:00:14Z", tool_result="t1")
+        + _ts_line("2026-01-01T00:01:00Z", sidechain=True, tool_use="s1")
+        + _ts_line("2026-01-01T00:01:30Z", sidechain=True, tool_result="s1")
+        + _ts_line("2026-01-01T00:02:00Z", sidechain=True)
+    )
+
+
+def test_parse_transcript_reports_wall_clock_and_tool_time_per_agent(tmp_path):
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text(_timing_transcript())
+
+    timing = cost_meter.parse_transcript(transcript, _PRICING)["timing"]
+
+    assert timing["main"] == {"wall_s": 14.0, "tool_s": 4.0}
+    assert timing["reviewer"] == {"wall_s": 60.0, "tool_s": 30.0}
+
+
+def test_cmd_record_timing_across_fires_matches_full_parse(hermetic_cost_meter):
+    tmp_path = hermetic_cost_meter
+    transcript = tmp_path / "transcript.jsonl"
+    log = tmp_path / "metrics" / "cost-metering.jsonl"
+    lines = _timing_transcript().splitlines(keepends=True)
+    args = SimpleNamespace(transcript=str(transcript), log=str(log))
+    # Split between a tool_use and its tool_result.
+    transcript.write_text("".join(lines[:4]))
+    cost_meter.cmd_record(args, _PRICING)
+    with transcript.open("a") as fh:
+        fh.write("".join(lines[4:]))
+    cost_meter.cmd_record(args, _PRICING)
+
+    last = json.loads(log.read_text().splitlines()[-1])
+    assert last["timing_by_agent_type"] == cost_meter.parse_transcript(
+        transcript, _PRICING
+    )["timing"]
+    assert last["timing_by_agent_type"]["reviewer"]["tool_s"] == 30.0

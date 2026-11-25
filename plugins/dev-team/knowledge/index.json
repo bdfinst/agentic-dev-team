@@ -3346,6 +3346,10 @@
       "summary": "`report` breaks spend down by **model**, by **thread** (main-loop vs",
       "anchor": "attribution-dimensions-102-170-1094"
     },
+    "Per-request counting and timing": {
+      "summary": "One API request spans several transcript lines that repeat its usage, so the",
+      "anchor": "per-request-counting-and-timing"
+    },
     "Review value (#348)": {
       "summary": "`/build` records, per inline review checkpoint, whether review actually changed",
       "anchor": "review-value-348"
