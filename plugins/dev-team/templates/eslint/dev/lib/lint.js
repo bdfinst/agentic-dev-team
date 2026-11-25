@@ -8,17 +8,14 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { arrayMutationDir, loadStagedConfig } from "./stage.js";
+import { arrayMutationDir, loadStagedConfig, payloadConfig } from "./stage.js";
 
 export const devDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 );
 export const repoRoot = path.resolve(devDir, "../../../../..");
-export const configPath = path.resolve(
-  devDir,
-  "../payload/eslint.devteam.config.js",
-);
+export const configPath = payloadConfig;
 
 const eslintRequire = createRequire(
   path.join(process.env.DEVTEAM_ESLINT_ROOT ?? devDir, "resolve.js"),

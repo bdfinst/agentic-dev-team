@@ -7,7 +7,7 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const payloadConfig = path.resolve(
+export const payloadConfig = path.resolve(
   here,
   "../../payload/eslint.devteam.config.js",
 );
@@ -17,14 +17,41 @@ export const arrayMutationDir = path.resolve(
   "../fixtures/array-mutation",
 );
 
-/** Copy the shipped config into `dir` (removed at process exit); returns its path. */
+const staged = new Map();
+
+const removeStaged = () => {
+  for (const file of staged.values()) fs.rmSync(file, { force: true });
+};
+
+// The exit listener does not run on a signal's default action, so a signal
+// removes the files and then re-raises itself with the default action restored.
+let cleanupRegistered = false;
+const registerCleanup = () => {
+  if (cleanupRegistered) return;
+  cleanupRegistered = true;
+  process.on("exit", removeStaged);
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.once(signal, () => {
+      removeStaged();
+      process.kill(process.pid, signal);
+    });
+  }
+};
+
+/** Copy the shipped config into `dir` once (removed at process exit or on SIGINT/SIGTERM); returns its path. */
 export const stageConfig = (dir) => {
-  const staged = path.join(dir, `eslint.devteam.${process.pid}.config.js`);
-  fs.copyFileSync(payloadConfig, staged);
-  process.on("exit", () => fs.rmSync(staged, { force: true }));
-  return staged;
+  const known = staged.get(dir);
+  if (known !== undefined) return known;
+  const file = path.join(dir, `eslint.devteam.${process.pid}.config.js`);
+  fs.copyFileSync(payloadConfig, file);
+  staged.set(dir, file);
+  registerCleanup();
+  return file;
 };
 
 /** The staged copy's default export, loaded as a user's flat config would. */
-export const loadStagedConfig = async (dir) =>
-  (await import(pathToFileURL(stageConfig(dir)).href)).default;
+export const loadStagedConfig = async (dir) => {
+  // An ambient opt-out would make every typed-rule test pass vacuously.
+  delete process.env.DEVTEAM_LINT_TYPED;
+  return (await import(pathToFileURL(stageConfig(dir)).href)).default;
+};
