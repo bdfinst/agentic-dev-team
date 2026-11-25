@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -75,6 +76,11 @@ MAX_FINDINGS = 10
 MAX_REASON_CHARS = 4000
 MAX_BLOCKS = 3
 TRUNCATION_MARKER = "... [truncated]"
+
+# ESLint reports a disable comment that names a rule it did not load (for
+# example `functional/*` while typed rules are off) as an error carrying that
+# rule's id. It says the comment is stale, not that the code breaks a rule.
+UNLOADED_RULE_MESSAGE = re.compile(r"Definition for rule '.*' was not found\.")
 
 # One line per fail-open reason; `{}` is filled by the one reason that varies.
 NOTICES = {
@@ -163,7 +169,9 @@ def parse_findings(stdout: str, returncode: int, root: Path) -> list[Finding]:
 
     Raises LintFailure for empty output, invalid JSON, or a parse error in the
     edited file. Messages without a rule id (for example an unused
-    ``eslint-disable`` report) are not dev-team findings and are dropped.
+    ``eslint-disable`` report) and "Definition for rule 'X' was not found"
+    messages (a disable comment for a rule that is not loaded) are not
+    dev-team findings and are dropped.
     """
     if not stdout.strip():
         raise LintFailure("no-json", returncode)
@@ -184,7 +192,11 @@ def parse_findings(stdout: str, returncode: int, root: Path) -> list[Finding]:
             if message.get("fatal"):
                 raise LintFailure("parse-error")
             rule_id = message.get("ruleId")
-            if isinstance(rule_id, str) and rule_id:
+            if (
+                isinstance(rule_id, str)
+                and rule_id
+                and not UNLOADED_RULE_MESSAGE.fullmatch(str(message.get("message", "")))
+            ):
                 findings.append(
                     Finding(
                         path,

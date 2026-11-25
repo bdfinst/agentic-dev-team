@@ -371,6 +371,29 @@ def test_parse_findings_keeps_rule_findings_and_drops_ruleless_messages(tmp_path
     ]
 
 
+def test_parse_findings_drops_unloaded_rule_definition_messages(tmp_path):
+    """ESLint reports a disable comment naming a rule that is not loaded as an
+    error that carries that rule's id, but it is not a dev-team finding."""
+    stdout = json.dumps(
+        [
+            {
+                "filePath": str(tmp_path / "a.js"),
+                "messages": [
+                    {
+                        "ruleId": "functional/immutable-data",
+                        "line": 1,
+                        "message": "Definition for rule 'functional/immutable-data' was not found.",
+                    },
+                    {"ruleId": "no-var", "line": 2, "message": "Unexpected var."},
+                ],
+            }
+        ]
+    )
+    assert [f.rule_id for f in post_lint.parse_findings(stdout, 1, tmp_path)] == [
+        "no-var"
+    ]
+
+
 @pytest.mark.parametrize(
     "stdout",
     ['{"a": 1}', "[1]", '[{"filePath": "x", "messages": [1]}]', '[{"messages": "no"}]'],
@@ -741,6 +764,25 @@ def _lint_directly(real: RealProject, file_path: str) -> list[tuple[str, int]]:
     )
     messages = json.loads(done.stdout)[0]["messages"]
     return [(m["ruleId"], m["line"]) for m in messages]
+
+
+def test_real_eslint_ignores_disable_comments_for_rules_that_are_not_loaded(real):
+    real.write(
+        "src/disables.ts",
+        "// eslint-disable-next-line functional/immutable-data\n"
+        "export const a = 1;\n"
+        "/* eslint-disable @typescript-eslint/no-explicit-any */\n"
+        "export const b = 2;\n",
+    )
+    # Control: ESLint itself does report both as errors carrying a rule id.
+    assert {rule for rule, _ in _lint_directly(real, "src/disables.ts")} >= {
+        "functional/immutable-data",
+        "@typescript-eslint/no-explicit-any",
+    }
+
+    result = real.run("src/disables.ts")
+
+    assert (result.outcome, result.output) == (post_lint.CLEAN, None)
 
 
 def test_typed_rules_are_off_inside_the_hook(real):
