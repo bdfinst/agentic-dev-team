@@ -4,7 +4,7 @@
 //
 // Import this array from your own flat config, for example:
 //   import devteam from "./eslint.devteam.config.js";
-//   export default [...yourConfig, ...devteam];
+//   export default [...devteam, ...yourConfig];
 // Globs use forward slashes on every platform.
 //
 // Array-mutation checks need type information, so they run only on files your
@@ -33,7 +33,10 @@ const importOptional = async (id) => {
     const loaded = await import(id);
     return { value: loaded.default ?? loaded };
   } catch (error) {
-    if (error?.code === "ERR_MODULE_NOT_FOUND" && String(error.message).includes(`'${id}'`)) {
+    if (
+      error?.code === "ERR_MODULE_NOT_FOUND" &&
+      String(error.message).includes(`'${id}'`)
+    ) {
       return { missing: true };
     }
     return { failure: String(error?.message ?? error).split("\n")[0] };
@@ -80,7 +83,11 @@ const arrayMutationOnly = {
 const typedConfig = async () => {
   if (process.env.DEVTEAM_LINT_TYPED === "0") return [];
   if (!fs.existsSync(path.join(rootDir, "tsconfig.json"))) return [];
-  const ids = ["eslint-plugin-functional", "@typescript-eslint/parser", "typescript"];
+  const ids = [
+    "eslint-plugin-functional",
+    "@typescript-eslint/parser",
+    "typescript",
+  ];
   const found = Object.fromEntries(
     await Promise.all(ids.map(async (id) => [id, await importOptional(id)])),
   );
@@ -91,7 +98,9 @@ const typedConfig = async () => {
       ...(missing.length > 0 ? [`not installed: ${missing.join(", ")}`] : []),
       ...failed.map((id) => `failed to load ${id}: ${found[id].failure}`),
     ];
-    process.stderr.write(`devteam-lint: typed rules skipped, ${reasons.join("; ")}\n`);
+    process.stderr.write(
+      `devteam-lint: typed rules skipped, ${reasons.join("; ")}\n`,
+    );
     return [];
   }
   const needed = Object.fromEntries(ids.map((id) => [id, found[id].value]));

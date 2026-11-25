@@ -90,6 +90,13 @@ class TestPayloadConstants:
     def test_hook_hardcoded_name_is_a_payload_file(self):
         assert CONFIG_NAME in scaffold.PAYLOAD_FILES
 
+    def test_payload_header_wiring_order_matches_the_scaffold_next_step(self):
+        header = (PAYLOAD_DIR / CONFIG_NAME).read_text(encoding="utf-8")
+        wire = "export default [...devteam, ...yourConfig];"
+        assert wire in scaffold.NEXT_WIRE
+        assert wire in header, "payload header must give the same order as NEXT_WIRE"
+        assert "...yourConfig, ...devteam" not in header
+
 
 SUPPORTED_ROWS = [
     pytest.param({"eslint_version": "9.0.0"}, id="eslint-9-flat-config"),
