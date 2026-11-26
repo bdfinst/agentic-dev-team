@@ -1,5 +1,13 @@
 # Changelog
 
+## [14.6.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.5.0...dev-team-v14.6.0) (2026-11-26)
+
+
+### Features
+
+* **lint:** convert agent-inferred checks into deterministic lint rules ([#2422](https://github.com/bdfinst/agentic-dev-team/issues/2422)) ([e6b90ec](https://github.com/bdfinst/agentic-dev-team/commit/e6b90ec9a5f184af5a80dcac5737da62e94610f3))
+* **spec:** lights-on competitive-analysis follow-ups ([#2424](https://github.com/bdfinst/agentic-dev-team/issues/2424)) ([299f721](https://github.com/bdfinst/agentic-dev-team/commit/299f7213214201add092d4fc30a5845d741ac869))
+
 ## [14.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.4.1...dev-team-v14.5.0) (2026-11-20)
 
 
