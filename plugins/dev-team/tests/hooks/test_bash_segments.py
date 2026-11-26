@@ -190,3 +190,48 @@ def test_escaped_heredoc_delimiter_is_unquoted():
 
 def test_substitution_output_in_arguments_is_untrusted():
     assert bs.parse("echo $(date)")[-1].untrusted_reason
+
+
+def test_unquoted_heredoc_body_substitution_is_lifted():
+    argvs = [s.argv for s in bs.parse("cat <<EOF\n$(touch x)\nEOF")]
+    assert ["touch", "x"] in argvs
+
+
+def test_quoted_heredoc_body_is_data():
+    assert [s.argv for s in bs.parse("cat <<'EOF'\n$(touch x)\nEOF")] == [["cat"]]
+
+
+def test_dangerous_bare_assignment_is_kept_untrusted_and_harmless_one_dropped():
+    assert bs.parse("PATH=/x")[0].untrusted_reason
+    assert bs.parse("FOO=1") == []
+
+
+def test_no_private_sentinel_leaks_into_output():
+    for command in ("env -S 'echo $HOME'", "(ls) > 'a{b'", "echo '$x' \"{a}\""):
+        for seg in bs.parse(command):
+            assert not any("" in w or "" in w for w in [*seg.argv, *seg.redirects])
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "FOO=1 bash -c 'ls'",
+        "env A=1 bash -c ls",
+        "./bash -c ls",
+        "time ./sh -c pwd",
+        "env -S'curl x'",
+    ],
+)
+def test_wrapper_trust_reaches_the_inner_segment(command):
+    assert all(s.untrusted_reason or s.opaque_reason for s in bs.parse(command))
+
+
+def test_shell_c_option_forms():
+    assert [s.argv for s in bs.parse("bash -lc 'rm -rf x'")] == [["rm", "-rf", "x"]]
+    assert [s.argv for s in bs.parse("bash -o errexit -c 'rm x'")] == [["rm", "x"]]
+
+
+def test_deep_nesting_is_rejected_and_eight_levels_parse():
+    with pytest.raises(bs.Unparseable, match="nests too deeply"):
+        bs.parse("$(" * 12 + "ls" + ")" * 12)
+    assert bs.parse("echo " + "$(echo " * 6 + "ls" + ")" * 6)

@@ -156,7 +156,23 @@ def _sed_is_safe_print_or_substitute(segment, argv) -> bool:
         if not _SED_SAFE_OPTIONS.fullmatch(words[0]):
             return False
         words = words[1:]
-    return bool(words) and _SED_SAFE_SCRIPT.fullmatch(words[0]) is not None
+    # GNU sed reorders arguments, so an option after the script still applies.
+    return (
+        bool(words)
+        and _SED_SAFE_SCRIPT.fullmatch(words[0]) is not None
+        and not any(w.startswith("-") for w in words[1:])
+    )
+
+
+def _git_reviewer_mutation(segment, argv) -> bool:
+    """A git form that changes the repo; `stash list|show` and `tag -l` only read."""
+    sub = _subcommand(argv)
+    rest = argv[argv.index(sub) + 1 :] if sub in argv else []
+    if sub == "stash":
+        return not (rest and rest[0] in ("list", "show"))
+    if sub == "tag":
+        return bool(rest) and not any(w in ("-l", "--list", "-n") for w in rest)
+    return True
 
 
 def _git_branch_only_lists(segment, argv) -> bool:
@@ -176,6 +192,7 @@ CHECKS = {
     "writes_file": _writes_file,
     "sed_is_safe": _sed_is_safe_print_or_substitute,
     "git_branch_only_lists": _git_branch_only_lists,
+    "git_reviewer_mutation": _git_reviewer_mutation,
 }
 
 
@@ -271,6 +288,14 @@ def _destructive_rule(argv: list[str], careful: bool) -> dict | None:
     }
 
 
+def _is_neutral_redirect(segment) -> bool:
+    return (
+        not segment.argv
+        and not segment.untrusted_reason
+        and not _writes_file(segment, [""])
+    )
+
+
 def _redirect_only_rule(segment, rules, agent_type: str) -> dict | None:
     """A subshell or bare redirect: only non-allow rules (e.g. read-only roles) apply."""
     if not _writes_file(segment, [""]):
@@ -299,6 +324,8 @@ def evaluate_segment(segment, rules, agent_type: str, careful: bool) -> dict | N
     untrusted = bool(segment.untrusted_reason) or "/" in segment.argv[0]
     if segment.cmd == "git" and len(argv) > 1 and argv[1].startswith("-"):
         untrusted = True
+    if segment.cmd in ("printf", "test", "[") and "-v" in argv[1:]:
+        untrusted = True  # the variable operand is evaluated as an array subscript
     destructive = _destructive_rule(argv, careful)
     matched = None
     for rule in rules:
@@ -330,6 +357,8 @@ def decide(
     rows, merged, unmatched = [], None, False
     for segment in segments:
         rule = evaluate_segment(segment, rules, agent_type, careful)
+        if rule is None and _is_neutral_redirect(segment):
+            continue  # `(git status) 2>/dev/null`: the redirect decides nothing
         if rule is None:
             unmatched = True
             rows.append({"argv": segment.argv, "rule": None, "decision": None})

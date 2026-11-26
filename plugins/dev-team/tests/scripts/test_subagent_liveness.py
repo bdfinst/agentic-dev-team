@@ -147,3 +147,25 @@ def test_a_stop_row_for_another_agent_does_not_mask_a_stale_one(tmp_path):
         h["agent_id"]
         for h in subagent_liveness.find_hung(tmp_path, stops, 600, now=5000)
     ] == ["x"]
+
+
+def test_answered_tool_call_gets_no_grace_and_grace_ends_at_six_times(tmp_path):
+    rows = [
+        {"message": {"content": [{"type": "tool_use", "id": "t"}]}},
+        {"message": {"content": [{"type": "tool_result", "tool_use_id": "t"}]}},
+    ]
+    path = tmp_path / "agent-a1.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    os.utime(path, (1000, 1000))
+    assert [
+        h["agent_id"]
+        for h in subagent_liveness.find_hung(tmp_path, None, 600, now=2200)
+    ] == ["a1"]
+    open_call = tmp_path / "agent-a2.jsonl"
+    open_call.write_text(json.dumps(rows[0]) + "\n")
+    os.utime(open_call, (1000, 1000))
+    ids = lambda now: [
+        h["agent_id"] for h in subagent_liveness.find_hung(tmp_path, None, 600, now=now)
+    ]
+    assert "a2" not in ids(1000 + 3600)
+    assert "a2" in ids(1000 + 3601)

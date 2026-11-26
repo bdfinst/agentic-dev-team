@@ -177,10 +177,11 @@ def _skip_blanks(command: str, i: int) -> int:
     return i
 
 
-def _heredoc_delimiter(command: str, i: int) -> tuple[str, bool, int]:
-    """(delimiter, strip leading tabs, end index) of the word after `<<` at `i`.
+def _heredoc_delimiter(command: str, i: int) -> tuple[str, bool, bool, int]:
+    """(delimiter, strip leading tabs, quoted, end index) of the word after `<<`.
 
-    Quoted and unquoted parts join into one word, as bash does.
+    Quoted and unquoted parts join into one word, as bash does. A quoted
+    delimiter makes the body literal; an unquoted one expands `$(...)` in it.
     """
     strip_tabs = command.startswith("-", i)
     start = _skip_blanks(command, i + 1 if strip_tabs else i)
@@ -188,7 +189,8 @@ def _heredoc_delimiter(command: str, i: int) -> tuple[str, bool, int]:
     delimiter = _restore(word)
     if not delimiter:
         raise Unparseable("empty heredoc delimiter")
-    return delimiter, strip_tabs, end
+    quoted = any(c in command[start:end] for c in "'\"\\")
+    return delimiter, strip_tabs, quoted, end
 
 
 def _lift_substitution(command: str, i: int, nested: list[str]) -> int | None:
@@ -259,8 +261,8 @@ def _read_redirect(command: str, i: int, fd_prefix: str, nested: list[str]):
         j += 1
     op = command[i:j]
     if op == "<<":
-        delimiter, strip_tabs, end = _heredoc_delimiter(command, j)
-        return end, "<<", (delimiter, strip_tabs)
+        delimiter, strip_tabs, quoted, end = _heredoc_delimiter(command, j)
+        return end, "<<", (delimiter, strip_tabs, quoted)
     k = _skip_blanks(command, j)
     end, target = _read_word(command, k, nested)
     if op.endswith("&") and (target.isdigit() or target == "-"):
@@ -275,7 +277,7 @@ def _scan(command: str):
     nested: list[str] = []
     word: list[str] = []
     has_word = False
-    pending_heredocs: list[tuple[str, bool]] = []
+    pending_heredocs: list[tuple[str, bool, bool]] = []
     i, n = 0, len(command)
 
     def end_word():
@@ -297,8 +299,14 @@ def _scan(command: str):
             seg = end_segment()
             if seg:
                 yield seg
-            i = _skip_heredocs(command, i + 1, pending_heredocs)
+            bodies: list[str] = []
+            i = _skip_heredocs(command, i + 1, pending_heredocs, bodies)
             pending_heredocs = []
+            lifted_from_bodies: list[str] = []
+            for body in bodies:
+                _lift_embedded(body, lifted_from_bodies)
+            if lifted_from_bodies:
+                yield ([], [], lifted_from_bodies)
             continue
         if ch in " \t":
             end_word()
@@ -431,15 +439,16 @@ def _matching_paren(command: str, start: int, arith: bool = False) -> int:
             continue
         if command.startswith("((", i):
             raise Unparseable("arithmetic command ((...))")
-        if (
-            not arith
-            and command.startswith("<<", i)
-            and not command.startswith("<<<", i)
-        ):
-            delimiter, strip_tabs, end = _heredoc_delimiter(command, i + 2)
+        if command.startswith("<<<", i):
+            i += 3
+            continue
+        if not arith and command.startswith("<<", i):
+            delimiter, strip_tabs, quoted, end = _heredoc_delimiter(command, i + 2)
             newline = command.find("\n", end)
             if newline >= 0:
-                i = _skip_heredocs(command, newline + 1, [(delimiter, strip_tabs)])
+                i = _skip_heredocs(
+                    command, newline + 1, [(delimiter, strip_tabs, quoted)], []
+                )
                 continue
         if ch == "(":
             depth += 1
@@ -451,19 +460,29 @@ def _matching_paren(command: str, start: int, arith: bool = False) -> int:
     raise Unparseable("unbalanced $(")
 
 
-def _skip_heredocs(command: str, i: int, delimiters: list[tuple[str, bool]]) -> int:
+def _skip_heredocs(
+    command: str,
+    i: int,
+    delimiters: list[tuple[str, bool, bool]],
+    bodies: list[str],
+) -> int:
     """Index just past the bodies of `delimiters`, starting at line start `i`.
 
     A body ends on a line equal to its delimiter (leading tabs ignored for
-    `<<-` only), as bash does.
+    `<<-` only), as bash does. Bodies of unquoted heredocs are appended to
+    `bodies`: bash expands `$(...)` in them.
     """
-    for delim, strip_tabs in delimiters:
+    for delim, strip_tabs, quoted in delimiters:
+        body: list[str] = []
         while i < len(command):
             end = command.find("\n", i)
             line = command[i : end if end >= 0 else len(command)]
             i = end + 1 if end >= 0 else len(command)
             if (line.lstrip("\t") if strip_tabs else line) == delim:
                 break
+            body.append(line)
+        if not quoted:
+            bodies.append("\n".join(body))
     return i
 
 
@@ -509,10 +528,27 @@ def _strip_wrapper(argv: list[str]) -> tuple[list[str], str, str]:
     return rest, untrusted, opaque
 
 
+# Variables whose assignment changes what later commands run or where they look.
+_DANGEROUS_VARIABLE_RE = re.compile(
+    r"^(PATH|IFS|BASH_ENV|ENV|SHELLOPTS|BASHOPTS|PS4|PROMPT_COMMAND|CDPATH|HOME|SHELL"
+    r"|LD_\w*|DYLD_\w*|GIT_\w*|PYTHON\w*|NODE_\w*)="
+)
+
+
+def _finish(segment: Segment) -> Segment:
+    segment.argv = [_restore(word) for word in segment.argv]
+    segment.redirects = [_restore(r) for r in segment.redirects]
+    return segment
+
+
 def _unwrap(words: list[str], redirects: list[str]) -> Segment | None:
     argv = list(words)
     untrusted = ""
+    dangerous_assignment = False
     while argv and _ASSIGNMENT_RE.match(argv[0]):
+        dangerous_assignment = dangerous_assignment or bool(
+            _DANGEROUS_VARIABLE_RE.match(argv[0])
+        )
         argv.pop(0)
         untrusted = "an environment assignment prefix can change what runs"
     consumed_wrapper = False
@@ -529,13 +565,16 @@ def _unwrap(words: list[str], redirects: list[str]) -> Segment | None:
         argv, wrapper_untrusted, opaque = _strip_wrapper(argv)
         untrusted = untrusted or wrapper_untrusted
         if opaque:
-            return Segment(list(words), redirects, opaque_reason=opaque)
+            return _finish(Segment(list(words), redirects, opaque_reason=opaque))
     if not argv:
         if consumed_wrapper:
-            return Segment(
-                list(words), redirects, opaque_reason="wrapper with no command"
+            return _finish(
+                Segment(list(words), redirects, opaque_reason="wrapper with no command")
             )
-        return Segment([], redirects) if redirects else None
+        if dangerous_assignment:
+            # A bare PATH=/LD_PRELOAD=/... changes every later command: never neutral.
+            return _finish(Segment([], redirects, untrusted_reason=untrusted))
+        return _finish(Segment([], redirects)) if redirects else None
     segment = Segment(argv, redirects, untrusted_reason=untrusted)
     if "$" in argv[0]:
         segment.opaque_reason = "the command word is a variable or substitution"
@@ -543,6 +582,4 @@ def _unwrap(words: list[str], redirects: list[str]) -> Segment | None:
         segment.untrusted_reason = (
             segment.untrusted_reason or "an argument uses an expansion"
         )
-    segment.argv = [_restore(word) for word in argv]
-    segment.redirects = [_restore(r) for r in redirects]
-    return segment
+    return _finish(segment)

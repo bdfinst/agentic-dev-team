@@ -131,9 +131,15 @@ def test_four_backtick_fence_is_not_closed_by_an_inner_fence():
         "Files: `a.py`",
         "````",
         "```python",
-        "#### Step 2: Fake",
+        "x",
         "```",
+        "#### Step 2: Fake",
         "````",
     ]
     steps, _ = plan_lint._split_steps(lines)
     assert [s["id"] for s in steps] == ["1"]
+
+
+def test_tilde_fence_hides_a_step_heading():
+    lines = ["#### Step 1: Real", "Files: `a.py`", "~~~", "#### Step 2: Fake", "~~~"]
+    assert [s["id"] for s in plan_lint._split_steps(lines)[0]] == ["1"]

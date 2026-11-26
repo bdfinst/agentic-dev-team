@@ -523,3 +523,78 @@ def test_command_substitution_inside_arithmetic_reaches_role_rules():
 
 def test_empty_heredoc_delimiter_is_unparseable_not_a_crash():
     assert _decide("cat <<''")["decision"] == "deny"
+
+
+@pytest.mark.parametrize(
+    "command, decision",
+    [
+        ("cat <<EOF\n$(touch /tmp/pwned)\nEOF", None),
+        ("cat <<'EOF'\n$(touch /tmp/pwned)\nEOF", "allow"),
+        ("PATH=/tmp/evil:$PATH; ls", None),
+        ("PATH=./bin && cat x", None),
+        ("x=1; ls", "allow"),
+        ("sed 's/a/b/' -i file.txt", None),
+        ("sed 1p -e '1e id' README.md", None),
+        ("printf -v 'a[$(touch /tmp/p)]' x", None),
+        ("test -v 'a[$(id)]'", None),
+        ("tsc --noEmit false", None),
+        ("(git status) 2>/dev/null", "allow"),
+        ("( ls ) > out", None),
+        ('v=$(wc -l <<<"$s")\necho done', "allow"),
+        ("echo $((1<<2))", None),
+        ("cat <<-EOF\n\tEOF\nrm -rf x", "ask"),
+        ("cat <<A <<B\na\nA\nb\nB\nrm -rf x", "ask"),
+        ("echo $(cat <<E\n)\nE\n)\nrm -rf x", "ask"),
+    ],
+)
+def test_second_round_findings_name_their_decision(command, decision):
+    assert _decide(command)["decision"] == decision, command
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git ls-tree -r HEAD",
+        "git blame -L 10,20 f.py",
+        "git cat-file -t HEAD",
+        "git ls-files -o",
+        "git status -uno",
+        "git for-each-ref '--format=%(refname:short)'",
+        "git log -S foo",
+        "git log --grep=x",
+        "git describe --always",
+        "git merge-base --is-ancestor A B",
+    ],
+)
+def test_common_read_only_git_forms_stay_allowed(command):
+    assert _decide(command)["decision"] == "allow", command
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git log --output=f",
+        "git show --ext-diff",
+        "git status --not-a-flag",
+        "gh pr view 12 --template x",
+        "gh run list --not-a-flag",
+    ],
+)
+def test_unlisted_options_fall_through(command):
+    assert _decide(command)["decision"] is None, command
+
+
+def test_reviewer_git_read_only_forms_are_not_denied():
+    for command in ("git stash list", "git stash show -p", "git tag -l", "git tag"):
+        assert _decide(command, "security-review")["decision"] != "deny", command
+    for command in ("git stash", "git stash pop", "git tag v1", "git commit -m x"):
+        assert _decide(command, "security-review")["decision"] == "deny", command
+
+
+def test_engineer_test_and_lint_rule_is_deliberately_unrestricted():
+    assert _decide("ruff format .", "software-engineer")["decision"] == "allow"
+    assert _decide("ruff format .")["decision"] is None
+
+
+def test_opaque_command_asks_before_a_role_deny():
+    assert _decide("$CMD", "security-review")["decision"] == "ask"

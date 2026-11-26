@@ -57,7 +57,8 @@
         "revert",
         "tag"
       ],
-      "reason": "Review agents are read-only."
+      "reason": "Review agents are read-only.",
+      "check": "git_reviewer_mutation"
     },
     {
       "id": "reviewer-no-file-write",
@@ -126,8 +127,7 @@
         "fgrep",
         "du",
         "df",
-        "sleep",
-        "wait"
+        "sleep"
       ],
       "reason": "Read-only utility."
     },
@@ -177,7 +177,7 @@
         "check-ignore",
         "for-each-ref"
       ],
-      "opts_re": "--?(?:n\\d*|\\d+|oneline|stat|numstat|shortstat|summary|name-only|name-status|short|long|porcelain(?:=v?\\d)?|graph|decorate|all|branches|tags|no-merges|merges|abbrev-commit|abbrev(?:=\\d+)?|abbrev-ref|symbolic-full-name|format=[\\w%.:,<>@ -]+|pretty=[\\w%.:,<>@ -]+|cached|staged|check|first-parent|reverse|since=\\S+|until=\\S+|author=\\S+|max-count=\\d+|diff-filter=[A-Za-z]+|show-toplevel|is-inside-work-tree|git-dir|verify|follow|full-name|exclude-standard|others|deleted|modified|stdin|[sbvqzlpuw]{1,4}|name|no-color|color|no-pager|stat=\\d+|unified=\\d+|U\\d+|M|C|find-renames|find-copies|no-patch|patch|oneline|date=\\w+|relative-date|count|line-number|files-with-matches|word-regexp|fixed-strings|ignore-case|-)",
+      "opts_re": "--(?:since|until|grep|author|committer|format|pretty|untracked-files|ignore-submodules|diff-filter|date|abbrev|unified|max-count|skip|sort|count|points-at|contains|merged|no-merged|always|is-ancestor|all-match|invert-grep|regexp-ignore-case|extended-regexp|ancestry-path|simplify-by-decoration|date-order|topo-order|author-date-order|left-right|boundary|children|parents|no-abbrev|raw|compact-summary|word-diff|ignore-all-space|ignore-space-change|exit-code|quiet|ignored|ahead-behind|branch|tags|heads|all|branches|remotes|cached|staged|check|oneline|stat|numstat|shortstat|summary|name-only|name-status|short|long|porcelain|graph|decorate|no-merges|merges|abbrev-commit|abbrev-ref|symbolic-full-name|first-parent|reverse|show-toplevel|is-inside-work-tree|git-dir|verify|follow|full-name|exclude-standard|others|deleted|modified|stdin|no-color|color|no-pager|no-patch|patch|find-renames|find-copies|relative-date|line-number|files-with-matches|word-regexp|fixed-strings|ignore-case|count|name|symbolic|verbose|list)(?:=.*)?|-[sbvqzlpuwrtomSGaA]{1,4}|-[LU][\\d,+-]*|-u[a-z]*|-n\\d*|-\\d+|-[MC]\\d*|-",
       "reason": "git read."
     },
     {
@@ -215,7 +215,11 @@
         "--noEmit"
       ],
       "opts_re": "--(?:noEmit|pretty|project|skipLibCheck)|-p",
-      "reason": "Typecheck without emitting files."
+      "reason": "Typecheck without emitting files.",
+      "args_none": [
+        "false",
+        "true"
+      ]
     },
     {
       "id": "allow-repo-scripts",
