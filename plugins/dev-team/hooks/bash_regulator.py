@@ -55,8 +55,31 @@ from stdin_json import read_stdin_json
 _RULES_FILE = _SCRIPT_DIR / "regulator_rules.json"
 _SEVERITY = {"allow": 0, "ask": 1, "deny": 2}
 _PLUGIN_PREFIX = re.compile(r"^[\w-]+:")
-_GIT_GLOBAL_VALUE_FLAGS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
-_GIT_GLOBAL_FLAGS = {"--no-pager", "--paginate", "-P", "--no-optional-locks", "--bare"}
+# Only flags that cannot change what git runs are stripped; any other option
+# before the subcommand (`-c`, `--exec-path`, `--git-dir`, ...) disqualifies allow.
+_GIT_GLOBAL_VALUE_FLAGS = {"-C"}
+_GIT_GLOBAL_FLAGS = {"--no-pager", "--paginate", "-P", "--no-optional-locks"}
+_GH_WRITE_FLAG = re.compile(r"^(-[Xx]|--method|-[fF]|--field|--raw-field|--input)")
+_GIT_RISKY_ARG = re.compile(
+    r"^(--output|--upload-pack|--receive-pack|--exec|-O|--ext-diff|--textconv|--open-files-in-pager|\+|:)|^-[A-Za-z]*O"
+)
+_SED_UNSAFE_SCRIPT = re.compile(r"(^|[;{}\n])\s*[weWE]\b|s(.).*\1.*\1[a-z0-9]*[we]")
+_GIT_BRANCH_LIST_FLAGS = {
+    "-a",
+    "-r",
+    "-v",
+    "-vv",
+    "--list",
+    "-l",
+    "--show-current",
+    "--merged",
+    "--no-merged",
+    "--contains",
+    "--no-contains",
+    "--all",
+    "--remotes",
+    "--verbose",
+}
 _REWRITE_HINT = (
     "Command could not be parsed safely ({why}). Rewrite it as plain commands "
     "joined with && or run one command per call."
@@ -78,7 +101,9 @@ def _strip_git_globals(argv: list[str]) -> list[str]:
         word = argv[i]
         if word in _GIT_GLOBAL_VALUE_FLAGS:
             i += 2
-        elif word in _GIT_GLOBAL_FLAGS or word.startswith(("--git-dir=", "--work-tree=")):
+        elif word in _GIT_GLOBAL_FLAGS or word.startswith(
+            ("--git-dir=", "--work-tree=")
+        ):
             i += 1
         else:
             break
@@ -101,14 +126,51 @@ def _subcommand(argv: list[str]) -> str:
 
 
 def _writes_file(segment, argv) -> bool:
-    return any(not r.endswith("/dev/null") for r in segment.redirects)
+    """An output redirect to anything but /dev/null (input redirects read)."""
+    for redirect in segment.redirects:
+        operator = redirect.split(" ", 1)[0]
+        if ">" in operator and not redirect.endswith("/dev/null"):
+            return True
+    return False
 
 
 def _sed_has_no_inplace(segment, argv) -> bool:
-    return not any(w == "-i" or w.startswith("-i") and not w.startswith("--") or w.startswith("--in-place") for w in argv[1:])
+    """No in-place edit (any short cluster holding `i`) and no w/e script command."""
+    for word in argv[1:]:
+        if word.startswith("--"):
+            if word.startswith(("--in-place", "--file")) or word == "--follow-symlinks":
+                return False
+        elif word.startswith("-") and len(word) > 1:
+            if "i" in word[1:] or "f" in word[1:]:
+                return False
+        elif _SED_UNSAFE_SCRIPT.search(word):
+            return False
+    return True
 
 
-CHECKS = {"writes_file": _writes_file, "sed_has_no_inplace": _sed_has_no_inplace}
+def _gh_has_no_write_flag(segment, argv) -> bool:
+    return not any(_GH_WRITE_FLAG.match(w) for w in argv[1:])
+
+
+def _git_args_are_read_only(segment, argv) -> bool:
+    return not any(_GIT_RISKY_ARG.match(w) for w in argv[2:])
+
+
+def _git_branch_only_lists(segment, argv) -> bool:
+    args = argv[2:]
+    lists = any(w in ("--list", "-l") for w in args)
+    return all(
+        w in _GIT_BRANCH_LIST_FLAGS or (not w.startswith("-") and lists) for w in args
+    )
+
+
+CHECKS = {
+    "writes_file": _writes_file,
+    "sed_has_no_inplace": _sed_has_no_inplace,
+    "gh_has_no_write_flag": _gh_has_no_write_flag,
+    "git_args_are_read_only": _git_args_are_read_only,
+    "git_branch_only_lists": _git_branch_only_lists,
+}
 
 
 # --- rules -------------------------------------------------------------------
@@ -129,7 +191,9 @@ def _applies(rule: dict, agent_type: str) -> bool:
     patterns = rule.get("applies_to")
     if patterns is None:
         return True
-    return bool(agent_type) and any(fnmatch.fnmatchcase(agent_type, p) for p in patterns)
+    return bool(agent_type) and any(
+        fnmatch.fnmatchcase(agent_type, p) for p in patterns
+    )
 
 
 def _matches(rule: dict, segment, argv: list[str]) -> bool:
@@ -168,7 +232,8 @@ def _destructive_rule(argv: list[str], careful: bool) -> dict | None:
     return {
         "id": "destructive-pattern",
         "decision": "deny" if careful else "ask",
-        "reason": f"Destructive command ({hit})." + (" Careful mode is active." if careful else ""),
+        "reason": f"Destructive command ({hit})."
+        + (" Careful mode is active." if careful else ""),
     }
 
 
@@ -176,19 +241,30 @@ def evaluate_segment(segment, rules, agent_type: str, careful: bool) -> dict | N
     """The deciding rule for one segment, or None to fall through."""
     if not segment.argv:
         return None
-    if segment.opaque:
-        return {"id": "opaque-command", "decision": "ask", "reason": segment.opaque}
+    if segment.opaque_reason:
+        return {
+            "id": "opaque-command",
+            "decision": "ask",
+            "reason": segment.opaque_reason,
+        }
     argv = _normalized_argv(segment)
+    untrusted = bool(segment.untrusted_reason) or "/" in segment.argv[0]
+    if segment.cmd == "git" and len(argv) > 1 and argv[1].startswith("-"):
+        untrusted = True
     destructive = _destructive_rule(argv, careful)
     if destructive:
         return destructive
     for rule in rules:
+        if rule["decision"] == "allow" and untrusted:
+            continue
         if _applies(rule, agent_type) and _matches(rule, segment, argv):
             return rule
     return None
 
 
-def decide(command: str, agent_type: str = "", careful: bool = False, rules=None) -> dict:
+def decide(
+    command: str, agent_type: str = "", careful: bool = False, rules=None
+) -> dict:
     """{decision: allow|ask|deny|None, reason, segments: [{argv, rule, decision}]}."""
     rules = load_rules() if rules is None else rules
     try:
@@ -206,23 +282,44 @@ def decide(command: str, agent_type: str = "", careful: bool = False, rules=None
             unmatched = True
             rows.append({"argv": segment.argv, "rule": None, "decision": None})
             continue
-        rows.append({"argv": segment.argv, "rule": rule["id"], "decision": rule["decision"], "reason": rule.get("reason", "")})
-        if merged is None or _SEVERITY[rule["decision"]] > _SEVERITY[merged["decision"]]:
+        rows.append(
+            {
+                "argv": segment.argv,
+                "rule": rule["id"],
+                "decision": rule["decision"],
+                "reason": rule.get("reason", ""),
+            }
+        )
+        if (
+            merged is None
+            or _SEVERITY[rule["decision"]] > _SEVERITY[merged["decision"]]
+        ):
             merged = rule
     if merged is None or (merged["decision"] == "allow" and unmatched):
         return {"decision": None, "reason": "", "segments": rows}
-    return {"decision": merged["decision"], "reason": merged.get("reason", ""), "segments": rows}
+    return {
+        "decision": merged["decision"],
+        "reason": merged.get("reason", ""),
+        "segments": rows,
+    }
 
 
 # --- hook entry ----------------------------------------------------------------
 
 
 def _enabled() -> bool:
-    return os.environ.get("DEV_TEAM_REGULATOR", "").strip().lower() in {"on", "1", "true"}
+    return os.environ.get("DEV_TEAM_REGULATOR", "").strip().lower() in {
+        "on",
+        "1",
+        "true",
+    }
 
 
 def _enforcing() -> bool:
-    return os.environ.get("DEV_TEAM_REGULATOR_MODE", "advisory").strip().lower() == "enforce"
+    return (
+        os.environ.get("DEV_TEAM_REGULATOR_MODE", "advisory").strip().lower()
+        == "enforce"
+    )
 
 
 def main() -> int:
@@ -235,9 +332,15 @@ def main() -> int:
         if not isinstance(command, str) or not command.strip():
             return 0
         raw_cwd = payload.get("cwd")
-        cwd = raw_cwd if isinstance(raw_cwd, str) and raw_cwd and "\0" not in raw_cwd else "."
+        cwd = (
+            raw_cwd
+            if isinstance(raw_cwd, str) and raw_cwd and "\0" not in raw_cwd
+            else "."
+        )
         agent_type = normalize_agent_type(payload.get("agent_type"))
-        careful_path = artifact_paths.resolve_file("hooks", "careful-state.json", root=cwd, migrate=False)
+        careful_path = artifact_paths.resolve_file(
+            "hooks", "careful-state.json", root=cwd, migrate=False
+        )
         result = decide(command, agent_type, _guard._careful_active(careful_path))
         permission_mode = payload.get("permission_mode")
         enforcing = _enforcing()
@@ -248,7 +351,9 @@ def main() -> int:
                 "decision": result["decision"] or "fall-through",
                 "rules": sorted({s["rule"] for s in result["segments"] if s["rule"]}),
                 "agent_type": agent_type or "main",
-                "permission_mode": permission_mode if isinstance(permission_mode, str) else "",
+                "permission_mode": permission_mode
+                if isinstance(permission_mode, str)
+                else "",
             },
             cwd=cwd,
             session_id=payload.get("session_id"),
@@ -264,7 +369,8 @@ def main() -> int:
                     "hookSpecificOutput": {
                         "hookEventName": "PreToolUse",
                         "permissionDecision": decision,
-                        "permissionDecisionReason": result["reason"] or f"regulator: {decision}",
+                        "permissionDecisionReason": result["reason"]
+                        or f"regulator: {decision}",
                     }
                 }
             )
@@ -285,8 +391,13 @@ def _explain(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     result = decide(args.explain, normalize_agent_type(args.agent_type), args.careful)
     for row in result["segments"]:
-        print(f"{row['decision'] or 'fall-through':<12} {row['rule'] or '-':<26} {' '.join(row['argv'])}")
-    print(f"=> {result['decision'] or 'fall-through'}" + (f"  ({result['reason']})" if result["reason"] else ""))
+        print(
+            f"{row['decision'] or 'fall-through':<12} {row['rule'] or '-':<26} {' '.join(row['argv'])}"
+        )
+    print(
+        f"=> {result['decision'] or 'fall-through'}"
+        + (f"  ({result['reason']})" if result["reason"] else "")
+    )
     return 0
 
 

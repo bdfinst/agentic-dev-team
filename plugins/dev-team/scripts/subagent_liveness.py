@@ -2,7 +2,8 @@
 """subagent_liveness.py — list subagents that stopped making progress.
 
 An agent is hung when its transcript (`<dir>/agent-<id>.jsonl`) has not been
-written for more than the threshold and no `SubagentStop` row names it. Stop
+written for more than the threshold and no `SubagentStop` row names it. An agent whose last record is an unanswered
+`tool_use` (a long build or test run) gets 6x the threshold. Stop
 rows come from `.claude/metrics/subagent-stops.jsonl`, which
 `hooks/subagent_completion_guard.py` appends to (with `agent_id`) on every stop.
 
@@ -47,6 +48,30 @@ def _stopped_ids(stops: Path | None) -> set[str]:
     return ids
 
 
+_IN_FLIGHT_GRACE = 6  # a call awaiting a tool result may legitimately idle this many thresholds
+
+
+def _awaiting_tool_result(path: Path) -> bool:
+    """True when the transcript's last record is a `tool_use` with no result yet."""
+    try:
+        lines = path.read_text(errors="replace").splitlines()
+    except OSError:
+        return False
+    for line in reversed(lines):
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        message = row.get("message") if isinstance(row, dict) else None
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            return False
+        return any(isinstance(b, dict) and b.get("type") == "tool_use" for b in content) and not any(
+            isinstance(b, dict) and b.get("type") == "tool_result" for b in content
+        )
+    return False
+
+
 def find_hung(
     subagent_dir: Path, stops: Path | None, threshold: float, now: float | None = None
 ) -> list[dict]:
@@ -60,7 +85,8 @@ def find_hung(
         if agent_id in stopped:
             continue
         idle = now - path.stat().st_mtime
-        if idle > threshold:
+        limit = threshold * (_IN_FLIGHT_GRACE if idle > threshold and _awaiting_tool_result(path) else 1)
+        if idle > limit:
             hung.append({"agent_id": agent_id, "idle_seconds": round(idle), "transcript": str(path)})
     return hung
 

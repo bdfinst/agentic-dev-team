@@ -48,7 +48,18 @@ def _split_steps(lines: list[str]) -> tuple[list[dict], int | None]:
     stated: int | None = None
     in_preamble = True
     current: dict | None = None
+    fence: str | None = None
     for line in lines:
+        marker = line.lstrip()[:3]
+        if marker in ("```", "~~~"):
+            fence = None if fence == marker else (fence or marker)
+            if current is not None:
+                current["body"].append(line)
+            continue
+        if fence:  # fenced text is example content, not plan structure
+            if current is not None:
+                current["body"].append(line)
+            continue
         if _SLICES_HEADING_RE.match(line):
             in_preamble = False
         if in_preamble and stated is None:

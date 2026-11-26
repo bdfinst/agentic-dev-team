@@ -100,6 +100,7 @@ The transcript schema is read defensively (usage may sit on the record or under
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -211,11 +212,24 @@ def _load_state(state_file: Path) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
+_MAX_TRACKED_REQUESTS = 5000
+_MAX_OPEN_TOOL_CALLS = 2000
+
+
+def _newest(mapping: dict, limit: int) -> dict:
+    """The last `limit` entries by insertion order (oldest pruned first)."""
+    return dict(list(mapping.items())[-limit:]) if len(mapping) > limit else mapping
+
+
 def _save_state(state_file: Path, payload: dict) -> None:
+    """Write via a temp file and rename so a crash never leaves torn JSON."""
+    tmp = state_file.with_name(f"{state_file.name}.{os.getpid()}.tmp")
     try:
-        state_file.write_text(json.dumps(payload))
+        tmp.write_text(json.dumps(payload))
+        os.replace(tmp, state_file)
     except OSError:
-        pass
+        with contextlib.suppress(OSError):
+            tmp.unlink()
 
 
 def _first_present_field(rec: dict, *keys: str):
@@ -658,8 +672,8 @@ def cmd_record(args, pricing) -> int:
             "unpriced_models": sorted(unpriced_models),
             "dispatch_types": dispatch_types,
             "agent_types": agent_types,
-            "requests": requests,
-            "timing": timing,
+            "requests": _newest(requests, _MAX_TRACKED_REQUESTS),
+            "timing": {**timing, "open": _newest(timing["open"], _MAX_OPEN_TOOL_CALLS)},
         },
     )
 

@@ -738,3 +738,16 @@ def test_cmd_record_timing_across_fires_matches_full_parse(hermetic_cost_meter):
         transcript, _PRICING
     )["timing"]
     assert last["timing_by_agent_type"]["reviewer"]["tool_s"] == 30.0
+
+
+def test_newest_prunes_oldest_entries_first():
+    assert list(cost_meter._newest({i: i for i in range(10)}, 3)) == [7, 8, 9]
+    small = {1: 1}
+    assert cost_meter._newest(small, 3) is small
+
+
+def test_save_state_is_atomic_and_leaves_no_temp_file(tmp_path):
+    target = tmp_path / "state.json"
+    cost_meter._save_state(target, {"a": 1})
+    assert json.loads(target.read_text()) == {"a": 1}
+    assert [p.name for p in tmp_path.iterdir()] == ["state.json"]

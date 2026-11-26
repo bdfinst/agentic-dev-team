@@ -47,7 +47,11 @@ def test_substitution_inside_double_quotes_is_lifted():
 
 
 def test_subshell_body_is_lifted_as_its_own_segments():
-    assert _argvs("git status && (cd d && rm x)") == [["git", "status"], ["cd", "d"], ["rm", "x"]]
+    assert _argvs("git status && (cd d && rm x)") == [
+        ["git", "status"],
+        ["cd", "d"],
+        ["rm", "x"],
+    ]
 
 
 def test_heredoc_body_is_data_not_commands():
@@ -63,8 +67,16 @@ def test_top_level_heredoc_body_is_skipped():
 
 @pytest.mark.parametrize(
     "wrapped",
-    ["time ls", "env FOO=1 ls", "nice -n 5 ls", "nohup ls", "command ls", "FOO=bar ls",
-     "timeout 5 ls", "env -i A=b ls"],
+    [
+        "time ls",
+        "env FOO=1 ls",
+        "nice -n 5 ls",
+        "nohup ls",
+        "command ls",
+        "FOO=bar ls",
+        "timeout 5 ls",
+        "env -i A=b ls",
+    ],
 )
 def test_wrappers_are_stripped(wrapped):
     assert _argvs(wrapped) == [["ls"]]
@@ -84,11 +96,11 @@ def test_nested_shell_wrappers_recurse():
 
 def test_variable_as_command_is_opaque():
     [seg] = bs.parse("$CMD arg")
-    assert seg.opaque
+    assert seg.opaque_reason
 
 
 def test_plain_command_is_not_opaque():
-    assert bs.parse("ls")[0].opaque == ""
+    assert bs.parse("ls")[0].opaque_reason == ""
 
 
 def test_output_redirect_is_recorded_apart_from_argv():
@@ -107,7 +119,8 @@ def test_redirect_to_dev_null_is_recorded():
 
 
 @pytest.mark.parametrize(
-    "broken", ["echo 'open", 'echo "open', "echo $(open", "echo `open", "ls (", "echo a\\"]
+    "broken",
+    ["echo 'open", 'echo "open', "echo $(open", "echo `open", "ls (", "echo a\\"],
 )
 def test_unparseable_commands_raise(broken):
     with pytest.raises(bs.Unparseable):
@@ -121,3 +134,55 @@ def test_deep_nesting_raises():
         cmd = "bash -c " + repr(cmd)
     with pytest.raises(bs.Unparseable):
         bs.parse(cmd)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "env -S 'curl x'",
+        "env --split-string='curl x'",
+        "env",
+        "time",
+        "FOO=1 ls",
+        "xargs find . -delete",
+        "exec -a x ls",
+        "ls ${X:--delete}",
+        "echo {a,b}",
+        "env --unset=A ls",
+        "time -o out ls",
+    ],
+)
+def test_unknowable_command_or_arguments_are_flagged(command):
+    segments = bs.parse(command)
+    assert any(s.opaque_reason or s.untrusted_reason for s in segments), command
+
+
+@pytest.mark.parametrize("command", ["ls -la", "git status", "bash script.sh -c x"])
+def test_plain_commands_are_not_flagged(command):
+    seg = bs.parse(command)[-1]
+    assert not seg.opaque_reason and not seg.untrusted_reason
+
+
+def test_reserved_words_are_stripped():
+    assert bs.parse("if true; then rm -rf x; fi")[-1].argv[0] != "then"
+    assert [s.argv[0] for s in bs.parse("! rm x")] == ["rm"]
+
+
+def test_bash_c_keeps_wrapper_redirects():
+    assert any(">" in r for r in bs.parse("bash -c 'ls' > out")[0].redirects)
+
+
+def test_quoted_redirect_target_and_clobber():
+    assert bs.parse("ls > 'a b'")[0].redirects == ["> a b"]
+    assert bs.parse("ls >| out")[0].redirects == [">| out"]
+
+
+def test_escaped_heredoc_delimiter_is_unquoted():
+    assert [s.argv[0] for s in bs.parse("cat <<\\EOF\nrm -rf x\nEOF\nls")] == [
+        "cat",
+        "ls",
+    ]
+
+
+def test_substitution_output_in_arguments_is_untrusted():
+    assert bs.parse("echo $(date)")[-1].untrusted_reason

@@ -112,3 +112,10 @@ def test_main_exits_0_and_prints_json_for_a_clean_plan(tmp_path, capsys):
 
 def test_main_exits_2_on_a_missing_file(tmp_path):
     assert plan_lint.main([str(tmp_path / "nope.md")]) == 2
+
+
+def test_fenced_step_heading_is_not_a_step(tmp_path):
+    plan = tmp_path / "plan.md"
+    plan.write_text("# P\n\n#### Step 1: Real\n\nFiles: `a.py`\n\n```\n#### Step 2: Example\n```\n")
+    steps, _ = plan_lint._split_steps(plan.read_text().splitlines())
+    assert [s["id"] for s in steps] == ["1"]

@@ -103,3 +103,14 @@ def test_default_threshold_comes_from_the_environment(tmp_path, monkeypatch):
     assert subagent_liveness.default_threshold() == 42
     monkeypatch.setenv("DEV_TEAM_SUBAGENT_STUCK_SECONDS", "junk")
     assert subagent_liveness.default_threshold() == 600
+
+
+def test_open_tool_call_gets_extra_grace(tmp_path):
+    import json as _json
+    import os as _os
+
+    path = tmp_path / "agent-a1.jsonl"
+    path.write_text(_json.dumps({"message": {"content": [{"type": "tool_use", "id": "t"}]}}) + "\n")
+    _os.utime(path, (1000, 1000))
+    assert subagent_liveness.find_hung(tmp_path, None, 600, now=1000 + 1200) == []
+    assert subagent_liveness.find_hung(tmp_path, None, 600, now=1000 + 4000)

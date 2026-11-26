@@ -26,7 +26,12 @@ RULE_CASES = [
     ("rm x", REVIEWER, "reviewer-no-mutation", "deny"),
     ("git commit -m x", REVIEWER, "reviewer-no-git-mutation", "deny"),
     ("echo x > out.txt", REVIEWER, "reviewer-no-file-write", "deny"),
-    ("pytest tests/x.py", "dev-team:software-engineer", "engineer-test-and-lint", "allow"),
+    (
+        "pytest tests/x.py",
+        "dev-team:software-engineer",
+        "engineer-test-and-lint",
+        "allow",
+    ),
     ("ls -la", "", "allow-readonly-basic", "allow"),
     ("find . -name '*.py'", "", "allow-find-readonly", "allow"),
     ("sed -n 1,5p f", "", "allow-sed-readonly", "allow"),
@@ -91,7 +96,7 @@ def test_compound_command_is_judged_per_segment():
 
 def test_wrapped_command_is_judged_by_the_real_command():
     assert _decide("time nice -n 5 rm -rf x")["decision"] == "ask"
-    assert _decide("env A=1 git status")["decision"] == "allow"
+    assert _decide("env A=1 git status")["decision"] is None
     assert _decide("ls | xargs rm -rf")["decision"] == "ask"
 
 
@@ -106,7 +111,10 @@ def test_command_substitution_cannot_hide_a_destructive_command():
 
 def test_variable_as_command_asks():
     result = _decide("$CMD --flag")
-    assert (result["decision"], result["segments"][0]["rule"]) == ("ask", "opaque-command")
+    assert (result["decision"], result["segments"][0]["rule"]) == (
+        "ask",
+        "opaque-command",
+    )
 
 
 def test_unparseable_command_is_denied_with_a_rewrite_hint():
@@ -120,7 +128,9 @@ def test_git_global_flags_do_not_hide_the_subcommand():
 
 
 def test_safe_allowlist_pattern_is_not_destructive():
-    assert _decide("rm -rf node_modules")["segments"][0]["rule"] != "destructive-pattern"
+    assert (
+        _decide("rm -rf node_modules")["segments"][0]["rule"] != "destructive-pattern"
+    )
 
 
 def test_destructive_pattern_denies_only_in_careful_mode():
@@ -140,7 +150,12 @@ def test_role_rules_fire_only_for_the_named_agent():
 
 @pytest.mark.parametrize(
     "agent_type,expected",
-    [("dev-team:test-review", "test-review"), ("test-review", "test-review"), (None, ""), ("", "")],
+    [
+        ("dev-team:test-review", "test-review"),
+        ("test-review", "test-review"),
+        (None, ""),
+        ("", ""),
+    ],
 )
 def test_plugin_prefix_is_stripped_from_agent_type(agent_type, expected):
     assert reg.normalize_agent_type(agent_type) == expected
@@ -149,8 +164,18 @@ def test_plugin_prefix_is_stripped_from_agent_type(agent_type, expected):
 # --- hook contract -------------------------------------------------------------
 
 
-def _run_hook(tmp_path, command, *, enabled=True, mode=None, permission_mode="default", agent_type=None):
-    env = {k: v for k, v in os.environ.items() if not k.startswith("DEV_TEAM_REGULATOR")}
+def _run_hook(
+    tmp_path,
+    command,
+    *,
+    enabled=True,
+    mode=None,
+    permission_mode="default",
+    agent_type=None,
+):
+    env = {
+        k: v for k, v in os.environ.items() if not k.startswith("DEV_TEAM_REGULATOR")
+    }
     if enabled:
         env["DEV_TEAM_REGULATOR"] = "on"
     if mode:
@@ -192,7 +217,10 @@ def test_advisory_mode_logs_the_decision_and_changes_nothing(tmp_path):
     assert (result.returncode, result.stdout) == (0, "")
     [row] = _rows(tmp_path)
     assert (row["mode"], row["decision"], row["rules"], row["agent_type"]) == (
-        "advisory", "allow", ["allow-git-readonly"], "main",
+        "advisory",
+        "allow",
+        ["allow-git-readonly"],
+        "main",
     )
     assert "git status" not in json.dumps(row)
 
@@ -209,35 +237,66 @@ def test_enforce_mode_stays_silent_on_fall_through(tmp_path):
 
 
 def test_bypass_permissions_emits_only_deny(tmp_path):
-    assert _run_hook(tmp_path, "git status", mode="enforce", permission_mode="bypassPermissions").stdout == ""
+    assert (
+        _run_hook(
+            tmp_path, "git status", mode="enforce", permission_mode="bypassPermissions"
+        ).stdout
+        == ""
+    )
     out = json.loads(
-        _run_hook(tmp_path, "echo 'open", mode="enforce", permission_mode="bypassPermissions").stdout
+        _run_hook(
+            tmp_path, "echo 'open", mode="enforce", permission_mode="bypassPermissions"
+        ).stdout
     )
     assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
 def test_subagent_payload_agent_type_reaches_the_role_rule(tmp_path):
-    out = json.loads(_run_hook(tmp_path, "rm x", mode="enforce", agent_type="dev-team:security-review").stdout)
+    out = json.loads(
+        _run_hook(
+            tmp_path, "rm x", mode="enforce", agent_type="dev-team:security-review"
+        ).stdout
+    )
     assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
     assert _run_hook(tmp_path, "rm x", mode="enforce").stdout == ""
 
 
 def test_malformed_stdin_fails_open(tmp_path):
-    env = {**os.environ, "DEV_TEAM_REGULATOR": "on", "DEV_TEAM_REGULATOR_MODE": "enforce"}
+    env = {
+        **os.environ,
+        "DEV_TEAM_REGULATOR": "on",
+        "DEV_TEAM_REGULATOR_MODE": "enforce",
+    }
     result = subprocess.run(
         [sys.executable, str(_HOOKS / "bash_regulator.py")],
-        input="{not json", capture_output=True, text=True, env=env, check=False,
+        input="{not json",
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
     )
     assert (result.returncode, result.stdout) == (0, "")
 
 
 def test_explain_cli_prints_the_deciding_rule_per_segment():
     result = subprocess.run(
-        [sys.executable, str(_HOOKS / "bash_regulator.py"), "--explain", "ls && rm -rf x"],
-        capture_output=True, text=True, check=False,
+        [
+            sys.executable,
+            str(_HOOKS / "bash_regulator.py"),
+            "--explain",
+            "ls && rm -rf x",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    assert "allow-readonly-basic" in result.stdout and "destructive-pattern" in result.stdout
-    assert result.stdout.rstrip().endswith("(Destructive command (File destruction: rm -rf).)")
+    assert (
+        "allow-readonly-basic" in result.stdout
+        and "destructive-pattern" in result.stdout
+    )
+    assert result.stdout.rstrip().endswith(
+        "(Destructive command (File destruction: rm -rf).)"
+    )
 
 
 # --- payload shapes observed from a live session (Claude Code, permission_mode "auto") ---
@@ -263,12 +322,17 @@ OBSERVED_BARE_AGENT = {**OBSERVED_PLUGIN_AGENT, "agent_type": "general-purpose"}
 
 
 def _run_payload(tmp_path, payload):
-    env = {k: v for k, v in os.environ.items() if not k.startswith("DEV_TEAM_REGULATOR")}
+    env = {
+        k: v for k, v in os.environ.items() if not k.startswith("DEV_TEAM_REGULATOR")
+    }
     env.update(DEV_TEAM_REGULATOR="on", DEV_TEAM_REGULATOR_MODE="enforce")
     result = subprocess.run(
         [sys.executable, str(_HOOKS / "bash_regulator.py")],
         input=json.dumps({**payload, "cwd": str(tmp_path)}),
-        capture_output=True, text=True, env=env, check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
     )
     return json.loads(result.stdout)["hookSpecificOutput"] if result.stdout else None
 
@@ -293,3 +357,39 @@ def test_observed_plugin_agent_payload_matches_the_named_role_rule(tmp_path):
     assert _run_payload(tmp_path, payload)["permissionDecision"] == "allow"
     main = {**OBSERVED_MAIN, "tool_input": {"command": "pytest -q"}}
     assert _run_payload(tmp_path, main) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ls && env -S 'curl x'",
+        "GIT_SSH_COMMAND=x git fetch",
+        "git -c core.fsmonitor=x status",
+        "find . ${X:--delete}",
+        "echo -delete | xargs find .",
+        "gh api --method=DELETE /x",
+        "gh api -XDELETE /x",
+        "sed -ni 's/a/b/p' f",
+        "sed -n 'w out' f",
+        "./tools/cat x",
+        "git diff --output=f",
+        "git branch newbranch",
+        "git branch -fc a b",
+        "sort -o f f",
+        "git fetch origin +a:b",
+        "python3 scripts/../evil.py",
+        "ruff format .",
+        "pytest --fix",
+        "time -o f ls",
+        "git reflog expire --all",
+        "ls $X",
+    ],
+)
+def test_bypass_attempts_are_never_auto_allowed(command):
+    assert _decide(command)["decision"] != "allow", command
+
+
+def test_input_redirect_is_not_a_write():
+    assert _decide("cat < file")["decision"] == "allow"
+    assert _decide("cat file > out")["decision"] is None
+    assert _decide("bash -c 'ls' > out")["decision"] is None

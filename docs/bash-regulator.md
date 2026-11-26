@@ -21,7 +21,7 @@ Run advisory first, read the log, then switch to `enforce`.
 ## How it decides
 
 1. Split the command into segments on `;`, `&&`, `||`, `|`, `&`, and newlines. Lift out `$(...)`, backticks, and `( ... )` bodies. Skip heredoc bodies.
-2. Strip wrappers: `time`, `env`, `nice`, `nohup`, `command`, `exec`, `timeout`, `xargs`, and leading `VAR=value`. Recurse into `bash|sh|zsh -c`.
+2. Strip wrappers: `time`, `env`, `nice`, `nohup`, `command`, `exec`, `builtin`, `timeout`, `xargs`, shell reserved words, and leading `VAR=value`. Recurse into `bash|sh|zsh|dash -c`. Fail closed: a segment whose command word is unknown (`$X`, `env -S`) asks; one whose arguments or environment can change what runs (`VAR=x cmd`, `env`/`xargs`/`exec`, unknown wrapper flags, `$`/brace/glob-free expansions in arguments, a path-qualified command, `git -c ...`) is never auto-allowed.
 3. Per segment, take the first matching rule in `hooks/regulator_rules.json`. Destructive patterns are checked first.
 4. Merge: deny beats ask beats allow. A segment no rule matches falls through to normal permissions, so a call is allowed only when every segment is.
 

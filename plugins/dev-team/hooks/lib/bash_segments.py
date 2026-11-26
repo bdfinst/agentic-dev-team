@@ -5,15 +5,19 @@ Stdlib-only scanner (not `shlex.split`, which cannot see operators). It:
 * splits on `;` `&&` `||` `|` `|&` `&` and newlines outside quotes;
 * resolves single quotes, double quotes, and backslash escapes into words;
 * lifts `$(...)`, backtick, and `( ... )` subshell bodies out as their own
-  segments;
+  segments, and keeps `$((...))` arithmetic as opaque word text;
 * skips heredoc bodies (they are data, not commands);
-* records redirections apart from argv;
-* strips wrappers (`time`, `env`, `nice`, `nohup`, `command`, `exec`,
-  `builtin`, `timeout`, `xargs`) so the rule sees the real command;
-* recurses into `bash|sh|zsh -c '<script>'`;
-* flags a command word that is a variable expansion as opaque.
+* records redirections apart from argv, resolving quoted targets;
+* strips shell reserved words (`then`, `do`, `!`, `{`, ...) and wrappers
+  (`time`, `env`, `nice`, `nohup`, `command`, `exec`, `builtin`, `timeout`,
+  `xargs`) so a rule sees the real command;
+* recurses into `bash|sh|zsh|dash [-opts] -c '<script>'`;
+* fails closed: a segment whose real command or arguments cannot be known
+  statically carries `opaque_reason` (command word unknown) or
+  `untrusted_reason` (arguments or environment can change what runs), and a
+  rule must never auto-allow either.
 
-`parse(command)` raises `Unparseable` for an unbalanced quote, `$(`, or
+`parse(command)` raises `Unparseable` for an unbalanced quote, `$(`, `(`, or
 backtick, so the caller can fail closed with a rewrite hint.
 """
 
@@ -24,23 +28,72 @@ import re
 from dataclasses import dataclass, field
 
 _OPERATORS = ("&&", "||", "|&", ";", "|", "&")
-_REDIRECT_RE = re.compile(r"^(\d*|&)(>>?|<<?<?|>&|<&)$")
 _ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_SUBSTITUTION_PLACEHOLDER = "$(...)"
+_HEREDOC_DELIM_RE = re.compile(r"-?\s*(?:'([^']*)'|\"([^\"]*)\"|([^\s;&|<>()]+))")
+_DYNAMIC_WORD_RE = re.compile(r"\$|\{[^{}]*,[^{}]*\}|\{\d+\.\.\d+\}")
+_SHELL_CLUSTER_RE = re.compile(r"-[A-Za-z]+")
 _MAX_DEPTH = 8
 
-# Wrapper -> option flags that consume the next word.
-_WRAPPER_VALUE_FLAGS = {
-    "time": set(),
-    "nohup": set(),
-    "command": set(),
-    "exec": set(),
-    "builtin": set(),
-    "nice": {"-n"},
-    "env": {"-u", "-C", "-S"},
-    "timeout": {"-s", "-k"},
-    "xargs": {"-I", "-n", "-P", "-d", "-L", "-s", "-E", "-a"},
-}
+_RESERVED_WORDS = {"!", "{", "if", "then", "elif", "else", "while", "until", "do"}
 _SHELLS = {"bash", "sh", "zsh", "dash"}
+
+# wrapper -> (flags that consume the next word, flags that take no value).
+# A flag outside both sets makes the segment untrusted: the value it would
+# consume is unknown, so the command word cannot be told apart from it.
+_WRAPPERS = {
+    "time": ({"-o", "-f"}, {"-p", "-v", "-l", "-a"}),
+    "nohup": (set(), set()),
+    "command": (set(), {"-p"}),
+    "exec": ({"-a"}, {"-c", "-l"}),
+    "builtin": (set(), set()),
+    "nice": ({"-n"}, set()),
+    "env": (
+        {"-u", "-C", "-S", "-P", "--unset", "--chdir", "--split-string"},
+        {"-i", "-0", "-v", "--ignore-environment"},
+    ),
+    "timeout": (
+        {"-s", "-k", "--signal", "--kill-after"},
+        {"--foreground", "--preserve-status", "-v"},
+    ),
+    "xargs": (
+        {
+            "-I",
+            "-n",
+            "-P",
+            "-d",
+            "-L",
+            "-s",
+            "-E",
+            "-a",
+            "-J",
+            "-R",
+            "-S",
+            "--arg-file",
+            "--max-args",
+            "--max-procs",
+            "--delimiter",
+            "--max-lines",
+            "--max-chars",
+            "--eof",
+        },
+        {
+            "-0",
+            "-r",
+            "-t",
+            "-p",
+            "-x",
+            "--null",
+            "--no-run-if-empty",
+            "--verbose",
+            "--interactive",
+            "--exit",
+        },
+    ),
+}
+# These change what runs or add arguments the rules never see.
+_UNTRUSTED_WRAPPERS = {"env", "exec", "builtin", "xargs"}
+_SPLIT_STRING_FLAGS = ("-S", "--split-string")
 
 
 class Unparseable(ValueError):
@@ -51,7 +104,8 @@ class Unparseable(ValueError):
 class Segment:
     argv: list[str]
     redirects: list[str] = field(default_factory=list)
-    opaque: str = ""  # reason the command word cannot be known statically
+    opaque_reason: str = ""  # the command word cannot be known statically
+    untrusted_reason: str = ""  # arguments or environment can change what runs
 
     @property
     def cmd(self) -> str:
@@ -63,22 +117,130 @@ def parse(command: str, _depth: int = 0) -> list[Segment]:
     if _depth > _MAX_DEPTH:
         raise Unparseable("command nests too deeply")
     segments: list[Segment] = []
-    for words, redirects, nested in _scan(command, _depth):
+    for words, redirects, nested in _scan(command):
         for sub in nested:
             segments.extend(parse(sub, _depth + 1))
         segment = _unwrap(words, redirects)
         if segment is None:
             continue
-        if segment.cmd in _SHELLS and "-c" in segment.argv[1:]:
-            idx = segment.argv.index("-c")
-            if idx + 1 < len(segment.argv):
-                segments.extend(parse(segment.argv[idx + 1], _depth + 1))
-                continue
-        segments.append(segment)
+        script = _shell_script(segment.argv) if segment.cmd in _SHELLS else None
+        if script is None:
+            segments.append(segment)
+            continue
+        for inner in parse(script, _depth + 1):
+            # `bash -c 'ls' > out` writes the file: the wrapper's redirects
+            # and its untrusted environment apply to what it runs.
+            inner.redirects.extend(segment.redirects)
+            inner.untrusted_reason = inner.untrusted_reason or segment.untrusted_reason
+            segments.append(inner)
     return segments
 
 
-def _scan(command: str, depth: int):
+def _shell_script(argv: list[str]) -> str | None:
+    """The `-c` script of `bash [-opts] -c <script>`, or None.
+
+    `-c` counts only as an option before the first operand: after it, bash
+    treats `-c` as an argument to a script file.
+    """
+    i = 1
+    while i < len(argv):
+        word = argv[i]
+        if not word.startswith("-") or word == "-":
+            return None
+        if word in ("-o", "+o", "--rcfile", "--init-file"):
+            i += 2
+            continue
+        if _SHELL_CLUSTER_RE.fullmatch(word) and "c" in word:
+            return argv[i + 1] if i + 1 < len(argv) else None
+        i += 1
+    return None
+
+
+def _skip_blanks(command: str, i: int) -> int:
+    while i < len(command) and command[i] in " \t":
+        i += 1
+    return i
+
+
+def _heredoc_delimiter(command: str, i: int) -> tuple[str | None, int]:
+    """(delimiter, end index) of the word after `<<` at `i`; quoting stripped."""
+    match = _HEREDOC_DELIM_RE.match(command, i)
+    if not match:
+        return None, i
+    raw = match.group(1) or match.group(2) or match.group(3)
+    return re.sub(r"[\\'\"]", "", raw), match.end()
+
+
+def _lift_substitution(command: str, i: int, nested: list[str]) -> int | None:
+    """If a backtick or `$(` substitution starts at `i`, lift its body into
+    `nested` and return the index after it; otherwise None."""
+    if command[i] == "`":
+        end = command.find("`", i + 1)
+        if end < 0:
+            raise Unparseable("unbalanced backtick")
+        nested.append(command[i + 1 : end])
+        return end + 1
+    if command.startswith("$(", i) and not command.startswith("$((", i):
+        end = _matching_paren(command, i + 2)
+        nested.append(command[i + 2 : end])
+        return end + 1
+    return None
+
+
+def _read_word(command: str, i: int, nested: list[str]) -> tuple[int, str]:
+    """One shell word starting at `i` (quotes, escapes, substitutions resolved)."""
+    out: list[str] = []
+    n = len(command)
+    while i < n and command[i] not in " \t\n;&|<>()":
+        ch = command[i]
+        if ch == "\\" and i + 1 < n:
+            out.append(command[i + 1])
+            i += 2
+        elif ch == "'":
+            end = command.find("'", i + 1)
+            if end < 0:
+                raise Unparseable("unbalanced single quote")
+            out.append(command[i + 1 : end])
+            i = end + 1
+        elif ch == '"':
+            i, text = _double_quoted(command, i, nested)
+            out.append(text)
+        else:
+            lifted = _lift_substitution(command, i, nested)
+            if lifted is not None:
+                out.append(_SUBSTITUTION_PLACEHOLDER)
+                i = lifted
+            else:
+                out.append(ch)
+                i += 1
+    return i, "".join(out)
+
+
+def _read_redirect(command: str, i: int, fd_prefix: str, nested: list[str]):
+    """Parse the redirect operator at `i`.
+
+    Returns (new index, redirect text or None, heredoc delimiter or None).
+    A redirect text of None means the operator wrote or read no file
+    (`2>&1`, `>&-`).
+    """
+    n = len(command)
+    j = i
+    while j < n and (
+        command[j] in "<>&" or (command[j] == "|" and command[j - 1] == ">")
+    ):
+        j += 1
+    op = command[i:j]
+    if op == "<<":
+        delimiter, end = _heredoc_delimiter(command, j)
+        return end, "<<", delimiter
+    k = _skip_blanks(command, j)
+    end, target = _read_word(command, k, nested)
+    if op.endswith("&") and (target.isdigit() or target == "-"):
+        return end, None, None
+    return end, f"{fd_prefix}{op} {target}".strip(), None
+
+
+def _scan(command: str):
     """Yield (words, redirects, nested_command_strings) per raw segment."""
     words: list[str] = []
     redirects: list[str] = []
@@ -127,11 +289,9 @@ def _scan(command: str, depth: int):
         if ch == "\\":
             if i + 1 >= n:
                 raise Unparseable("trailing backslash")
-            if command[i + 1] == "\n":
-                i += 2
-                continue
-            word.append(command[i + 1])
-            has_word = True
+            if command[i + 1] != "\n":
+                word.append(command[i + 1])
+                has_word = True
             i += 2
             continue
         if ch == "'":
@@ -147,58 +307,35 @@ def _scan(command: str, depth: int):
             word.append(text)
             has_word = True
             continue
-        if ch == "`":
-            end = command.find("`", i + 1)
-            if end < 0:
-                raise Unparseable("unbalanced backtick")
-            nested.append(command[i + 1 : end])
-            word.append("$(...)")
+        if command.startswith("$((", i):
+            end = _matching_paren(command, i + 2)
+            word.append(command[i : end + 1])
             has_word = True
             i = end + 1
             continue
-        if ch == "$" and command.startswith("$(", i) and not command.startswith("$((", i):
-            end = _matching_paren(command, i + 2)
-            nested.append(command[i + 2 : end])
-            word.append("$(...)")
+        lifted = _lift_substitution(command, i, nested)
+        if lifted is not None:
+            word.append(_SUBSTITUTION_PLACEHOLDER)
             has_word = True
-            i = end + 1
+            i = lifted
             continue
         op = next((o for o in _OPERATORS if command.startswith(o, i)), None)
-        if op and not _is_redirect_amp(command, i, op):
+        if op and not (op == "&" and command.startswith("&>", i)):
             seg = end_segment()
             if seg:
                 yield seg
             i += len(op)
             continue
-        if ch in "<>" or (ch == "&" and command.startswith("&>", i)):
-            end_word_text = "".join(word) if has_word and "".join(word).isdigit() else None
-            if end_word_text is not None:
+        if ch in "<>" or command.startswith("&>", i):
+            fd_prefix = ""
+            if has_word and "".join(word).isdigit():
+                fd_prefix = "".join(word)
                 word, has_word = [], False
-            j = i
-            while j < n and command[j] in "<>&":
-                j += 1
-            token = (end_word_text or "") + command[i:j]
-            if command.startswith("<<", i) and not command.startswith("<<<", i):
-                k = j
-                while k < n and command[k] in " \t":
-                    k += 1
-                m = re.match(r"-?\s*(?:'([^']*)'|\"([^\"]*)\"|([^\s;&|<>()]+))", command[k:])
-                if m:
-                    pending_heredocs.append(m.group(1) or m.group(2) or m.group(3))
-                    k += m.end()
-                redirects.append("<<")
-                i = k
-                continue
-            k = j
-            while k < n and command[k] in " \t":
-                k += 1
-            m = re.match(r"[^\s;&|<>()]+", command[k:])
-            target = m.group(0) if m else ""
-            if token.endswith("&") and target.isdigit():
-                pass  # fd duplication such as 2>&1: no file written
-            else:
-                redirects.append(f"{token} {target}".strip())
-            i = k + (m.end() if m else 0)
+            i, redirect, delimiter = _read_redirect(command, i, fd_prefix, nested)
+            if redirect:
+                redirects.append(redirect)
+            if delimiter is not None:
+                pending_heredocs.append(delimiter)
             continue
         if ch == "(" and not has_word:
             end = _matching_paren(command, i + 1)
@@ -215,13 +352,6 @@ def _scan(command: str, depth: int):
         yield seg
 
 
-def _is_redirect_amp(command: str, i: int, op: str) -> bool:
-    """`&` that belongs to `>&`, `<&`, or `&>` rather than backgrounding."""
-    if op != "&":
-        return False
-    return (i > 0 and command[i - 1] in "<>") or command.startswith("&>", i)
-
-
 def _double_quoted(command: str, i: int, nested: list[str]) -> tuple[int, str]:
     out: list[str] = []
     i += 1
@@ -235,19 +365,10 @@ def _double_quoted(command: str, i: int, nested: list[str]) -> tuple[int, str]:
             out.append(nxt if nxt in '"\\$`' else "\\" + nxt)
             i += 2
             continue
-        if ch == "`":
-            end = command.find("`", i + 1)
-            if end < 0:
-                raise Unparseable("unbalanced backtick")
-            nested.append(command[i + 1 : end])
-            out.append("$(...)")
-            i = end + 1
-            continue
-        if ch == "$" and command.startswith("$(", i) and not command.startswith("$((", i):
-            end = _matching_paren(command, i + 2)
-            nested.append(command[i + 2 : end])
-            out.append("$(...)")
-            i = end + 1
+        lifted = _lift_substitution(command, i, nested)
+        if lifted is not None:
+            out.append(_SUBSTITUTION_PLACEHOLDER)
+            i = lifted
             continue
         out.append(ch)
         i += 1
@@ -255,7 +376,7 @@ def _double_quoted(command: str, i: int, nested: list[str]) -> tuple[int, str]:
 
 
 def _matching_paren(command: str, start: int) -> int:
-    """Index of the `)` closing a `$(` whose body begins at `start`."""
+    """Index of the `)` closing a `(` whose body begins at `start`."""
     depth, i, n = 1, start, len(command)
     while i < n:
         ch = command[i]
@@ -275,13 +396,11 @@ def _matching_paren(command: str, start: int) -> int:
             i += 1
             continue
         if command.startswith("<<", i) and not command.startswith("<<<", i):
-            m = re.match(r"<<-?\s*(?:'([^']*)'|\"([^\"]*)\"|([^\s;&|<>()]+))", command[i:])
-            if m:
-                delim = m.group(1) or m.group(2) or m.group(3)
-                newline = command.find("\n", i)
-                if newline >= 0:
-                    i = _skip_heredocs(command, newline + 1, [delim])
-                    continue
+            delimiter, end = _heredoc_delimiter(command, i + 2)
+            newline = command.find("\n", end)
+            if delimiter is not None and newline >= 0:
+                i = _skip_heredocs(command, newline + 1, [delimiter])
+                continue
         if ch == "(":
             depth += 1
         elif ch == ")":
@@ -304,27 +423,78 @@ def _skip_heredocs(command: str, i: int, delimiters: list[str]) -> int:
     return i
 
 
+def _strip_wrapper(argv: list[str]) -> tuple[list[str], str, str]:
+    """Strip one wrapper and its options from the front of `argv`.
+
+    Returns (rest, untrusted reason, opaque reason).
+    """
+    name = os.path.basename(argv[0])
+    value_flags, bool_flags = _WRAPPERS[name]
+    rest = argv[1:]
+    untrusted = (
+        f"{name} changes what runs or adds arguments"
+        if name in _UNTRUSTED_WRAPPERS
+        else ""
+    )
+    opaque = ""
+    while rest:
+        head = rest[0]
+        flag = head.split("=", 1)[0]
+        if (name == "timeout" and re.fullmatch(r"[\d.]+[smhd]?", head)) or (
+            name == "env" and _ASSIGNMENT_RE.match(head)
+        ):
+            rest.pop(0)
+        elif flag in value_flags:
+            if name == "time":
+                untrusted = untrusted or "time -o writes a file"
+            if flag in _SPLIT_STRING_FLAGS and name == "env":
+                opaque = "env -S runs a command string"
+            rest = rest[1:] if "=" in head else rest[2:]
+        elif name == "env" and head.startswith("-S"):
+            opaque = "env -S runs a command string"
+            rest.pop(0)
+        elif flag in bool_flags:
+            rest.pop(0)
+        elif head.startswith("-") and len(head) > 1:
+            untrusted = untrusted or f"{name} has an unrecognized option"
+            rest.pop(0)
+        else:
+            break
+    return rest, untrusted, opaque
+
+
 def _unwrap(words: list[str], redirects: list[str]) -> Segment | None:
     argv = list(words)
+    untrusted = ""
     while argv and _ASSIGNMENT_RE.match(argv[0]):
         argv.pop(0)
+        untrusted = "an environment assignment prefix can change what runs"
+    consumed_wrapper = False
     while argv:
+        if argv[0] in _RESERVED_WORDS:
+            argv.pop(0)
+            continue
         name = os.path.basename(argv[0])
-        if name not in _WRAPPER_VALUE_FLAGS:
+        if name not in _WRAPPERS:
             break
-        value_flags = _WRAPPER_VALUE_FLAGS[name]
-        argv.pop(0)
-        while argv:
-            head = argv[0]
-            if head in value_flags:
-                del argv[:2]
-            elif name == "timeout" and not head.startswith("-") and re.fullmatch(r"[\d.]+[smhd]?", head) or name == "env" and _ASSIGNMENT_RE.match(head) or head.startswith("-") and len(head) > 1:
-                argv.pop(0)
-            else:
-                break
+        if name == "command" and len(argv) > 1 and argv[1] in ("-v", "-V"):
+            break
+        consumed_wrapper = True
+        argv, wrapper_untrusted, opaque = _strip_wrapper(argv)
+        untrusted = untrusted or wrapper_untrusted
+        if opaque:
+            return Segment(list(words), redirects, opaque_reason=opaque)
     if not argv:
+        if consumed_wrapper:
+            return Segment(
+                list(words), redirects, opaque_reason="wrapper with no command"
+            )
         return Segment([], redirects) if redirects else None
-    segment = Segment(argv, redirects)
+    segment = Segment(argv, redirects, untrusted_reason=untrusted)
     if "$" in argv[0]:
-        segment.opaque = "the command word is a variable or substitution"
+        segment.opaque_reason = "the command word is a variable or substitution"
+    elif any(_DYNAMIC_WORD_RE.search(word) for word in argv[1:]):
+        segment.untrusted_reason = (
+            segment.untrusted_reason or "an argument uses an expansion"
+        )
     return segment
