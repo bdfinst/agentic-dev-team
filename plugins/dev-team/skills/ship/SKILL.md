@@ -137,7 +137,7 @@ fired. Report the signal so the decision is auditable, then act:
 | verdict | action |
 |---|---|
 | `shipped` | Report the merged PR / closed issues and stop. No phase re-runs. |
-| `monitor` | Report the PR and `gh pr checks <pr>`. If `BEHIND` main, rebase onto `main` and hand back to its checks; otherwise wait on the open gate — a re-check timer follows [`knowledge/long-run-waiting.md`](../../knowledge/long-run-waiting.md). Do **not** re-enter spec→plan→build. |
+| `monitor` | Report the PR and `gh pr checks <pr>`. If `BEHIND` main, rebase onto `main` and hand back to its checks; otherwise wait on the open gate — a re-check timer follows [`knowledge/long-run-waiting.md`](../../knowledge/long-run-waiting.md), which also covers hung-subagent detection (`scripts/subagent_liveness.py`). Do **not** re-enter spec→plan→build. |
 | `resume` | Continue from the earliest incomplete phase against the existing artifacts (`--skip-spec` when the epic exists; build onto the existing branch). Before writing any artifact that would duplicate one, `AskUserQuestion` to confirm resume-vs-restart. |
 | `partial-batch` | Some `--issues` members closed, others open, no own batch PR: halt, report which members closed and how, and `AskUserQuestion` whether to re-form the batch from the still-open members or halt. |
 | `batch-blocked` | A foreign open PR covers a member: halt the **whole batch** (no partial subset ships), post one comment on **every member issue** naming the in-flight PR — only if an equivalent `/ship` halt comment does not already exist (check first) — and take no further action this round. |

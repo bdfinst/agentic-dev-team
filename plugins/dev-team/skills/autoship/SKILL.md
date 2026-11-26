@@ -37,7 +37,11 @@ You have been invoked with the `/autoship` command.
    re-implement discovery, reclaim, shipping, or cost reading here.
 4. **No scheduling logic.** This skill runs once per invocation. Timer or
    recurring execution is the caller's responsibility.
-5. **Dry-run is preview only.** When `--dry-run` is given, run reclaim and
+5. **Watch for hung agents.** After each `/ship` returns and whenever a wait
+   wakes, run `scripts/subagent_liveness.py` per
+   [`long-run-waiting.md`](../../knowledge/long-run-waiting.md#detecting-a-hung-subagent);
+   exit 1 marks the issue blocked instead of waiting on it.
+6. **Dry-run is preview only.** When `--dry-run` is given, run reclaim and
    discovery in preview mode; never label, comment, invoke `/ship`, or write
    to the round log.
 

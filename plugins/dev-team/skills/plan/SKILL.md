@@ -97,8 +97,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py" <plan-file>
 
 Render the `## Parallelization` Mermaid DAG + wave table and the wave-grouped
 `## Build Progress` from its JSON (`waves`, per-slice `wave`). If it exits non-zero
-(cycle, missing `Depends-on`, or unknown reference) or reports a `collisions` entry,
-fix the plan and re-run before the human gate — those defeat safe concurrent build.
+(cycle, missing `Depends-on`, or unknown reference) or reports a `collisions` entry, fix the plan and re-run before the human gate — those defeat safe concurrent build.
+Then run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_lint.py" <plan-file>`. Exit 2 means a non-numeric step id, a step naming no files, a line citation into an earlier step's file, or a wrong stated step count; fix each named step first.
 
 **`scope_mismatches` (#865) is fix-or-acknowledge, not fix-before-gate.** For a slice
 declaring slice-level `**Files:**`, this JSON array compares it against the union of

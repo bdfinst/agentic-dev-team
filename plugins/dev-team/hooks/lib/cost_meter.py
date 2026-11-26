@@ -100,11 +100,13 @@ The transcript schema is read defensively (usage may sit on the record or under
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 # hooks/lib/cost_meter.py -> plugin root is three parents up.
@@ -210,11 +212,24 @@ def _load_state(state_file: Path) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
+_MAX_TRACKED_REQUESTS = 5000
+_MAX_OPEN_TOOL_CALLS = 2000
+
+
+def _newest(mapping: dict, limit: int) -> dict:
+    """The last `limit` entries by insertion order (oldest pruned first)."""
+    return dict(list(mapping.items())[-limit:]) if len(mapping) > limit else mapping
+
+
 def _save_state(state_file: Path, payload: dict) -> None:
+    """Write via a temp file and rename so a crash never leaves torn JSON."""
+    tmp = state_file.with_name(f"{state_file.name}.{os.getpid()}.tmp")
     try:
-        state_file.write_text(json.dumps(payload))
+        tmp.write_text(json.dumps(payload))
+        os.replace(tmp, state_file)
     except OSError:
-        pass
+        with contextlib.suppress(OSError):
+            tmp.unlink()
 
 
 def _first_present_field(rec: dict, *keys: str):
@@ -262,6 +277,56 @@ def _subagent_files(transcript_path: Path) -> list[Path]:
         return []
 
 
+def _epoch(ts) -> float | None:
+    if not isinstance(ts, str):
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def _new_timing() -> dict:
+    return {"agents": {}, "open": {}}
+
+
+def _fold_timing(rec: dict, timing: dict, agent_types: dict) -> None:
+    """Track per-agent wall-clock span and tool-held time.
+
+    Wall-clock is last minus first record timestamp per agent type. Tool-held
+    time sums each `tool_use` -> `tool_result` gap, so parallel tool calls can
+    push it past wall-clock. Open tool calls persist in `timing["open"]` so a
+    pair split across incremental folds still closes.
+    """
+    at = _epoch(rec.get("timestamp"))
+    if at is None:
+        return
+    agent = _agent_type_key(rec, agent_types)
+    stats = timing["agents"].setdefault(agent, {"first": at, "last": at, "tool_s": 0.0})
+    stats["first"], stats["last"] = min(stats["first"], at), max(stats["last"], at)
+    message = rec.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    for block in content if isinstance(content, list) else []:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "tool_use" and block.get("id"):
+            timing["open"][block["id"]] = [agent, at]
+        elif block.get("type") == "tool_result":
+            started = timing["open"].pop(block.get("tool_use_id"), None)
+            if started:
+                owner = timing["agents"].setdefault(
+                    started[0], {"first": started[1], "last": at, "tool_s": 0.0}
+                )
+                owner["tool_s"] += max(0.0, at - started[1])
+
+
+def _timing_summary(timing: dict) -> dict:
+    return {
+        agent: {"wall_s": round(s["last"] - s["first"], 3), "tool_s": round(s["tool_s"], 3)}
+        for agent, s in timing["agents"].items()
+    }
+
+
 def _accumulate_lines(
     lines,
     pricing: dict,
@@ -272,8 +337,17 @@ def _accumulate_lines(
     unpriced_models: set,
     dispatch_types: dict,
     agent_types: dict,
+    requests: dict | None = None,
+    timing: dict | None = None,
 ) -> None:
     """Fold `lines` (raw JSONL transcript records) into the given aggregates.
+
+    One API request spans several transcript lines that each repeat its
+    `usage` block, so usage is keyed by `requestId` (falling back to
+    `message.id`) and each repeat replaces, not adds to, the key's earlier
+    contribution. `requests` is that per-key map; persist it with the
+    running state so incremental folds stay equal to one full parse. Lines
+    with neither id are counted as-is.
 
     Mutates the bucket dicts, `totals`, `unpriced_models`, and the
     `dispatch_types`/`agent_types` join maps in place so callers can seed them
@@ -292,6 +366,8 @@ def _accumulate_lines(
         # Dispatch metadata can sit on records with no usage (tool_use /
         # tool_result turns), so harvest before the usage gate.
         _harvest_agent_dispatch(rec, dispatch_types, agent_types)
+        if timing is not None:
+            _fold_timing(rec, timing, agent_types)
         usage = _first_present_field(rec, "usage")
         if not isinstance(usage, dict):
             continue
@@ -302,7 +378,6 @@ def _accumulate_lines(
         agent_type = _agent_type_key(rec, agent_types)
 
         rate = _rate(pricing, model)
-        cost = _cost(usage, rate, pricing)
         # Excludes zero-token records from `unpriced_models` (#1830 fix
         # review), not just the literal "unknown" placeholder: the harness
         # writes assistant records with `model: "<synthetic>"` and every usage
@@ -318,21 +393,52 @@ def _accumulate_lines(
         if not rate and model != "unknown" and any(usage.get(f) for f in _TOKEN_FIELDS):
             unpriced_models.add(model)
 
-        for bucket, key in (
-            (by_model, model),
-            (by_thread, thread),
-            (by_agent_type, agent_type),
-        ):
-            b = bucket.setdefault(key, _new_bucket())
-            for f in _TOKEN_FIELDS:
-                b[f] += usage.get(f, 0) or 0
-            b["cost_usd"] = round(b["cost_usd"] + cost, 6)
-            b["messages"] += 1
+        message = rec.get("message")
+        request_key = _first_present_field(rec, "requestId") or (
+            message.get("id") if isinstance(message, dict) else None
+        )
+        entry = {
+            "usage": {f: usage.get(f, 0) or 0 for f in _TOKEN_FIELDS},
+            "model": model,
+            "thread": thread,
+            "agent_type": agent_type,
+        }
+        if requests is not None and request_key:
+            previous = requests.get(request_key)
+            if previous is not None:
+                _apply_entry(by_model, by_thread, by_agent_type, totals, previous, -1)
+                # A repeat only ever grows: keep the per-field maximum.
+                for f in _TOKEN_FIELDS:
+                    entry["usage"][f] = max(entry["usage"][f], previous["usage"].get(f, 0))
+            requests[request_key] = entry
+        entry["cost_usd"] = _cost(entry["usage"], rate, pricing)
+        _apply_entry(by_model, by_thread, by_agent_type, totals, entry, 1)
 
+
+def _apply_entry(
+    by_model: dict,
+    by_thread: dict,
+    by_agent_type: dict,
+    totals: dict,
+    entry: dict,
+    sign: int,
+) -> None:
+    """Add (`sign` 1) or retire (`sign` -1) one request's usage and cost.
+
+    `messages` moves by `sign` too, so a retired-then-re-added request
+    still counts once.
+    """
+    for bucket, key in (
+        (by_model, entry["model"]),
+        (by_thread, entry["thread"]),
+        (by_agent_type, entry["agent_type"]),
+        (None, None),
+    ):
+        b = totals if bucket is None else bucket.setdefault(key, _new_bucket())
         for f in _TOKEN_FIELDS:
-            totals[f] += usage.get(f, 0) or 0
-        totals["cost_usd"] = round(totals["cost_usd"] + cost, 6)
-        totals["messages"] += 1
+            b[f] += sign * entry["usage"][f]
+        b["cost_usd"] = round(b["cost_usd"] + sign * entry["cost_usd"], 6)
+        b["messages"] += sign
 
 
 def parse_transcript(path: Path, pricing: dict) -> dict:
@@ -357,6 +463,8 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
     unpriced_models: set[str] = set()
     dispatch_types: dict[str, str] = {}
     agent_types: dict[str, str] = {}
+    requests: dict[str, dict] = {}
+    timing = _new_timing()
 
     # Main transcript first so the dispatch join maps are populated before the
     # sibling subagent files (whose records fall back on them) are folded in.
@@ -378,6 +486,8 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
             unpriced_models,
             dispatch_types,
             agent_types,
+            requests,
+            timing,
         )
 
     return {
@@ -386,6 +496,7 @@ def parse_transcript(path: Path, pricing: dict) -> dict:
         "by_agent_type": by_agent_type,
         "totals": totals,
         "unpriced_models": sorted(unpriced_models),
+        "timing": _timing_summary(timing),
     }
 
 
@@ -401,12 +512,22 @@ def _print_dimension(title: str, bucket: dict) -> None:
         )
 
 
+def _print_timing(timing: dict) -> None:
+    if not timing:
+        return
+    print(f"\n{'TIME (agent type)':<28} {'WALL s':>10} {'TOOL s':>10}")
+    print("-" * 60)
+    for key, t in sorted(timing.items(), key=lambda kv: -kv[1]["wall_s"]):
+        print(f"{key:<28} {t['wall_s']:>10.1f} {t['tool_s']:>10.1f}")
+
+
 def _print_report(summary: dict) -> None:
     t = summary["totals"]
     print(f"# Cost meter — {t['messages']} assistant message(s)")
     _print_dimension("MODEL", summary["by_model"])
     _print_dimension("THREAD (main/subagent)", summary["by_thread"])
     _print_dimension("AGENT TYPE", summary.get("by_agent_type", {}))
+    _print_timing(summary.get("timing", {}))
     print("-" * 60)
     print(
         f"{'TOTAL':<28} {t['input_tokens']:>10} {t['output_tokens']:>10} "
@@ -445,6 +566,8 @@ def _record_state_is_usable(
         return False
     if "by_agent_type" not in state:
         return False  # pre-#1094 state schema — rebuild from byte 0
+    if "requests" not in state or "timing" not in state:
+        return False  # pre-dedupe / pre-timing state schema — rebuild from byte 0
     subagent_offsets = state.get("subagent_offsets")
     if subagent_offsets is not None and not isinstance(subagent_offsets, dict):
         return False
@@ -496,6 +619,8 @@ def cmd_record(args, pricing) -> int:
         unpriced_models = set(state.get("unpriced_models") or [])
         dispatch_types = state.get("dispatch_types") or {}
         agent_types = state.get("agent_types") or {}
+        requests = state.get("requests") or {}
+        timing = state.get("timing") or _new_timing()
     else:
         # First fire, a pre-#1094 state schema, or a transcript that shrank
         # (rotated/truncated) since the last fire — start fresh rather than
@@ -505,6 +630,8 @@ def cmd_record(args, pricing) -> int:
         by_model, by_thread, by_agent_type = {}, {}, {}
         totals, unpriced_models = _new_bucket(), set()
         dispatch_types, agent_types = {}, {}
+        requests = {}
+        timing = _new_timing()
 
     def _fold(lines) -> None:
         _accumulate_lines(
@@ -517,6 +644,8 @@ def cmd_record(args, pricing) -> int:
             unpriced_models,
             dispatch_types,
             agent_types,
+            requests,
+            timing,
         )
 
     # Main transcript first so dispatch joins land before subagent turns that
@@ -543,6 +672,8 @@ def cmd_record(args, pricing) -> int:
             "unpriced_models": sorted(unpriced_models),
             "dispatch_types": dispatch_types,
             "agent_types": agent_types,
+            "requests": _newest(requests, _MAX_TRACKED_REQUESTS),
+            "timing": {**timing, "open": _newest(timing["open"], _MAX_OPEN_TOOL_CALLS)},
         },
     )
 
@@ -554,7 +685,7 @@ def cmd_record(args, pricing) -> int:
         "unpriced_models": sorted(unpriced_models),
     }
 
-    from datetime import datetime, timezone
+    from datetime import timezone
 
     def _slim(bucket: dict) -> dict:
         # Persist cost + every token field per bucket (#1513), deriving the
@@ -575,6 +706,7 @@ def cmd_record(args, pricing) -> int:
         "by_model": _slim(summary["by_model"]),
         "by_thread": _slim(summary["by_thread"]),
         "by_agent_type": _slim(summary["by_agent_type"]),
+        "timing_by_agent_type": _timing_summary(timing),
         # Always present, even when empty (#1830). This field was computed and
         # warned about in `report`, and persisted to the incremental state file,
         # but omitted from the durable line — which is the ONLY thing every

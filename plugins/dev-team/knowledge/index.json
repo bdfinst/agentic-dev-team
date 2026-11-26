@@ -941,6 +941,10 @@
     "Re-arming loops": {
       "summary": "A check-in that is supposed to repeat must carry its own continuation: the",
       "anchor": "re-arming-loops"
+    },
+    "Detecting a hung subagent": {
+      "summary": "A subagent can stop making progress without erroring.",
+      "anchor": "detecting-a-hung-subagent"
     }
   },
   "plugins/dev-team/knowledge/microservice-testing.md": {
@@ -3345,6 +3349,10 @@
     "Attribution dimensions (#102, #170, #1094)": {
       "summary": "`report` breaks spend down by **model**, by **thread** (main-loop vs",
       "anchor": "attribution-dimensions-102-170-1094"
+    },
+    "Per-request counting and timing": {
+      "summary": "One API request spans several transcript lines that repeat its usage, so the",
+      "anchor": "per-request-counting-and-timing"
     },
     "Review value (#348)": {
       "summary": "`/build` records, per inline review checkpoint, whether review actually changed",

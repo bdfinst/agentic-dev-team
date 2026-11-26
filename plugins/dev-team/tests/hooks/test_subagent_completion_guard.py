@@ -214,3 +214,23 @@ def test_main_is_silent_pass_on_missing_transcript_path_key() -> None:
     assert result.returncode == 0
     assert result.stdout == b""
     assert result.stderr == b""
+
+
+def test_main_records_agent_id_on_the_stop_row(tmp_path):
+    transcript = _write_transcript(
+        tmp_path, [_assistant_row([{"type": "text", "text": "Done."}], "end_turn")]
+    )
+    payload = {
+        "transcript_path": str(transcript),
+        "session_id": "sess-1",
+        "cwd": str(tmp_path),
+        "agent_id": "a1b2c3",
+    }
+    assert _run_hook(json.dumps(payload).encode()).returncode == 0
+
+    rows = [
+        json.loads(line)
+        for log in tmp_path.rglob("subagent-stops.jsonl")
+        for line in log.read_text().splitlines()
+    ]
+    assert [r["agent_id"] for r in rows] == ["a1b2c3"]

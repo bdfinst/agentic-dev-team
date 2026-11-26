@@ -114,6 +114,10 @@
           },
           {
             "type": "command",
+            "command": "sh hooks/py.sh hooks/bash_regulator.py"
+          },
+          {
+            "type": "command",
             "command": "sh hooks/py.sh hooks/refactor_test_bash_guard.py"
           },
           {
