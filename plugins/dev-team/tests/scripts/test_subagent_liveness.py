@@ -110,7 +110,40 @@ def test_open_tool_call_gets_extra_grace(tmp_path):
     import os as _os
 
     path = tmp_path / "agent-a1.jsonl"
-    path.write_text(_json.dumps({"message": {"content": [{"type": "tool_use", "id": "t"}]}}) + "\n")
+    path.write_text(
+        _json.dumps({"message": {"content": [{"type": "tool_use", "id": "t"}]}}) + "\n"
+    )
     _os.utime(path, (1000, 1000))
     assert subagent_liveness.find_hung(tmp_path, None, 600, now=1000 + 1200) == []
     assert subagent_liveness.find_hung(tmp_path, None, 600, now=1000 + 4000)
+
+
+def test_slow_call_is_not_hidden_by_a_later_sibling_result(tmp_path):
+    rows = [
+        {
+            "message": {
+                "content": [
+                    {"type": "tool_use", "id": "slow"},
+                    {"type": "tool_use", "id": "fast"},
+                ]
+            }
+        },
+        {"message": {"content": [{"type": "tool_result", "tool_use_id": "fast"}]}},
+        {"type": "progress"},
+    ]
+    path = tmp_path / "agent-a1.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    os.utime(path, (1000, 1000))
+    assert subagent_liveness.find_hung(tmp_path, None, 600, now=1000 + 1200) == []
+
+
+def test_a_stop_row_for_another_agent_does_not_mask_a_stale_one(tmp_path):
+    path = tmp_path / "agent-x.jsonl"
+    path.write_text("{}\n")
+    os.utime(path, (1000, 1000))
+    stops = tmp_path / "stops.jsonl"
+    stops.write_text(json.dumps({"agent_id": "other"}) + "\n")
+    assert [
+        h["agent_id"]
+        for h in subagent_liveness.find_hung(tmp_path, stops, 600, now=5000)
+    ] == ["x"]

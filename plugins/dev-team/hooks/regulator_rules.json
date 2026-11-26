@@ -1,5 +1,5 @@
 {
-  "_doc": "Ordered rules, first match wins per segment. Fields: id, decision (allow|ask|deny), cmd (name or list), sub (git/gh subcommand), args_any (any argv word equals one), args_none (no argv word equals one), regex (on the joined argv), check (named Python predicate in bash_regulator.CHECKS), applies_to (agent_type globs; omit for every caller), subagents_only (true = never the main session), reason. Allow rules never match a segment that redirects to a file other than /dev/null.",
+  "_doc": "Ordered rules, first match wins per segment. Fields: id, decision (allow|ask|deny), cmd (name or list), sub (git/gh subcommand), args_any (any argv word equals one), args_none (no argv word equals one), regex (on the joined argv), check (named Python predicate in bash_regulator.CHECKS), applies_to (agent_type globs; omit for every caller), subagents_only (true = never the main session), reason. Allow rules never match a segment that redirects to a file other than /dev/null. opts_re (every argv word starting with - must fully match it: an option allowlist). Allow rules never match an untrusted segment (env/xargs/exec wrappers, assignment prefixes, path-qualified commands, expansions, git global options).",
   "rules": [
     {
       "id": "deny-git-push-subagent",
@@ -107,7 +107,6 @@
         "which",
         "type",
         "stat",
-        "file",
         "basename",
         "dirname",
         "realpath",
@@ -128,9 +127,6 @@
         "du",
         "df",
         "sleep",
-        "cd",
-        "pushd",
-        "popd",
         "wait"
       ],
       "reason": "Read-only utility."
@@ -144,11 +140,11 @@
         "-exec",
         "-execdir",
         "-ok",
+        "-okdir",
         "-fprint",
-        "-fls",
-        "-fprintf",
         "-fprint0",
-        "-okdir"
+        "-fprintf",
+        "-fls"
       ],
       "reason": "find without an action that changes files."
     },
@@ -156,8 +152,8 @@
       "id": "allow-sed-readonly",
       "decision": "allow",
       "cmd": "sed",
-      "check": "sed_has_no_inplace",
-      "reason": "sed without -i, -f, or a w/e script command."
+      "check": "sed_is_safe",
+      "reason": "sed print/delete/quit address or one safe substitution."
     },
     {
       "id": "allow-git-readonly",
@@ -178,53 +174,48 @@
         "cat-file",
         "merge-base",
         "name-rev",
-        "grep",
-        "fetch",
         "check-ignore",
         "for-each-ref"
       ],
-      "args_none": [
-        "--set-upstream",
-        "add",
-        "set-url",
-        "remove",
-        "rm",
-        "rename",
-        "prune",
-        "--unset"
-      ],
-      "reason": "git read or fetch.",
-      "check": "git_args_are_read_only"
+      "opts_re": "--?(?:n\\d*|\\d+|oneline|stat|numstat|shortstat|summary|name-only|name-status|short|long|porcelain(?:=v?\\d)?|graph|decorate|all|branches|tags|no-merges|merges|abbrev-commit|abbrev(?:=\\d+)?|abbrev-ref|symbolic-full-name|format=[\\w%.:,<>@ -]+|pretty=[\\w%.:,<>@ -]+|cached|staged|check|first-parent|reverse|since=\\S+|until=\\S+|author=\\S+|max-count=\\d+|diff-filter=[A-Za-z]+|show-toplevel|is-inside-work-tree|git-dir|verify|follow|full-name|exclude-standard|others|deleted|modified|stdin|[sbvqzlpuw]{1,4}|name|no-color|color|no-pager|stat=\\d+|unified=\\d+|U\\d+|M|C|find-renames|find-copies|no-patch|patch|oneline|date=\\w+|relative-date|count|line-number|files-with-matches|word-regexp|fixed-strings|ignore-case|-)",
+      "reason": "git read."
     },
     {
       "id": "allow-git-branch-list",
       "decision": "allow",
       "cmd": "git",
       "sub": "branch",
-      "reason": "git branch listing.",
-      "check": "git_branch_only_lists"
+      "check": "git_branch_only_lists",
+      "reason": "git branch listing."
     },
     {
       "id": "allow-gh-readonly",
       "decision": "allow",
       "cmd": "gh",
-      "regex": "^gh (pr|issue|run|release|repo|workflow) (view|list|status|checks|diff)\\b|^gh api (?!.*(-x|--method) )",
-      "reason": "gh read.",
-      "check": "gh_has_no_write_flag"
+      "regex": "^gh (pr|issue|run|release|repo|workflow) (view|list|status|checks|diff)( |$)",
+      "opts_re": "--(?:json|jq|limit|state|label|author|assignee|repo|branch|base|head|search|comments|name-only|patch|stat|log|log-failed|job|workflow|status|event|user|color|interval|exit-status|required|web)|-[LRsSlAaBHqt]",
+      "args_none": [
+        "--web",
+        "-w"
+      ],
+      "reason": "gh read."
     },
     {
       "id": "allow-test-runners",
       "decision": "allow",
-      "regex": "^(python3?|uv run python3?) -m (pytest|ruff|mypy)\\b|^(npm|pnpm|yarn) (test|run (test|lint|build|typecheck))\\b|^(npx )?(vitest|jest|eslint|oxlint|tsc)\\b|^shellcheck\\b",
-      "reason": "Test, lint, typecheck.",
-      "args_none": [
-        "--fix",
-        "--write",
-        "-u",
-        "--update-snapshot",
-        "format",
-        "--fix-dry-run"
-      ]
+      "regex": "^(python3?|uv run python3?) -m (pytest|ruff check)( |$)|^(npm|pnpm|yarn) (test|run (test|lint|typecheck))$",
+      "opts_re": "--?(?:q|qq|v|vv|x|s|k|m|lf|ff|co|collect-only|no-header|disable-warnings|rA|ra|rf|rs|rx|rfE|tb=\\w+|maxfail=\\d+|durations=\\d+|no-cov|p)|--(?:select|ignore|statistics|show-fixes|no-cache|quiet|isolated|output-format=\\w+|exit-zero)|-q",
+      "reason": "Test, lint, typecheck."
+    },
+    {
+      "id": "allow-tsc-no-emit",
+      "decision": "allow",
+      "cmd": "tsc",
+      "args_any": [
+        "--noEmit"
+      ],
+      "opts_re": "--(?:noEmit|pretty|project|skipLibCheck)|-p",
+      "reason": "Typecheck without emitting files."
     },
     {
       "id": "allow-repo-scripts",

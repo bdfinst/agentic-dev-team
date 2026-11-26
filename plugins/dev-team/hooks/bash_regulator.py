@@ -55,15 +55,31 @@ from stdin_json import read_stdin_json
 _RULES_FILE = _SCRIPT_DIR / "regulator_rules.json"
 _SEVERITY = {"allow": 0, "ask": 1, "deny": 2}
 _PLUGIN_PREFIX = re.compile(r"^[\w-]+:")
-# Only flags that cannot change what git runs are stripped; any other option
-# before the subcommand (`-c`, `--exec-path`, `--git-dir`, ...) disqualifies allow.
-_GIT_GLOBAL_VALUE_FLAGS = {"-C"}
+# Only flags that cannot change what git runs or where it runs are stripped;
+# any other option before the subcommand (`-c`, `-C`, `--git-dir`, ...) makes
+# the segment untrusted for allow rules.
 _GIT_GLOBAL_FLAGS = {"--no-pager", "--paginate", "-P", "--no-optional-locks"}
-_GH_WRITE_FLAG = re.compile(r"^(-[Xx]|--method|-[fF]|--field|--raw-field|--input)")
-_GIT_RISKY_ARG = re.compile(
-    r"^(--output|--upload-pack|--receive-pack|--exec|-O|--ext-diff|--textconv|--open-files-in-pager|\+|:)|^-[A-Za-z]*O"
+# Global options whose next word is a value, skipped when finding the subcommand.
+_GIT_VALUE_OPTIONS = {
+    "-c",
+    "-C",
+    "--git-dir",
+    "--work-tree",
+    "--namespace",
+    "--exec-path",
+    "--super-prefix",
+    "--config-env",
+}
+# `sed` is auto-allowed only for a print/delete/quit address or one s///
+# substitution whose flags cannot write or execute, with only these options.
+_SED_SAFE_OPTIONS = re.compile(
+    r"-[nEr]+|--(quiet|silent|regexp-extended|null-data|posix|sandbox)"
 )
-_SED_UNSAFE_SCRIPT = re.compile(r"(^|[;{}\n])\s*[weWE]\b|s(.).*\1.*\1[a-z0-9]*[we]")
+_SED_ADDRESS = r"(?:\d+|\$|/[^/\n]*/)"
+_SED_SAFE_SCRIPT = re.compile(
+    rf"(?:{_SED_ADDRESS})?(?:,{_SED_ADDRESS})?!?[pdq=]|"
+    r"s(.)(?:(?!\1)[^\n])*\1(?:(?!\1)[^\n])*\1[gpIiM0-9]*"
+)
 _GIT_BRANCH_LIST_FLAGS = {
     "-a",
     "-r",
@@ -80,6 +96,7 @@ _GIT_BRANCH_LIST_FLAGS = {
     "--remotes",
     "--verbose",
 }
+_GIT_BRANCH_OPERAND_FLAGS = {"--merged", "--no-merged", "--contains", "--no-contains"}
 _REWRITE_HINT = (
     "Command could not be parsed safely ({why}). Rewrite it as plain commands "
     "joined with && or run one command per call."
@@ -97,16 +114,8 @@ def normalize_agent_type(agent_type) -> str:
 
 def _strip_git_globals(argv: list[str]) -> list[str]:
     out, i = [argv[0]], 1
-    while i < len(argv):
-        word = argv[i]
-        if word in _GIT_GLOBAL_VALUE_FLAGS:
-            i += 2
-        elif word in _GIT_GLOBAL_FLAGS or word.startswith(
-            ("--git-dir=", "--work-tree=")
-        ):
-            i += 1
-        else:
-            break
+    while i < len(argv) and argv[i] in _GIT_GLOBAL_FLAGS:
+        i += 1
     return out + argv[i:]
 
 
@@ -116,8 +125,13 @@ def _normalized_argv(segment: bash_segments.Segment) -> list[str]:
 
 
 def _subcommand(argv: list[str]) -> str:
+    skip = False
     for word in argv[1:]:
-        if not word.startswith("-"):
+        if skip:
+            skip = False
+        elif argv[0] == "git" and word in _GIT_VALUE_OPTIONS:
+            skip = True
+        elif not word.startswith("-"):
             return word
     return ""
 
@@ -129,46 +143,38 @@ def _writes_file(segment, argv) -> bool:
     """An output redirect to anything but /dev/null (input redirects read)."""
     for redirect in segment.redirects:
         operator = redirect.split(" ", 1)[0]
-        if ">" in operator and not redirect.endswith("/dev/null"):
+        target = redirect.split(" ", 1)[1] if " " in redirect else ""
+        if ">" in operator and target != "/dev/null":
             return True
     return False
 
 
-def _sed_has_no_inplace(segment, argv) -> bool:
-    """No in-place edit (any short cluster holding `i`) and no w/e script command."""
-    for word in argv[1:]:
-        if word.startswith("--"):
-            if word.startswith(("--in-place", "--file")) or word == "--follow-symlinks":
-                return False
-        elif word.startswith("-") and len(word) > 1:
-            if "i" in word[1:] or "f" in word[1:]:
-                return False
-        elif _SED_UNSAFE_SCRIPT.search(word):
+def _sed_is_safe_print_or_substitute(segment, argv) -> bool:
+    """Only safe options, then one script that cannot write or execute."""
+    words = argv[1:]
+    while words and words[0].startswith("-"):
+        if not _SED_SAFE_OPTIONS.fullmatch(words[0]):
             return False
-    return True
-
-
-def _gh_has_no_write_flag(segment, argv) -> bool:
-    return not any(_GH_WRITE_FLAG.match(w) for w in argv[1:])
-
-
-def _git_args_are_read_only(segment, argv) -> bool:
-    return not any(_GIT_RISKY_ARG.match(w) for w in argv[2:])
+        words = words[1:]
+    return bool(words) and _SED_SAFE_SCRIPT.fullmatch(words[0]) is not None
 
 
 def _git_branch_only_lists(segment, argv) -> bool:
-    args = argv[2:]
-    lists = any(w in ("--list", "-l") for w in args)
-    return all(
-        w in _GIT_BRANCH_LIST_FLAGS or (not w.startswith("-") and lists) for w in args
-    )
+    args, i, lists = argv[2:], 0, any(w in ("--list", "-l") for w in argv[2:])
+    while i < len(args):
+        word = args[i]
+        if word in _GIT_BRANCH_OPERAND_FLAGS:
+            i += 2
+            continue
+        if word not in _GIT_BRANCH_LIST_FLAGS and (word.startswith("-") or not lists):
+            return False
+        i += 1
+    return True
 
 
 CHECKS = {
     "writes_file": _writes_file,
-    "sed_has_no_inplace": _sed_has_no_inplace,
-    "gh_has_no_write_flag": _gh_has_no_write_flag,
-    "git_args_are_read_only": _git_args_are_read_only,
+    "sed_is_safe": _sed_is_safe_print_or_substitute,
     "git_branch_only_lists": _git_branch_only_lists,
 }
 
@@ -196,6 +202,15 @@ def _applies(rule: dict, agent_type: str) -> bool:
     )
 
 
+def _options_match(pattern: str, argv: list[str]) -> bool:
+    """Every option word (one starting with `-`) fully matches `pattern`.
+
+    An allowlist of options: an abbreviation, a new flag, or an unknown spelling
+    fails, so a write or exec option cannot slip past a denylist.
+    """
+    return all(re.fullmatch(pattern, w) for w in argv[1:] if w.startswith("-"))
+
+
 def _matches(rule: dict, segment, argv: list[str]) -> bool:
     if "cmd" in rule and argv[0] not in _as_list(rule["cmd"]):
         return False
@@ -205,6 +220,8 @@ def _matches(rule: dict, segment, argv: list[str]) -> bool:
         return False
     if "args_none" in rule and set(argv[1:]) & set(rule["args_none"]):
         return False
+    if "opts_re" in rule and not _options_match(rule["opts_re"], argv):
+        return False
     if "regex" in rule and not re.search(rule["regex"], " ".join(argv)):
         return False
     if "check" in rule and not CHECKS[rule["check"]](segment, argv):
@@ -212,8 +229,25 @@ def _matches(rule: dict, segment, argv: list[str]) -> bool:
     return not (rule["decision"] == "allow" and _writes_file(segment, argv))
 
 
+def _without_git_globals(argv: list[str]) -> list[str]:
+    """`git` plus its subcommand and arguments, global options (and values) dropped."""
+    if argv[0] != "git":
+        return argv
+    skip, i = False, 1
+    while i < len(argv):
+        word = argv[i]
+        if skip:
+            skip = False
+        elif word in _GIT_VALUE_OPTIONS:
+            skip = True
+        elif not word.startswith("-"):
+            break
+        i += 1
+    return [argv[0], *argv[i:]]
+
+
 def _destructive_rule(argv: list[str], careful: bool) -> dict | None:
-    text = " ".join(argv).lower()
+    text = " ".join(_without_git_globals(argv)).lower()
     file_p, db_p, git_p, proc_p, perm_p, safe_p = _guard._load_patterns()
     if _guard._matches_any(text, safe_p) is not None:
         return None
@@ -237,10 +271,24 @@ def _destructive_rule(argv: list[str], careful: bool) -> dict | None:
     }
 
 
+def _redirect_only_rule(segment, rules, agent_type: str) -> dict | None:
+    """A subshell or bare redirect: only non-allow rules (e.g. read-only roles) apply."""
+    if not _writes_file(segment, [""]):
+        return None
+    for rule in rules:
+        if (
+            rule["decision"] != "allow"
+            and _applies(rule, agent_type)
+            and _matches(rule, segment, [""])
+        ):
+            return rule
+    return None
+
+
 def evaluate_segment(segment, rules, agent_type: str, careful: bool) -> dict | None:
     """The deciding rule for one segment, or None to fall through."""
     if not segment.argv:
-        return None
+        return _redirect_only_rule(segment, rules, agent_type)
     if segment.opaque_reason:
         return {
             "id": "opaque-command",
@@ -252,14 +300,18 @@ def evaluate_segment(segment, rules, agent_type: str, careful: bool) -> dict | N
     if segment.cmd == "git" and len(argv) > 1 and argv[1].startswith("-"):
         untrusted = True
     destructive = _destructive_rule(argv, careful)
-    if destructive:
-        return destructive
+    matched = None
     for rule in rules:
         if rule["decision"] == "allow" and untrusted:
             continue
         if _applies(rule, agent_type) and _matches(rule, segment, argv):
-            return rule
-    return None
+            matched = rule
+            break
+    # A role deny outranks the generic destructive ask; the destructive rule
+    # still wins when it also denies (careful mode) or no rule matched.
+    if matched and matched["decision"] == "deny":
+        return matched
+    return destructive or matched
 
 
 def decide(

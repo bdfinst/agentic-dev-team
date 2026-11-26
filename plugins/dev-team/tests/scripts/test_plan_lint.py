@@ -66,7 +66,9 @@ def test_line_citation_of_a_file_no_earlier_step_writes_is_allowed(tmp_path):
 
 
 def test_line_citation_in_the_step_that_writes_the_file_is_allowed(tmp_path):
-    text = CLEAN.replace("#### Step 1.1: write a\n", "#### Step 1.1: write a\n\nSee `src/a.py:3`.\n")
+    text = CLEAN.replace(
+        "#### Step 1.1: write a\n", "#### Step 1.1: write a\n\nSee `src/a.py:3`.\n"
+    )
     assert _faults(tmp_path, text) == []
 
 
@@ -116,6 +118,22 @@ def test_main_exits_2_on_a_missing_file(tmp_path):
 
 def test_fenced_step_heading_is_not_a_step(tmp_path):
     plan = tmp_path / "plan.md"
-    plan.write_text("# P\n\n#### Step 1: Real\n\nFiles: `a.py`\n\n```\n#### Step 2: Example\n```\n")
+    plan.write_text(
+        "# P\n\n#### Step 1: Real\n\nFiles: `a.py`\n\n```\n#### Step 2: Example\n```\n"
+    )
     steps, _ = plan_lint._split_steps(plan.read_text().splitlines())
+    assert [s["id"] for s in steps] == ["1"]
+
+
+def test_four_backtick_fence_is_not_closed_by_an_inner_fence():
+    lines = [
+        "#### Step 1: Real",
+        "Files: `a.py`",
+        "````",
+        "```python",
+        "#### Step 2: Fake",
+        "```",
+        "````",
+    ]
+    steps, _ = plan_lint._split_steps(lines)
     assert [s["id"] for s in steps] == ["1"]

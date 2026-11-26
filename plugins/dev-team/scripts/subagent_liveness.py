@@ -48,28 +48,43 @@ def _stopped_ids(stops: Path | None) -> set[str]:
     return ids
 
 
-_IN_FLIGHT_GRACE = 6  # a call awaiting a tool result may legitimately idle this many thresholds
+_IN_FLIGHT_GRACE = (
+    6  # a call awaiting a tool result may legitimately idle this many thresholds
+)
+
+
+_TAIL_RECORDS = 200
 
 
 def _awaiting_tool_result(path: Path) -> bool:
-    """True when the transcript's last record is a `tool_use` with no result yet."""
+    """True when a recent `tool_use` has no matching `tool_result` yet.
+
+    Compares ids over the transcript tail, so a fast sibling's result written
+    after a slow call's `tool_use` does not hide the slow call.
+    """
     try:
-        lines = path.read_text(errors="replace").splitlines()
+        lines = path.read_text(errors="replace").splitlines()[-_TAIL_RECORDS:]
     except OSError:
         return False
-    for line in reversed(lines):
+    used: set[str] = set()
+    answered: set[str] = set()
+    for line in lines:
         try:
             row = json.loads(line)
         except json.JSONDecodeError:
             continue
         message = row.get("message") if isinstance(row, dict) else None
         content = message.get("content") if isinstance(message, dict) else None
-        if not isinstance(content, list):
-            return False
-        return any(isinstance(b, dict) and b.get("type") == "tool_use" for b in content) and not any(
-            isinstance(b, dict) and b.get("type") == "tool_result" for b in content
-        )
-    return False
+        for block in content if isinstance(content, list) else []:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use" and isinstance(block.get("id"), str):
+                used.add(block["id"])
+            elif block.get("type") == "tool_result" and isinstance(
+                block.get("tool_use_id"), str
+            ):
+                answered.add(block["tool_use_id"])
+    return bool(used - answered)
 
 
 def find_hung(
@@ -85,23 +100,45 @@ def find_hung(
         if agent_id in stopped:
             continue
         idle = now - path.stat().st_mtime
-        limit = threshold * (_IN_FLIGHT_GRACE if idle > threshold and _awaiting_tool_result(path) else 1)
+        limit = threshold * (
+            _IN_FLIGHT_GRACE if idle > threshold and _awaiting_tool_result(path) else 1
+        )
         if idle > limit:
-            hung.append({"agent_id": agent_id, "idle_seconds": round(idle), "transcript": str(path)})
+            hung.append(
+                {
+                    "agent_id": agent_id,
+                    "idle_seconds": round(idle),
+                    "transcript": str(path),
+                }
+            )
     return hung
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="subagent_liveness.py", description=__doc__.splitlines()[0])
-    parser.add_argument("--dir", required=True, help="the session's subagents/ directory")
+    parser = argparse.ArgumentParser(
+        prog="subagent_liveness.py", description=__doc__.splitlines()[0]
+    )
+    parser.add_argument(
+        "--dir", required=True, help="the session's subagents/ directory"
+    )
     parser.add_argument("--stops", help="subagent-stops.jsonl path")
     parser.add_argument("--threshold-seconds", type=int, default=None)
     args = parser.parse_args(argv)
-    threshold = args.threshold_seconds if args.threshold_seconds is not None else default_threshold()
-    hung = find_hung(Path(args.dir), Path(args.stops) if args.stops else None, threshold)
+    threshold = (
+        args.threshold_seconds
+        if args.threshold_seconds is not None
+        else default_threshold()
+    )
+    hung = find_hung(
+        Path(args.dir), Path(args.stops) if args.stops else None, threshold
+    )
     print(
         json.dumps(
-            {"schema": "subagent-liveness/v1", "threshold_seconds": threshold, "hung": hung},
+            {
+                "schema": "subagent-liveness/v1",
+                "threshold_seconds": threshold,
+                "hung": hung,
+            },
             indent=2,
         )
     )

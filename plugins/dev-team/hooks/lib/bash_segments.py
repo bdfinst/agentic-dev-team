@@ -34,6 +34,9 @@ _HEREDOC_DELIM_RE = re.compile(r"-?\s*(?:'([^']*)'|\"([^\"]*)\"|([^\s;&|<>()]+))
 _DYNAMIC_WORD_RE = re.compile(r"\$|\{[^{}]*,[^{}]*\}|\{\d+\.\.\d+\}")
 _SHELL_CLUSTER_RE = re.compile(r"-[A-Za-z]+")
 _MAX_DEPTH = 8
+# `$` and `{` that quoting or escaping makes literal are swapped for private
+# characters while scanning, so the expansion check sees only live ones.
+_LITERAL_DOLLAR, _LITERAL_BRACE = "\ue001", "\ue002"
 
 _RESERVED_WORDS = {"!", "{", "if", "then", "elif", "else", "while", "until", "do"}
 _SHELLS = {"bash", "sh", "zsh", "dash"}
@@ -131,7 +134,11 @@ def parse(command: str, _depth: int = 0) -> list[Segment]:
             # `bash -c 'ls' > out` writes the file: the wrapper's redirects
             # and its untrusted environment apply to what it runs.
             inner.redirects.extend(segment.redirects)
-            inner.untrusted_reason = inner.untrusted_reason or segment.untrusted_reason
+            inner.untrusted_reason = (
+                inner.untrusted_reason
+                or segment.untrusted_reason
+                or ("a path-qualified shell runs" if "/" in segment.argv[0] else "")
+            )
             segments.append(inner)
     return segments
 
@@ -156,19 +163,32 @@ def _shell_script(argv: list[str]) -> str | None:
     return None
 
 
+def _literal(text: str) -> str:
+    return text.replace("$", _LITERAL_DOLLAR).replace("{", _LITERAL_BRACE)
+
+
+def _restore(text: str) -> str:
+    return text.replace(_LITERAL_DOLLAR, "$").replace(_LITERAL_BRACE, "{")
+
+
 def _skip_blanks(command: str, i: int) -> int:
     while i < len(command) and command[i] in " \t":
         i += 1
     return i
 
 
-def _heredoc_delimiter(command: str, i: int) -> tuple[str | None, int]:
-    """(delimiter, end index) of the word after `<<` at `i`; quoting stripped."""
-    match = _HEREDOC_DELIM_RE.match(command, i)
-    if not match:
-        return None, i
-    raw = match.group(1) or match.group(2) or match.group(3)
-    return re.sub(r"[\\'\"]", "", raw), match.end()
+def _heredoc_delimiter(command: str, i: int) -> tuple[str, bool, int]:
+    """(delimiter, strip leading tabs, end index) of the word after `<<` at `i`.
+
+    Quoted and unquoted parts join into one word, as bash does.
+    """
+    strip_tabs = command.startswith("-", i)
+    start = _skip_blanks(command, i + 1 if strip_tabs else i)
+    end, word = _read_word(command, start, [])
+    delimiter = _restore(word)
+    if not delimiter:
+        raise Unparseable("empty heredoc delimiter")
+    return delimiter, strip_tabs, end
 
 
 def _lift_substitution(command: str, i: int, nested: list[str]) -> int | None:
@@ -187,6 +207,14 @@ def _lift_substitution(command: str, i: int, nested: list[str]) -> int | None:
     return None
 
 
+def _lift_embedded(body: str, nested: list[str]) -> None:
+    """Lift every `$(...)`/backtick substitution inside arithmetic text."""
+    i = 0
+    while i < len(body):
+        lifted = _lift_substitution(body, i, nested)
+        i = lifted if lifted is not None else i + 1
+
+
 def _read_word(command: str, i: int, nested: list[str]) -> tuple[int, str]:
     """One shell word starting at `i` (quotes, escapes, substitutions resolved)."""
     out: list[str] = []
@@ -194,13 +222,13 @@ def _read_word(command: str, i: int, nested: list[str]) -> tuple[int, str]:
     while i < n and command[i] not in " \t\n;&|<>()":
         ch = command[i]
         if ch == "\\" and i + 1 < n:
-            out.append(command[i + 1])
+            out.append(_literal(command[i + 1]))
             i += 2
         elif ch == "'":
             end = command.find("'", i + 1)
             if end < 0:
                 raise Unparseable("unbalanced single quote")
-            out.append(command[i + 1 : end])
+            out.append(_literal(command[i + 1 : end]))
             i = end + 1
         elif ch == '"':
             i, text = _double_quoted(command, i, nested)
@@ -231,8 +259,8 @@ def _read_redirect(command: str, i: int, fd_prefix: str, nested: list[str]):
         j += 1
     op = command[i:j]
     if op == "<<":
-        delimiter, end = _heredoc_delimiter(command, j)
-        return end, "<<", delimiter
+        delimiter, strip_tabs, end = _heredoc_delimiter(command, j)
+        return end, "<<", (delimiter, strip_tabs)
     k = _skip_blanks(command, j)
     end, target = _read_word(command, k, nested)
     if op.endswith("&") and (target.isdigit() or target == "-"):
@@ -247,7 +275,7 @@ def _scan(command: str):
     nested: list[str] = []
     word: list[str] = []
     has_word = False
-    pending_heredocs: list[str] = []
+    pending_heredocs: list[tuple[str, bool]] = []
     i, n = 0, len(command)
 
     def end_word():
@@ -290,7 +318,7 @@ def _scan(command: str):
             if i + 1 >= n:
                 raise Unparseable("trailing backslash")
             if command[i + 1] != "\n":
-                word.append(command[i + 1])
+                word.append(_literal(command[i + 1]))
                 has_word = True
             i += 2
             continue
@@ -298,7 +326,7 @@ def _scan(command: str):
             end = command.find("'", i + 1)
             if end < 0:
                 raise Unparseable("unbalanced single quote")
-            word.append(command[i + 1 : end])
+            word.append(_literal(command[i + 1 : end]))
             has_word = True
             i = end + 1
             continue
@@ -308,7 +336,8 @@ def _scan(command: str):
             has_word = True
             continue
         if command.startswith("$((", i):
-            end = _matching_paren(command, i + 2)
+            end = _matching_paren(command, i + 2, arith=True)
+            _lift_embedded(command[i + 3 : end], nested)
             word.append(command[i : end + 1])
             has_word = True
             i = end + 1
@@ -338,6 +367,8 @@ def _scan(command: str):
                 pending_heredocs.append(delimiter)
             continue
         if ch == "(" and not has_word:
+            if command.startswith("((", i):
+                raise Unparseable("arithmetic command ((...))")
             end = _matching_paren(command, i + 1)
             nested.append(command[i + 1 : end])
             i = end + 1
@@ -362,7 +393,7 @@ def _double_quoted(command: str, i: int, nested: list[str]) -> tuple[int, str]:
             return i + 1, "".join(out)
         if ch == "\\" and i + 1 < n:
             nxt = command[i + 1]
-            out.append(nxt if nxt in '"\\$`' else "\\" + nxt)
+            out.append(_literal(nxt) if nxt in '"\\$`' else "\\" + nxt)
             i += 2
             continue
         lifted = _lift_substitution(command, i, nested)
@@ -370,12 +401,12 @@ def _double_quoted(command: str, i: int, nested: list[str]) -> tuple[int, str]:
             out.append(_SUBSTITUTION_PLACEHOLDER)
             i = lifted
             continue
-        out.append(ch)
+        out.append(_literal(ch) if ch == "{" else ch)
         i += 1
     raise Unparseable("unbalanced double quote")
 
 
-def _matching_paren(command: str, start: int) -> int:
+def _matching_paren(command: str, start: int, arith: bool = False) -> int:
     """Index of the `)` closing a `(` whose body begins at `start`."""
     depth, i, n = 1, start, len(command)
     while i < n:
@@ -395,11 +426,20 @@ def _matching_paren(command: str, start: int) -> int:
                 i += 2 if command[i] == "\\" else 1
             i += 1
             continue
-        if command.startswith("<<", i) and not command.startswith("<<<", i):
-            delimiter, end = _heredoc_delimiter(command, i + 2)
+        if command.startswith("$((", i):
+            i = _matching_paren(command, i + 2, arith=True) + 1
+            continue
+        if command.startswith("((", i):
+            raise Unparseable("arithmetic command ((...))")
+        if (
+            not arith
+            and command.startswith("<<", i)
+            and not command.startswith("<<<", i)
+        ):
+            delimiter, strip_tabs, end = _heredoc_delimiter(command, i + 2)
             newline = command.find("\n", end)
-            if delimiter is not None and newline >= 0:
-                i = _skip_heredocs(command, newline + 1, [delimiter])
+            if newline >= 0:
+                i = _skip_heredocs(command, newline + 1, [(delimiter, strip_tabs)])
                 continue
         if ch == "(":
             depth += 1
@@ -411,14 +451,18 @@ def _matching_paren(command: str, start: int) -> int:
     raise Unparseable("unbalanced $(")
 
 
-def _skip_heredocs(command: str, i: int, delimiters: list[str]) -> int:
-    """Index just past the bodies of `delimiters`, starting at line start `i`."""
-    for delim in delimiters:
+def _skip_heredocs(command: str, i: int, delimiters: list[tuple[str, bool]]) -> int:
+    """Index just past the bodies of `delimiters`, starting at line start `i`.
+
+    A body ends on a line equal to its delimiter (leading tabs ignored for
+    `<<-` only), as bash does.
+    """
+    for delim, strip_tabs in delimiters:
         while i < len(command):
             end = command.find("\n", i)
             line = command[i : end if end >= 0 else len(command)]
             i = end + 1 if end >= 0 else len(command)
-            if line.strip() == delim:
+            if (line.lstrip("\t") if strip_tabs else line) == delim:
                 break
     return i
 
@@ -436,6 +480,8 @@ def _strip_wrapper(argv: list[str]) -> tuple[list[str], str, str]:
         if name in _UNTRUSTED_WRAPPERS
         else ""
     )
+    if "/" in argv[0]:
+        untrusted = untrusted or f"{argv[0]} is a path-qualified wrapper"
     opaque = ""
     while rest:
         head = rest[0]
@@ -497,4 +543,6 @@ def _unwrap(words: list[str], redirects: list[str]) -> Segment | None:
         segment.untrusted_reason = (
             segment.untrusted_reason or "an argument uses an expansion"
         )
+    segment.argv = [_restore(word) for word in argv]
+    segment.redirects = [_restore(r) for r in redirects]
     return segment

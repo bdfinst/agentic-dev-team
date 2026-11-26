@@ -31,8 +31,11 @@ import plan_parse
 
 _STEP_HEADING_RE = re.compile(r"^#{4,}\s+[Ss]tep\s+([^:\s][^:]*?)\s*:")
 _ANY_HEADING_RE = re.compile(r"^#{1,4}\s")
+_FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})(.*)$")
 _STEP_ID_RE = re.compile(r"^\d+(\.\d+)*$")
-_STATED_COUNT_RE = re.compile(r"^\**(?:steps|step count)\**\s*:\s*\**\s*(\d+)\b", re.IGNORECASE)
+_STATED_COUNT_RE = re.compile(
+    r"^\**(?:steps|step count)\**\s*:\s*\**\s*(\d+)\b", re.IGNORECASE
+)
 _SLICES_HEADING_RE = re.compile(r"^##\s+Slices\b")
 _CITATION_RE = re.compile(r"([\w./-]+\.\w+)(?::|#L)(\d+)(?:-\d+)?")
 _TOKEN_SPLIT_RE = re.compile(r"[,\s]+")
@@ -48,11 +51,19 @@ def _split_steps(lines: list[str]) -> tuple[list[dict], int | None]:
     stated: int | None = None
     in_preamble = True
     current: dict | None = None
-    fence: str | None = None
+    fence: tuple[str, int] | None = None
     for line in lines:
-        marker = line.lstrip()[:3]
-        if marker in ("```", "~~~"):
-            fence = None if fence == marker else (fence or marker)
+        opener = _FENCE_RE.match(line)
+        if opener:
+            char, run, info = (
+                opener.group(1)[0],
+                len(opener.group(1)),
+                opener.group(2).strip(),
+            )
+            if fence is None:
+                fence = (char, run)
+            elif char == fence[0] and run >= fence[1] and not info:
+                fence = None
             if current is not None:
                 current["body"].append(line)
             continue
@@ -93,12 +104,23 @@ def lint_plan(path: Path) -> list[dict]:
     for step in steps:
         sid = step["id"]
         if not _STEP_ID_RE.match(sid):
-            faults.append(_fault(sid, "step-id", f"step id {sid!r} is not plain dotted numbers (for example 1.2)."))
+            faults.append(
+                _fault(
+                    sid,
+                    "step-id",
+                    f"step id {sid!r} is not plain dotted numbers (for example 1.2).",
+                )
+            )
         if not step["files"]:
-            faults.append(_fault(sid, "no-files", "step names no files; add a **Files**: line."))
+            faults.append(
+                _fault(sid, "no-files", "step names no files; add a **Files**: line.")
+            )
         for match in _CITATION_RE.finditer("\n".join(step["body"])):
             cited = match.group(1)
-            if any(cited == w or w.endswith("/" + cited) or cited.endswith("/" + w) for w in written):
+            if any(
+                cited == w or w.endswith("/" + cited) or cited.endswith("/" + w)
+                for w in written
+            ):
                 faults.append(
                     _fault(
                         sid,
@@ -110,7 +132,11 @@ def lint_plan(path: Path) -> list[dict]:
         written.update(step["files"])
     if stated is not None and stated != len(steps):
         faults.append(
-            _fault("-", "step-count", f"plan states {stated} steps but has {len(steps)} step headings.")
+            _fault(
+                "-",
+                "step-count",
+                f"plan states {stated} steps but has {len(steps)} step headings.",
+            )
         )
     return faults
 
@@ -126,7 +152,11 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"plan-lint: no such plan file: {path}\n")
         return 2
     faults = lint_plan(path)
-    print(json.dumps({"schema": "plan-lint/v1", "faults": faults}, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {"schema": "plan-lint/v1", "faults": faults}, indent=2, sort_keys=True
+        )
+    )
     for f in faults:
         label = f"step {f['step']}" if f["step"] != "-" else "plan"
         sys.stderr.write(f"plan-lint: {label}: [{f['check']}] {f['message']}\n")

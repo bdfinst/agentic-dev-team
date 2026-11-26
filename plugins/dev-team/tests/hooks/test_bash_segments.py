@@ -164,7 +164,11 @@ def test_plain_commands_are_not_flagged(command):
 
 
 def test_reserved_words_are_stripped():
-    assert bs.parse("if true; then rm -rf x; fi")[-1].argv[0] != "then"
+    assert [s.argv for s in bs.parse("if true; then rm -rf x; fi")] == [
+        ["true"],
+        ["rm", "-rf", "x"],
+        ["fi"],
+    ]
     assert [s.argv[0] for s in bs.parse("! rm x")] == ["rm"]
 
 
