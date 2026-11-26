@@ -219,7 +219,7 @@
       "args_any": [
         "--no-fix"
       ],
-      "opts_re": "--(?:select|ignore|statistics|show-fixes|no-cache|quiet|isolated|output-format=\\w+|exit-zero|no-fix)|-q|-m",
+      "opts_re": "--(?:(?:select|ignore)(?:=[\\w,]+)?|statistics|show-fixes|no-cache|quiet|isolated|output-format=\\w+|exit-zero|no-fix)|-q|-m",
       "words_none_re": "^@|^-c",
       "not_applies_to": [
         "*-review",
@@ -234,8 +234,12 @@
       "args_any": [
         "--noEmit"
       ],
-      "opts_re": "--(?:noEmit|pretty|project|skipLibCheck)|-p",
-      "reason": "Typecheck without emitting files.",
+      "opts_re": "--(?:noEmit|pretty|project(?:=[\\w./-]+)?|skipLibCheck)|-p",
+      "reason": "Typecheck without emitting files (incremental builds still write; not for review agents).",
+      "not_applies_to": [
+        "*-review",
+        "plan-review-*"
+      ],
       "args_none": [
         "false",
         "true"

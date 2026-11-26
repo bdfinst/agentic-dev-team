@@ -193,6 +193,16 @@ def _heredoc_delimiter(command: str, i: int) -> tuple[str, bool, bool, int]:
     return delimiter, strip_tabs, quoted, end
 
 
+def _arithmetic_end(command: str, i: int) -> int | None:
+    """Index of the last `)` when the `$((` at `i` is arithmetic, else None.
+
+    Bash reads it as arithmetic only when both parentheses close together;
+    `$((cmd) )` is a command substitution that holds a subshell.
+    """
+    end = _matching_paren(command, i + 2, arith=True)
+    return end if _matching_paren(command, i + 3, arith=True) == end - 1 else None
+
+
 def _lift_substitution(command: str, i: int, nested: list[str]) -> int | None:
     """If a backtick or `$(` substitution starts at `i`, lift its body into
     `nested` and return the index after it; otherwise None."""
@@ -202,7 +212,9 @@ def _lift_substitution(command: str, i: int, nested: list[str]) -> int | None:
             raise Unparseable("unbalanced backtick")
         nested.append(command[i + 1 : end])
         return end + 1
-    if command.startswith("$(", i) and not command.startswith("$((", i):
+    if command.startswith("$(", i) and not (
+        command.startswith("$((", i) and _arithmetic_end(command, i) is not None
+    ):
         end = _matching_paren(command, i + 2)
         nested.append(command[i + 2 : end])
         return end + 1
@@ -346,8 +358,7 @@ def _scan(command: str):
             word.append(text)
             has_word = True
             continue
-        if command.startswith("$((", i):
-            end = _matching_paren(command, i + 2, arith=True)
+        if command.startswith("$((", i) and (end := _arithmetic_end(command, i)):
             _lift_embedded(command[i + 3 : end], nested)
             word.append(command[i : end + 1])
             has_word = True
@@ -437,8 +448,11 @@ def _matching_paren(command: str, start: int, arith: bool = False) -> int:
                 i += 2 if command[i] == "\\" else 1
             i += 1
             continue
-        if command.startswith("$((", i):
-            i = _matching_paren(command, i + 2, arith=True) + 1
+        # Inside arithmetic, counting depth is enough, and recursing there
+        # would rescan each nesting level repeatedly.
+        if not arith and command.startswith("$((", i):
+            end = _arithmetic_end(command, i)
+            i = (_matching_paren(command, i + 2) if end is None else end) + 1
             continue
         if not arith and command.startswith("((", i):
             raise Unparseable("arithmetic command ((...))")

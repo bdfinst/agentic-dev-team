@@ -188,20 +188,27 @@ _TAG_WRITE_FLAGS = {
     "--sign",
     "--force",
 }
-_TAG_VALUE_FLAGS = {
+# A filter flag implies list mode, so a following name is a pattern.
+_TAG_FILTER_FLAGS = {
     "--contains",
     "--no-contains",
     "--points-at",
     "--merged",
     "--no-merged",
 }
+_TAG_VALUE_FLAGS = _TAG_FILTER_FLAGS | {"--sort", "--format"}
 
 
 def _git_tag_changes_repo(rest: list[str]) -> bool:
     """`git tag` lists unless it carries a write flag or a name to create."""
     if any(w in _TAG_WRITE_FLAGS for w in rest):
         return True
-    listing = any(w in ("-l", "--list") or w.startswith("-n") for w in rest)
+    listing = any(
+        w in ("-l", "--list")
+        or w.startswith("-n")
+        or w.split("=", 1)[0] in _TAG_FILTER_FLAGS
+        for w in rest
+    )
     skip, positional = False, False
     for w in rest:
         if skip:
@@ -341,7 +348,7 @@ def _is_neutral_redirect(segment) -> bool:
 
 
 def _redirect_only_rule(segment, rules, agent_type: str) -> dict | None:
-    """A subshell or bare redirect: only non-allow rules (e.g. read-only roles) apply."""
+    """A redirect with no known command: only non-allow rules (read-only roles) apply."""
     if not _writes_file(segment, [""]):
         return None
     for rule in rules:
@@ -359,7 +366,8 @@ def evaluate_segment(segment, rules, agent_type: str, careful: bool) -> dict | N
     if not segment.argv:
         return _redirect_only_rule(segment, rules, agent_type)
     if segment.opaque_reason:
-        return {
+        # A role deny on the redirect holds whatever the command turns out to be.
+        return _redirect_only_rule(segment, rules, agent_type) or {
             "id": "opaque-command",
             "decision": "ask",
             "reason": segment.opaque_reason,

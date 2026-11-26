@@ -225,7 +225,8 @@ def test_shell_c_option_forms():
 def test_deep_nesting_is_rejected_and_eight_levels_parse():
     with pytest.raises(bs.Unparseable, match="nests too deeply"):
         bs.parse("$(" * 12 + "ls" + ")" * 12)
-    assert bs.parse("echo " + "$(echo " * 7 + "ls" + ")" * 7)
+    segments = bs.parse("echo " + "$(echo " * 8 + "ls" + ")" * 8)
+    assert len(segments) == 9 and segments[0].argv == ["echo", "ls"]
     with pytest.raises(bs.Unparseable, match="nests too deeply"):
         bs.parse("echo " + "$(echo " * 9 + "ls" + ")" * 9)
 
@@ -236,3 +237,15 @@ def test_bash_script_after_an_operand_is_not_a_c_script():
 
 def test_escaped_backtick_in_unquoted_heredoc_is_text():
     assert [s.argv for s in bs.parse("cat <<EOF\nRun \\`make\\` now\nEOF")] == [["cat"]]
+
+
+@pytest.mark.parametrize(
+    "command", ["echo $((1+2))", "echo $(((1+2)*3))", "echo $(( (1) + (2) ))"]
+)
+def test_arithmetic_expansion_stays_one_segment(command):
+    assert [s.argv[0] for s in bs.parse(command)] == ["echo"]
+
+
+def test_deeply_nested_arithmetic_parses_without_rescanning_blowup():
+    command = "echo $(" + "$((" * 40 + "1" + "))" * 40 + ")"
+    assert bs.parse(command)

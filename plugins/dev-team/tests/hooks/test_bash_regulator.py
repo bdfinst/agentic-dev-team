@@ -585,20 +585,15 @@ def test_unlisted_options_fall_through(command):
     assert _decide(command)["decision"] is None, command
 
 
-def test_reviewer_git_read_only_forms_are_not_denied():
-    for command in ("git stash list", "git stash show -p", "git tag -l", "git tag"):
-        assert _decide(command, "security-review")["decision"] != "deny", command
-    for command in ("git stash", "git stash pop", "git tag v1", "git commit -m x"):
-        assert _decide(command, "security-review")["decision"] == "deny", command
-
-
 def test_engineer_test_and_lint_rule_is_deliberately_unrestricted():
     assert _decide("ruff format .", "software-engineer")["decision"] == "allow"
     assert _decide("ruff format .")["decision"] is None
 
 
-def test_opaque_command_asks_before_a_role_deny():
+def test_role_deny_on_a_redirect_outranks_the_opaque_ask():
+    assert _decide("$CMD > out", "security-review")["decision"] == "deny"
     assert _decide("$CMD", "security-review")["decision"] == "ask"
+    assert _decide("$CMD > out")["decision"] == "ask"
 
 
 @pytest.mark.parametrize(
@@ -628,41 +623,77 @@ def test_round_four_findings_name_their_decision(command, decision):
     assert _decide(command)["decision"] == decision, command
 
 
-def test_review_agents_never_auto_allow_repo_code_runners():
-    for command in (
+REVIEW_AGENTS = ["security-review", "plan-review-design"]
+
+
+@pytest.mark.parametrize("agent", REVIEW_AGENTS)
+@pytest.mark.parametrize(
+    "command",
+    [
         "python3 -m pytest -q",
         "python3 scripts/impact_tests.py build",
         "ruff check --no-fix .",
-    ):
-        assert _decide(command, "security-review")["decision"] != "allow", command
-        assert _decide(command, "software-engineer")["decision"] == "allow", command
+        "tsc --noEmit",
+    ],
+)
+def test_review_agents_never_auto_allow_repo_code_runners(command, agent):
+    assert _decide(command, agent)["decision"] is None
+    assert _decide(command, "software-engineer")["decision"] == "allow"
+
+
+@pytest.mark.parametrize("agent", REVIEW_AGENTS)
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git tag",
+        "git tag -l",
+        "git tag -l 'v*'",
+        "git tag -n5",
+        "git tag -n5 v1",
+        "git tag --contains HEAD",
+        "git tag --contains abc123 'v1.*'",
+        "git tag --merged=main 'v1.*'",
+        "git tag --sort=-creatordate",
+        "git tag --sort version:refname",
+        "git tag --format '%(refname)'",
+        "git stash list",
+        "git stash show -p",
+    ],
+)
+def test_reviewer_tag_and_stash_listings_are_not_denied(command, agent):
+    assert _decide(command, agent)["decision"] is None
+
+
+@pytest.mark.parametrize("agent", REVIEW_AGENTS)
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git tag v1",
+        "git tag -d v1",
+        "git tag -a v1 -m x",
+        "git tag -d -n v1",
+        "git tag -l -d v1",
+        "git tag --sort refname v1",
+        "git tag --format x v1",
+        "git stash",
+        "git stash pop",
+        "git commit -m x",
+    ],
+)
+def test_reviewer_repo_changes_are_denied(command, agent):
+    assert _decide(command, agent)["decision"] == "deny"
 
 
 @pytest.mark.parametrize(
     "command, decision",
     [
-        ("git tag -l", None),
-        ("git tag -n5", None),
-        ("git tag --contains HEAD", None),
-        ("git tag --sort=-creatordate", None),
-        ("git stash list", None),
-        ("git tag", None),
+        ("rm -rf x; git push origin x", "deny"),
+        ("git push origin x; rm -rf x", "deny"),
+        ("rm -rf x; ls", "ask"),
     ],
 )
-def test_reviewer_tag_and_stash_listings_are_not_denied(command, decision):
-    assert _decide(command, "security-review")["decision"] != "deny", command
-
-
-def test_reviewer_tag_creation_is_denied():
-    for command in ("git tag v1", "git tag -d v1", "git tag -a v1 -m x"):
-        assert _decide(command, "security-review")["decision"] == "deny", command
-
-
-def test_deny_in_one_segment_beats_ask_in_another():
-    assert (
-        _decide("rm -rf x; git push origin x", "software-engineer")["decision"]
-        == "deny"
-    )
+def test_most_severe_segment_wins_in_either_order(command, decision):
+    assert _decide(command, "software-engineer")["decision"] == decision
 
 
 @pytest.mark.parametrize(
@@ -678,6 +709,13 @@ def test_deny_in_one_segment_beats_ask_in_another():
         "PYTHONPATH",
         "NODE_OPTIONS",
         "XDG_CONFIG_HOME",
+        "ENV",
+        "SHELLOPTS",
+        "BASHOPTS",
+        "PS4",
+        "PROMPT_COMMAND",
+        "CDPATH",
+        "SHELL",
     ],
 )
 def test_every_dangerous_bare_assignment_blocks_the_next_allow(assignment):
@@ -688,4 +726,50 @@ def test_ask_is_not_emitted_under_bypass_permissions(tmp_path):
     out = _run_hook(
         tmp_path, "rm -rf x", mode="enforce", permission_mode="bypassPermissions"
     )
-    assert out.stdout == ""
+    assert (out.returncode, out.stdout) == (0, "")
+    assert [row["decision"] for row in _rows(tmp_path)] == ["ask"]
+
+
+def test_ask_is_emitted_under_default_permissions(tmp_path):
+    out = json.loads(_run_hook(tmp_path, "rm -rf x", mode="enforce").stdout)
+    assert out["hookSpecificOutput"]["permissionDecision"] == "ask"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ruff check --no-fix --output-file=x",
+        "python3 -m ruff check --no-fix --add-noqa",
+        "ruff check --no-fix @args",
+        "python3 -m pytest -collect-only",
+    ],
+)
+def test_allow_rules_reject_writing_options_and_argument_files(command):
+    assert _decide(command)["decision"] is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ruff check --no-fix --select=E501,F401 .",
+        "ruff check --no-fix --ignore=E501 .",
+        "tsc --noEmit --project=tsconfig.json",
+    ],
+)
+def test_equals_form_of_listed_options_is_allowed(command):
+    assert _decide(command)["decision"] == "allow"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo $((git push origin HEAD) )",
+        'echo "$((git push origin HEAD) )"',
+        "cat <<EOF\n$((git push origin HEAD) )\nEOF",
+        "echo $(echo $((git push origin HEAD) ))",
+        "echo $(( $((git push origin HEAD) ) ))",
+        "echo $((git push origin HEAD); true)",
+    ],
+)
+def test_double_paren_command_substitution_reaches_role_rules(command):
+    assert _decide(command, "software-engineer")["decision"] == "deny"
