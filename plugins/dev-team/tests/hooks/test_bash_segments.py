@@ -127,15 +127,6 @@ def test_unparseable_commands_raise(broken):
         bs.parse(broken)
 
 
-def test_deep_nesting_raises():
-    cmd = "ls"
-    for _ in range(12):
-        cmd = f"bash -c '{cmd}'".replace("'ls'", "ls")
-        cmd = "bash -c " + repr(cmd)
-    with pytest.raises(bs.Unparseable):
-        bs.parse(cmd)
-
-
 @pytest.mark.parametrize(
     "command",
     [
@@ -234,4 +225,14 @@ def test_shell_c_option_forms():
 def test_deep_nesting_is_rejected_and_eight_levels_parse():
     with pytest.raises(bs.Unparseable, match="nests too deeply"):
         bs.parse("$(" * 12 + "ls" + ")" * 12)
-    assert bs.parse("echo " + "$(echo " * 6 + "ls" + ")" * 6)
+    assert bs.parse("echo " + "$(echo " * 7 + "ls" + ")" * 7)
+    with pytest.raises(bs.Unparseable, match="nests too deeply"):
+        bs.parse("echo " + "$(echo " * 9 + "ls" + ")" * 9)
+
+
+def test_bash_script_after_an_operand_is_not_a_c_script():
+    assert bs.parse("bash script.sh -c x")[0].argv == ["bash", "script.sh", "-c", "x"]
+
+
+def test_escaped_backtick_in_unquoted_heredoc_is_text():
+    assert [s.argv for s in bs.parse("cat <<EOF\nRun \\`make\\` now\nEOF")] == [["cat"]]

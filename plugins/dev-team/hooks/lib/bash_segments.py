@@ -213,6 +213,9 @@ def _lift_embedded(body: str, nested: list[str]) -> None:
     """Lift every `$(...)`/backtick substitution inside arithmetic text."""
     i = 0
     while i < len(body):
+        if body[i] == "\\":  # an escaped backtick or `$` is literal text
+            i += 2
+            continue
         lifted = _lift_substitution(body, i, nested)
         i = lifted if lifted is not None else i + 1
 
@@ -437,7 +440,7 @@ def _matching_paren(command: str, start: int, arith: bool = False) -> int:
         if command.startswith("$((", i):
             i = _matching_paren(command, i + 2, arith=True) + 1
             continue
-        if command.startswith("((", i):
+        if not arith and command.startswith("((", i):
             raise Unparseable("arithmetic command ((...))")
         if command.startswith("<<<", i):
             i += 3
@@ -531,7 +534,7 @@ def _strip_wrapper(argv: list[str]) -> tuple[list[str], str, str]:
 # Variables whose assignment changes what later commands run or where they look.
 _DANGEROUS_VARIABLE_RE = re.compile(
     r"^(PATH|IFS|BASH_ENV|ENV|SHELLOPTS|BASHOPTS|PS4|PROMPT_COMMAND|CDPATH|HOME|SHELL"
-    r"|LD_\w*|DYLD_\w*|GIT_\w*|PYTHON\w*|NODE_\w*)="
+    r"|LD_\w*|DYLD_\w*|GIT_\w*|PYTHON\w*|NODE_\w*|XDG_\w*)="
 )
 
 

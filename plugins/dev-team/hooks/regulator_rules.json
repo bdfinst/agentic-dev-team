@@ -1,5 +1,5 @@
 {
-  "_doc": "Ordered rules, first match wins per segment. Fields: id, decision (allow|ask|deny), cmd (name or list), sub (git/gh subcommand), args_any (any argv word equals one), args_none (no argv word equals one), regex (on the joined argv), check (named Python predicate in bash_regulator.CHECKS), applies_to (agent_type globs; omit for every caller), subagents_only (true = never the main session), reason. Allow rules never match a segment that redirects to a file other than /dev/null. opts_re (every argv word starting with - must fully match it: an option allowlist). Allow rules never match an untrusted segment (env/xargs/exec wrappers, assignment prefixes, path-qualified commands, expansions, git global options).",
+  "_doc": "Ordered rules, first match wins per segment. Fields: id, decision (allow|ask|deny), cmd (name or list), sub (git/gh subcommand), args_any (any argv word equals one), args_none (no argv word equals one), regex (on the joined argv), check (named Python predicate in bash_regulator.CHECKS), applies_to (agent_type globs; omit for every caller), subagents_only (true = never the main session), reason. Allow rules never match a segment that redirects to a file other than /dev/null. opts_re (every argv word starting with - must fully match it: an option allowlist). Allow rules never match an untrusted segment (env/xargs/exec wrappers, assignment prefixes, path-qualified commands, expansions, git global options). not_applies_to (agent_type globs the rule never fires for). words_none_re (no argv word matches this regex).",
   "rules": [
     {
       "id": "deny-git-push-subagent",
@@ -177,7 +177,7 @@
         "check-ignore",
         "for-each-ref"
       ],
-      "opts_re": "--(?:since|until|grep|author|committer|format|pretty|untracked-files|ignore-submodules|diff-filter|date|abbrev|unified|max-count|skip|sort|count|points-at|contains|merged|no-merged|always|is-ancestor|all-match|invert-grep|regexp-ignore-case|extended-regexp|ancestry-path|simplify-by-decoration|date-order|topo-order|author-date-order|left-right|boundary|children|parents|no-abbrev|raw|compact-summary|word-diff|ignore-all-space|ignore-space-change|exit-code|quiet|ignored|ahead-behind|branch|tags|heads|all|branches|remotes|cached|staged|check|oneline|stat|numstat|shortstat|summary|name-only|name-status|short|long|porcelain|graph|decorate|no-merges|merges|abbrev-commit|abbrev-ref|symbolic-full-name|first-parent|reverse|show-toplevel|is-inside-work-tree|git-dir|verify|follow|full-name|exclude-standard|others|deleted|modified|stdin|no-color|color|no-pager|no-patch|patch|find-renames|find-copies|relative-date|line-number|files-with-matches|word-regexp|fixed-strings|ignore-case|count|name|symbolic|verbose|list)(?:=.*)?|-[sbvqzlpuwrtomSGaA]{1,4}|-[LU][\\d,+-]*|-u[a-z]*|-n\\d*|-\\d+|-[MC]\\d*|-",
+      "opts_re": "--(?:since|until|grep|author|committer|format|pretty|untracked-files|ignore-submodules|diff-filter|date|abbrev|unified|max-count|skip|sort|count|points-at|contains|merged|no-merged|always|is-ancestor|all-match|invert-grep|regexp-ignore-case|extended-regexp|ancestry-path|simplify-by-decoration|date-order|topo-order|author-date-order|left-right|boundary|children|parents|no-abbrev|raw|compact-summary|word-diff|ignore-all-space|ignore-space-change|exit-code|quiet|ignored|ahead-behind|branch|tags|heads|all|branches|remotes|cached|staged|check|oneline|stat|numstat|shortstat|summary|name-only|name-status|short|long|porcelain|graph|decorate|no-merges|merges|abbrev-commit|abbrev-ref|symbolic-full-name|first-parent|reverse|show-toplevel|is-inside-work-tree|git-dir|verify|follow|full-name|exclude-standard|others|deleted|modified|stdin|no-color|color|no-pager|no-patch|patch|find-renames|find-copies|relative-date|line-number|files-with-matches|word-regexp|fixed-strings|ignore-case|count|name|symbolic|verbose|list)(?:=.*)?|-[sbvqzlpuwrtomSGaA]{1,4}|-[LU][\\d,+-]*|-u[a-z]*|-n\\d*|-\\d+|-[MC]\\d*|-|--",
       "reason": "git read."
     },
     {
@@ -203,9 +203,29 @@
     {
       "id": "allow-test-runners",
       "decision": "allow",
-      "regex": "^(python3?|uv run python3?) -m (pytest|ruff check)( |$)|^(npm|pnpm|yarn) (test|run (test|lint|typecheck))$",
-      "opts_re": "--?(?:q|qq|v|vv|x|s|k|m|lf|ff|co|collect-only|no-header|disable-warnings|rA|ra|rf|rs|rx|rfE|tb=\\w+|maxfail=\\d+|durations=\\d+|no-cov|p)|--(?:select|ignore|statistics|show-fixes|no-cache|quiet|isolated|output-format=\\w+|exit-zero)|-q",
-      "reason": "Test, lint, typecheck."
+      "regex": "^python3? -m pytest( |$)|^(npm|pnpm|yarn) (test|run (test|lint|typecheck))$",
+      "opts_re": "--?(?:q|qq|v|vv|x|s|k|m|lf|ff|collect-only|no-header|disable-warnings|rA|ra|rf|rs|rx|rfE|tb=\\w+|maxfail=\\d+|durations=\\d+|no-cov)|-m",
+      "reason": "Run the project's tests (runs repo code by design; not for review agents).",
+      "words_none_re": "^@|^-p|^-c",
+      "not_applies_to": [
+        "*-review",
+        "plan-review-*"
+      ]
+    },
+    {
+      "id": "allow-ruff-check",
+      "decision": "allow",
+      "regex": "^(python3? -m )?ruff check( |$)",
+      "args_any": [
+        "--no-fix"
+      ],
+      "opts_re": "--(?:select|ignore|statistics|show-fixes|no-cache|quiet|isolated|output-format=\\w+|exit-zero|no-fix)|-q|-m",
+      "words_none_re": "^@|^-c",
+      "not_applies_to": [
+        "*-review",
+        "plan-review-*"
+      ],
+      "reason": "ruff check without applying fixes."
     },
     {
       "id": "allow-tsc-no-emit",
@@ -219,13 +239,18 @@
       "args_none": [
         "false",
         "true"
-      ]
+      ],
+      "words_none_re": "^@"
     },
     {
       "id": "allow-repo-scripts",
       "decision": "allow",
-      "regex": "^python3? (?!\\S*\\.\\.)(\\./)?(scripts|plugins/[\\w-]+/(scripts|hooks))/[\\w./-]+\\.py\\b",
-      "reason": "Repo-owned Python scripts."
+      "regex": "^python3? (?!\\S*\\.\\.)(\\./)?(scripts|plugins/[\\w-]+/(scripts|hooks))/[\\w./-]+\\.py(?= |$)",
+      "reason": "Repo-owned Python scripts (run repo code by design; not for review agents).",
+      "not_applies_to": [
+        "*-review",
+        "plan-review-*"
+      ]
     }
   ]
 }

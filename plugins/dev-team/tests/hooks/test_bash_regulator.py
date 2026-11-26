@@ -40,6 +40,7 @@ RULE_CASES = [
     ("gh pr view 12", "", "allow-gh-readonly", "allow"),
     ("python3 -m pytest -q", "", "allow-test-runners", "allow"),
     ("tsc --noEmit", "", "allow-tsc-no-emit", "allow"),
+    ("ruff check --no-fix .", "", "allow-ruff-check", "allow"),
     ("python3 scripts/ci_tree_cache.py", "", "allow-repo-scripts", "allow"),
 ]
 
@@ -484,7 +485,7 @@ def test_review_found_bypasses_are_not_auto_allowed(command):
         "git branch --merged main",
         "git branch -a",
         "python3 -m pytest -q -k name",
-        "python3 -m ruff check --select E .",
+        "python3 -m ruff check --no-fix --select E .",
         "sed -n '1,5p' f",
         "sed -n '/x/p' f",
         "sed 's/a/b/g' f",
@@ -598,3 +599,93 @@ def test_engineer_test_and_lint_rule_is_deliberately_unrestricted():
 
 def test_opaque_command_asks_before_a_role_deny():
     assert _decide("$CMD", "security-review")["decision"] == "ask"
+
+
+@pytest.mark.parametrize(
+    "command, decision",
+    [
+        ("printf '-va[$(touch /tmp/p)]' x", None),
+        ("printf -vPATH /tmp/evil; git status", None),
+        ("printf '%s' hello", "allow"),
+        ("git log --oneline -- path", "allow"),
+        ("git diff HEAD -- file", "allow"),
+        ("echo $(((1+2)*3))", None),
+        ("XDG_CONFIG_HOME=/tmp/c; git status", None),
+        ("python3 -m pytest @args.txt", None),
+        ("python3 -m pytest -p antigravity", None),
+        ("python3 -m pytest -co", None),
+        ("uv run python3 -m pytest -q", None),
+        ("python3 -m ruff check .", None),
+        ("python3 -m ruff check --no-fix .", "allow"),
+        ("python3 scripts/foo.py.txt", None),
+        ("python3 scripts/impact_tests.py build", "allow"),
+        ("tsc --noEmit @opts.rsp", None),
+        ("cat > README.md <<EOF\nRun \\`make\\` to build.\nEOF", None),
+        ("echo $((1<<2\n))\nrm -rf x\n2", "ask"),
+    ],
+)
+def test_round_four_findings_name_their_decision(command, decision):
+    assert _decide(command)["decision"] == decision, command
+
+
+def test_review_agents_never_auto_allow_repo_code_runners():
+    for command in (
+        "python3 -m pytest -q",
+        "python3 scripts/impact_tests.py build",
+        "ruff check --no-fix .",
+    ):
+        assert _decide(command, "security-review")["decision"] != "allow", command
+        assert _decide(command, "software-engineer")["decision"] == "allow", command
+
+
+@pytest.mark.parametrize(
+    "command, decision",
+    [
+        ("git tag -l", None),
+        ("git tag -n5", None),
+        ("git tag --contains HEAD", None),
+        ("git tag --sort=-creatordate", None),
+        ("git stash list", None),
+        ("git tag", None),
+    ],
+)
+def test_reviewer_tag_and_stash_listings_are_not_denied(command, decision):
+    assert _decide(command, "security-review")["decision"] != "deny", command
+
+
+def test_reviewer_tag_creation_is_denied():
+    for command in ("git tag v1", "git tag -d v1", "git tag -a v1 -m x"):
+        assert _decide(command, "security-review")["decision"] == "deny", command
+
+
+def test_deny_in_one_segment_beats_ask_in_another():
+    assert (
+        _decide("rm -rf x; git push origin x", "software-engineer")["decision"]
+        == "deny"
+    )
+
+
+@pytest.mark.parametrize(
+    "assignment",
+    [
+        "PATH",
+        "IFS",
+        "BASH_ENV",
+        "HOME",
+        "LD_PRELOAD",
+        "DYLD_INSERT_LIBRARIES",
+        "GIT_DIR",
+        "PYTHONPATH",
+        "NODE_OPTIONS",
+        "XDG_CONFIG_HOME",
+    ],
+)
+def test_every_dangerous_bare_assignment_blocks_the_next_allow(assignment):
+    assert _decide(f"{assignment}=/x; ls")["decision"] is None
+
+
+def test_ask_is_not_emitted_under_bypass_permissions(tmp_path):
+    out = _run_hook(
+        tmp_path, "rm -rf x", mode="enforce", permission_mode="bypassPermissions"
+    )
+    assert out.stdout == ""

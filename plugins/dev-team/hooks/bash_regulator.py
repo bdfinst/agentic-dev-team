@@ -171,8 +171,46 @@ def _git_reviewer_mutation(segment, argv) -> bool:
     if sub == "stash":
         return not (rest and rest[0] in ("list", "show"))
     if sub == "tag":
-        return bool(rest) and not any(w in ("-l", "--list", "-n") for w in rest)
+        return _git_tag_changes_repo(rest)
     return True
+
+
+_TAG_WRITE_FLAGS = {
+    "-d",
+    "-a",
+    "-s",
+    "-f",
+    "-m",
+    "-F",
+    "-u",
+    "--delete",
+    "--annotate",
+    "--sign",
+    "--force",
+}
+_TAG_VALUE_FLAGS = {
+    "--contains",
+    "--no-contains",
+    "--points-at",
+    "--merged",
+    "--no-merged",
+}
+
+
+def _git_tag_changes_repo(rest: list[str]) -> bool:
+    """`git tag` lists unless it carries a write flag or a name to create."""
+    if any(w in _TAG_WRITE_FLAGS for w in rest):
+        return True
+    listing = any(w in ("-l", "--list") or w.startswith("-n") for w in rest)
+    skip, positional = False, False
+    for w in rest:
+        if skip:
+            skip = False
+        elif w in _TAG_VALUE_FLAGS:
+            skip = True
+        elif not w.startswith("-"):
+            positional = True
+    return positional and not listing
 
 
 def _git_branch_only_lists(segment, argv) -> bool:
@@ -211,6 +249,8 @@ def _as_list(value) -> list:
 def _applies(rule: dict, agent_type: str) -> bool:
     if rule.get("subagents_only") and not agent_type:
         return False
+    if any(fnmatch.fnmatchcase(agent_type, p) for p in rule.get("not_applies_to", [])):
+        return False
     patterns = rule.get("applies_to")
     if patterns is None:
         return True
@@ -238,6 +278,10 @@ def _matches(rule: dict, segment, argv: list[str]) -> bool:
     if "args_none" in rule and set(argv[1:]) & set(rule["args_none"]):
         return False
     if "opts_re" in rule and not _options_match(rule["opts_re"], argv):
+        return False
+    if "words_none_re" in rule and any(
+        re.search(rule["words_none_re"], w) for w in argv[1:]
+    ):
         return False
     if "regex" in rule and not re.search(rule["regex"], " ".join(argv)):
         return False
@@ -324,7 +368,9 @@ def evaluate_segment(segment, rules, agent_type: str, careful: bool) -> dict | N
     untrusted = bool(segment.untrusted_reason) or "/" in segment.argv[0]
     if segment.cmd == "git" and len(argv) > 1 and argv[1].startswith("-"):
         untrusted = True
-    if segment.cmd in ("printf", "test", "[") and "-v" in argv[1:]:
+    if (segment.cmd == "printf" and any(w.startswith("-v") for w in argv[1:])) or (
+        segment.cmd in ("test", "[") and "-v" in argv[1:]
+    ):
         untrusted = True  # the variable operand is evaluated as an array subscript
     destructive = _destructive_rule(argv, careful)
     matched = None
